@@ -1,58 +1,31 @@
-import { useEffect, useState } from 'react'
 import './App.css'
+import { useAuth } from './auth/AuthContext'
+import { Header } from './components/Header'
+import { AuthPage } from './pages/AuthPage'
+import { HomePage } from './pages/HomePage'
+import { ProfilePage } from './pages/ProfilePage'
+import { TreesPage } from './pages/TreesPage'
+import { usePath } from './routing'
 
-type HealthState = 'checking' | 'ready' | 'unavailable'
+const protectedPaths = new Set(['/profile', '/trees'])
 
 export default function App() {
-  const [health, setHealth] = useState<HealthState>('checking')
+  const path = usePath()
+  const { isBooting, user } = useAuth()
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    fetch('/api/v1/health', { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Backend health check failed')
-        }
-
-        setHealth('ready')
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return
-        }
-
-        setHealth('unavailable')
-      })
-
-    return () => controller.abort()
-  }, [])
+  let page = <HomePage />
+  if (!isBooting && protectedPaths.has(path) && !user) {
+    page = <AuthPage />
+  } else if (path === '/profile' && user) {
+    page = <ProfilePage />
+  } else if (path === '/trees' && user) {
+    page = <TreesPage />
+  }
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <a className="brand" href="/" aria-label="MyGenoTree home">
-          <span className="brand-mark" aria-hidden="true">
-            ✣
-          </span>
-          <span>MyGenoTree</span>
-        </a>
-      </header>
-
-      <main className="welcome">
-        <p className="eyebrow">Local genealogy workspace</p>
-        <h1>Keep every family story connected.</h1>
-        <p className="welcome-copy">
-          The application workspace is ready. Account and tree tools are being
-          added as complete, tested feature slices.
-        </p>
-        <output className={`health health-${health}`} aria-live="polite">
-          <span aria-hidden="true" />
-          {health === 'checking' && 'Checking the local API…'}
-          {health === 'ready' && 'Local API connected'}
-          {health === 'unavailable' && 'Local API is unavailable'}
-        </output>
-      </main>
+      <Header />
+      {page}
     </div>
   )
 }
