@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\RefreshTokenRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -23,19 +22,19 @@ class RefreshToken
     private string $tokenHash;
 
     #[ORM\Column]
-    private DateTimeImmutable $expiresAt;
+    private \DateTimeImmutable $expiresAt;
 
     #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $usedAt = null;
+    private ?\DateTimeImmutable $usedAt = null;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     public function __construct(
         AuthSession $session,
         string $tokenHash,
-        DateTimeImmutable $expiresAt,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $expiresAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->session = $session;
@@ -59,12 +58,12 @@ class RefreshToken
         return null !== $this->usedAt;
     }
 
-    public function isExpired(DateTimeImmutable $now): bool
+    public function isExpired(\DateTimeImmutable $now): bool
     {
         return $this->expiresAt <= $now;
     }
 
-    public function markUsed(DateTimeImmutable $usedAt): void
+    public function markUsed(\DateTimeImmutable $usedAt): void
     {
         $this->usedAt ??= $usedAt;
     }

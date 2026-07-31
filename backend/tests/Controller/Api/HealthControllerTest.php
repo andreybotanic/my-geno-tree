@@ -15,7 +15,7 @@ final class HealthControllerTest extends WebTestCase
         self::assertResponseFormatSame('json');
         self::assertJsonStringEqualsJsonString(
             '{"status":"ok"}',
-            (string) $client->getResponse()->getContent(),
+            (string)$client->getResponse()->getContent(),
         );
     }
 }

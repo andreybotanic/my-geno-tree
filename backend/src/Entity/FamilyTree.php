@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\FamilyTreeRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -31,15 +30,15 @@ class FamilyTree
     private int $version = 1;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $updatedAt;
 
     public function __construct(
         User $owner,
         string $name,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->owner = $owner;
@@ -68,17 +67,17 @@ class FamilyTree
         return $this->version;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): DateTimeImmutable
+    public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
     }
 
-    public function rename(string $name, DateTimeImmutable $changedAt): bool
+    public function rename(string $name, \DateTimeImmutable $changedAt): bool
     {
         if ($name === $this->name) {
             return false;
@@ -90,7 +89,7 @@ class FamilyTree
         return true;
     }
 
-    public function touch(DateTimeImmutable $changedAt): void
+    public function touch(\DateTimeImmutable $changedAt): void
     {
         ++$this->version;
         $this->updatedAt = $changedAt;

@@ -2,10 +2,7 @@
 
 namespace App\Api;
 
-use RuntimeException;
-use Throwable;
-
-final class ApiException extends RuntimeException
+final class ApiException extends \RuntimeException
 {
     /**
      * @param array<string, list<string>> $fields
@@ -17,7 +14,7 @@ final class ApiException extends RuntimeException
         private readonly ?string $messageKey = null,
         private readonly array $fields = [],
         private readonly array $details = [],
-        ?Throwable $previous = null,
+        ?\Throwable $previous = null,
     ) {
         parent::__construct($errorCode, previous: $previous);
     }

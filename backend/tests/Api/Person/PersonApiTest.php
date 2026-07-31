@@ -97,7 +97,7 @@ final class PersonApiTest extends ApiWebTestCase
 
         $this->jsonRequest(
             'GET',
-            '/api/v1/trees/'.$tree['id'].'/snapshot',
+            '/api/v1/trees/' . $tree['id'] . '/snapshot',
             headers: $this->authorization($accessToken),
         );
         self::assertResponseIsSuccessful();
@@ -134,7 +134,7 @@ final class PersonApiTest extends ApiWebTestCase
                     'state' => 'known',
                     'value' => 'Анна',
                 ],
-                'gender' => 'female',
+                'gender'    => 'female',
                 'birthDate' => $this->knownDate('year', 1900, true),
                 'deathDate' => null,
             ],
@@ -208,11 +208,11 @@ final class PersonApiTest extends ApiWebTestCase
             ]),
             $this->person([
                 'birthDate' => [
-                    'state' => 'known',
-                    'precision' => 'day',
-                    'year' => 1900,
-                    'month' => 2,
-                    'day' => 30,
+                    'state'       => 'known',
+                    'precision'   => 'day',
+                    'year'        => 1900,
+                    'month'       => 2,
+                    'day'         => 30,
                     'approximate' => false,
                 ],
             ]),
@@ -252,14 +252,14 @@ final class PersonApiTest extends ApiWebTestCase
         $accessToken = $this->register();
         $tree = $this->createTree($accessToken, 'History');
         $server = [
-            'HTTPS' => 'on',
-            'HTTP_AUTHORIZATION' => 'Bearer '.$accessToken,
-            'HTTP_IF_MATCH' => $tree['etag'],
+            'HTTPS'              => 'on',
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $accessToken,
+            'HTTP_IF_MATCH'      => $tree['etag'],
         ];
 
         $this->client->request(
             'POST',
-            'https://localhost/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            'https://localhost/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             server: [...$server, 'CONTENT_TYPE' => 'application/json'],
             content: '{',
         );
@@ -271,7 +271,7 @@ final class PersonApiTest extends ApiWebTestCase
 
         $this->client->request(
             'POST',
-            'https://localhost/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            'https://localhost/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             server: [...$server, 'CONTENT_TYPE' => 'application/json'],
             content: '[]',
         );
@@ -279,7 +279,7 @@ final class PersonApiTest extends ApiWebTestCase
 
         $this->client->request(
             'POST',
-            'https://localhost/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            'https://localhost/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             server: [...$server, 'CONTENT_TYPE' => 'text/plain'],
             content: '{}',
         );
@@ -334,11 +334,11 @@ final class PersonApiTest extends ApiWebTestCase
 
         $secondToken = $this->register([
             'username' => 'second_owner',
-            'email' => 'second@example.test',
+            'email'    => 'second@example.test',
         ]);
         $this->jsonRequest(
             'GET',
-            '/api/v1/trees/'.$firstTree['id'].'/snapshot',
+            '/api/v1/trees/' . $firstTree['id'] . '/snapshot',
             headers: $this->authorization($secondToken),
         );
         self::assertResponseStatusCodeSame(404);
@@ -394,10 +394,10 @@ final class PersonApiTest extends ApiWebTestCase
     ): array {
         $this->jsonRequest(
             'POST',
-            '/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type' => 'create_first_person',
-                'person' => $person,
+                'type'        => 'create_first_person',
+                'person'      => $person,
                 'coordinates' => $coordinates,
             ],
             [
@@ -440,11 +440,11 @@ final class PersonApiTest extends ApiWebTestCase
     {
         return array_replace([
             'birthSurname' => ['state' => 'unknown'],
-            'givenName' => ['state' => 'unknown'],
-            'patronymic' => ['state' => 'unknown'],
-            'gender' => 'unknown',
-            'birthDate' => ['state' => 'unknown'],
-            'deathDate' => null,
+            'givenName'    => ['state' => 'unknown'],
+            'patronymic'   => ['state' => 'unknown'],
+            'gender'       => 'unknown',
+            'birthDate'    => ['state' => 'unknown'],
+            'deathDate'    => null,
         ], $overrides);
     }
 
@@ -459,9 +459,9 @@ final class PersonApiTest extends ApiWebTestCase
         ?int $day = null,
     ): array {
         $date = [
-            'state' => 'known',
-            'precision' => $precision,
-            'year' => $year,
+            'state'       => 'known',
+            'precision'   => $precision,
+            'year'        => $year,
             'approximate' => $approximate,
         ];
         if (null !== $month) {
@@ -479,6 +479,6 @@ final class PersonApiTest extends ApiWebTestCase
      */
     private function authorization(string $accessToken): array
     {
-        return ['Authorization' => 'Bearer '.$accessToken];
+        return ['Authorization' => 'Bearer ' . $accessToken];
     }
 }

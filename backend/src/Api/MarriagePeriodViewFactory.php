@@ -19,8 +19,8 @@ final readonly class MarriagePeriodViewFactory
         $dissolutionDate = $marriage->getDissolutionDate();
 
         return [
-            'id' => $marriage->getId()->toRfc4122(),
-            'malePersonId' => $marriage->getMalePerson()->getId()->toRfc4122(),
+            'id'             => $marriage->getId()->toRfc4122(),
+            'malePersonId'   => $marriage->getMalePerson()->getId()->toRfc4122(),
             'femalePersonId' => $marriage
                 ->getFemalePerson()
                 ->getId()

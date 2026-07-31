@@ -6,7 +6,6 @@ use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
 use App\Entity\Value\GenealogicalDate;
 use App\Repository\GenealogicalEventRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -55,10 +54,10 @@ class GenealogicalEvent
     private ?int $manualOrder;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $updatedAt;
 
     /**
      * @param array<string, mixed> $data
@@ -74,7 +73,7 @@ class GenealogicalEvent
         ?string $sourceEntityType,
         ?Uuid $sourceEntityId,
         ?int $manualOrder,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->person = $person;
@@ -95,7 +94,7 @@ class GenealogicalEvent
         Person $person,
         EventType $type,
         GenealogicalDate $date,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): self {
         return new self(
             $person,
@@ -122,7 +121,7 @@ class GenealogicalEvent
         string $sourceEntityType,
         Uuid $sourceEntityId,
         array $data,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): self {
         return new self(
             $person,
@@ -149,7 +148,7 @@ class GenealogicalEvent
         ?string $title,
         ?string $description,
         array $data,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): self {
         return new self(
             $person,
@@ -224,19 +223,19 @@ class GenealogicalEvent
         return $this->manualOrder;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): DateTimeImmutable
+    public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
     }
 
     public function changeAutomaticDate(
         GenealogicalDate $date,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->date = $date;
         $this->updatedAt = $changedAt;
@@ -248,7 +247,7 @@ class GenealogicalEvent
     public function changeAutomatic(
         GenealogicalDate $date,
         array $data,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->date = $date;
         $this->data = $data;
@@ -264,7 +263,7 @@ class GenealogicalEvent
         ?string $title,
         ?string $description,
         array $data,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->type = $type;
         $this->date = $date;
@@ -276,7 +275,7 @@ class GenealogicalEvent
 
     public function changeManualOrder(
         ?int $manualOrder,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->manualOrder = $manualOrder;
         $this->updatedAt = $changedAt;

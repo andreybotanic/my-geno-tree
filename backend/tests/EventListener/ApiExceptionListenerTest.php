@@ -8,7 +8,6 @@ use App\EventListener\ApiExceptionListener;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -20,7 +19,7 @@ final class ApiExceptionListenerTest extends TestCase
 {
     public function testNonApiExceptionsAreIgnored(): void
     {
-        $event = $this->event('/profile', new RuntimeException());
+        $event = $this->event('/profile', new \RuntimeException());
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
@@ -106,7 +105,7 @@ final class ApiExceptionListenerTest extends TestCase
 
     public function testUnexpectedExceptionIsLoggedAndHidden(): void
     {
-        $throwable = new RuntimeException('sensitive');
+        $throwable = new \RuntimeException('sensitive');
         $event = $this->event('/api/v1/test', $throwable);
         $logger = self::createMock(LoggerInterface::class);
         $logger
@@ -124,7 +123,7 @@ final class ApiExceptionListenerTest extends TestCase
         self::assertSame('INTERNAL_ERROR', $this->responseCode($event));
         self::assertStringNotContainsString(
             'sensitive',
-            (string) $event->getResponse()->getContent(),
+            (string)$event->getResponse()->getContent(),
         );
     }
 

@@ -4,7 +4,6 @@ namespace App\Application\Auth;
 
 use App\Entity\AuthSession;
 use App\Entity\RefreshToken;
-use DateTimeImmutable;
 
 final readonly class TokenBundle
 {
@@ -13,8 +12,8 @@ final readonly class TokenBundle
         public RefreshToken $refreshTokenEntity,
         public string $accessToken,
         public string $refreshToken,
-        public DateTimeImmutable $accessExpiresAt,
-        public DateTimeImmutable $refreshExpiresAt,
+        public \DateTimeImmutable $accessExpiresAt,
+        public \DateTimeImmutable $refreshExpiresAt,
     ) {
     }
 }

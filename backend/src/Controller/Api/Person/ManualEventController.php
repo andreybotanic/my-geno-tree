@@ -142,7 +142,7 @@ final readonly class ManualEventController
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
             'event' => $this->views->create($event),
-            'etag' => $etag,
+            'etag'  => $etag,
         ], $status);
         $response->headers->set('ETag', $etag);
 

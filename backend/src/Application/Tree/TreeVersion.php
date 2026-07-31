@@ -31,10 +31,6 @@ final class TreeVersion
             return;
         }
 
-        throw new ApiException(
-            JsonResponse::HTTP_PRECONDITION_FAILED,
-            'TREE_VERSION_CONFLICT',
-            'tree_version_conflict',
-        );
+        throw new ApiException(JsonResponse::HTTP_PRECONDITION_FAILED, 'TREE_VERSION_CONFLICT', 'tree_version_conflict');
     }
 }

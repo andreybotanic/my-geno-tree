@@ -148,7 +148,7 @@ final readonly class PersonPhotoController
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
             'person' => $this->personViews->create($person),
-            'etag' => $etag,
+            'etag'   => $etag,
         ]);
         $response->headers->set('ETag', $etag);
 

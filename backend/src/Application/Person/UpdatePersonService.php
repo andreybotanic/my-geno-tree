@@ -3,8 +3,8 @@
 namespace App\Application\Person;
 
 use App\Application\Event\AutomaticEventSynchronizer;
-use App\Application\Tree\TreeVersion;
 use App\Application\Tree\GraphInvariantPolicy;
+use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
 use Doctrine\DBAL\LockMode;

@@ -16,20 +16,35 @@ final readonly class GenealogicalDateViewFactory
             return ['state' => 'unknown'];
         }
 
-        $view = [
-            'state' => 'known',
-            'precision' => $date->getPrecision()?->value,
-            'year' => $date->getYear(),
-            'approximate' => $date->isApproximate(),
-        ];
-        if (DatePrecision::YEAR !== $date->getPrecision()) {
-            $view['month'] = $date->getMonth();
-        }
-        if (DatePrecision::DAY === $date->getPrecision()) {
-            $view['day'] = $date->getDay();
+        $precision = $date->getPrecision();
+        $year = $date->getYear();
+        if (null === $precision || null === $year) {
+            throw new \LogicException('Known genealogical dates require precision and year.');
         }
 
-        /** @var array<string, bool|int|string> $view */
+        $view = [
+            'state'       => 'known',
+            'precision'   => $precision->value,
+            'year'        => $year,
+            'approximate' => $date->isApproximate(),
+        ];
+        if (DatePrecision::YEAR !== $precision) {
+            $month = $date->getMonth();
+            if (null === $month) {
+                throw new \LogicException('Month and day precision require a month.');
+            }
+
+            $view['month'] = $month;
+        }
+        if (DatePrecision::DAY === $precision) {
+            $day = $date->getDay();
+            if (null === $day) {
+                throw new \LogicException('Day precision requires a day.');
+            }
+
+            $view['day'] = $day;
+        }
+
         return $view;
     }
 }

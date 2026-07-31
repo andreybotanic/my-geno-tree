@@ -37,10 +37,10 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertTrue($cookie->isSecure());
         self::assertTrue($cookie->isHttpOnly());
         self::assertSame('/api/v1/auth', $cookie->getPath());
-        self::assertSame('strict', strtolower((string) $cookie->getSameSite()));
+        self::assertSame('strict', strtolower((string)$cookie->getSameSite()));
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer '.$data['accessToken'],
+            'Authorization' => 'Bearer ' . $data['accessToken'],
         ]);
         self::assertResponseIsSuccessful();
         self::assertSame($userId, $this->responseData()['id']);
@@ -88,7 +88,7 @@ final class RegistrationApiTest extends ApiWebTestCase
             'email_invalid',
         ];
         yield 'email over storage limit' => [
-            ['email' => str_repeat('a', 243).'@example.test'],
+            ['email' => str_repeat('a', 243) . '@example.test'],
             'email',
             'email_invalid',
         ];
@@ -124,7 +124,7 @@ final class RegistrationApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration([
                 'username' => 'another_user',
-                'email' => 'FAMILY@example.test',
+                'email'    => 'FAMILY@example.test',
             ]),
         );
         self::assertResponseStatusCodeSame(409);
@@ -148,7 +148,7 @@ final class RegistrationApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration([
                 'username' => 'caseuser',
-                'email' => 'other@example.test',
+                'email'    => 'other@example.test',
             ]),
         );
         self::assertResponseStatusCodeSame(201);
@@ -161,7 +161,7 @@ final class RegistrationApiTest extends ApiWebTestCase
             'https://localhost/api/v1/auth/register',
             server: [
                 'CONTENT_TYPE' => 'application/json',
-                'HTTPS' => 'on',
+                'HTTPS'        => 'on',
             ],
             content: '{',
         );

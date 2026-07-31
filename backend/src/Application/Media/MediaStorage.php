@@ -5,7 +5,6 @@ namespace App\Application\Media;
 use App\Entity\MediaObject;
 use App\Entity\MediaVariant;
 use App\Entity\User;
-use DateTimeImmutable;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 
@@ -23,7 +22,7 @@ final readonly class MediaStorage
     public function store(
         User $owner,
         array $variants,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): MediaObject {
         $media = new MediaObject($owner, $createdAt);
         $written = [];

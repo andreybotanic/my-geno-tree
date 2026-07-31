@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\MediaAttachmentRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -30,14 +29,14 @@ class MediaAttachment
     private ?Person $person;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     private function __construct(
         MediaObject $media,
         MediaAttachmentType $type,
         ?User $user,
         ?Person $person,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->media = $media;
@@ -50,7 +49,7 @@ class MediaAttachment
     public static function avatar(
         MediaObject $media,
         User $user,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): self {
         $attachment = new self(
             $media,
@@ -67,7 +66,7 @@ class MediaAttachment
     public static function personPhoto(
         MediaObject $media,
         Person $person,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ): self {
         $attachment = new self(
             $media,
@@ -96,7 +95,7 @@ class MediaAttachment
         return $this->type;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }

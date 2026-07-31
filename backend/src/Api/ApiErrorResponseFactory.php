@@ -9,9 +9,9 @@ final class ApiErrorResponseFactory
     public function create(ApiException $exception): JsonResponse
     {
         return new JsonResponse([
-            'code' => $exception->getErrorCode(),
+            'code'    => $exception->getErrorCode(),
             'message' => $exception->getMessageKey(),
-            'fields' => $exception->getFields(),
+            'fields'  => $exception->getFields(),
             'details' => $exception->getDetails(),
         ], $exception->getStatus());
     }

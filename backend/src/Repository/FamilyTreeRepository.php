@@ -58,12 +58,12 @@ final class FamilyTreeRepository extends ServiceEntityRepository
                 ->setParameter('except', $except->getId());
         }
 
-        return 0 < (int) $builder->getQuery()->getSingleScalarResult();
+        return 0 < (int)$builder->getQuery()->getSingleScalarResult();
     }
 
     public function countAll(): int
     {
-        return (int) $this->createQueryBuilder('tree')
+        return (int)$this->createQueryBuilder('tree')
             ->select('COUNT(tree.id)')
             ->getQuery()
             ->getSingleScalarResult();

@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+repository_root=$(git rev-parse --show-toplevel)
+cd "$repository_root"
+
+echo 'Running backend quality checks...'
+docker compose exec -T backend composer quality
+
+echo 'Running frontend quality checks...'
+docker compose exec -T frontend npm run quality

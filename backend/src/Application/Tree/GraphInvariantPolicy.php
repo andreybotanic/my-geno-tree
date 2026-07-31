@@ -3,6 +3,7 @@
 namespace App\Application\Tree;
 
 use App\Api\ApiException;
+use App\Application\Person\PersonData;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
@@ -10,7 +11,6 @@ use App\Entity\Person;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\ParentRole;
-use App\Application\Person\PersonData;
 use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
 use App\Repository\PersonRepository;
@@ -388,20 +388,11 @@ final readonly class GraphInvariantPolicy
 
     private function invalid(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'GRAPH_INVARIANT_VIOLATION',
-            'graph_invariant_violation',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'GRAPH_INVARIANT_VIOLATION', 'graph_invariant_violation', [$field => [$error]]);
     }
 
     private function conflict(string $code): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_CONFLICT,
-            $code,
-            strtolower($code),
-        );
+        throw new ApiException(JsonResponse::HTTP_CONFLICT, $code, strtolower($code));
     }
 }

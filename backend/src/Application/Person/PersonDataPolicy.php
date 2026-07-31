@@ -74,16 +74,16 @@ final readonly class PersonDataPolicy
         $this->assertExactKeys($payload, ['x', 'y'], 'coordinates');
         foreach (['x', 'y'] as $field) {
             if (!is_int($payload[$field]) && !is_float($payload[$field])) {
-                $this->fail('coordinates.'.$field, 'finite_number_required');
+                $this->fail('coordinates.' . $field, 'finite_number_required');
             }
-            if (!is_finite((float) $payload[$field])) {
-                $this->fail('coordinates.'.$field, 'finite_number_required');
+            if (!is_finite((float)$payload[$field])) {
+                $this->fail('coordinates.' . $field, 'finite_number_required');
             }
         }
 
         return new Coordinates(
-            (float) $payload['x'],
-            (float) $payload['y'],
+            (float)$payload['x'],
+            (float)$payload['y'],
         );
     }
 
@@ -191,11 +191,11 @@ final readonly class PersonDataPolicy
             $this->fail($field, 'known_or_unknown_required');
         }
         if (!is_string($payload['precision'] ?? null)) {
-            $this->fail($field.'.precision', 'date_precision_invalid');
+            $this->fail($field . '.precision', 'date_precision_invalid');
         }
         $precision = DatePrecision::tryFrom($payload['precision']);
         if (null === $precision) {
-            $this->fail($field.'.precision', 'date_precision_invalid');
+            $this->fail($field . '.precision', 'date_precision_invalid');
         }
         $keys = match ($precision) {
             DatePrecision::YEAR => [
@@ -226,16 +226,16 @@ final readonly class PersonDataPolicy
             || $payload['year'] < 1582
             || $payload['year'] > 9999
         ) {
-            $this->fail($field.'.year', 'date_year_invalid');
+            $this->fail($field . '.year', 'date_year_invalid');
         }
         if (!is_bool($payload['approximate'])) {
-            $this->fail($field.'.approximate', 'boolean_required');
+            $this->fail($field . '.approximate', 'boolean_required');
         }
         if (
             DatePrecision::YEAR !== $precision
             && $payload['approximate']
         ) {
-            $this->fail($field.'.approximate', 'approximate_year_only');
+            $this->fail($field . '.approximate', 'approximate_year_only');
         }
 
         $month = $payload['month'] ?? null;
@@ -244,7 +244,7 @@ final readonly class PersonDataPolicy
             DatePrecision::YEAR !== $precision
             && (!is_int($month) || $month < 1 || $month > 12)
         ) {
-            $this->fail($field.'.month', 'date_month_invalid');
+            $this->fail($field . '.month', 'date_month_invalid');
         }
         if (
             DatePrecision::DAY === $precision
@@ -253,7 +253,7 @@ final readonly class PersonDataPolicy
                 || !checkdate($month, $day, $payload['year'])
             )
         ) {
-            $this->fail($field.'.day', 'date_day_invalid');
+            $this->fail($field . '.day', 'date_day_invalid');
         }
 
         return GenealogicalDate::known(
@@ -289,7 +289,7 @@ final readonly class PersonDataPolicy
         $this->assertAllowedKeys($payload, $expected, $field);
         foreach ($expected as $key) {
             if (!array_key_exists($key, $payload)) {
-                $this->fail($field.'.'.$key, 'field_required');
+                $this->fail($field . '.' . $key, 'field_required');
             }
         }
     }
@@ -305,18 +305,13 @@ final readonly class PersonDataPolicy
     ): void {
         foreach (array_keys($payload) as $key) {
             if (!in_array($key, $allowed, true)) {
-                $this->fail($field.'.'.$key, 'field_not_allowed');
+                $this->fail($field . '.' . $key, 'field_not_allowed');
             }
         }
     }
 
     private function fail(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'PERSON_DATA_INVALID',
-            'person_data_invalid',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'PERSON_DATA_INVALID', 'person_data_invalid', [$field => [$error]]);
     }
 }

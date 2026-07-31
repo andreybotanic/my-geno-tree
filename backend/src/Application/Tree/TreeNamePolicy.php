@@ -11,12 +11,7 @@ final class TreeNamePolicy
     {
         $name = trim($name);
         if ('' === $name || mb_strlen($name) > 100) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-                'VALIDATION_FAILED',
-                'validation_failed',
-                ['name' => ['tree_name_invalid']],
-            );
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'VALIDATION_FAILED', 'validation_failed', ['name' => ['tree_name_invalid']]);
         }
 
         return $name;

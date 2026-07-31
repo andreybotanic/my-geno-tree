@@ -3,9 +3,9 @@
 namespace App\Application\Media;
 
 use App\Api\ApiException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final readonly class CropAreaPolicy
 {
@@ -42,12 +42,7 @@ final readonly class CropAreaPolicy
     {
         $file = $request->files->get('image');
         if (!$file instanceof UploadedFile) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-                'IMAGE_REQUIRED',
-                'image_required',
-                ['image' => ['image_file_required']],
-            );
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'IMAGE_REQUIRED', 'image_required', ['image' => ['image_file_required']]);
         }
 
         return $file;
@@ -55,11 +50,6 @@ final readonly class CropAreaPolicy
 
     private function invalid(string $field): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'IMAGE_CROP_INVALID',
-            'image_crop_invalid',
-            [$field => ['crop_value_invalid']],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'IMAGE_CROP_INVALID', 'image_crop_invalid', [$field => ['crop_value_invalid']]);
     }
 }

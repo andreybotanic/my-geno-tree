@@ -17,7 +17,7 @@ final readonly class KnownTextViewFactory
 
         return [
             'state' => 'known',
-            'value' => (string) $text->getValue(),
+            'value' => (string)$text->getValue(),
         ];
     }
 }

@@ -14,7 +14,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame([
             'accountCount' => 0,
-            'treeCount' => 0,
+            'treeCount'    => 0,
         ], $this->responseData());
 
         $accessToken = $this->register();
@@ -24,7 +24,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame([
             'accountCount' => 1,
-            'treeCount' => 1,
+            'treeCount'    => 1,
         ], $this->responseData());
     }
 
@@ -46,7 +46,7 @@ final class TreeApiTest extends ApiWebTestCase
         $second = $this->createTree($accessToken, 'Second family');
 
         $this->jsonRequest('GET', '/api/v1/trees', headers: [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
 
         self::assertResponseIsSuccessful();
@@ -64,7 +64,7 @@ final class TreeApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', '/api/v1/trees', [
             'name' => 'Family',
         ], [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
@@ -79,7 +79,7 @@ final class TreeApiTest extends ApiWebTestCase
             $this->jsonRequest('POST', '/api/v1/trees', [
                 'name' => $invalidName,
             ], [
-                'Authorization' => 'Bearer '.$accessToken,
+                'Authorization' => 'Bearer ' . $accessToken,
             ]);
             self::assertResponseStatusCodeSame(422);
             self::assertSame(
@@ -152,16 +152,16 @@ final class TreeApiTest extends ApiWebTestCase
 
         $this->jsonRequest(
             'DELETE',
-            '/api/v1/trees/'.$tree['id'],
+            '/api/v1/trees/' . $tree['id'],
             headers: [
-                'Authorization' => 'Bearer '.$accessToken,
-                'If-Match' => $tree['etag'],
+                'Authorization' => 'Bearer ' . $accessToken,
+                'If-Match'      => $tree['etag'],
             ],
         );
         self::assertResponseStatusCodeSame(204);
 
         $this->jsonRequest('GET', '/api/v1/trees', headers: [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
         self::assertSame([], $this->responseData()['items']);
 
@@ -176,7 +176,7 @@ final class TreeApiTest extends ApiWebTestCase
 
         $this->jsonRequest('POST', '/api/v1/auth/register', [
             'username' => 'second_owner',
-            'email' => 'second@example.test',
+            'email'    => 'second@example.test',
             'password' => 'StrongPass2!',
             'language' => 'en',
         ]);
@@ -204,7 +204,7 @@ final class TreeApiTest extends ApiWebTestCase
         );
 
         $this->jsonRequest('GET', '/api/v1/trees', headers: [
-            'Authorization' => 'Bearer '.$secondAccessToken,
+            'Authorization' => 'Bearer ' . $secondAccessToken,
         ]);
         self::assertSame([], $this->responseData()['items']);
     }
@@ -229,7 +229,7 @@ final class TreeApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', '/api/v1/trees', [
             'name' => $name,
         ], [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
         self::assertResponseStatusCodeSame(201);
 
@@ -242,13 +242,13 @@ final class TreeApiTest extends ApiWebTestCase
         string $name,
         ?string $etag,
     ): void {
-        $headers = ['Authorization' => 'Bearer '.$accessToken];
+        $headers = ['Authorization' => 'Bearer ' . $accessToken];
         if (null !== $etag) {
             $headers['If-Match'] = $etag;
         }
         $this->jsonRequest(
             'PATCH',
-            '/api/v1/trees/'.$treeId,
+            '/api/v1/trees/' . $treeId,
             ['name' => $name],
             $headers,
         );

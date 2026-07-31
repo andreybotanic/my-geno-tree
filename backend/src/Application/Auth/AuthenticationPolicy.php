@@ -14,10 +14,6 @@ final class AuthenticationPolicy
             return;
         }
 
-        throw new ApiException(
-            JsonResponse::HTTP_FORBIDDEN,
-            'EMAIL_NOT_VERIFIED',
-            'email_not_verified',
-        );
+        throw new ApiException(JsonResponse::HTTP_FORBIDDEN, 'EMAIL_NOT_VERIFIED', 'email_not_verified');
     }
 }

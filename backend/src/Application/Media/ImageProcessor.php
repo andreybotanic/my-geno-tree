@@ -4,7 +4,6 @@ namespace App\Application\Media;
 
 use App\Api\ApiException;
 use App\Entity\MediaVariantType;
-use GdImage;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -65,7 +64,7 @@ final readonly class ImageProcessor
         ];
     }
 
-    private function decode(UploadedFile $file): GdImage
+    private function decode(UploadedFile $file): \GdImage
     {
         if (!$file->isValid()) {
             if (
@@ -115,7 +114,7 @@ final readonly class ImageProcessor
             : $image;
     }
 
-    private function orientJpeg(GdImage $image, UploadedFile $file): GdImage
+    private function orientJpeg(\GdImage $image, UploadedFile $file): \GdImage
     {
         $exif = @exif_read_data($file->getPathname());
         $orientation = is_array($exif)
@@ -123,9 +122,9 @@ final readonly class ImageProcessor
             ? $exif['Orientation']
             : 1;
         $angle = match ($orientation) {
-            3 => 180,
-            6 => -90,
-            8 => 90,
+            3       => 180,
+            6       => -90,
+            8       => 90,
             default => 0,
         };
         if (0 === $angle) {
@@ -140,7 +139,7 @@ final readonly class ImageProcessor
     }
 
     private function assertCrop(
-        GdImage $image,
+        \GdImage $image,
         CropArea $crop,
         float $aspect,
     ): void {
@@ -149,17 +148,12 @@ final readonly class ImageProcessor
             || $crop->y + $crop->height > imagesy($image)
             || 0.02 < abs($crop->width / $crop->height - $aspect)
         ) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-                'IMAGE_CROP_INVALID',
-                'image_crop_invalid',
-                ['crop' => ['crop_outside_image_or_aspect_invalid']],
-            );
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'IMAGE_CROP_INVALID', 'image_crop_invalid', ['crop' => ['crop_outside_image_or_aspect_invalid']]);
         }
     }
 
     private function crop(
-        GdImage $source,
+        \GdImage $source,
         CropArea $crop,
         MediaVariantType $type,
         int $width,
@@ -183,7 +177,7 @@ final readonly class ImageProcessor
     }
 
     private function resize(
-        GdImage $source,
+        \GdImage $source,
         MediaVariantType $type,
         int $width,
         int $height,
@@ -205,7 +199,7 @@ final readonly class ImageProcessor
         return $this->variant($target, $type, $width, $height);
     }
 
-    private function canvas(int $width, int $height): GdImage
+    private function canvas(int $width, int $height): \GdImage
     {
         if (0 >= $width || 0 >= $height) {
             throw new \LogicException('Image dimensions must be positive.');
@@ -223,7 +217,7 @@ final readonly class ImageProcessor
     }
 
     private function variant(
-        GdImage $image,
+        \GdImage $image,
         MediaVariantType $type,
         int $width,
         int $height,
@@ -247,35 +241,23 @@ final readonly class ImageProcessor
         $scale = min(1, $maximum / max($width, $height));
 
         return [
-            max(1, (int) round($width * $scale)),
-            max(1, (int) round($height * $scale)),
+            max(1, (int)round($width * $scale)),
+            max(1, (int)round($height * $scale)),
         ];
     }
 
     private function tooLarge(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_REQUEST_ENTITY_TOO_LARGE,
-            'IMAGE_TOO_LARGE',
-            'image_too_large',
-        );
+        throw new ApiException(JsonResponse::HTTP_REQUEST_ENTITY_TOO_LARGE, 'IMAGE_TOO_LARGE', 'image_too_large');
     }
 
     private function dimensionsInvalid(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'IMAGE_DIMENSIONS_INVALID',
-            'image_dimensions_invalid',
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'IMAGE_DIMENSIONS_INVALID', 'image_dimensions_invalid');
     }
 
     private function unsupported(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE,
-            'IMAGE_TYPE_UNSUPPORTED',
-            'image_type_unsupported',
-        );
+        throw new ApiException(JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE, 'IMAGE_TYPE_UNSUPPORTED', 'image_type_unsupported');
     }
 }

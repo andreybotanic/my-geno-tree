@@ -7,8 +7,13 @@ parameters:
     paths:
         - src
         - tests
-    tmpDir: var/cache/phpstan
-    ignoreErrors:
-        -
-            identifier: method.unused
-            path: src/Kernel.php
+    checkMissingTypehints: true
+    treatPhpDocTypesAsCertain: false
+    symfony:
+        containerXmlPath: var/cache/dev/App_KernelDevDebugContainer.xml
+    doctrine:
+        allowNullablePropertyForRequiredField: true
+    excludePaths:
+        analyse:
+            - src/Kernel.php
+    tmpDir: var/phpstan

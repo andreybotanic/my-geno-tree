@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\MediaObjectRepository;
-use DateTimeImmutable;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -31,9 +30,9 @@ class MediaObject
     private Collection $variants;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
-    public function __construct(User $owner, DateTimeImmutable $createdAt)
+    public function __construct(User $owner, \DateTimeImmutable $createdAt)
     {
         $this->id = Uuid::v7();
         $this->owner = $owner;
@@ -75,7 +74,7 @@ class MediaObject
         return null;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }

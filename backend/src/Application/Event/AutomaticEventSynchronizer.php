@@ -9,7 +9,6 @@ use App\Entity\Person;
 use App\Entity\Value\EventType;
 use App\Entity\Value\GenealogicalDate;
 use App\Repository\GenealogicalEventRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class AutomaticEventSynchronizer
@@ -22,7 +21,7 @@ final readonly class AutomaticEventSynchronizer
 
     public function synchronizePersonLifecycle(
         Person $person,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->upsert(
             $person,
@@ -62,7 +61,7 @@ final readonly class AutomaticEventSynchronizer
 
     public function synchronizeParentLink(
         ParentLink $link,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->upsertRelated(
             $link->getParent(),
@@ -79,7 +78,7 @@ final readonly class AutomaticEventSynchronizer
         MarriagePeriod $marriage,
         ?string $maleNewSurname,
         ?string $femaleNewSurname,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->synchronizeMarriageDates($marriage, $changedAt);
         $this->synchronizeMarriageSurname(
@@ -98,7 +97,7 @@ final readonly class AutomaticEventSynchronizer
 
     public function synchronizeMarriageDates(
         MarriagePeriod $marriage,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $people = [
             [$marriage->getMalePerson(), $marriage->getFemalePerson()],
@@ -150,7 +149,7 @@ final readonly class AutomaticEventSynchronizer
         Person $person,
         EventType $type,
         GenealogicalDate $date,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $event = $this->events->findAutomaticPersonLifecycle($person, $type);
         if (null === $event) {
@@ -179,7 +178,7 @@ final readonly class AutomaticEventSynchronizer
         string $sourceEntityType,
         \Symfony\Component\Uid\Uuid $sourceEntityId,
         array $data,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $event = $this->events->findAutomaticForSource(
             $person,
@@ -224,7 +223,7 @@ final readonly class AutomaticEventSynchronizer
         Person $person,
         MarriagePeriod $marriage,
         ?string $newSurname,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         if (null === $newSurname) {
             $this->removeRelated(

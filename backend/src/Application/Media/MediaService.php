@@ -260,11 +260,7 @@ final readonly class MediaService
     ): MediaVariant {
         $variant = $media?->variant($type);
         if (null === $variant) {
-            throw new ApiException(
-                JsonResponse::HTTP_NOT_FOUND,
-                'NOT_FOUND',
-                'not_found',
-            );
+            throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
         }
 
         return $variant;

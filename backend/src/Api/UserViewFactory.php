@@ -12,18 +12,18 @@ final class UserViewFactory
      *     username: string,
      *     email: string,
      *     preferredLanguage: string,
-     *     avatarUrl: null|string,
+     *     avatarUrl: string|null,
      *     createdAt: string
      * }
      */
     public function create(User $user): array
     {
         return [
-            'id' => $user->getId()->toRfc4122(),
-            'username' => $user->getUsername(),
-            'email' => $user->getEmail(),
+            'id'                => $user->getId()->toRfc4122(),
+            'username'          => $user->getUsername(),
+            'email'             => $user->getEmail(),
             'preferredLanguage' => $user->getPreferredLanguage(),
-            'avatarUrl' => null === $user->getAvatarAttachment()
+            'avatarUrl'         => null === $user->getAvatarAttachment()
                 ? null
                 : sprintf(
                     '/me/avatar?media=%s',

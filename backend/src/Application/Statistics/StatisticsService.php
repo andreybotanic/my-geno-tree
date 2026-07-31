@@ -20,7 +20,7 @@ final readonly class StatisticsService
     {
         return [
             'accountCount' => $this->users->countAll(),
-            'treeCount' => $this->trees->countAll(),
+            'treeCount'    => $this->trees->countAll(),
         ];
     }
 }

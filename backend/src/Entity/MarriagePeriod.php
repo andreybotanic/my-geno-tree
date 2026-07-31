@@ -4,7 +4,6 @@ namespace App\Entity;
 
 use App\Entity\Value\GenealogicalDate;
 use App\Repository\MarriagePeriodRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -45,10 +44,10 @@ class MarriagePeriod
     private GenealogicalDate $storedDissolutionDate;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $updatedAt;
 
     public function __construct(
         FamilyTree $tree,
@@ -56,7 +55,7 @@ class MarriagePeriod
         Person $femalePerson,
         GenealogicalDate $marriageDate,
         ?GenealogicalDate $dissolutionDate,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->tree = $tree;
@@ -96,12 +95,12 @@ class MarriagePeriod
         return $this->dissolved ? $this->storedDissolutionDate : null;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): DateTimeImmutable
+    public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
     }
@@ -109,7 +108,7 @@ class MarriagePeriod
     public function changeDates(
         GenealogicalDate $marriageDate,
         ?GenealogicalDate $dissolutionDate,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->marriageDate = $marriageDate;
         $this->dissolved = null !== $dissolutionDate;

@@ -5,9 +5,7 @@ namespace App\Tests\Application\Auth;
 use App\Api\ApiException;
 use App\Application\Auth\AuthenticationPolicy;
 use App\Entity\User;
-use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 
 final class AuthenticationPolicyTest extends TestCase
 {
@@ -21,7 +19,7 @@ final class AuthenticationPolicyTest extends TestCase
     public function testUnverifiedUserCannotReceiveTokens(): void
     {
         $user = $this->user();
-        (new ReflectionProperty(User::class, 'emailVerifiedAt'))
+        (new \ReflectionProperty(User::class, 'emailVerifiedAt'))
             ->setValue($user, null);
 
         try {
@@ -43,7 +41,7 @@ final class AuthenticationPolicyTest extends TestCase
             'family@example.test',
             'password-hash',
             'en',
-            new DateTimeImmutable('2026-07-31T00:00:00+00:00'),
+            new \DateTimeImmutable('2026-07-31T00:00:00+00:00'),
         );
     }
 }

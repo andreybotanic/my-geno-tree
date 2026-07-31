@@ -12,10 +12,10 @@ final readonly class ParentLinkViewFactory
     public function create(ParentLink $link): array
     {
         return [
-            'id' => $link->getId()->toRfc4122(),
+            'id'       => $link->getId()->toRfc4122(),
             'parentId' => $link->getParent()->getId()->toRfc4122(),
-            'childId' => $link->getChild()->getId()->toRfc4122(),
-            'role' => $link->getRole()->value,
+            'childId'  => $link->getChild()->getId()->toRfc4122(),
+            'role'     => $link->getRole()->value,
         ];
     }
 }

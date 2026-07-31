@@ -21,11 +21,7 @@ final readonly class PersonLookup
             ? $this->people->findInTree($tree, $personId)
             : null;
         if (null === $person) {
-            throw new ApiException(
-                JsonResponse::HTTP_NOT_FOUND,
-                'NOT_FOUND',
-                'not_found',
-            );
+            throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
         }
 
         return $person;

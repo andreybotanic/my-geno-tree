@@ -49,11 +49,7 @@ final readonly class RefreshSessionService
         });
 
         if (!$result instanceof TokenBundle) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNAUTHORIZED,
-                'INVALID_REFRESH_TOKEN',
-                'invalid_refresh_token',
-            );
+            throw new ApiException(JsonResponse::HTTP_UNAUTHORIZED, 'INVALID_REFRESH_TOKEN', 'invalid_refresh_token');
         }
 
         return $result;

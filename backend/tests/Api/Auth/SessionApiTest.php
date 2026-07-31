@@ -19,13 +19,13 @@ final class SessionApiTest extends ApiWebTestCase
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'caseuser',
-            'password' => 'StrongPass1!',
+            'password'   => 'StrongPass1!',
         ]);
         self::assertResponseStatusCodeSame(401);
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'FAMILY@EXAMPLE.TEST',
-            'password' => 'StrongPass1!',
+            'password'   => 'StrongPass1!',
         ]);
         self::assertResponseIsSuccessful();
     }
@@ -40,13 +40,13 @@ final class SessionApiTest extends ApiWebTestCase
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'missing_user',
-            'password' => 'WrongPass1!',
+            'password'   => 'WrongPass1!',
         ]);
         $missingAccountResponse = $this->client->getResponse()->getContent();
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'family_admin',
-            'password' => 'WrongPass1!',
+            'password'   => 'WrongPass1!',
         ]);
 
         self::assertResponseStatusCodeSame(401);
@@ -60,13 +60,13 @@ final class SessionApiTest extends ApiWebTestCase
     {
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => '',
-            'password' => '',
+            'password'   => '',
         ]);
 
         self::assertResponseStatusCodeSame(422);
         self::assertSame([
             'identifier' => ['identifier_required'],
-            'password' => ['password_required'],
+            'password'   => ['password_required'],
         ], $this->responseData()['fields']);
     }
 
@@ -113,7 +113,7 @@ final class SessionApiTest extends ApiWebTestCase
         self::assertSame(401, $replayClient->getResponse()->getStatusCode());
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer '.$rotated['accessToken'],
+            'Authorization' => 'Bearer ' . $rotated['accessToken'],
         ]);
         self::assertResponseStatusCodeSame(401);
     }
@@ -130,7 +130,7 @@ final class SessionApiTest extends ApiWebTestCase
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'family_admin',
-            'password' => 'StrongPass1!',
+            'password'   => 'StrongPass1!',
         ]);
         $secondAccessToken = $this->responseData()['accessToken'];
 
@@ -138,19 +138,19 @@ final class SessionApiTest extends ApiWebTestCase
             'POST',
             'https://localhost/api/v1/auth/logout',
             server: [
-                'HTTPS' => 'on',
-                'HTTP_AUTHORIZATION' => 'Bearer '.$firstAccessToken,
+                'HTTPS'              => 'on',
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $firstAccessToken,
             ],
         );
         self::assertSame(204, $firstClient->getResponse()->getStatusCode());
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer '.$firstAccessToken,
+            'Authorization' => 'Bearer ' . $firstAccessToken,
         ]);
         self::assertResponseStatusCodeSame(401);
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer '.$secondAccessToken,
+            'Authorization' => 'Bearer ' . $secondAccessToken,
         ]);
         self::assertResponseIsSuccessful();
     }
@@ -168,7 +168,7 @@ final class SessionApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(204);
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
         self::assertResponseStatusCodeSame(401);
 
@@ -199,7 +199,7 @@ final class SessionApiTest extends ApiWebTestCase
         $this->jsonRequest('PATCH', '/api/v1/me', [
             'language' => 'ru',
         ], [
-            'Authorization' => 'Bearer '.$accessToken,
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
 
         self::assertResponseIsSuccessful();
@@ -212,9 +212,9 @@ final class SessionApiTest extends ApiWebTestCase
 
         self::assertResponseStatusCodeSame(401);
         self::assertSame([
-            'code' => 'UNAUTHORIZED',
+            'code'    => 'UNAUTHORIZED',
             'message' => 'authentication_required',
-            'fields' => [],
+            'fields'  => [],
             'details' => [],
         ], $this->responseData());
     }

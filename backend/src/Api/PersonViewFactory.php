@@ -18,15 +18,15 @@ final readonly class PersonViewFactory
     public function create(Person $person): array
     {
         return [
-            'id' => $person->getId()->toRfc4122(),
+            'id'           => $person->getId()->toRfc4122(),
             'birthSurname' => $this->texts->create(
                 $person->getBirthSurname(),
             ),
-            'givenName' => $this->texts->create($person->getGivenName()),
+            'givenName'  => $this->texts->create($person->getGivenName()),
             'patronymic' => $this->texts->create($person->getPatronymic()),
-            'gender' => $person->getGender()->value,
-            'birthDate' => $this->dates->create($person->getBirthDate()),
-            'deathDate' => null === $person->getDeathDate()
+            'gender'     => $person->getGender()->value,
+            'birthDate'  => $this->dates->create($person->getBirthDate()),
+            'deathDate'  => null === $person->getDeathDate()
                 ? null
                 : $this->dates->create($person->getDeathDate()),
             'photoThumbnailUrl' => null === $person->getPhotoAttachment()

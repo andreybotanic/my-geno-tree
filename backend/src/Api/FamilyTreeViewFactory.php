@@ -2,8 +2,8 @@
 
 namespace App\Api;
 
-use App\Entity\FamilyTree;
 use App\Application\Tree\TreeVersion;
+use App\Entity\FamilyTree;
 use App\Repository\PersonRepository;
 
 final readonly class FamilyTreeViewFactory
@@ -27,16 +27,15 @@ final readonly class FamilyTreeViewFactory
     public function create(
         FamilyTree $tree,
         ?int $personCount = null,
-    ): array
-    {
+    ): array {
         return [
-            'id' => $tree->getId()->toRfc4122(),
-            'name' => $tree->getName(),
+            'id'          => $tree->getId()->toRfc4122(),
+            'name'        => $tree->getName(),
             'personCount' => $personCount
                 ?? $this->people->countForTree($tree),
             'createdAt' => $tree->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $tree->getUpdatedAt()->format(DATE_ATOM),
-            'etag' => $this->versions->etag($tree),
+            'etag'      => $this->versions->etag($tree),
         ];
     }
 }

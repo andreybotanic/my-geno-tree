@@ -17,9 +17,9 @@ final class ManualEventApiTest extends ApiWebTestCase
             $person['id'],
             $snapshot['etag'],
             [
-                'type' => 'custom',
-                'date' => $this->knownDate('year', 1950),
-                'title' => '  Graduation  ',
+                'type'        => 'custom',
+                'date'        => $this->knownDate('year', 1950),
+                'title'       => '  Graduation  ',
                 'description' => "<script>alert(1)</script>\nPlain text",
             ],
         );
@@ -48,8 +48,8 @@ final class ManualEventApiTest extends ApiWebTestCase
                 $created['event']['id'],
             ),
             [
-                'type' => 'surname_change',
-                'date' => $this->knownDate('month', 1960, month: 2),
+                'type'       => 'surname_change',
+                'date'       => $this->knownDate('month', 1960, month: 2),
                 'newSurname' => '  Petrova  ',
             ],
             [
@@ -81,9 +81,9 @@ final class ManualEventApiTest extends ApiWebTestCase
                 $automatic['id'],
             ),
             [
-                'type' => 'custom',
-                'date' => ['state' => 'unknown'],
-                'title' => 'Blocked',
+                'type'        => 'custom',
+                'date'        => ['state' => 'unknown'],
+                'title'       => 'Blocked',
                 'description' => null,
             ],
             [
@@ -133,9 +133,9 @@ final class ManualEventApiTest extends ApiWebTestCase
             $person['id'],
         );
         $valid = [
-            'type' => 'custom',
-            'date' => ['state' => 'unknown'],
-            'title' => 'Memory',
+            'type'        => 'custom',
+            'date'        => ['state' => 'unknown'],
+            'title'       => 'Memory',
             'description' => null,
         ];
 
@@ -169,8 +169,8 @@ final class ManualEventApiTest extends ApiWebTestCase
                 'description' => str_repeat('x', 5001),
             ],
             [
-                'type' => 'surname_change',
-                'date' => ['state' => 'unknown'],
+                'type'       => 'surname_change',
+                'date'       => ['state' => 'unknown'],
                 'newSurname' => ' ',
             ],
             [
@@ -200,7 +200,7 @@ final class ManualEventApiTest extends ApiWebTestCase
 
         $otherToken = $this->register([
             'username' => 'other_user',
-            'email' => 'other@example.test',
+            'email'    => 'other@example.test',
         ]);
         $this->jsonRequest(
             'POST',
@@ -223,9 +223,9 @@ final class ManualEventApiTest extends ApiWebTestCase
             $person['id'],
             $snapshot['etag'],
             [
-                'type' => 'custom',
-                'date' => $this->knownDate('year', 1900),
-                'title' => 'First memory',
+                'type'        => 'custom',
+                'date'        => $this->knownDate('year', 1900),
+                'title'       => 'First memory',
                 'description' => null,
             ],
         );
@@ -235,8 +235,8 @@ final class ManualEventApiTest extends ApiWebTestCase
             $person['id'],
             $first['etag'],
             [
-                'type' => 'surname_change',
-                'date' => $this->knownDate('year', 1900),
+                'type'       => 'surname_change',
+                'date'       => $this->knownDate('year', 1900),
                 'newSurname' => 'Petrov',
             ],
         );
@@ -280,9 +280,9 @@ final class ManualEventApiTest extends ApiWebTestCase
             $person['id'],
             $reordered['etag'],
             [
-                'type' => 'custom',
-                'date' => $this->knownDate('year', 1950),
-                'title' => 'Later',
+                'type'        => 'custom',
+                'date'        => $this->knownDate('year', 1950),
+                'title'       => 'Later',
                 'description' => null,
             ],
         );
@@ -338,9 +338,9 @@ final class ManualEventApiTest extends ApiWebTestCase
                 $first['event']['id'],
             ),
             [
-                'type' => 'custom',
-                'date' => $this->knownDate('year', 1940),
-                'title' => 'Moved memory',
+                'type'        => 'custom',
+                'date'        => $this->knownDate('year', 1940),
+                'title'       => 'Moved memory',
                 'description' => null,
             ],
             [
@@ -366,16 +366,16 @@ final class ManualEventApiTest extends ApiWebTestCase
         $tree = $this->createTree($accessToken);
         $this->jsonRequest(
             'POST',
-            '/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type' => 'create_first_person',
+                'type'   => 'create_first_person',
                 'person' => [
                     'birthSurname' => ['state' => 'unknown'],
-                    'givenName' => ['state' => 'unknown'],
-                    'patronymic' => ['state' => 'unknown'],
-                    'gender' => 'unknown',
-                    'birthDate' => $this->knownDate('year', 1900),
-                    'deathDate' => $this->knownDate('year', 2000),
+                    'givenName'    => ['state' => 'unknown'],
+                    'patronymic'   => ['state' => 'unknown'],
+                    'gender'       => 'unknown',
+                    'birthDate'    => $this->knownDate('year', 1900),
+                    'deathDate'    => $this->knownDate('year', 2000),
                 ],
                 'coordinates' => ['x' => 0, 'y' => 0],
             ],
@@ -496,9 +496,9 @@ final class ManualEventApiTest extends ApiWebTestCase
         ?int $month = null,
     ): array {
         $date = [
-            'state' => 'known',
-            'precision' => $precision,
-            'year' => $year,
+            'state'       => 'known',
+            'precision'   => $precision,
+            'year'        => $year,
             'approximate' => false,
         ];
         if (null !== $month) {
@@ -513,6 +513,6 @@ final class ManualEventApiTest extends ApiWebTestCase
      */
     private function authorization(string $accessToken): array
     {
-        return ['Authorization' => 'Bearer '.$accessToken];
+        return ['Authorization' => 'Bearer ' . $accessToken];
     }
 }

@@ -48,7 +48,7 @@ final readonly class MarriagePeriodController
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
             'marriage' => $this->views->create($marriage),
-            'etag' => $etag,
+            'etag'     => $etag,
         ]);
         $response->headers->set('ETag', $etag);
 

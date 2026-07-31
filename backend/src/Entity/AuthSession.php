@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\AuthSessionRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -23,26 +22,26 @@ class AuthSession
     private string $accessTokenHash;
 
     #[ORM\Column]
-    private DateTimeImmutable $accessExpiresAt;
+    private \DateTimeImmutable $accessExpiresAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $expiresAt;
+    private \DateTimeImmutable $expiresAt;
 
     #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $revokedAt = null;
+    private ?\DateTimeImmutable $revokedAt = null;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $lastUsedAt;
+    private \DateTimeImmutable $lastUsedAt;
 
     public function __construct(
         User $user,
         string $accessTokenHash,
-        DateTimeImmutable $accessExpiresAt,
-        DateTimeImmutable $expiresAt,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $accessExpiresAt,
+        \DateTimeImmutable $expiresAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->user = $user;
@@ -63,27 +62,27 @@ class AuthSession
         return $this->user;
     }
 
-    public function isAccessActive(DateTimeImmutable $now): bool
+    public function isAccessActive(\DateTimeImmutable $now): bool
     {
         return null === $this->revokedAt && $this->accessExpiresAt > $now;
     }
 
-    public function isRefreshActive(DateTimeImmutable $now): bool
+    public function isRefreshActive(\DateTimeImmutable $now): bool
     {
         return null === $this->revokedAt && $this->expiresAt > $now;
     }
 
     public function rotateAccessToken(
         string $accessTokenHash,
-        DateTimeImmutable $accessExpiresAt,
-        DateTimeImmutable $usedAt,
+        \DateTimeImmutable $accessExpiresAt,
+        \DateTimeImmutable $usedAt,
     ): void {
         $this->accessTokenHash = $accessTokenHash;
         $this->accessExpiresAt = $accessExpiresAt;
         $this->lastUsedAt = $usedAt;
     }
 
-    public function revoke(DateTimeImmutable $revokedAt): void
+    public function revoke(\DateTimeImmutable $revokedAt): void
     {
         $this->revokedAt ??= $revokedAt;
     }

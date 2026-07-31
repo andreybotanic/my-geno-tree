@@ -23,11 +23,7 @@ final readonly class RefreshController
     {
         $refreshToken = $request->cookies->get(RefreshCookieFactory::NAME);
         if (!is_string($refreshToken) || '' === $refreshToken) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNAUTHORIZED,
-                'INVALID_REFRESH_TOKEN',
-                'invalid_refresh_token',
-            );
+            throw new ApiException(JsonResponse::HTTP_UNAUTHORIZED, 'INVALID_REFRESH_TOKEN', 'invalid_refresh_token');
         }
 
         return $this->responseFactory->create(

@@ -7,7 +7,8 @@
     "dev": "vite",
     "api:generate": "openapi-ts",
     "build": "npm run api:generate && tsc -b && vite build",
-    "lint": "oxlint",
+    "lint": "oxlint && eslint .",
+    "quality": "npm run lint && npm run typecheck",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -26,6 +27,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@hey-api/openapi-ts": "0.99.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -35,9 +37,14 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.8.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.75.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   },

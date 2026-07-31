@@ -6,7 +6,6 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Repository\PersonRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
@@ -50,10 +49,10 @@ class Person
     private float $y;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $updatedAt;
 
     #[ORM\OneToOne(mappedBy: 'person', targetEntity: MediaAttachment::class)]
     private ?MediaAttachment $photoAttachment = null;
@@ -68,7 +67,7 @@ class Person
         ?GenealogicalDate $deathDate,
         float $x,
         float $y,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->tree = $tree;
@@ -135,12 +134,12 @@ class Person
         return $this->y;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): DateTimeImmutable
+    public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
     }
@@ -152,13 +151,13 @@ class Person
 
     public function attachPhoto(
         MediaAttachment $attachment,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->photoAttachment = $attachment;
         $this->updatedAt = $changedAt;
     }
 
-    public function detachPhoto(DateTimeImmutable $changedAt): void
+    public function detachPhoto(\DateTimeImmutable $changedAt): void
     {
         $this->photoAttachment = null;
         $this->updatedAt = $changedAt;
@@ -171,7 +170,7 @@ class Person
         Gender $gender,
         GenealogicalDate $birthDate,
         ?GenealogicalDate $deathDate,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->birthSurname = $birthSurname;
         $this->givenName = $givenName;
@@ -186,7 +185,7 @@ class Person
     public function moveTo(
         float $x,
         float $y,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->x = $x;
         $this->y = $y;

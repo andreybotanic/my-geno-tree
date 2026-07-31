@@ -30,12 +30,7 @@ final readonly class GraphMutationService
             return JsonResponse::HTTP_CREATED;
         }
         if (!is_string($type)) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-                'GRAPH_MUTATION_INVALID',
-                'graph_mutation_invalid',
-                ['type' => ['graph_mutation_type_invalid']],
-            );
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'GRAPH_MUTATION_INVALID', 'graph_mutation_invalid', ['type' => ['graph_mutation_type_invalid']]);
         }
 
         $this->structuralMutations->mutate($tree, $payload, $ifMatch);

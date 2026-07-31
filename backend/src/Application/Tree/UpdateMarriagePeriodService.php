@@ -48,11 +48,7 @@ final readonly class UpdateMarriagePeriodService
             ? $this->marriages->findInTree($tree, $marriageId)
             : null;
         if (null === $marriage) {
-            throw new ApiException(
-                JsonResponse::HTTP_NOT_FOUND,
-                'NOT_FOUND',
-                'not_found',
-            );
+            throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
         }
 
         return $this->entityManager->wrapInTransaction(function () use (
@@ -103,11 +99,6 @@ final readonly class UpdateMarriagePeriodService
 
     private function invalid(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'MARRIAGE_DATA_INVALID',
-            'marriage_data_invalid',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'MARRIAGE_DATA_INVALID', 'marriage_data_invalid', [$field => [$error]]);
     }
 }

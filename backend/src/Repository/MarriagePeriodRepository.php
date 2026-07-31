@@ -2,8 +2,8 @@
 
 namespace App\Repository;
 
-use App\Entity\MarriagePeriod;
 use App\Entity\FamilyTree;
+use App\Entity\MarriagePeriod;
 use App\Entity\Person;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;

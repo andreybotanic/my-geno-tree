@@ -34,12 +34,12 @@ abstract class ApiWebTestCase extends WebTestCase
     ): void {
         $server = ['HTTPS' => 'on'];
         foreach ($headers as $name => $value) {
-            $server['HTTP_'.strtoupper(str_replace('-', '_', $name))] = $value;
+            $server['HTTP_' . strtoupper(str_replace('-', '_', $name))] = $value;
         }
 
         $this->client->jsonRequest(
             $method,
-            'https://localhost'.$path,
+            'https://localhost' . $path,
             $body,
             $server,
         );
@@ -68,7 +68,7 @@ abstract class ApiWebTestCase extends WebTestCase
     {
         return array_replace([
             'username' => 'family_admin',
-            'email' => 'family@example.test',
+            'email'    => 'family@example.test',
             'password' => 'StrongPass1!',
             'language' => 'en',
         ], $overrides);

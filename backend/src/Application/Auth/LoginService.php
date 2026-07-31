@@ -36,11 +36,7 @@ final readonly class LoginService
         );
 
         if (null === $user || !$passwordIsValid) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNAUTHORIZED,
-                'INVALID_CREDENTIALS',
-                'invalid_credentials',
-            );
+            throw new ApiException(JsonResponse::HTTP_UNAUTHORIZED, 'INVALID_CREDENTIALS', 'invalid_credentials');
         }
 
         $this->authenticationPolicy->assertCanIssueTokens($user);

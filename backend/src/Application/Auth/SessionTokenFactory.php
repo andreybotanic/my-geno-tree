@@ -5,20 +5,18 @@ namespace App\Application\Auth;
 use App\Entity\AuthSession;
 use App\Entity\RefreshToken;
 use App\Entity\User;
-use DateInterval;
-use DateTimeImmutable;
 
 final class SessionTokenFactory
 {
     private const string ACCESS_LIFETIME = 'PT15M';
     private const string REFRESH_LIFETIME = 'P30D';
 
-    public function create(User $user, DateTimeImmutable $now): TokenBundle
+    public function create(User $user, \DateTimeImmutable $now): TokenBundle
     {
         $accessToken = $this->generateToken();
         $refreshToken = $this->generateToken();
-        $accessExpiresAt = $now->add(new DateInterval(self::ACCESS_LIFETIME));
-        $refreshExpiresAt = $now->add(new DateInterval(self::REFRESH_LIFETIME));
+        $accessExpiresAt = $now->add(new \DateInterval(self::ACCESS_LIFETIME));
+        $refreshExpiresAt = $now->add(new \DateInterval(self::REFRESH_LIFETIME));
         $session = new AuthSession(
             $user,
             hash('sha256', $accessToken),
@@ -43,12 +41,12 @@ final class SessionTokenFactory
         );
     }
 
-    public function rotate(AuthSession $session, DateTimeImmutable $now): TokenBundle
+    public function rotate(AuthSession $session, \DateTimeImmutable $now): TokenBundle
     {
         $accessToken = $this->generateToken();
         $refreshToken = $this->generateToken();
-        $accessExpiresAt = $now->add(new DateInterval(self::ACCESS_LIFETIME));
-        $refreshExpiresAt = $now->add(new DateInterval(self::REFRESH_LIFETIME));
+        $accessExpiresAt = $now->add(new \DateInterval(self::ACCESS_LIFETIME));
+        $refreshExpiresAt = $now->add(new \DateInterval(self::REFRESH_LIFETIME));
 
         $session->rotateAccessToken(
             hash('sha256', $accessToken),

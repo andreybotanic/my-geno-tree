@@ -164,11 +164,6 @@ final readonly class ManualEventDataPolicy
 
     private function invalid(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'EVENT_DATA_INVALID',
-            'event_data_invalid',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'EVENT_DATA_INVALID', 'event_data_invalid', [$field => [$error]]);
     }
 }

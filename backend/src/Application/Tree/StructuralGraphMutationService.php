@@ -16,7 +16,6 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\ParentRole;
 use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
-use DateTimeImmutable;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\ClockInterface;
@@ -65,8 +64,8 @@ final readonly class StructuralGraphMutationService
             $changedAt = $this->clock->now();
 
             match ($type) {
-                'add_parent' => $this->addParent($tree, $payload, $changedAt),
-                'add_child' => $this->addChild($tree, $payload, $changedAt),
+                'add_parent'        => $this->addParent($tree, $payload, $changedAt),
+                'add_child'         => $this->addChild($tree, $payload, $changedAt),
                 'link_parent_child' => $this->linkParentChild(
                     $tree,
                     $payload,
@@ -109,7 +108,7 @@ final readonly class StructuralGraphMutationService
     private function addParent(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -140,7 +139,7 @@ final readonly class StructuralGraphMutationService
     private function addChild(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -177,7 +176,7 @@ final readonly class StructuralGraphMutationService
     private function linkParentChild(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -204,7 +203,7 @@ final readonly class StructuralGraphMutationService
     private function addMarriage(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -276,7 +275,7 @@ final readonly class StructuralGraphMutationService
     private function removeParentLink(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -307,7 +306,7 @@ final readonly class StructuralGraphMutationService
     private function removeMarriage(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -337,12 +336,12 @@ final readonly class StructuralGraphMutationService
      */
     /**
      * @param array<string, mixed> $payload
-     * @param list<MediaObject> $removedMedia
+     * @param list<MediaObject>    $removedMedia
      */
     private function deletePerson(
         FamilyTree $tree,
         array $payload,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
         array &$removedMedia,
     ): void {
         $this->assertExactKeys($payload, [
@@ -380,7 +379,7 @@ final readonly class StructuralGraphMutationService
         Person $parent,
         Person $child,
         ParentRole $role,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->invariants->assertParentLinkAllowed(
             $tree,
@@ -396,7 +395,7 @@ final readonly class StructuralGraphMutationService
     private function relative(
         FamilyTree $tree,
         mixed $value,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
         ?Gender $assignedGender = null,
     ): Person {
         $payload = $this->object($value, 'relative');
@@ -458,7 +457,7 @@ final readonly class StructuralGraphMutationService
     private function assignParentGender(
         Person $person,
         ParentRole $role,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->assignGender($person, $role->requiredGender(), $changedAt);
     }
@@ -466,7 +465,7 @@ final readonly class StructuralGraphMutationService
     private function assignGender(
         Person $person,
         Gender $gender,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         if (Gender::UNKNOWN === $person->getGender()) {
             $person->update(
@@ -498,15 +497,15 @@ final readonly class StructuralGraphMutationService
         $ids = [];
         $roles = [];
         foreach ($value as $index => $specification) {
-            $field = 'parents.'.$index;
+            $field = 'parents.' . $index;
             $payload = $this->object($specification, $field);
             $this->assertExactKeys($payload, ['personId', 'role'], $field);
             $person = $this->person(
                 $tree,
                 $payload['personId'],
-                $field.'.personId',
+                $field . '.personId',
             );
-            $role = $this->parentRole($payload['role'], $field.'.role');
+            $role = $this->parentRole($payload['role'], $field . '.role');
             $id = $person->getId()->toRfc4122();
             if (isset($ids[$id]) || isset($roles[$role->value])) {
                 $this->invalid('parents', 'parents_must_be_distinct');
@@ -522,7 +521,7 @@ final readonly class StructuralGraphMutationService
     private function movePeople(
         FamilyTree $tree,
         mixed $value,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
         ?Person $excluded = null,
     ): void {
         if (!is_array($value) || !array_is_list($value)) {
@@ -530,7 +529,7 @@ final readonly class StructuralGraphMutationService
         }
         $seen = [];
         foreach ($value as $index => $update) {
-            $field = 'coordinateUpdates.'.$index;
+            $field = 'coordinateUpdates.' . $index;
             $payload = $this->object($update, $field);
             $this->assertExactKeys(
                 $payload,
@@ -540,14 +539,14 @@ final readonly class StructuralGraphMutationService
             $person = $this->person(
                 $tree,
                 $payload['personId'],
-                $field.'.personId',
+                $field . '.personId',
             );
             if ($person === $excluded) {
-                $this->invalid($field.'.personId', 'deleted_person_not_allowed');
+                $this->invalid($field . '.personId', 'deleted_person_not_allowed');
             }
             $id = $person->getId()->toRfc4122();
             if (isset($seen[$id])) {
-                $this->invalid($field.'.personId', 'duplicate_coordinate_update');
+                $this->invalid($field . '.personId', 'duplicate_coordinate_update');
             }
             $seen[$id] = true;
             $coordinates = $this->personData->coordinates(
@@ -629,7 +628,7 @@ final readonly class StructuralGraphMutationService
         foreach (array_keys($payload) as $key) {
             if (!in_array($key, $expected, true)) {
                 $this->invalid(
-                    '' === $field ? $key : $field.'.'.$key,
+                    '' === $field ? $key : $field . '.' . $key,
                     'field_not_allowed',
                 );
             }
@@ -637,7 +636,7 @@ final readonly class StructuralGraphMutationService
         foreach ($expected as $key) {
             if (!array_key_exists($key, $payload)) {
                 $this->invalid(
-                    '' === $field ? $key : $field.'.'.$key,
+                    '' === $field ? $key : $field . '.' . $key,
                     'field_required',
                 );
             }
@@ -646,20 +645,11 @@ final readonly class StructuralGraphMutationService
 
     private function invalid(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'GRAPH_MUTATION_INVALID',
-            'graph_mutation_invalid',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'GRAPH_MUTATION_INVALID', 'graph_mutation_invalid', [$field => [$error]]);
     }
 
     private function notFound(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_NOT_FOUND,
-            'NOT_FOUND',
-            'not_found',
-        );
+        throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
     }
 }

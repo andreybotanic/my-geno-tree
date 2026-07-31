@@ -52,7 +52,7 @@ final class PersonRepository extends ServiceEntityRepository
 
     public function countForTree(FamilyTree $tree): int
     {
-        return (int) $this->createQueryBuilder('person')
+        return (int)$this->createQueryBuilder('person')
             ->select('COUNT(person.id)')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)

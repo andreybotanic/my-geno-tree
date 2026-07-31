@@ -27,11 +27,7 @@ final readonly class RequestBodyMapper
     public function map(Request $request, string $type): object
     {
         if ('json' !== $request->getContentTypeFormat()) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE,
-                'UNSUPPORTED_MEDIA_TYPE',
-                'json_body_required',
-            );
+            throw new ApiException(JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE, 'UNSUPPORTED_MEDIA_TYPE', 'json_body_required');
         }
 
         try {
@@ -42,12 +38,7 @@ final readonly class RequestBodyMapper
                 [AbstractNormalizer::ALLOW_EXTRA_ATTRIBUTES => false],
             );
         } catch (SerializerException $exception) {
-            throw new ApiException(
-                JsonResponse::HTTP_BAD_REQUEST,
-                'INVALID_REQUEST_BODY',
-                'invalid_request_body',
-                previous: $exception,
-            );
+            throw new ApiException(JsonResponse::HTTP_BAD_REQUEST, 'INVALID_REQUEST_BODY', 'invalid_request_body', previous: $exception);
         }
 
         $violations = $this->validator->validate($payload);
@@ -58,15 +49,10 @@ final readonly class RequestBodyMapper
         $fields = [];
         foreach ($violations as $violation) {
             $property = $violation->getPropertyPath();
-            $fields[$property][] = (string) $violation->getMessage();
+            $fields[$property][] = (string)$violation->getMessage();
         }
 
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'VALIDATION_FAILED',
-            'validation_failed',
-            $fields,
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'VALIDATION_FAILED', 'validation_failed', $fields);
     }
 
     /**
@@ -75,11 +61,7 @@ final readonly class RequestBodyMapper
     public function decodeObject(Request $request): array
     {
         if ('json' !== $request->getContentTypeFormat()) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE,
-                'UNSUPPORTED_MEDIA_TYPE',
-                'json_body_required',
-            );
+            throw new ApiException(JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE, 'UNSUPPORTED_MEDIA_TYPE', 'json_body_required');
         }
 
         try {
@@ -89,20 +71,11 @@ final readonly class RequestBodyMapper
                 flags: JSON_THROW_ON_ERROR,
             );
         } catch (\JsonException $exception) {
-            throw new ApiException(
-                JsonResponse::HTTP_BAD_REQUEST,
-                'INVALID_REQUEST_BODY',
-                'invalid_request_body',
-                previous: $exception,
-            );
+            throw new ApiException(JsonResponse::HTTP_BAD_REQUEST, 'INVALID_REQUEST_BODY', 'invalid_request_body', previous: $exception);
         }
 
         if (!is_array($payload) || array_is_list($payload)) {
-            throw new ApiException(
-                JsonResponse::HTTP_BAD_REQUEST,
-                'INVALID_REQUEST_BODY',
-                'json_object_required',
-            );
+            throw new ApiException(JsonResponse::HTTP_BAD_REQUEST, 'INVALID_REQUEST_BODY', 'json_object_required');
         }
 
         return $payload;

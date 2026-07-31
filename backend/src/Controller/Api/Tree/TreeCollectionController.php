@@ -32,7 +32,7 @@ final readonly class TreeCollectionController
             'items' => array_map(
                 fn (array $result): array => $this->views->create(
                     $result[0],
-                    (int) $result['personCount'],
+                    (int)$result['personCount'],
                 ),
                 $this->trees->findAllWithPersonCountsForOwner($user),
             ),

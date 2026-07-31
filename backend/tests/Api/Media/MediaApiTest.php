@@ -24,7 +24,7 @@ final class MediaApiTest extends ApiWebTestCase
         self::assertStringContainsString('/me/avatar?media=', $profile['avatarUrl']);
         self::assertSame(1, $this->mediaObjectCount());
 
-        $this->authenticatedRequest('GET', '/api/v1'.$profile['avatarUrl'], $token);
+        $this->authenticatedRequest('GET', '/api/v1' . $profile['avatarUrl'], $token);
         self::assertResponseIsSuccessful();
         self::assertSame(
             'image/webp',
@@ -82,8 +82,8 @@ final class MediaApiTest extends ApiWebTestCase
 
         foreach ([
             [$path, [120, 160]],
-            [$path.'/portrait', [600, 800]],
-            [$path.'/thumbnail', [180, 240]],
+            [$path . '/portrait', [600, 800]],
+            [$path . '/thumbnail', [180, 240]],
         ] as [$imagePath, $expectedDimensions]) {
             $this->authenticatedRequest('GET', $imagePath, $token);
             self::assertResponseIsSuccessful();
@@ -94,7 +94,7 @@ final class MediaApiTest extends ApiWebTestCase
 
         [$otherToken] = $this->register([
             'username' => 'other_user',
-            'email' => 'other@example.test',
+            'email'    => 'other@example.test',
         ]);
         $this->authenticatedRequest('GET', $path, $otherToken);
         self::assertResponseStatusCodeSame(404);
@@ -164,7 +164,7 @@ final class MediaApiTest extends ApiWebTestCase
 
         $this->authenticatedRequest(
             'DELETE',
-            '/api/v1/trees/'.$tree['id'],
+            '/api/v1/trees/' . $tree['id'],
             $token,
             $uploaded['etag'],
         );
@@ -197,15 +197,15 @@ final class MediaApiTest extends ApiWebTestCase
 
         $this->jsonRequest(
             'POST',
-            '/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type' => 'delete_person',
-                'personId' => $person['id'],
+                'type'              => 'delete_person',
+                'personId'          => $person['id'],
                 'coordinateUpdates' => [],
             ],
             [
-                'Authorization' => 'Bearer '.$token,
-                'If-Match' => $uploaded['etag'],
+                'Authorization' => 'Bearer ' . $token,
+                'If-Match'      => $uploaded['etag'],
             ],
         );
         self::assertResponseIsSuccessful();
@@ -220,9 +220,9 @@ final class MediaApiTest extends ApiWebTestCase
     {
         [$token] = $this->register();
         $valid = [
-            'cropX' => 0,
-            'cropY' => 0,
-            'cropWidth' => 90,
+            'cropX'      => 0,
+            'cropY'      => 0,
+            'cropWidth'  => 90,
             'cropHeight' => 90,
         ];
         $svg = $this->temporaryFile(
@@ -277,30 +277,30 @@ final class MediaApiTest extends ApiWebTestCase
         $this->jsonRequest(
             'POST',
             '/api/v1/trees',
-            ['name' => 'Media tree'],
-            ['Authorization' => 'Bearer '.$token],
+            ['name'          => 'Media tree'],
+            ['Authorization' => 'Bearer ' . $token],
         );
         $tree = $this->responseData();
         $etag = $this->client->getResponse()->headers->get('ETag');
         self::assertIsString($etag);
         $this->jsonRequest(
             'POST',
-            '/api/v1/trees/'.$tree['id'].'/graph-mutations',
+            '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type' => 'create_first_person',
+                'type'   => 'create_first_person',
                 'person' => [
                     'birthSurname' => ['state' => 'unknown'],
-                    'givenName' => ['state' => 'unknown'],
-                    'patronymic' => ['state' => 'unknown'],
-                    'gender' => 'unknown',
-                    'birthDate' => ['state' => 'unknown'],
-                    'deathDate' => null,
+                    'givenName'    => ['state' => 'unknown'],
+                    'patronymic'   => ['state' => 'unknown'],
+                    'gender'       => 'unknown',
+                    'birthDate'    => ['state' => 'unknown'],
+                    'deathDate'    => null,
                 ],
                 'coordinates' => ['x' => 0, 'y' => 0],
             ],
             [
-                'Authorization' => 'Bearer '.$token,
-                'If-Match' => $etag,
+                'Authorization' => 'Bearer ' . $token,
+                'If-Match'      => $etag,
             ],
         );
         $snapshot = $this->responseData();
@@ -337,15 +337,15 @@ final class MediaApiTest extends ApiWebTestCase
         ?string $etag = null,
     ): void {
         $server = [
-            'HTTPS' => 'on',
-            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            'HTTPS'              => 'on',
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
         ];
         if (null !== $etag) {
             $server['HTTP_IF_MATCH'] = $etag;
         }
         $this->client->request(
             'POST',
-            'https://localhost'.$path,
+            'https://localhost' . $path,
             array_map(strval(...), $crop),
             ['image' => new UploadedFile(
                 $filePath,
@@ -365,15 +365,15 @@ final class MediaApiTest extends ApiWebTestCase
         ?string $etag = null,
     ): void {
         $server = [
-            'HTTPS' => 'on',
-            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            'HTTPS'              => 'on',
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
         ];
         if (null !== $etag) {
             $server['HTTP_IF_MATCH'] = $etag;
         }
         $this->client->request(
             $method,
-            'https://localhost'.$path,
+            'https://localhost' . $path,
             server: $server,
         );
     }
@@ -394,9 +394,9 @@ final class MediaApiTest extends ApiWebTestCase
         imagefill($image, 0, 0, $color);
         ob_start();
         $encoded = match ($format) {
-            'jpeg' => imagejpeg($image, null, 90),
-            'png' => imagepng($image),
-            'webp' => imagewebp($image, null, 90),
+            'jpeg'  => imagejpeg($image, null, 90),
+            'png'   => imagepng($image),
+            'webp'  => imagewebp($image, null, 90),
             default => false,
         };
         $contents = ob_get_clean();
@@ -404,7 +404,7 @@ final class MediaApiTest extends ApiWebTestCase
         self::assertIsString($contents);
 
         return $this->temporaryFile(
-            $contents.($metadata ? 'SECRET_METADATA' : '').$suffix,
+            $contents . ($metadata ? 'SECRET_METADATA' : '') . $suffix,
         );
     }
 
@@ -462,7 +462,7 @@ final class MediaApiTest extends ApiWebTestCase
         );
         self::assertInstanceOf(\Doctrine\DBAL\Connection::class, $connection);
 
-        return (int) $connection->fetchOne(
+        return (int)$connection->fetchOne(
             'SELECT COUNT(*) FROM media_object',
         );
     }

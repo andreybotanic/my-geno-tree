@@ -42,3 +42,20 @@ Run all application tooling inside its service container:
 docker compose exec backend composer test
 docker compose exec frontend npm test
 ```
+
+Run the code-quality checks with:
+
+```bash
+docker compose exec backend composer quality
+docker compose exec frontend npm run quality
+```
+
+Enable the versioned pre-commit hook once after cloning the repository:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs the backend and frontend quality commands through Docker Compose
+and blocks the commit when any formatter, static-analysis, lint, or type check
+fails. The Compose services must be running before committing.

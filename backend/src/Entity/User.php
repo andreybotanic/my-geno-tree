@@ -3,7 +3,6 @@
 namespace App\Entity;
 
 use App\Repository\UserRepository;
-use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -30,13 +29,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $preferredLanguage;
 
     #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $emailVerifiedAt;
+    private ?\DateTimeImmutable $emailVerifiedAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $updatedAt;
 
     #[ORM\OneToOne(mappedBy: 'user', targetEntity: MediaAttachment::class)]
     private ?MediaAttachment $avatarAttachment = null;
@@ -46,7 +45,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         string $email,
         string $passwordHash,
         string $preferredLanguage,
-        DateTimeImmutable $createdAt,
+        \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
         $this->username = $username;
@@ -96,17 +95,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->preferredLanguage;
     }
 
-    public function getEmailVerifiedAt(): ?DateTimeImmutable
+    public function getEmailVerifiedAt(): ?\DateTimeImmutable
     {
         return $this->emailVerifiedAt;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): DateTimeImmutable
+    public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
     }
@@ -118,13 +117,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function attachAvatar(
         MediaAttachment $attachment,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->avatarAttachment = $attachment;
         $this->updatedAt = $changedAt;
     }
 
-    public function detachAvatar(DateTimeImmutable $changedAt): void
+    public function detachAvatar(\DateTimeImmutable $changedAt): void
     {
         $this->avatarAttachment = null;
         $this->updatedAt = $changedAt;
@@ -132,7 +131,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function changePreferredLanguage(
         string $preferredLanguage,
-        DateTimeImmutable $changedAt,
+        \DateTimeImmutable $changedAt,
     ): void {
         $this->preferredLanguage = $preferredLanguage;
         $this->updatedAt = $changedAt;

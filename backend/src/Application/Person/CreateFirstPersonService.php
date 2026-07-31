@@ -47,11 +47,7 @@ final readonly class CreateFirstPersonService
             $this->entityManager->refresh($tree);
             $this->versions->assertMatches($tree, $ifMatch);
             if (0 !== $this->people->countForTree($tree)) {
-                throw new ApiException(
-                    JsonResponse::HTTP_CONFLICT,
-                    'FIRST_PERSON_ALREADY_EXISTS',
-                    'first_person_already_exists',
-                );
+                throw new ApiException(JsonResponse::HTTP_CONFLICT, 'FIRST_PERSON_ALREADY_EXISTS', 'first_person_already_exists');
             }
 
             $changedAt = $this->clock->now();
@@ -98,11 +94,6 @@ final readonly class CreateFirstPersonService
 
     private function invalid(string $field, string $error): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'GRAPH_MUTATION_INVALID',
-            'graph_mutation_invalid',
-            [$field => [$error]],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'GRAPH_MUTATION_INVALID', 'graph_mutation_invalid', [$field => [$error]]);
     }
 }

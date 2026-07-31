@@ -230,20 +230,11 @@ final readonly class ManualEventService
 
     private function invalidOrder(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-            'EVENT_ORDER_INVALID',
-            'event_order_invalid',
-            ['eventIds' => ['events_not_ambiguous']],
-        );
+        throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'EVENT_ORDER_INVALID', 'event_order_invalid', ['eventIds' => ['events_not_ambiguous']]);
     }
 
     private function notFound(): never
     {
-        throw new ApiException(
-            JsonResponse::HTTP_NOT_FOUND,
-            'NOT_FOUND',
-            'not_found',
-        );
+        throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
     }
 }

@@ -2,8 +2,8 @@
 
 namespace App\Repository;
 
-use App\Entity\ParentLink;
 use App\Entity\FamilyTree;
+use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\ParentRole;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;

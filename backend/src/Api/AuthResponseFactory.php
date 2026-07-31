@@ -19,9 +19,9 @@ final readonly class AuthResponseFactory
         int $status = JsonResponse::HTTP_OK,
     ): JsonResponse {
         $response = new JsonResponse([
-            'accessToken' => $bundle->accessToken,
+            'accessToken'          => $bundle->accessToken,
             'accessTokenExpiresAt' => $bundle->accessExpiresAt->format(DATE_ATOM),
-            'user' => $this->userView->create($bundle->session->getUser()),
+            'user'                 => $this->userView->create($bundle->session->getUser()),
         ], $status);
         $response->headers->setCookie($this->cookies->create($bundle));
 

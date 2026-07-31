@@ -39,7 +39,7 @@ final class UserRepository extends ServiceEntityRepository
 
     public function countAll(): int
     {
-        return (int) $this->createQueryBuilder('user')
+        return (int)$this->createQueryBuilder('user')
             ->select('COUNT(user.id)')
             ->getQuery()
             ->getSingleScalarResult();

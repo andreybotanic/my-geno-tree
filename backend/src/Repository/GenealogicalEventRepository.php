@@ -6,9 +6,9 @@ use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
-use Symfony\Component\Uid\Uuid;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<GenealogicalEvent>
@@ -25,8 +25,8 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
         EventType $type,
     ): ?GenealogicalEvent {
         return $this->findOneBy([
-            'person' => $person,
-            'type' => $type,
+            'person'         => $person,
+            'type'           => $type,
             'sourceEntityId' => $person->getId(),
         ]);
     }
@@ -37,8 +37,8 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
         Uuid $sourceEntityId,
     ): ?GenealogicalEvent {
         return $this->findOneBy([
-            'person' => $person,
-            'type' => $type,
+            'person'         => $person,
+            'type'           => $type,
             'sourceEntityId' => $sourceEntityId,
         ]);
     }
@@ -48,7 +48,7 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
         string $id,
     ): ?GenealogicalEvent {
         return $this->findOneBy([
-            'id' => $id,
+            'id'     => $id,
             'person' => $person,
             'source' => EventSource::MANUAL,
         ]);

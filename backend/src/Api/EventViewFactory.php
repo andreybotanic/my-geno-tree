@@ -19,19 +19,19 @@ final readonly class EventViewFactory
         $data = $event->getData();
 
         return [
-            'id' => $event->getId()->toRfc4122(),
-            'personId' => $event->getPerson()->getId()->toRfc4122(),
-            'type' => $event->getType()->value,
-            'source' => $event->getSource()->value,
-            'date' => $this->dates->create($event->getDate()),
-            'title' => $event->getTitle(),
-            'description' => $event->getDescription(),
-            'data' => [] === $data ? new \stdClass() : $data,
+            'id'               => $event->getId()->toRfc4122(),
+            'personId'         => $event->getPerson()->getId()->toRfc4122(),
+            'type'             => $event->getType()->value,
+            'source'           => $event->getSource()->value,
+            'date'             => $this->dates->create($event->getDate()),
+            'title'            => $event->getTitle(),
+            'description'      => $event->getDescription(),
+            'data'             => [] === $data ? new \stdClass() : $data,
             'sourceEntityType' => $event->getSourceEntityType(),
-            'sourceEntityId' => $event->getSourceEntityId()?->toRfc4122(),
-            'manualOrder' => $event->getManualOrder(),
-            'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
-            'updatedAt' => $event->getUpdatedAt()->format(DATE_ATOM),
+            'sourceEntityId'   => $event->getSourceEntityId()?->toRfc4122(),
+            'manualOrder'      => $event->getManualOrder(),
+            'createdAt'        => $event->getCreatedAt()->format(DATE_ATOM),
+            'updatedAt'        => $event->getUpdatedAt()->format(DATE_ATOM),
         ];
     }
 }

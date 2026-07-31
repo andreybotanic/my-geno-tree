@@ -58,13 +58,7 @@ final readonly class RegistrationService
                 $this->entityManager->persist($bundle->refreshTokenEntity);
             });
         } catch (UniqueConstraintViolationException $exception) {
-            throw $this->conflict(
-                [
-                    'username' => ['username_or_email_not_unique'],
-                    'email' => ['username_or_email_not_unique'],
-                ],
-                $exception,
-            );
+            throw $this->conflict(['username' => ['username_or_email_not_unique'], 'email' => ['username_or_email_not_unique']], $exception);
         }
 
         return $bundle;
@@ -92,22 +86,17 @@ final readonly class RegistrationService
         ) {
             $fields['password'][] = 'password_invalid_format';
         } else {
-            $categories = (int) (1 === preg_match('/[a-z]/', $password))
-                + (int) (1 === preg_match('/[A-Z]/', $password))
-                + (int) (1 === preg_match('/[0-9]/', $password))
-                + (int) (1 === preg_match('/[^A-Za-z0-9]/', $password));
+            $categories = (int)(1 === preg_match('/[a-z]/', $password))
+                + (int)(1 === preg_match('/[A-Z]/', $password))
+                + (int)(1 === preg_match('/[0-9]/', $password))
+                + (int)(1 === preg_match('/[^A-Za-z0-9]/', $password));
             if ($categories < 3) {
                 $fields['password'][] = 'password_not_complex_enough';
             }
         }
 
         if ([] !== $fields) {
-            throw new ApiException(
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
-                'VALIDATION_FAILED',
-                'validation_failed',
-                $fields,
-            );
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'VALIDATION_FAILED', 'validation_failed', $fields);
         }
     }
 

@@ -47,10 +47,10 @@ final readonly class ApiExceptionListener
         if ($throwable instanceof HttpExceptionInterface) {
             $status = $throwable->getStatusCode();
             $code = match ($status) {
-                JsonResponse::HTTP_NOT_FOUND => 'NOT_FOUND',
+                JsonResponse::HTTP_NOT_FOUND    => 'NOT_FOUND',
                 JsonResponse::HTTP_UNAUTHORIZED => 'UNAUTHORIZED',
-                JsonResponse::HTTP_FORBIDDEN => 'FORBIDDEN',
-                default => 'HTTP_ERROR',
+                JsonResponse::HTTP_FORBIDDEN    => 'FORBIDDEN',
+                default                         => 'HTTP_ERROR',
             };
             $event->setResponse($this->responseFactory->create(new ApiException(
                 $status,
