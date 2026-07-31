@@ -202,3 +202,70 @@ export const marriageApi = {
     )
   },
 }
+
+export const eventApi = {
+  create(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    etag: string,
+    event: import('./generated').ManualEventRequest,
+  ) {
+    return request<import('./generated').EventMutationResult>(
+      `/trees/${treeId}/people/${personId}/events`,
+      {
+        method: 'POST',
+        body: JSON.stringify(event),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  update(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    eventId: string,
+    etag: string,
+    event: import('./generated').ManualEventRequest,
+  ) {
+    return request<import('./generated').EventMutationResult>(
+      `/trees/${treeId}/people/${personId}/events/${eventId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(event),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  remove(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    eventId: string,
+    etag: string,
+  ) {
+    return request<void>(
+      `/trees/${treeId}/people/${personId}/events/${eventId}`,
+      {
+        method: 'DELETE',
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  reorder(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    etag: string,
+    eventIds: string[],
+  ) {
+    return request<import('./generated').EventOrderResult>(
+      `/trees/${treeId}/people/${personId}/event-order`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ eventIds }),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+}

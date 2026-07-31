@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import type {
   GenealogicalEvent,
   GraphMutation,
+  ManualEventRequest,
   MarriagePeriod,
   MarriagePeriodPatchRequest,
   ParentLink,
@@ -30,6 +31,7 @@ import type {
 } from '../api/generated'
 import {
   ApiRequestError,
+  eventApi,
   marriageApi,
   personApi,
   treeApi,
@@ -52,6 +54,7 @@ import {
 } from '../components/TreeEdges'
 import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
 import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
+import { EventDialog } from '../components/EventDialog'
 import { navigate } from '../routing'
 import {
   buildTreeEdges,
@@ -192,6 +195,12 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(
     null,
   )
+  const [eventEditing, setEventEditing] = useState<
+    GenealogicalEvent | 'new' | null
+  >(null)
+  const [eventPendingDeletion, setEventPendingDeletion] = useState<
+    GenealogicalEvent | null
+  >(null)
 
   const loadSnapshot = useCallback(async () => {
     setStatus('loading')
@@ -205,6 +214,8 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setRelativeSecondParentId(null)
       setMarriageEditing(null)
       setPendingRemoval(null)
+      setEventEditing(null)
+      setEventPendingDeletion(null)
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -461,6 +472,105 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     }
   }
 
+  const saveEvent = async (payload: ManualEventRequest) => {
+    if (!snapshot || !selectedPerson || !eventEditing || conflict) {
+      throw new Error('Event mutation is unavailable')
+    }
+    try {
+      const result = eventEditing === 'new'
+        ? await eventApi.create(
+            request,
+            treeId,
+            selectedPerson.id,
+            snapshot.etag,
+            payload,
+          )
+        : await eventApi.update(
+            request,
+            treeId,
+            selectedPerson.id,
+            eventEditing.id,
+            snapshot.etag,
+            payload,
+          )
+      const timeline = await personApi.events(
+        request,
+        treeId,
+        selectedPerson.id,
+      )
+      setEvents(timeline.items)
+      setSnapshot({ ...snapshot, etag: result.etag })
+      setEventEditing(null)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const deleteEvent = async () => {
+    if (!snapshot || !selectedPerson || !eventPendingDeletion || conflict) {
+      throw new Error('Event deletion is unavailable')
+    }
+    try {
+      await eventApi.remove(
+        request,
+        treeId,
+        selectedPerson.id,
+        eventPendingDeletion.id,
+        snapshot.etag,
+      )
+      const [updated, timeline] = await Promise.all([
+        treeApi.snapshot(request, treeId),
+        personApi.events(request, treeId, selectedPerson.id),
+      ])
+      setSnapshot(updated)
+      setSelectedPerson(
+        updated.people.find((person) => person.id === selectedPerson.id)
+          ?? null,
+      )
+      setEvents(timeline.items)
+      setEventPendingDeletion(null)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const reorderEvents = async (eventIds: string[]) => {
+    if (!snapshot || !selectedPerson || conflict) {
+      throw new Error('Event ordering is unavailable')
+    }
+    try {
+      const result = await eventApi.reorder(
+        request,
+        treeId,
+        selectedPerson.id,
+        snapshot.etag,
+        eventIds,
+      )
+      setEvents(result.items)
+      setSnapshot({ ...snapshot, etag: result.etag })
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
   return (
     <main className="tree-editor-page">
       <div className="editor-toolbar">
@@ -550,13 +660,19 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             onClose={() => {
               setSelectedPerson(null)
               setEvents([])
+              setEventEditing(null)
+              setEventPendingDeletion(null)
             }}
+            onCreateEvent={() => setEventEditing('new')}
+            onDeleteEvent={setEventPendingDeletion}
             onDeletePerson={() => setPendingRemoval({
               kind: 'person',
               person: selectedPerson,
             })}
+            onEditEvent={setEventEditing}
             onEditMarriage={setMarriageEditing}
             onPatch={patchPerson}
+            onReorderEvents={reorderEvents}
             onRemoveMarriage={(marriage) => setPendingRemoval({
               kind: 'marriage',
               marriage,
@@ -595,6 +711,22 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           marriage={marriageEditing}
           onCancel={() => setMarriageEditing(null)}
           onSave={editMarriage}
+        />
+      )}
+      {eventEditing && (
+        <EventDialog
+          {...(eventEditing === 'new' ? {} : { event: eventEditing })}
+          onCancel={() => setEventEditing(null)}
+          onSave={saveEvent}
+        />
+      )}
+      {eventPendingDeletion && (
+        <ConfirmRelationshipDialog
+          description={t('events.deleteDescription')}
+          errorMessage={t('events.removeFailed')}
+          onCancel={() => setEventPendingDeletion(null)}
+          onConfirm={deleteEvent}
+          title={t('events.deleteTitle')}
         />
       )}
       {pendingRemoval && (

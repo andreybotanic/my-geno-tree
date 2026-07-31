@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 type ConfirmRelationshipDialogProps = {
   description: string
+  errorMessage?: string
   onCancel: () => void
   onConfirm: () => Promise<void>
   title: string
@@ -10,6 +11,7 @@ type ConfirmRelationshipDialogProps = {
 
 export function ConfirmRelationshipDialog({
   description,
+  errorMessage,
   onCancel,
   onConfirm,
   title,
@@ -23,7 +25,7 @@ export function ConfirmRelationshipDialog({
     try {
       await onConfirm()
     } catch {
-      setError(t('relationships.removeFailed'))
+      setError(errorMessage ?? t('relationships.removeFailed'))
     } finally {
       setSaving(false)
     }

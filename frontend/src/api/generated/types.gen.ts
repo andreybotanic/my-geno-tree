@@ -270,6 +270,34 @@ export type EventList = {
     items: Array<GenealogicalEvent>;
 };
 
+export type CustomEventRequest = {
+    type: 'custom';
+    date: GenealogicalDate;
+    title: string;
+    description: string | null;
+};
+
+export type SurnameChangeEventRequest = {
+    type: 'surname_change';
+    date: GenealogicalDate;
+    newSurname: string;
+};
+
+export type ManualEventRequest = CustomEventRequest | SurnameChangeEventRequest;
+
+export type EventMutationResult = {
+    event: GenealogicalEvent;
+    etag: string;
+};
+
+export type EventOrderRequest = {
+    eventIds: Array<string>;
+};
+
+export type EventOrderResult = EventList & {
+    etag: string;
+};
+
 export type AuthResponse = {
     accessToken: string;
     accessTokenExpiresAt: string;
@@ -299,6 +327,8 @@ export type ApiError = {
 export type TreeId = string;
 
 export type PersonId = string;
+
+export type EventId = string;
 
 /**
  * ETag returned by the latest tree representation
@@ -945,3 +975,209 @@ export type ListPersonEventsResponses = {
 };
 
 export type ListPersonEventsResponse = ListPersonEventsResponses[keyof ListPersonEventsResponses];
+
+export type CreateManualEventData = {
+    body: ManualEventRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/events';
+};
+
+export type CreateManualEventErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type CreateManualEventError = CreateManualEventErrors[keyof CreateManualEventErrors];
+
+export type CreateManualEventResponses = {
+    /**
+     * Manual event created
+     */
+    201: EventMutationResult;
+};
+
+export type CreateManualEventResponse = CreateManualEventResponses[keyof CreateManualEventResponses];
+
+export type DeleteManualEventData = {
+    body?: never;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/events/{eventId}';
+};
+
+export type DeleteManualEventErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+};
+
+export type DeleteManualEventError = DeleteManualEventErrors[keyof DeleteManualEventErrors];
+
+export type DeleteManualEventResponses = {
+    /**
+     * Manual event deleted
+     */
+    204: void;
+};
+
+export type DeleteManualEventResponse = DeleteManualEventResponses[keyof DeleteManualEventResponses];
+
+export type UpdateManualEventData = {
+    body: ManualEventRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/events/{eventId}';
+};
+
+export type UpdateManualEventErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UpdateManualEventError = UpdateManualEventErrors[keyof UpdateManualEventErrors];
+
+export type UpdateManualEventResponses = {
+    /**
+     * Manual event updated
+     */
+    200: EventMutationResult;
+};
+
+export type UpdateManualEventResponse = UpdateManualEventResponses[keyof UpdateManualEventResponses];
+
+export type ReorderPersonEventsData = {
+    body: EventOrderRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/event-order';
+};
+
+export type ReorderPersonEventsErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ReorderPersonEventsError = ReorderPersonEventsErrors[keyof ReorderPersonEventsErrors];
+
+export type ReorderPersonEventsResponses = {
+    /**
+     * Timeline reordered
+     */
+    200: EventOrderResult;
+};
+
+export type ReorderPersonEventsResponse = ReorderPersonEventsResponses[keyof ReorderPersonEventsResponses];

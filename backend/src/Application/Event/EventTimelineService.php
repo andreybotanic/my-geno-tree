@@ -10,6 +10,7 @@ final readonly class EventTimelineService
 {
     public function __construct(
         private GenealogicalEventRepository $events,
+        private EventChronology $chronology,
     ) {
     }
 
@@ -28,24 +29,12 @@ final readonly class EventTimelineService
         GenealogicalEvent $left,
         GenealogicalEvent $right,
     ): int {
-        $leftEarliest = $left->getDate()->earliest();
-        $rightEarliest = $right->getDate()->earliest();
-        $leftLatest = $left->getDate()->latest();
-        $rightLatest = $right->getDate()->latest();
-
-        if (
-            null !== $leftLatest
-            && null !== $rightEarliest
-            && $leftLatest < $rightEarliest
-        ) {
-            return -1;
-        }
-        if (
-            null !== $rightLatest
-            && null !== $leftEarliest
-            && $rightLatest < $leftEarliest
-        ) {
-            return 1;
+        $chronological = $this->chronology->compare(
+            $left->getDate(),
+            $right->getDate(),
+        );
+        if (0 !== $chronological) {
+            return $chronological;
         }
 
         return ($left->getManualOrder() ?? PHP_INT_MAX)

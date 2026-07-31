@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
+use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
 use Symfony\Component\Uid\Uuid;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -39,6 +40,17 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
             'person' => $person,
             'type' => $type,
             'sourceEntityId' => $sourceEntityId,
+        ]);
+    }
+
+    public function findManualForPerson(
+        Person $person,
+        string $id,
+    ): ?GenealogicalEvent {
+        return $this->findOneBy([
+            'id' => $id,
+            'person' => $person,
+            'source' => EventSource::MANUAL,
         ]);
     }
 

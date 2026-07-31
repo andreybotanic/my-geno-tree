@@ -458,6 +458,139 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createManualEvent
+      summary: Create one manual event
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualEventRequest"
+      responses:
+        "201":
+          description: Manual event created
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventMutationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/people/{personId}/events/{eventId}:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+      - $ref: "#/components/parameters/EventId"
+    patch:
+      operationId: updateManualEvent
+      summary: Replace the editable fields of one manual event
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualEventRequest"
+      responses:
+        "200":
+          description: Manual event updated
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventMutationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deleteManualEvent
+      summary: Delete one manual event
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Manual event deleted
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+  /trees/{treeId}/people/{personId}/event-order:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+    put:
+      operationId: reorderPersonEvents
+      summary: Order events inside one chronologically ambiguous group
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventOrderRequest"
+      responses:
+        "200":
+          description: Timeline reordered
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventOrderResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
 components:
   securitySchemes:
     bearerAuth:
@@ -483,6 +616,13 @@ components:
         format: uuid
     PersonId:
       name: personId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EventId:
+      name: eventId
       in: path
       required: true
       schema:
@@ -1327,6 +1467,83 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GenealogicalEvent"
+    CustomEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - date
+        - title
+        - description
+      properties:
+        type:
+          type: string
+          const: custom
+        date:
+          $ref: "#/components/schemas/GenealogicalDate"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+            - string
+            - "null"
+          maxLength: 5000
+    SurnameChangeEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - date
+        - newSurname
+      properties:
+        type:
+          type: string
+          const: surname_change
+        date:
+          $ref: "#/components/schemas/GenealogicalDate"
+        newSurname:
+          type: string
+          minLength: 1
+          maxLength: 100
+    ManualEventRequest:
+      oneOf:
+        - $ref: "#/components/schemas/CustomEventRequest"
+        - $ref: "#/components/schemas/SurnameChangeEventRequest"
+    EventMutationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - event
+        - etag
+      properties:
+        event:
+          $ref: "#/components/schemas/GenealogicalEvent"
+        etag:
+          type: string
+    EventOrderRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - eventIds
+      properties:
+        eventIds:
+          type: array
+          minItems: 2
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    EventOrderResult:
+      allOf:
+        - $ref: "#/components/schemas/EventList"
+        - type: object
+          required:
+            - etag
+          properties:
+            etag:
+              type: string
     AuthResponse:
       type: object
       additionalProperties: false

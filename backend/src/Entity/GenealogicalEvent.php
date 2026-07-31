@@ -139,6 +139,33 @@ class GenealogicalEvent
         );
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function manual(
+        Person $person,
+        EventType $type,
+        GenealogicalDate $date,
+        ?string $title,
+        ?string $description,
+        array $data,
+        DateTimeImmutable $createdAt,
+    ): self {
+        return new self(
+            $person,
+            $type,
+            EventSource::MANUAL,
+            $date,
+            $title,
+            $description,
+            $data,
+            null,
+            null,
+            null,
+            $createdAt,
+        );
+    }
+
     public function getId(): Uuid
     {
         return $this->id;
@@ -225,6 +252,33 @@ class GenealogicalEvent
     ): void {
         $this->date = $date;
         $this->data = $data;
+        $this->updatedAt = $changedAt;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function changeManual(
+        EventType $type,
+        GenealogicalDate $date,
+        ?string $title,
+        ?string $description,
+        array $data,
+        DateTimeImmutable $changedAt,
+    ): void {
+        $this->type = $type;
+        $this->date = $date;
+        $this->title = $title;
+        $this->description = $description;
+        $this->data = $data;
+        $this->updatedAt = $changedAt;
+    }
+
+    public function changeManualOrder(
+        ?int $manualOrder,
+        DateTimeImmutable $changedAt,
+    ): void {
+        $this->manualOrder = $manualOrder;
         $this->updatedAt = $changedAt;
     }
 }

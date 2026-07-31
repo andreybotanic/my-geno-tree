@@ -827,6 +827,18 @@
   margin: 0 0 12px;
 }
 
+.event-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.event-heading h3 {
+  margin: 0;
+}
+
 .relationship-heading,
 .relationship-row,
 .marriage-period-list li {
@@ -969,6 +981,7 @@
 .inline-person-editor select,
 .person-select-field input:not([type="checkbox"]),
 .person-select-field select,
+.person-select-field textarea,
 .person-fieldset input:not([type="checkbox"]),
 .date-controls select {
   background: var(--color-surface);
@@ -978,6 +991,12 @@
   min-height: 36px;
   padding: 0 9px;
   width: 100%;
+}
+
+.person-select-field textarea {
+  min-height: 120px;
+  padding: 9px;
+  resize: vertical;
 }
 
 .inline-person-editor small {
@@ -1028,6 +1047,61 @@
 .event-timeline strong {
   color: var(--color-text-strong);
   font-size: 0.84rem;
+}
+
+.event-actions,
+.event-order-actions {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+}
+
+.event-actions {
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.event-actions > button,
+.event-order-actions button,
+.event-summary-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 3px 4px;
+}
+
+.event-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.event-order-actions {
+  margin-left: auto;
+}
+
+.event-order-actions button {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  height: 27px;
+  line-height: 1;
+  width: 27px;
+}
+
+.event-summary-button {
+  justify-self: start;
+  padding-left: 0;
+}
+
+.event-description {
+  color: var(--color-text);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .panel-empty {

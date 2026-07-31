@@ -63,9 +63,13 @@ const renderPanel = ({
       events={events}
       onAddRelative={vi.fn()}
       onClose={onClose}
+      onCreateEvent={vi.fn()}
+      onDeleteEvent={vi.fn()}
       onDeletePerson={vi.fn()}
+      onEditEvent={vi.fn()}
       onEditMarriage={vi.fn()}
       onPatch={onPatch}
+      onReorderEvents={vi.fn(async () => {})}
       onRemoveMarriage={vi.fn()}
       onRemoveParentLink={vi.fn()}
       person={value}

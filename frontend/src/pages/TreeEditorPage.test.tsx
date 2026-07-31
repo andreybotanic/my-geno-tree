@@ -222,6 +222,166 @@ describe('TreeEditorPage', () => {
     )
   })
 
+  it('creates, edits, and deletes a manual event with current ETags', async () => {
+    let currentEvents = [event]
+    let deleted = false
+    const manualEvent: GenealogicalEvent = {
+      ...event,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4a8',
+      type: 'custom',
+      source: 'manual',
+      title: 'Graduated',
+      description: null,
+      sourceEntityType: null,
+      sourceEntityId: null,
+    }
+    const request = vi.fn(async (
+      path: string,
+      init?: RequestInit,
+    ) => {
+      if (path.endsWith(`/events/${manualEvent.id}`)) {
+        if (init?.method === 'DELETE') {
+          currentEvents = [event]
+          deleted = true
+          return undefined
+        }
+        const changed = { ...manualEvent, title: 'University graduation' }
+        currentEvents = [event, changed]
+        return { event: changed, etag: '"tree-event-updated"' }
+      }
+      if (path.endsWith('/events')) {
+        if (init?.method === 'POST') {
+          currentEvents = [event, manualEvent]
+          return { event: manualEvent, etag: '"tree-event-created"' }
+        }
+        return { items: currentEvents }
+      }
+      if (path.endsWith(`/people/${person.id}`)) {
+        return person
+      }
+
+      return graphSnapshot(
+        [person],
+        [],
+        [],
+        deleted ? '"tree-event-deleted"' : '"tree-current"',
+      )
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(
+      await screen.findByRole('article', { name: 'Ivanova Anna' }),
+    )
+    await screen.findByRole('complementary', { name: 'Person details' })
+    await userEvent.click(screen.getByRole('button', { name: 'Add event' }))
+    let dialog = screen.getByRole('dialog', { name: 'Add an event' })
+    await userEvent.type(
+      within(dialog).getByRole('textbox', { name: 'Title' }),
+      'Graduated',
+    )
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(await screen.findByText('Graduated')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/people/${person.id}/events`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'If-Match': '"tree-current"' },
+        body: JSON.stringify({
+          type: 'custom',
+          date: { state: 'unknown' },
+          title: 'Graduated',
+          description: null,
+        }),
+      }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    dialog = screen.getByRole('dialog', { name: 'Edit event' })
+    const title = within(dialog).getByRole('textbox', { name: 'Title' })
+    await userEvent.clear(title)
+    await userEvent.type(title, 'University graduation')
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Save' }),
+    )
+    expect(await screen.findByText('University graduation'))
+      .toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/people/${person.id}/events/${manualEvent.id}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: { 'If-Match': '"tree-event-created"' },
+      }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    dialog = screen.getByRole('dialog', { name: 'Delete event?' })
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remove' }),
+    )
+    await waitFor(() => {
+      expect(screen.queryByText('University graduation'))
+        .not.toBeInTheDocument()
+    })
+    expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/people/${person.id}/events/${manualEvent.id}`,
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { 'If-Match': '"tree-event-updated"' },
+      }),
+    )
+  })
+
+  it('persists manual order for events with ambiguous dates', async () => {
+    const manualEvent: GenealogicalEvent = {
+      ...event,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4a8',
+      type: 'custom',
+      source: 'manual',
+      title: 'Moved',
+      sourceEntityType: null,
+      sourceEntityId: null,
+    }
+    const request = vi.fn(async (
+      path: string,
+      init?: RequestInit,
+    ) => {
+      if (path.endsWith('/event-order') && init?.method === 'PUT') {
+        return {
+          items: [manualEvent, event],
+          etag: '"tree-reordered"',
+        }
+      }
+      if (path.endsWith('/events')) {
+        return { items: [event, manualEvent] }
+      }
+      if (path.endsWith(`/people/${person.id}`)) {
+        return person
+      }
+      return snapshot([person])
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(
+      await screen.findByRole('article', { name: 'Ivanova Anna' }),
+    )
+    await screen.findByRole('complementary', { name: 'Person details' })
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move Moved up' }),
+    )
+
+    expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/people/${person.id}/event-order`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ eventIds: [manualEvent.id, event.id] }),
+        headers: { 'If-Match': '"tree-current"' },
+      },
+    )
+  })
+
   it('stops autosaving and preserves the local value after a conflict', async () => {
     const request = vi.fn(async (
       path: string,

@@ -30,6 +30,7 @@ import {
 } from '../personFormatting'
 import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
+import { EventTimeline } from './EventTimeline'
 
 type PersonField = keyof Pick<
   Person,
@@ -47,8 +48,12 @@ type PersonDetailsPanelProps = {
   onAddRelative: (action: RelativeAction, secondParentId?: string) => void
   onClose: () => void
   onDeletePerson: () => void
+  onCreateEvent: () => void
+  onDeleteEvent: (event: GenealogicalEvent) => void
+  onEditEvent: (event: GenealogicalEvent) => void
   onEditMarriage: (marriage: MarriagePeriod) => void
   onPatch: (patch: PersonPatchRequest) => Promise<void>
+  onReorderEvents: (eventIds: string[]) => Promise<void>
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
   person: Person
@@ -176,9 +181,13 @@ export function PersonDetailsPanel({
   events,
   onAddRelative,
   onClose,
+  onCreateEvent,
+  onDeleteEvent,
   onDeletePerson,
+  onEditEvent,
   onEditMarriage,
   onPatch,
+  onReorderEvents,
   onRemoveMarriage,
   onRemoveParentLink,
   person,
@@ -386,24 +395,14 @@ export function PersonDetailsPanel({
         snapshot={snapshot}
       />
 
-      <section className="person-details-section">
-        <h3>{t('person.events')}</h3>
-        {events.length === 0 ? (
-          <p className="panel-empty">{t('person.noEvents')}</p>
-        ) : (
-          <ol className="event-timeline">
-            {events.map((event) => (
-              <li key={event.id}>
-                <span>{dateLabel(event.date)}</span>
-                <strong>{t(`person.eventType.${event.type}`)}</strong>
-                {event.source === 'automatic' && (
-                  <small>{t('person.automaticEvent')}</small>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      <EventTimeline
+        conflict={conflict}
+        events={events}
+        onCreate={onCreateEvent}
+        onDelete={onDeleteEvent}
+        onEdit={onEditEvent}
+        onReorder={onReorderEvents}
+      />
     </aside>
   )
 }
