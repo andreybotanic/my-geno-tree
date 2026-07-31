@@ -15,6 +15,9 @@ describe('semantic design contracts', () => {
       '--color-border',
       '--color-placeholder',
       '--color-graph-line',
+      '--color-state-warning',
+      '--color-state-warning-soft',
+      '--color-state-warning-strong',
       '--color-shadow',
       '--color-backdrop',
       '--shadow-dialog',
@@ -58,12 +61,15 @@ describe('semantic design contracts', () => {
     )
   })
 
-  it('uses a shared inline SVG for addition actions', () => {
+  it('uses one colored, interactive size for every addition action', () => {
     expect(appStyles).toMatch(
-      /\.add-button\s*\{[^}]*display:\s*inline-flex;[^}]*gap:\s*7px;/s,
+      /\.add-button\s*\{[^}]*background:\s*var\(--color-accent\);[^}]*font-family:\s*var\(--font-body\);[^}]*font-size:\s*0\.78rem;[^}]*height:\s*36px;[^}]*width:\s*132px;/s,
     )
     expect(appStyles).toMatch(
       /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*width:\s*15px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.add-button:hover:not\(:disabled\)\s*\{[^}]*background:\s*var\(--color-accent-hover\);[^}]*transform:\s*translateY\(-1px\);/s,
     )
   })
 
@@ -74,8 +80,32 @@ describe('semantic design contracts', () => {
     expect(appStyles).toMatch(
       /\.compact-button\s*\{[^}]*min-width:\s*92px;/s,
     )
+  })
+
+  it('draws site-styled checkboxes, radios, and warning unknown states', () => {
     expect(appStyles).toMatch(
-      /\.event-heading \.compact-button,[^{]*\{[^}]*font-size:\s*0\.78rem;[^}]*min-width:\s*132px;/s,
+      /\.choice-control > span::before\s*\{[^}]*border:\s*1px solid var\(--color-border\);[^}]*height:\s*18px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.choice-control > input\[type="checkbox"\]:checked \+ span::before\s*\{[^}]*background:\s*var\(--color-accent\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.choice-control > input\[type="radio"\]:checked \+ span::before\s*\{[^}]*box-shadow:\s*inset 0 0 0 4px var\(--color-surface-elevated\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.unknown-toggle-button\[aria-pressed="true"\]\s*\{[^}]*background:\s*var\(--color-state-warning-soft\);[^}]*border-color:\s*var\(--color-state-warning\);/s,
+    )
+  })
+
+  it('keeps every active date field on one row', () => {
+    expect(appStyles).toMatch(
+      /\.date-input-row\s*\{[^}]*display:\s*flex;[^}]*min-width:\s*0;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.date-controls\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1 1 auto;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.approximate-toggle\s*\{[^}]*justify-self:\s*start;/s,
     )
   })
 

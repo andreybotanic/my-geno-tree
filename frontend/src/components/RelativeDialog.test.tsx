@@ -56,6 +56,23 @@ describe('RelativeDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', { name: 'Add spouse' })
+    const marriageDate = within(dialog).getByRole('group', {
+      name: 'Marriage date',
+    })
+    const marriageUnknown = within(marriageDate).getByRole('button', {
+      name: 'Unknown',
+    })
+    expect(marriageUnknown).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      within(marriageDate).getByRole('combobox', {
+        name: 'Marriage date: Precision',
+      }),
+    ).toHaveValue('day')
+    expect(
+      within(marriageDate).getByRole('spinbutton', {
+        name: 'Marriage date: Day',
+      }),
+    ).toBeEnabled()
     await userEvent.selectOptions(
       within(dialog).getByRole('combobox', { name: 'Gender' }),
       'female',
@@ -63,6 +80,10 @@ describe('RelativeDialog', () => {
     await userEvent.click(
       within(dialog).getByRole('checkbox', { name: 'Marriage ended' }),
     )
+    expect(
+      within(dialog).getByRole('checkbox', { name: 'Marriage ended' })
+        .closest('label'),
+    ).toHaveClass('choice-control')
     await userEvent.type(
       within(dialog).getByRole('textbox', {
         name: 'New surname of the man',
@@ -185,7 +206,7 @@ describe('RelativeDialog', () => {
       .toHaveTextContent('changed in another session')
   })
 
-  it('rejects an invalid known marriage date and can return to new mode', async () => {
+  it('rejects a blank known marriage date and can return to new mode', async () => {
     render(
       <RelativeDialog
         action="spouse"
@@ -207,9 +228,9 @@ describe('RelativeDialog', () => {
     const marriage = within(dialog).getByRole('group', {
       name: 'Marriage date',
     })
-    await userEvent.click(
+    expect(
       within(marriage).getByRole('button', { name: 'Unknown' }),
-    )
+    ).toHaveAttribute('aria-pressed', 'false')
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )

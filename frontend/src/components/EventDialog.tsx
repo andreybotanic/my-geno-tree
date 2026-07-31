@@ -8,6 +8,7 @@ import type {
 import { ApiRequestError } from '../api/client'
 import {
   dateValue,
+  emptyDate,
   unknownDate,
   type DateInputState,
 } from '../personFormValues'
@@ -29,7 +30,7 @@ export function EventDialog({
     event?.type === 'surname_change' ? 'surname_change' : 'custom',
   )
   const [date, setDate] = useState(
-    () => dateDraft(event?.date ?? { state: 'unknown' }),
+    () => event ? dateDraft(event.date) : emptyDate(),
   )
   const [title, setTitle] = useState(event?.title ?? '')
   const [description, setDescription] = useState(event?.description ?? '')

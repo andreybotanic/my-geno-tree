@@ -10,7 +10,7 @@ import type {
 import { ApiRequestError } from '../api/client'
 import {
   dateValue,
-  unknownDate,
+  emptyDate,
   type DateInputState,
 } from '../personFormValues'
 import { formatPersonName } from '../personFormatting'
@@ -65,9 +65,9 @@ export function RelativeDialog({
   const [secondParentId, setSecondParentId] = useState(
     initialSecondParentId ?? '',
   )
-  const [marriageDate, setMarriageDate] = useState(unknownDate)
+  const [marriageDate, setMarriageDate] = useState(emptyDate)
   const [dissolved, setDissolved] = useState(false)
-  const [dissolutionDate, setDissolutionDate] = useState(unknownDate)
+  const [dissolutionDate, setDissolutionDate] = useState(emptyDate)
   const [maleNewSurname, setMaleNewSurname] = useState('')
   const [femaleNewSurname, setFemaleNewSurname] = useState('')
   const candidates = useMemo(
@@ -236,16 +236,16 @@ function ModeSelector({
   return (
     <fieldset className="relationship-mode relationship-wide-field">
       <legend>{t('relationships.source')}</legend>
-      <label>
+      <label className="choice-control">
         <input
           aria-label={t('relationships.newPerson')}
           checked={mode === 'new'}
           onChange={() => setMode('new')}
           type="radio"
         />
-        {t('relationships.newPerson')}
+        <span>{t('relationships.newPerson')}</span>
       </label>
-      <label>
+      <label className="choice-control">
         <input
           aria-label={t('relationships.existingPerson')}
           checked={mode === 'existing'}
@@ -253,7 +253,7 @@ function ModeSelector({
           onChange={() => setMode('existing')}
           type="radio"
         />
-        {t('relationships.existingPerson')}
+        <span>{t('relationships.existingPerson')}</span>
       </label>
     </fieldset>
   )
@@ -344,13 +344,13 @@ function RelationshipFields({
         onChange={setMarriageDate}
         state={marriageDate}
       />
-      <label className="deceased-toggle">
+      <label className="deceased-toggle choice-control">
         <input
           checked={dissolved}
           onChange={(event) => setDissolved(event.target.checked)}
           type="checkbox"
         />
-        {t('relationships.dissolved')}
+        <span>{t('relationships.dissolved')}</span>
       </label>
       {dissolved && (
         <StructuredDateInput

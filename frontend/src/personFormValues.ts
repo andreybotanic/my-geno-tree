@@ -9,13 +9,18 @@ export type DateInputState = {
   year: string
 }
 
-export const unknownDate = (): DateInputState => ({
+export const emptyDate = (): DateInputState => ({
   approximate: false,
   day: '',
   month: '',
-  precision: 'year',
-  unknown: true,
+  precision: 'day',
+  unknown: false,
   year: '',
+})
+
+export const unknownDate = (): DateInputState => ({
+  ...emptyDate(),
+  unknown: true,
 })
 
 export function dateValue(state: DateInputState): GenealogicalDate | null {

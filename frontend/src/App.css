@@ -1050,13 +1050,6 @@
   margin: 0;
 }
 
-.event-heading .compact-button,
-.relationship-heading .compact-button,
-.person-photo-actions .compact-button {
-  font-size: 0.78rem;
-  min-width: 132px;
-}
-
 .relationship-heading,
 .relationship-row,
 .marriage-period-list li {
@@ -1265,9 +1258,42 @@
 
 .add-button {
   align-items: center;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
   display: inline-flex;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
   gap: 7px;
+  height: 36px;
   justify-content: center;
+  min-height: 36px;
+  min-width: 132px;
+  padding: 0 14px;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+  width: 132px;
+}
+
+.add-button:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  box-shadow: 0 5px 14px var(--color-shadow);
+  transform: translateY(-1px);
+}
+
+.add-button:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0);
+}
+
+.add-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .add-button-icon {
@@ -1480,6 +1506,10 @@
   justify-content: center;
   padding: 0;
   width: 36px;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
 }
 
 .unknown-toggle-button:hover {
@@ -1488,9 +1518,18 @@
 }
 
 .unknown-toggle-button[aria-pressed="true"] {
-  background: var(--color-background);
-  border-color: var(--color-state-neutral);
-  color: var(--color-text-strong);
+  background: var(--color-state-warning-soft);
+  border-color: var(--color-state-warning);
+  color: var(--color-state-warning-strong);
+}
+
+.unknown-toggle-button[aria-pressed="true"]:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-state-warning-soft) 72%,
+    var(--color-state-warning) 28%
+  );
+  border-color: var(--color-state-warning-strong);
 }
 
 .unknown-toggle-button svg {
@@ -1519,9 +1558,9 @@
 
 .date-input-row {
   align-items: end;
-  display: grid;
+  display: flex;
   gap: 7px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
 }
 
 .person-select-field {
@@ -1545,11 +1584,8 @@
 }
 
 .relationship-mode label {
-  align-items: center;
   color: var(--color-text-muted);
-  display: flex;
   font-size: 0.78rem;
-  gap: 6px;
 }
 
 .relationship-wide-field {
@@ -1561,19 +1597,109 @@
 }
 
 .date-controls {
-  display: grid;
+  align-items: end;
+  display: flex;
+  flex: 1 1 auto;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .date-controls > label {
   display: grid;
+  flex: 1 1 48px;
   gap: 4px;
+  min-width: 0;
+}
+
+.date-controls > label:first-child {
+  flex: 1.4 1 80px;
 }
 
 .date-controls > label > span {
   color: var(--color-text-muted);
   font-size: 0.69rem;
+}
+
+.date-controls input,
+.date-controls select {
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.choice-control {
+  cursor: pointer;
+  position: relative;
+}
+
+.choice-control > input {
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+
+.choice-control > span {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 22px;
+  position: relative;
+}
+
+.choice-control > span::before {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  content: "";
+  flex: 0 0 18px;
+  height: 18px;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  width: 18px;
+}
+
+.choice-control:hover > input:not(:disabled) + span::before {
+  border-color: var(--color-accent);
+}
+
+.choice-control > input:focus-visible + span::before {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.choice-control > input[type="checkbox"]:checked + span::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.choice-control > input[type="checkbox"]:checked + span::after {
+  border: solid var(--color-accent-contrast);
+  border-width: 0 2px 2px 0;
+  content: "";
+  height: 8px;
+  left: 7px;
+  position: absolute;
+  top: 5px;
+  transform: rotate(45deg);
+  width: 4px;
+}
+
+.choice-control > input[type="radio"] + span::before {
+  border-radius: 50%;
+}
+
+.choice-control > input[type="radio"]:checked + span::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-surface-elevated);
+}
+
+.choice-control > input:disabled + span {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .deceased-toggle {
@@ -1593,6 +1719,10 @@
   grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
+}
+
+.person-detail-row:has(.date-fieldset) .inline-person-editor {
+  grid-column: 1 / 4;
 }
 
 .react-flow__node {

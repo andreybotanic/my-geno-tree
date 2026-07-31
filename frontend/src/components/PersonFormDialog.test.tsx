@@ -58,16 +58,28 @@ describe('PersonFormDialog', () => {
     )
 
     const birth = within(dialog).getByRole('group', { name: 'Birth date' })
+    const birthPrecision = within(birth).getByRole('combobox', {
+      name: 'Birth date: Precision',
+    })
+    expect(birthPrecision).toHaveValue('day')
+    expect(
+      within(birth).getByRole('button', { name: 'Unknown' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      within(birth).getByRole('spinbutton', { name: 'Birth date: Day' }),
+    ).toBeEnabled()
+    expect(
+      within(birth).queryByRole('checkbox', { name: 'Approximately' }),
+    ).not.toBeInTheDocument()
+    await userEvent.selectOptions(birthPrecision, 'year')
     const approximate = within(birth).getByRole('checkbox', {
       name: 'Approximately',
     })
-    expect(approximate.closest('label')).toContainElement(
-      within(birth).getByText('Approximately'),
+    expect(approximate.closest('label')).toHaveClass(
+      'approximate-toggle',
+      'choice-control',
     )
-    await userEvent.selectOptions(
-      within(birth).getByRole('combobox', { name: 'Birth date: Precision' }),
-      'month',
-    )
+    await userEvent.selectOptions(birthPrecision, 'month')
     await userEvent.type(
       within(birth).getByRole('spinbutton', { name: 'Birth date: Year' }),
       '1900',
@@ -84,11 +96,13 @@ describe('PersonFormDialog', () => {
     const deceased = within(dialog).getByRole('checkbox', {
       name: 'Deceased',
     })
+    expect(deceased.closest('label')).toHaveClass('choice-control')
     expect(deceased.closest('.death-date-row')).toContainElement(death)
-    await userEvent.selectOptions(
-      within(death).getByRole('combobox', { name: 'Death date: Precision' }),
-      'day',
-    )
+    expect(
+      within(death).getByRole('combobox', {
+        name: 'Death date: Precision',
+      }),
+    ).toHaveValue('day')
     await userEvent.type(
       within(death).getByRole('spinbutton', { name: 'Death date: Year' }),
       '1980',

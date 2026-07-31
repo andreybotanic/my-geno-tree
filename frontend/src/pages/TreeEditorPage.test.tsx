@@ -330,6 +330,11 @@ describe('TreeEditorPage', () => {
       'Graduated',
     )
     await userEvent.click(
+      within(
+        within(dialog).getByRole('group', { name: 'Event date' }),
+      ).getByRole('button', { name: 'Unknown' }),
+    )
+    await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )
 
@@ -693,6 +698,11 @@ describe('TreeEditorPage', () => {
     await userEvent.selectOptions(
       within(dialog).getByRole('combobox', { name: 'Person' }),
       spouse.id,
+    )
+    await userEvent.click(
+      within(
+        within(dialog).getByRole('group', { name: 'Marriage date' }),
+      ).getByRole('button', { name: 'Unknown' }),
     )
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),

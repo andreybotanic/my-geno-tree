@@ -51,6 +51,10 @@ describe('MarriagePeriodDialog', () => {
       name: 'Marriage date',
     })
     expect(
+      within(dialog).getByRole('checkbox', { name: 'Marriage ended' })
+        .closest('label'),
+    ).toHaveClass('choice-control')
+    expect(
       within(marriageDate).getByRole('spinbutton', {
         name: 'Marriage date: Year',
       }),

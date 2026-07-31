@@ -7,7 +7,7 @@ import type {
 import { ApiRequestError } from '../api/client'
 import {
   dateValue,
-  unknownDate,
+  emptyDate,
   type DateInputState,
 } from '../personFormValues'
 import { UnknownToggleButton } from './UnknownToggleButton'
@@ -18,11 +18,6 @@ type TextInputState = {
 }
 
 const emptyText = (): TextInputState => ({ unknown: false, value: '' })
-const emptyDate = (): DateInputState => ({
-  ...unknownDate(),
-  unknown: false,
-})
-
 function textValue(state: TextInputState): KnownText | null {
   const value = state.value.trim()
   if (state.unknown) {
@@ -115,40 +110,6 @@ export function StructuredDateInput({
                 <option value="day">{t('person.day')}</option>
               </select>
             </label>
-            <label>
-              <span>{t('person.year')}</span>
-              <input
-                aria-label={`${label}: ${t('person.year')}`}
-                disabled={state.unknown}
-                inputMode="numeric"
-                max="9999"
-                min="1582"
-                onChange={(event) => onChange({
-                  ...state,
-                  year: event.target.value,
-                })}
-                type="number"
-                value={state.year}
-              />
-            </label>
-            {state.precision !== 'year' && (
-              <label>
-                <span>{t('person.month')}</span>
-                <input
-                  aria-label={`${label}: ${t('person.month')}`}
-                  disabled={state.unknown}
-                  inputMode="numeric"
-                  max="12"
-                  min="1"
-                  onChange={(event) => onChange({
-                    ...state,
-                    month: event.target.value,
-                  })}
-                  type="number"
-                  value={state.month}
-                />
-              </label>
-            )}
             {state.precision === 'day' && (
               <label>
                 <span>{t('person.day')}</span>
@@ -167,6 +128,40 @@ export function StructuredDateInput({
                 />
               </label>
             )}
+            {state.precision !== 'year' && (
+              <label>
+                <span>{t('person.month')}</span>
+                <input
+                  aria-label={`${label}: ${t('person.month')}`}
+                  disabled={state.unknown}
+                  inputMode="numeric"
+                  max="12"
+                  min="1"
+                  onChange={(event) => onChange({
+                    ...state,
+                    month: event.target.value,
+                  })}
+                  type="number"
+                  value={state.month}
+                />
+              </label>
+            )}
+            <label>
+              <span>{t('person.year')}</span>
+              <input
+                aria-label={`${label}: ${t('person.year')}`}
+                disabled={state.unknown}
+                inputMode="numeric"
+                max="9999"
+                min="1582"
+                onChange={(event) => onChange({
+                  ...state,
+                  year: event.target.value,
+                })}
+                type="number"
+                value={state.year}
+              />
+            </label>
           </div>
           <UnknownToggleButton
             active={state.unknown}
@@ -184,7 +179,7 @@ export function StructuredDateInput({
           />
         </div>
         {state.precision === 'year' && (
-          <label className="approximate-toggle">
+          <label className="approximate-toggle choice-control">
             <input
               checked={state.approximate}
               disabled={state.unknown}
@@ -313,13 +308,13 @@ export function PersonFormDialog({
               state={birthDate}
             />
             <div className="death-date-row">
-              <label className="deceased-toggle">
+              <label className="deceased-toggle choice-control">
                 <input
                   checked={deceased}
                   onChange={(event) => setDeceased(event.target.checked)}
                   type="checkbox"
                 />
-                {t('person.deceased')}
+                <span>{t('person.deceased')}</span>
               </label>
               {deceased && (
                 <StructuredDateInput

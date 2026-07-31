@@ -82,13 +82,13 @@ export function MarriagePeriodDialog({
               onChange={setMarriageDate}
               state={marriageDate}
             />
-            <label className="deceased-toggle">
+            <label className="deceased-toggle choice-control">
               <input
                 checked={dissolved}
                 onChange={(event) => setDissolved(event.target.checked)}
                 type="checkbox"
               />
-              {t('relationships.dissolved')}
+              <span>{t('relationships.dissolved')}</span>
             </label>
             {dissolved && (
               <StructuredDateInput

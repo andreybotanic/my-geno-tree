@@ -14,12 +14,16 @@
   --color-graph-marriage: #315f50;
   --color-graph-coparent: #8b7462;
   --color-accent: #326b58;
+  --color-accent-hover: #285646;
   --color-accent-contrast: #ffffff;
   --color-state-neutral: #9aa29e;
   --color-state-success: #2f7d5b;
   --color-state-success-soft: rgb(47 125 91 / 14%);
   --color-state-danger: #b44b4b;
   --color-state-danger-soft: rgb(180 75 75 / 14%);
+  --color-state-warning: #d1871d;
+  --color-state-warning-soft: #ffedc2;
+  --color-state-warning-strong: #754306;
   --focus-ring: #2379c5;
   --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;

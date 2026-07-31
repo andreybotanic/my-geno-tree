@@ -39,9 +39,14 @@ describe('EventDialog', () => {
     const eventDate = within(dialog).getByRole('group', {
       name: 'Event date',
     })
-    await userEvent.click(
+    expect(
       within(eventDate).getByRole('button', { name: 'Unknown' }),
-    )
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      within(eventDate).getByRole('combobox', {
+        name: 'Event date: Precision',
+      }),
+    ).toHaveValue('day')
     await userEvent.selectOptions(
       within(eventDate).getByRole('combobox', {
         name: 'Event date: Precision',
@@ -124,6 +129,9 @@ describe('EventDialog', () => {
     await userEvent.type(
       screen.getByRole('textbox', { name: 'Title' }),
       'Valid title',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Unknown' }),
     )
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(

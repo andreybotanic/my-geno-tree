@@ -411,13 +411,13 @@ export function PersonDetailsPanel({
               onCommit={() => saveDate(field)}
             >
               {field === 'deathDate' && (
-                <label className="unknown-toggle">
+                <label className="unknown-toggle choice-control">
                   <input
                     checked={living}
                     onChange={(event) => setLiving(event.target.checked)}
                     type="checkbox"
                   />
-                  {t('person.living')}
+                  <span>{t('person.living')}</span>
                 </label>
               )}
               {!(field === 'deathDate' && living) && (

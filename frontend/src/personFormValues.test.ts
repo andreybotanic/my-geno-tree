@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { dateValue, unknownDate, type DateInputState } from './personFormValues'
+import {
+  dateValue,
+  emptyDate,
+  unknownDate,
+  type DateInputState,
+} from './personFormValues'
 
 const knownDate = (
   overrides: Partial<DateInputState> = {},
@@ -15,11 +20,19 @@ const knownDate = (
 
 describe('dateValue', () => {
   it('preserves an explicitly unknown date', () => {
+    expect(emptyDate()).toEqual({
+      approximate: false,
+      day: '',
+      month: '',
+      precision: 'day',
+      unknown: false,
+      year: '',
+    })
     expect(unknownDate()).toEqual({
       approximate: false,
       day: '',
       month: '',
-      precision: 'year',
+      precision: 'day',
       unknown: true,
       year: '',
     })
