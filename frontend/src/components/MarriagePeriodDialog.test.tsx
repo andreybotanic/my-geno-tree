@@ -45,7 +45,7 @@ describe('MarriagePeriodDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', {
-      name: 'Edit marriage period',
+      name: 'Edit marriage',
     })
     const marriageDate = within(dialog).getByRole('group', {
       name: 'Marriage date',
@@ -90,7 +90,7 @@ describe('MarriagePeriodDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', {
-      name: 'Edit marriage period',
+      name: 'Edit marriage',
     })
     const marriageDate = within(dialog).getByRole('group', {
       name: 'Marriage date',
@@ -121,7 +121,7 @@ describe('MarriagePeriodDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', {
-      name: 'Edit marriage period',
+      name: 'Edit marriage',
     })
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),

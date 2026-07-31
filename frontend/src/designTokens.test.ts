@@ -39,4 +39,34 @@ describe('semantic design contracts', () => {
     expect(tokens).toContain('--font-heading: var(--font-body);')
     expect(tokens).not.toMatch(/\b(?:Georgia|Times New Roman|ui-serif)\b/)
   })
+
+  it('keeps the editor panel on the left and death controls on their own row', () => {
+    expect(appStyles).toMatch(
+      /\.editor-workspace-panel-open\s*\{[^}]*grid-template-columns:\s*390px minmax\(0, 1fr\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-details-panel\s*\{[^}]*border-right:\s*1px solid var\(--color-border\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.death-date-row\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
+    )
+  })
+
+  it('centers timeline dots on their vertical line', () => {
+    expect(appStyles).toMatch(
+      /\.event-timeline li::before\s*\{[^}]*left:\s*1px;[^}]*transform:\s*translateX\(-50%\);/s,
+    )
+  })
+
+  it('keeps localized action labels on one line with wider compact controls', () => {
+    expect(appStyles).toMatch(
+      /\.primary-button\s*\{[^}]*font-size:\s*0\.84rem;[^}]*white-space:\s*nowrap;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.compact-button\s*\{[^}]*min-width:\s*92px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-heading \.compact-button,[^{]*\{[^}]*font-size:\s*0\.78rem;[^}]*min-width:\s*132px;/s,
+    )
+  })
 })

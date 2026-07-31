@@ -81,7 +81,7 @@ describe('App', () => {
       expect(screen.getByText('8')).toBeInTheDocument()
     })
     expect(
-      await screen.findByRole('button', { name: 'Sign in / Register' }),
+      await screen.findByRole('button', { name: 'Sign in / Sign up' }),
     ).toBeInTheDocument()
     expect(
       vi.mocked(fetch).mock.calls.filter(([input]) =>
@@ -94,7 +94,7 @@ describe('App', () => {
     renderApp()
 
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Sign in / Register' }),
+      await screen.findByRole('button', { name: 'Sign in / Sign up' }),
     )
 
     expect(
@@ -124,7 +124,7 @@ describe('App', () => {
     renderApp()
 
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Sign in / Register' }),
+      await screen.findByRole('button', { name: 'Sign in / Sign up' }),
     )
     await userEvent.type(
       screen.getByLabelText('Username or email'),

@@ -58,6 +58,8 @@ export function Header() {
           <span>MyGenoTree</span>
         </button>
 
+        <div className="header-breadcrumbs-slot" id="header-breadcrumbs" />
+
         <div className="header-actions">
           {!isBooting && !user && (
             <>

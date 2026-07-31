@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Background,
   Panel,
@@ -130,18 +131,26 @@ function TreeCanvas({
     [snapshot],
   )
 
-  useEffect(() => {
+  const centerFirstPerson = useCallback((
+    flow: ReactFlowInstance<PersonFlowNode, TreeFlowEdge>,
+  ) => {
     const first = snapshot.people[0]
-    if (!first || centered.current || !instance.current) {
+    if (!first || centered.current) {
       return
     }
     centered.current = true
-    void instance.current.setCenter(
+    void flow.setCenter(
       first.coordinates.x + 110,
       first.coordinates.y + 72,
       { duration: 0, zoom: 1 },
     )
   }, [snapshot.people])
+
+  useEffect(() => {
+    if (instance.current) {
+      centerFirstPerson(instance.current)
+    }
+  }, [centerFirstPerson])
 
   return (
     <ReactFlow<PersonFlowNode, TreeFlowEdge>
@@ -156,6 +165,7 @@ function TreeCanvas({
       nodesDraggable={false}
       onInit={(flow) => {
         instance.current = flow
+        centerFirstPerson(flow)
       }}
       onNodeClick={(_event, node) => onSelectPerson(node.id)}
       panOnDrag
@@ -167,6 +177,44 @@ function TreeCanvas({
       <Background color="var(--color-border)" gap={22} size={1} />
       <ZoomControls />
     </ReactFlow>
+  )
+}
+
+type EditorBreadcrumbsProps = {
+  status: 'error' | 'loading' | 'missing' | 'ready'
+  treeName: string | undefined
+}
+
+function EditorBreadcrumbs({
+  status,
+  treeName,
+}: EditorBreadcrumbsProps) {
+  const { t } = useTranslation()
+  const [container, setContainer] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setContainer(document.getElementById('header-breadcrumbs'))
+  }, [])
+
+  if (!container) {
+    return null
+  }
+
+  return createPortal(
+    <nav
+      aria-label={t('editor.breadcrumbs')}
+      className="editor-breadcrumbs"
+    >
+      <button onClick={() => navigate('/trees')} type="button">
+        {t('trees.title')}
+      </button>
+      <span aria-hidden="true">/</span>
+      <strong>
+        {treeName
+          ?? (status === 'loading' ? t('trees.loading') : 'MyGenoTree')}
+      </strong>
+    </nav>,
+    container,
   )
 }
 
@@ -653,19 +701,10 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
   return (
     <main className="tree-editor-page">
-      <div className="editor-toolbar">
-        <button
-          className="back-button"
-          onClick={() => navigate('/trees')}
-          type="button"
-        >
-          ← {t('trees.back')}
-        </button>
-        <strong>
-          {snapshot?.tree.name
-            ?? (status === 'loading' ? t('trees.loading') : 'MyGenoTree')}
-        </strong>
-      </div>
+      <EditorBreadcrumbs
+        status={status}
+        treeName={snapshot?.tree.name}
+      />
 
       {conflict && (
         <div className="version-conflict-banner" role="alert">

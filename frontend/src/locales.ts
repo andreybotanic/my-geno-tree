@@ -11,7 +11,7 @@ export const resources = {
       },
       header: {
         home: 'MyGenoTree home',
-        authenticate: 'Sign in / Register',
+        authenticate: 'Sign in / Sign up',
         profileMenu: 'Open profile menu',
         profile: 'Profile',
         trees: 'My trees',
@@ -124,9 +124,10 @@ export const resources = {
           'This tree changed in another session. Reload the current list and try again.',
       },
       editor: {
+        breadcrumbs: 'Tree navigation',
         loadFailed: 'The tree could not be loaded.',
         loading: 'Loading the family tree…',
-        reload: 'Load current version',
+        reload: 'Reload',
         versionConflict:
           'This tree changed in another session. Your unsaved value is still visible; load the current version before editing again.',
         zoomIn: 'Zoom in',
@@ -229,7 +230,7 @@ export const resources = {
         deletePerson: 'Delete person',
         dissolved: 'Marriage ended',
         dissolutionDate: 'Dissolution date',
-        editMarriage: 'Edit marriage period',
+        editMarriage: 'Edit marriage',
         existingPerson: 'Existing person',
         families: 'Families',
         father: 'Father',
@@ -339,7 +340,7 @@ export const resources = {
       },
       media: {
         addAvatar: 'Добавить аватар',
-        addPhoto: 'Добавить фотографию',
+        addPhoto: 'Добавить фото',
         avatarHelp:
           'Перемещайте и масштабируйте изображение внутри круглой области.',
         avatarTitle: 'Выбор области аватара',
@@ -348,7 +349,7 @@ export const resources = {
         deleteAvatarDescription:
           'Обработанный файл аватара будет удалён навсегда.',
         deleteAvatarTitle: 'Удалить аватар?',
-        deletePhoto: 'Удалить фотографию',
+        deletePhoto: 'Удалить фото',
         deletePhotoDescription:
           'Полная фотография и все портретные производные будут удалены навсегда.',
         deletePhotoTitle: 'Удалить фотографию?',
@@ -362,7 +363,7 @@ export const resources = {
         photoTitle: 'Выбор портретной области',
         removeFailed: 'Не удалось удалить изображение.',
         replaceAvatar: 'Заменить аватар',
-        replacePhoto: 'Заменить фотографию',
+        replacePhoto: 'Сменить фото',
         saveFailed: 'Не удалось сохранить изображение.',
         tooLarge: 'Размер изображения не должен превышать 10 МБ.',
         unsupported:
@@ -400,9 +401,10 @@ export const resources = {
           'Дерево изменено в другой сессии. Загрузите актуальный список и повторите действие.',
       },
       editor: {
+        breadcrumbs: 'Навигация по дереву',
         loadFailed: 'Не удалось загрузить дерево.',
         loading: 'Загружаем семейное дерево…',
-        reload: 'Загрузить актуальную версию',
+        reload: 'Обновить',
         versionConflict:
           'Дерево изменено в другой сессии. Несохранённое значение осталось на экране; перед продолжением загрузите актуальную версию.',
         zoomIn: 'Увеличить масштаб',
@@ -479,7 +481,7 @@ export const resources = {
           child: 'Добавить ребёнка',
           father: 'Добавить отца',
           mother: 'Добавить мать',
-          spouse: 'Добавить супруга или супругу',
+          spouse: 'Добавить партнёра',
         },
         childrenOutsideMarriage: 'Дети вне брака',
         choosePerson: 'Выберите персону',
@@ -505,7 +507,7 @@ export const resources = {
         deletePerson: 'Удалить персону',
         dissolved: 'Брак завершён',
         dissolutionDate: 'Дата расторжения',
-        editMarriage: 'Изменить период брака',
+        editMarriage: 'Изменить брак',
         existingPerson: 'Существующая персона',
         families: 'Семьи',
         father: 'Отец',

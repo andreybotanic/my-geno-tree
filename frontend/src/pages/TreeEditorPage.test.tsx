@@ -149,6 +149,7 @@ function renderEditor(request: AuthorizedJsonRequest) {
 
   render(
     <AuthContext value={value}>
+      <div id="header-breadcrumbs" />
       <TreeEditorPage treeId={treeId} />
     </AuthContext>,
   )
@@ -183,7 +184,10 @@ describe('TreeEditorPage', () => {
     ) => init?.method === 'POST' ? created : snapshot()) as unknown as AuthorizedJsonRequest
     renderEditor(request)
 
-    expect(await screen.findByText('Family history')).toBeInTheDocument()
+    const breadcrumbs = await screen.findByRole('navigation', {
+      name: 'Tree navigation',
+    })
+    expect(breadcrumbs).toHaveTextContent('My trees/Family history')
     expect(screen.getByText('This tree is empty.')).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Create person' }),
@@ -199,6 +203,7 @@ describe('TreeEditorPage', () => {
     expect(
       await screen.findByRole('article', { name: 'Unknown person' }),
     ).toBeInTheDocument()
+    expect(document.querySelector('.editor-toolbar')).not.toBeInTheDocument()
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
       expect.objectContaining({
@@ -675,7 +680,7 @@ describe('TreeEditorPage', () => {
     expect(await screen.findAllByText('Ivanov Petr')).toHaveLength(2)
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     const editDialog = screen.getByRole('dialog', {
-      name: 'Edit marriage period',
+      name: 'Edit marriage',
     })
     await userEvent.click(
       within(editDialog).getByRole('checkbox', { name: 'Marriage ended' }),
@@ -780,7 +785,7 @@ describe('TreeEditorPage', () => {
     expect(await screen.findAllByText(/changed in another session/))
       .toHaveLength(2)
     await userEvent.click(
-      screen.getByRole('button', { name: 'Load current version' }),
+      screen.getByRole('button', { name: 'Reload' }),
     )
     await waitFor(() => {
       expect(screen.queryByText(/changed in another session/))
