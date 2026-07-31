@@ -121,7 +121,7 @@ describe('PersonDetailsPanel', () => {
       .toBeInTheDocument()
     expect(screen.getByText('No photo')).toBeInTheDocument()
     expect(screen.getAllByText('c. 1900')).toHaveLength(2)
-    expect(screen.getByText('Automatic event')).toBeInTheDocument()
+    expect(screen.queryByText('Automatic event')).not.toBeInTheDocument()
     const panel = screen.getByRole('complementary', {
       name: 'Person details',
     })

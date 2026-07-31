@@ -2,6 +2,7 @@ export const resources = {
   en: {
     translation: {
       common: {
+        add: 'Add',
         cancel: 'Cancel',
         close: 'Close',
         edit: 'Edit',
@@ -67,8 +68,6 @@ export const resources = {
         updated: 'Language saved.',
       },
       media: {
-        addAvatar: 'Add avatar',
-        addPhoto: 'Add photo',
         avatarHelp: 'Move and zoom the image inside the round crop.',
         avatarTitle: 'Choose avatar crop',
         chooseImage: 'Choose an image and adjust the crop.',
@@ -137,7 +136,6 @@ export const resources = {
       person: {
         approximate: 'Approximately',
         approximateYear: 'c. {{year}}',
-        automaticEvent: 'Automatic event',
         birthDate: 'Birth date',
         birthSurname: 'Birth surname',
         create: 'Create person',
@@ -177,7 +175,6 @@ export const resources = {
         year: 'Year',
       },
       events: {
-        add: 'Add event',
         collapse: 'Hide description',
         createTitle: 'Add an event',
         custom: 'Personal event',
@@ -274,6 +271,7 @@ export const resources = {
   ru: {
     translation: {
       common: {
+        add: 'Добавить',
         cancel: 'Отмена',
         close: 'Закрыть',
         edit: 'Изменить',
@@ -339,8 +337,6 @@ export const resources = {
         updated: 'Язык сохранён.',
       },
       media: {
-        addAvatar: 'Добавить аватар',
-        addPhoto: 'Добавить фото',
         avatarHelp:
           'Перемещайте и масштабируйте изображение внутри круглой области.',
         avatarTitle: 'Выбор области аватара',
@@ -414,7 +410,6 @@ export const resources = {
       person: {
         approximate: 'Приблизительно',
         approximateYear: 'ок. {{year}}',
-        automaticEvent: 'Автоматическое событие',
         birthDate: 'Дата рождения',
         birthSurname: 'Фамилия при рождении',
         create: 'Создать персону',
@@ -454,7 +449,6 @@ export const resources = {
         year: 'Год',
       },
       events: {
-        add: 'Добавить событие',
         collapse: 'Скрыть описание',
         createTitle: 'Добавление события',
         custom: 'Личное событие',

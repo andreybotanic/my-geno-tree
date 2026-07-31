@@ -15,6 +15,7 @@ import {
   canRemoveMarriage,
   canRemoveParentLink,
 } from '../relationshipPermissions'
+import { AddButton } from './AddButton'
 
 type PersonRelationshipsProps = {
   onAdd: (action: RelativeAction, secondParentId?: string) => void
@@ -102,13 +103,9 @@ export function PersonRelationships({
       <section className="person-details-section relationship-section">
         <div className="relationship-heading">
           <h3>{t('relationships.families')}</h3>
-          <button
-            className="secondary-button compact-button"
+          <AddButton
             onClick={() => onAdd('spouse')}
-            type="button"
-          >
-            {t('relationships.add.spouse')}
-          </button>
+          />
         </div>
         {families.length === 0 ? (
           <p className="panel-empty">{t('relationships.noFamilies')}</p>
@@ -174,13 +171,9 @@ export function PersonRelationships({
                     .join(', ')}
                 </small>
               )}
-              <button
-                className="secondary-button compact-button"
+              <AddButton
                 onClick={() => onAdd('child', spouseId)}
-                type="button"
-              >
-                {t('relationships.add.child')}
-              </button>
+              />
             </article>
           )
         })}
@@ -189,13 +182,9 @@ export function PersonRelationships({
       <section className="person-details-section relationship-section">
         <div className="relationship-heading">
           <h3>{t('relationships.childrenOutsideMarriage')}</h3>
-          <button
-            className="secondary-button compact-button"
+          <AddButton
             onClick={() => onAdd('child')}
-            type="button"
-          >
-            {t('relationships.add.child')}
-          </button>
+          />
         </div>
         {outsideMarriage.length === 0 ? (
           <p className="panel-empty">{t('relationships.noChildren')}</p>
@@ -251,13 +240,9 @@ function RelativeRow({
           )}
         </>
       ) : (
-        <button
-          className="secondary-button compact-button"
+        <AddButton
           onClick={() => onAdd(action)}
-          type="button"
-        >
-          {t(`relationships.add.${action}`)}
-        </button>
+        />
       )}
     </div>
   )

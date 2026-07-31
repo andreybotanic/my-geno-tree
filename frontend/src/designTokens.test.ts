@@ -54,7 +54,16 @@ describe('semantic design contracts', () => {
 
   it('centers timeline dots on their vertical line', () => {
     expect(appStyles).toMatch(
-      /\.event-timeline li::before\s*\{[^}]*left:\s*1px;[^}]*transform:\s*translateX\(-50%\);/s,
+      /\.event-timeline li::before\s*\{[^}]*left:\s*-1px;[^}]*transform:\s*translateX\(-50%\);/s,
+    )
+  })
+
+  it('uses a shared inline SVG for addition actions', () => {
+    expect(appStyles).toMatch(
+      /\.add-button\s*\{[^}]*display:\s*inline-flex;[^}]*gap:\s*7px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*width:\s*15px;/s,
     )
   })
 

@@ -34,6 +34,7 @@ import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
 import { AuthenticatedImage } from './AuthenticatedImage'
 import { UnknownToggleButton } from './UnknownToggleButton'
+import { AddButton } from './AddButton'
 
 type PersonField = keyof Pick<
   Person,
@@ -291,16 +292,21 @@ export function PersonDetailsPanel({
           />
         </button>
         <div className="person-photo-actions">
-          <button
-            className="secondary-button compact-button"
-            disabled={conflict}
-            onClick={onUploadPhoto}
-            type="button"
-          >
-            {t(person.photoThumbnailUrl
-              ? 'media.replacePhoto'
-              : 'media.addPhoto')}
-          </button>
+          {person.photoThumbnailUrl ? (
+            <button
+              className="secondary-button compact-button"
+              disabled={conflict}
+              onClick={onUploadPhoto}
+              type="button"
+            >
+              {t('media.replacePhoto')}
+            </button>
+          ) : (
+            <AddButton
+              disabled={conflict}
+              onClick={onUploadPhoto}
+            />
+          )}
           {person.photoThumbnailUrl && (
             <button
               className="danger-link"

@@ -1256,11 +1256,28 @@
   box-sizing: border-box;
   content: "";
   height: 13px;
-  left: 1px;
+  left: -1px;
   position: absolute;
   top: 7px;
   transform: translateX(-50%);
   width: 13px;
+}
+
+.add-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+}
+
+.add-button-icon {
+  fill: none;
+  flex: 0 0 auto;
+  height: 15px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 1.6;
+  width: 15px;
 }
 
 .event-timeline span,

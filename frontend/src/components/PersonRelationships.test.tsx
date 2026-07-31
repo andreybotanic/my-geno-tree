@@ -132,7 +132,7 @@ describe('PersonRelationships', () => {
     await userEvent.click(familyButtons[1] as HTMLElement)
     expect(onRemoveMarriage).toHaveBeenCalledWith(periods[0])
     await userEvent.click(
-      within(family as HTMLElement).getByRole('button', { name: 'Add child' }),
+      within(family as HTMLElement).getByRole('button', { name: 'Add' }),
     )
     expect(onAdd).toHaveBeenCalledWith('child', spouse.id)
 
@@ -158,13 +158,25 @@ describe('PersonRelationships', () => {
     expect(screen.getByText('No marriages.')).toBeInTheDocument()
     expect(screen.getByText('No children in this section.'))
       .toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Add father' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add mother' }))
+    const parents = screen.getByRole('heading', { name: 'Parents' })
+      .closest('section')
+    const families = screen.getByRole('heading', { name: 'Families' })
+      .closest('section')
+    const children = screen
+      .getByRole('heading', { name: 'Children outside marriage' })
+      .closest('section')
+    expect(parents).not.toBeNull()
+    expect(families).not.toBeNull()
+    expect(children).not.toBeNull()
+    const parentButtons = within(parents as HTMLElement)
+      .getAllByRole('button', { name: 'Add' })
+    await userEvent.click(parentButtons[0] as HTMLElement)
+    await userEvent.click(parentButtons[1] as HTMLElement)
     await userEvent.click(
-      screen.getByRole('button', { name: 'Add spouse' }),
+      within(families as HTMLElement).getByRole('button', { name: 'Add' }),
     )
     await userEvent.click(
-      screen.getAllByRole('button', { name: 'Add child' })[0] as HTMLElement,
+      within(children as HTMLElement).getByRole('button', { name: 'Add' }),
     )
     expect(onAdd.mock.calls).toEqual([
       ['father'],

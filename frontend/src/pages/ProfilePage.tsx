@@ -7,6 +7,7 @@ import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { LanguagePicker } from '../components/LanguagePicker'
+import { AddButton } from '../components/AddButton'
 
 export function ProfilePage() {
   const { t, i18n } = useTranslation()
@@ -52,13 +53,17 @@ export function ProfilePage() {
             />
           </div>
           <div className="profile-avatar-actions">
-            <button
-              className="secondary-button compact-button"
-              onClick={() => setAvatarEditing(true)}
-              type="button"
-            >
-              {t(user.avatarUrl ? 'media.replaceAvatar' : 'media.addAvatar')}
-            </button>
+            {user.avatarUrl ? (
+              <button
+                className="secondary-button compact-button"
+                onClick={() => setAvatarEditing(true)}
+                type="button"
+              >
+                {t('media.replaceAvatar')}
+              </button>
+            ) : (
+              <AddButton onClick={() => setAvatarEditing(true)} />
+            )}
             {user.avatarUrl && (
               <button
                 className="danger-link"

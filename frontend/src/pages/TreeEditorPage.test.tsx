@@ -165,6 +165,15 @@ async function activateUnpressedUnknownButtons(container: HTMLElement) {
   }
 }
 
+function sectionByHeading(name: string) {
+  const section = screen.getByRole('heading', { name }).closest('section')
+  if (!section) {
+    throw new Error(`Section "${name}" was not found`)
+  }
+
+  return section
+}
+
 describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
@@ -312,7 +321,9 @@ describe('TreeEditorPage', () => {
       await screen.findByRole('article', { name: 'Ivanova Anna' }),
     )
     await screen.findByRole('complementary', { name: 'Person details' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add event' }))
+    await userEvent.click(
+      within(sectionByHeading('Events')).getByRole('button', { name: 'Add' }),
+    )
     let dialog = screen.getByRole('dialog', { name: 'Add an event' })
     await userEvent.type(
       within(dialog).getByRole('textbox', { name: 'Title' }),
@@ -451,7 +462,11 @@ describe('TreeEditorPage', () => {
       await screen.findByRole('article', { name: 'Ivanova Anna' }),
     )
     await screen.findByRole('complementary', { name: 'Person details' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add photo' }))
+    const photoActions = document.querySelector('.person-photo-actions')
+    expect(photoActions).not.toBeNull()
+    await userEvent.click(
+      within(photoActions as HTMLElement).getByRole('button', { name: 'Add' }),
+    )
     await userEvent.click(screen.getByRole('button', {
       name: 'Save photo crop',
     }))
@@ -603,7 +618,10 @@ describe('TreeEditorPage', () => {
       await screen.findByRole('article', { name: 'Ivanova Anna' }),
     )
     await screen.findByRole('complementary', { name: 'Person details' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add father' }))
+    await userEvent.click(
+      within(sectionByHeading('Parents'))
+        .getAllByRole('button', { name: 'Add' })[0] as HTMLElement,
+    )
     const dialog = screen.getByRole('dialog', { name: 'Add father' })
     await activateUnpressedUnknownButtons(dialog)
     await userEvent.click(
@@ -664,7 +682,9 @@ describe('TreeEditorPage', () => {
       await screen.findByRole('article', { name: 'Ivanova Anna' }),
     )
     await screen.findByRole('complementary', { name: 'Person details' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add spouse' }))
+    await userEvent.click(
+      within(sectionByHeading('Families')).getByRole('button', { name: 'Add' }),
+    )
     let dialog = screen.getByRole('dialog', { name: 'Add spouse' })
     await userEvent.click(
       within(dialog).getByRole('radio', { name: 'Existing person' }),
@@ -776,7 +796,10 @@ describe('TreeEditorPage', () => {
       await screen.findByRole('article', { name: 'Ivanova Anna' }),
     )
     await screen.findByRole('complementary', { name: 'Person details' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add mother' }))
+    await userEvent.click(
+      within(sectionByHeading('Parents'))
+        .getAllByRole('button', { name: 'Add' })[1] as HTMLElement,
+    )
     const dialog = screen.getByRole('dialog', { name: 'Add mother' })
     await activateUnpressedUnknownButtons(dialog)
     await userEvent.click(

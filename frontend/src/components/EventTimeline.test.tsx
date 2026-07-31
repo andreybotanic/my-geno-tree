@@ -55,7 +55,7 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(screen.getByText('Automatic event')).toBeInTheDocument()
+    expect(screen.queryByText('Automatic event')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
     expect(screen.queryByText('<strong>Plain text</strong>'))
       .not.toBeInTheDocument()
@@ -109,7 +109,7 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Add event' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
   })

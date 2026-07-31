@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { GenealogicalEvent } from '../api/generated'
 import { ambiguousEventGroups } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
+import { AddButton } from './AddButton'
 
 type EventTimelineProps = {
   conflict: boolean
@@ -70,14 +71,10 @@ export function EventTimeline({
     <section className="person-details-section">
       <div className="event-heading">
         <h3>{t('person.events')}</h3>
-        <button
-          className="secondary-button compact-button"
+        <AddButton
           disabled={conflict}
           onClick={onCreate}
-          type="button"
-        >
-          {t('events.add')}
-        </button>
+        />
       </div>
       {events.length === 0 ? (
         <p className="panel-empty">{t('person.noEvents')}</p>
@@ -109,9 +106,6 @@ export function EventTimeline({
                   </strong>
                   {surname && (
                     <span>{t('events.newSurnameValue', { surname })}</span>
-                  )}
-                  {event.source === 'automatic' && (
-                    <small>{t('person.automaticEvent')}</small>
                   )}
                   {event.type === 'custom' && event.description && (
                     <>
