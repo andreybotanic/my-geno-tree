@@ -69,7 +69,10 @@ describe('semantic design contracts', () => {
       /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*width:\s*15px;/s,
     )
     expect(appStyles).toMatch(
-      /\.add-button:hover:not\(:disabled\)\s*\{[^}]*background:\s*var\(--color-accent-hover\);[^}]*transform:\s*translateY\(-1px\);/s,
+      /\.add-button:hover:not\(:disabled\)\s*\{[^}]*background:\s*var\(--color-accent-hover\);[^}]*box-shadow:\s*0 5px 14px var\(--color-shadow\);/s,
+    )
+    expect(appStyles).not.toMatch(
+      /\.add-button:hover:not\(:disabled\)\s*\{[^}]*transform:/s,
     )
   })
 
@@ -99,6 +102,9 @@ describe('semantic design contracts', () => {
 
   it('keeps every active date field on one row', () => {
     expect(appStyles).toMatch(
+      /\.date-fieldset\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*width:\s*100%;/s,
+    )
+    expect(appStyles).toMatch(
       /\.date-input-row\s*\{[^}]*display:\s*flex;[^}]*min-width:\s*0;/s,
     )
     expect(appStyles).toMatch(
@@ -106,6 +112,24 @@ describe('semantic design contracts', () => {
     )
     expect(appStyles).toMatch(
       /\.approximate-toggle\s*\{[^}]*justify-self:\s*start;/s,
+    )
+  })
+
+  it('gives every button a stationary hover state', () => {
+    expect(tokens).toMatch(
+      /button:hover:not\(:disabled\)\s*\{[^}]*filter:\s*brightness\(0\.94\);/s,
+    )
+    expect(tokens).not.toMatch(
+      /button:hover:not\(:disabled\)\s*\{[^}]*transform:/s,
+    )
+  })
+
+  it('stacks conditional date fields below their toggles', () => {
+    expect(appStyles).toMatch(
+      /\.conditional-date-toggle\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.death-date-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s,
     )
   })
 

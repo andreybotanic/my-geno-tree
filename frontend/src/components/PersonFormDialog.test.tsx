@@ -96,8 +96,12 @@ describe('PersonFormDialog', () => {
     const deceased = within(dialog).getByRole('checkbox', {
       name: 'Deceased',
     })
-    expect(deceased.closest('label')).toHaveClass('choice-control')
+    expect(deceased.closest('label')).toHaveClass(
+      'choice-control',
+      'conditional-date-toggle',
+    )
     expect(deceased.closest('.death-date-row')).toContainElement(death)
+    expect(death).toHaveClass('date-fieldset')
     expect(
       within(death).getByRole('combobox', {
         name: 'Death date: Precision',

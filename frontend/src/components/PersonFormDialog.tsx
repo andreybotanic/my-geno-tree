@@ -308,7 +308,9 @@ export function PersonFormDialog({
               state={birthDate}
             />
             <div className="death-date-row">
-              <label className="deceased-toggle choice-control">
+              <label
+                className="deceased-toggle choice-control conditional-date-toggle"
+              >
                 <input
                   checked={deceased}
                   onChange={(event) => setDeceased(event.target.checked)}

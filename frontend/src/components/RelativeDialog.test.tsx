@@ -83,7 +83,7 @@ describe('RelativeDialog', () => {
     expect(
       within(dialog).getByRole('checkbox', { name: 'Marriage ended' })
         .closest('label'),
-    ).toHaveClass('choice-control')
+    ).toHaveClass('choice-control', 'conditional-date-toggle')
     await userEvent.type(
       within(dialog).getByRole('textbox', {
         name: 'New surname of the man',

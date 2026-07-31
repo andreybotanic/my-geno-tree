@@ -344,7 +344,9 @@ function RelationshipFields({
         onChange={setMarriageDate}
         state={marriageDate}
       />
-      <label className="deceased-toggle choice-control">
+      <label
+        className="deceased-toggle choice-control conditional-date-toggle"
+      >
         <input
           checked={dissolved}
           onChange={(event) => setDissolved(event.target.checked)}

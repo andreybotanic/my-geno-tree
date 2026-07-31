@@ -54,6 +54,19 @@ textarea {
   font: inherit;
 }
 
+button {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    filter 150ms ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
 :focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
