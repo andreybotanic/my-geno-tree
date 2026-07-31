@@ -4,6 +4,8 @@ export const resources = {
       common: {
         cancel: 'Cancel',
         close: 'Close',
+        edit: 'Edit',
+        remove: 'Remove',
         save: 'Save',
         saving: 'Saving…',
       },
@@ -143,6 +145,58 @@ export const resources = {
         unknownPerson: 'Unknown person',
         year: 'Year',
       },
+      relationships: {
+        add: {
+          child: 'Add child',
+          father: 'Add father',
+          mother: 'Add mother',
+          spouse: 'Add spouse',
+        },
+        childrenOutsideMarriage: 'Children outside marriage',
+        choosePerson: 'Choose a person',
+        commonChildren: 'Children',
+        confirm: {
+          marriage: {
+            description:
+              'The marriage period will be deleted. Parent links to common children will remain.',
+            title: 'Delete marriage period?',
+          },
+          parent: {
+            description:
+              'The parent link will be deleted if the rest of the tree stays connected.',
+            title: 'Delete parent link?',
+          },
+          person: {
+            description:
+              'The person and their events and links will be deleted permanently if the tree remains valid.',
+            title: 'Delete person?',
+          },
+        },
+        currentMarriage: 'present',
+        deletePerson: 'Delete person',
+        dissolved: 'Marriage ended',
+        dissolutionDate: 'Dissolution date',
+        editMarriage: 'Edit marriage period',
+        existingPerson: 'Existing person',
+        families: 'Families',
+        father: 'Father',
+        femaleNewSurname: 'New surname of the woman',
+        maleNewSurname: 'New surname of the man',
+        marriageDate: 'Marriage date',
+        mother: 'Mother',
+        newPerson: 'New person',
+        noChildren: 'No children in this section.',
+        noFamilies: 'No marriages.',
+        parents: 'Parents',
+        person: 'Person',
+        removeParent: 'Remove {{role}} link',
+        removeFailed: 'The item could not be removed.',
+        saveFailed: 'The relationship could not be saved.',
+        secondParent: 'Second parent',
+        selectedParentRole: 'Selected person is the',
+        source: 'Person source',
+        unknownParent: 'Unknown',
+      },
       errors: {
         username_required: 'Enter a username.',
         username_invalid:
@@ -168,6 +222,8 @@ export const resources = {
       common: {
         cancel: 'Отмена',
         close: 'Закрыть',
+        edit: 'Изменить',
+        remove: 'Удалить',
         save: 'Сохранить',
         saving: 'Сохранение…',
       },
@@ -308,6 +364,58 @@ export const resources = {
         unknown: 'Неизвестно',
         unknownPerson: 'Неизвестная персона',
         year: 'Год',
+      },
+      relationships: {
+        add: {
+          child: 'Добавить ребёнка',
+          father: 'Добавить отца',
+          mother: 'Добавить мать',
+          spouse: 'Добавить супруга или супругу',
+        },
+        childrenOutsideMarriage: 'Дети вне брака',
+        choosePerson: 'Выберите персону',
+        commonChildren: 'Общие дети',
+        confirm: {
+          marriage: {
+            description:
+              'Период брака будет удалён. Родительские связи с общими детьми сохранятся.',
+            title: 'Удалить период брака?',
+          },
+          parent: {
+            description:
+              'Родительская связь будет удалена, если остальное дерево останется связным.',
+            title: 'Удалить родительскую связь?',
+          },
+          person: {
+            description:
+              'Персона, её события и связи будут удалены навсегда, если дерево останется корректным.',
+            title: 'Удалить персону?',
+          },
+        },
+        currentMarriage: 'по настоящее время',
+        deletePerson: 'Удалить персону',
+        dissolved: 'Брак завершён',
+        dissolutionDate: 'Дата расторжения',
+        editMarriage: 'Изменить период брака',
+        existingPerson: 'Существующая персона',
+        families: 'Семьи',
+        father: 'Отец',
+        femaleNewSurname: 'Новая фамилия женщины',
+        maleNewSurname: 'Новая фамилия мужчины',
+        marriageDate: 'Дата заключения брака',
+        mother: 'Мать',
+        newPerson: 'Новая персона',
+        noChildren: 'В этом разделе детей нет.',
+        noFamilies: 'Браков нет.',
+        parents: 'Родители',
+        person: 'Персона',
+        removeParent: 'Удалить связь «{{role}}»',
+        removeFailed: 'Не удалось удалить элемент.',
+        saveFailed: 'Не удалось сохранить родственную связь.',
+        secondParent: 'Второй родитель',
+        selectedParentRole: 'Выбранная персона —',
+        source: 'Источник персоны',
+        unknownParent: 'Неизвестен',
       },
       errors: {
         username_required: 'Введите логин.',

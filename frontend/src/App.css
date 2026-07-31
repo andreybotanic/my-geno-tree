@@ -720,6 +720,23 @@
   pointer-events: none;
 }
 
+.tree-edge {
+  fill: none;
+  pointer-events: none;
+  stroke: var(--color-graph-line);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.tree-edge-coparent {
+  stroke-dasharray: 8 7;
+}
+
+.tree-edge-child {
+  stroke-width: 1.7;
+}
+
 .zoom-controls {
   align-items: center;
   background: var(--color-surface-elevated);
@@ -810,6 +827,98 @@
   margin: 0 0 12px;
 }
 
+.relationship-heading,
+.relationship-row,
+.marriage-period-list li {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  justify-content: space-between;
+}
+
+.relationship-heading {
+  margin-bottom: 12px;
+}
+
+.relationship-heading h3 {
+  margin: 0;
+}
+
+.relationship-row {
+  border-bottom: 1px solid var(--color-border);
+  min-height: 46px;
+}
+
+.relationship-row > span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.relationship-row > strong {
+  color: var(--color-text-strong);
+  font-size: 0.82rem;
+  margin-left: auto;
+}
+
+.family-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+}
+
+.family-block > strong {
+  color: var(--color-text-strong);
+}
+
+.family-block > small,
+.marriage-period-list span {
+  color: var(--color-text-muted);
+  font-size: 0.73rem;
+}
+
+.marriage-period-list,
+.relationship-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.marriage-period-list li {
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+
+.relationship-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.danger-link {
+  background: transparent;
+  border: 0;
+  color: var(--color-state-danger);
+  cursor: pointer;
+  font-size: 0.74rem;
+  padding: 4px;
+}
+
+.danger-zone {
+  padding-bottom: 16px;
+}
+
+.relationship-list li {
+  color: var(--color-text-strong);
+  font-size: 0.82rem;
+}
+
 .person-detail-row {
   align-items: center;
   border-bottom: 1px solid var(--color-border);
@@ -858,6 +967,7 @@
 
 .inline-person-editor input:not([type="checkbox"]),
 .inline-person-editor select,
+.person-select-field input:not([type="checkbox"]),
 .person-select-field select,
 .person-fieldset input:not([type="checkbox"]),
 .date-controls select {
@@ -971,6 +1081,37 @@
 .person-select-field {
   display: grid;
   gap: 8px;
+}
+
+.relationship-mode {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  padding: 12px;
+}
+
+.relationship-mode legend {
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.relationship-mode label {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 6px;
+}
+
+.relationship-wide-field {
+  grid-column: 1 / -1;
+}
+
+.marriage-period-dialog {
+  max-width: 620px;
 }
 
 .date-controls {

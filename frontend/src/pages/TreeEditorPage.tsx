@@ -18,12 +18,22 @@ import '@xyflow/react/dist/style.css'
 import { useTranslation } from 'react-i18next'
 import type {
   GenealogicalEvent,
+  GraphMutation,
+  MarriagePeriod,
+  MarriagePeriodPatchRequest,
+  ParentLink,
   Person,
   PersonInput,
   PersonPatchRequest,
+  RelativePerson,
   TreeSnapshot,
 } from '../api/generated'
-import { ApiRequestError, personApi, treeApi } from '../api/client'
+import {
+  ApiRequestError,
+  marriageApi,
+  personApi,
+  treeApi,
+} from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import {
   PersonCard,
@@ -31,13 +41,33 @@ import {
 } from '../components/PersonCard'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
+import {
+  RelativeDialog,
+  type RelativeAction,
+  type RelativeOptions,
+} from '../components/RelativeDialog'
+import {
+  FamilyEdge,
+  SingleParentEdge,
+} from '../components/TreeEdges'
+import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
+import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { navigate } from '../routing'
+import {
+  buildTreeEdges,
+  newRelativeCoordinates,
+  type TreeFlowEdge,
+} from '../treeGraph'
 
 type TreeEditorPageProps = {
   treeId: string
 }
 
 const nodeTypes = { person: PersonCard }
+const edgeTypes = {
+  family: FamilyEdge,
+  singleParent: SingleParentEdge,
+}
 
 function ZoomControls() {
   const { t } = useTranslation()
@@ -69,27 +99,33 @@ function ZoomControls() {
 
 type TreeCanvasProps = {
   onSelectPerson: (personId: string) => void
-  people: Person[]
   selectedPersonId: string | null
+  snapshot: TreeSnapshot
 }
 
 function TreeCanvas({
   onSelectPerson,
-  people,
   selectedPersonId,
+  snapshot,
 }: TreeCanvasProps) {
-  const instance = useRef<ReactFlowInstance<PersonFlowNode> | null>(null)
+  const instance = useRef<
+    ReactFlowInstance<PersonFlowNode, TreeFlowEdge> | null
+  >(null)
   const centered = useRef(false)
-  const nodes = useMemo<PersonFlowNode[]>(() => people.map((person) => ({
+  const nodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
     type: 'person',
     position: person.coordinates,
     data: { person },
     selected: person.id === selectedPersonId,
-  })), [people, selectedPersonId])
+  })), [selectedPersonId, snapshot.people])
+  const edges = useMemo<TreeFlowEdge[]>(
+    () => buildTreeEdges(snapshot),
+    [snapshot],
+  )
 
   useEffect(() => {
-    const first = people[0]
+    const first = snapshot.people[0]
     if (!first || centered.current || !instance.current) {
       return
     }
@@ -99,12 +135,13 @@ function TreeCanvas({
       first.coordinates.y + 72,
       { duration: 0, zoom: 1 },
     )
-  }, [people])
+  }, [snapshot.people])
 
   return (
-    <ReactFlow<PersonFlowNode>
+    <ReactFlow<PersonFlowNode, TreeFlowEdge>
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-      edges={[]}
+      edges={edges}
+      edgeTypes={edgeTypes}
       maxZoom={2}
       minZoom={0.35}
       nodeTypes={nodeTypes}
@@ -127,6 +164,11 @@ function TreeCanvas({
   )
 }
 
+type PendingRemoval =
+  | { kind: 'marriage'; marriage: MarriagePeriod }
+  | { kind: 'parent'; link: ParentLink }
+  | { kind: 'person'; person: Person }
+
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
   const { request } = useAuth()
@@ -138,6 +180,18 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
   const [conflict, setConflict] = useState(false)
+  const [relativeAction, setRelativeAction] = useState<RelativeAction | null>(
+    null,
+  )
+  const [relativeSecondParentId, setRelativeSecondParentId] = useState<
+    string | null
+  >(null)
+  const [marriageEditing, setMarriageEditing] = useState<
+    MarriagePeriod | null
+  >(null)
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(
+    null,
+  )
 
   const loadSnapshot = useCallback(async () => {
     setStatus('loading')
@@ -147,6 +201,10 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setConflict(false)
       setSelectedPerson(null)
       setEvents([])
+      setRelativeAction(null)
+      setRelativeSecondParentId(null)
+      setMarriageEditing(null)
+      setPendingRemoval(null)
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -240,6 +298,169 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     }
   }
 
+  const applyMutation = async (mutation: GraphMutation) => {
+    if (!snapshot || conflict) {
+      throw new Error('Tree mutation is unavailable')
+    }
+    try {
+      const updated = await treeApi.mutate(
+        request,
+        treeId,
+        snapshot.etag,
+        mutation,
+      )
+      setSnapshot(updated)
+      const selectedId = selectedPerson?.id
+      const nextSelected = selectedId
+        ? updated.people.find((person) => person.id === selectedId) ?? null
+        : null
+      setSelectedPerson(nextSelected)
+      if (nextSelected) {
+        setEvents((await personApi.events(
+          request,
+          treeId,
+          nextSelected.id,
+        )).items)
+      } else {
+        setEvents([])
+      }
+
+      return updated
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const addRelative = async (
+    relative: RelativePerson,
+    options: RelativeOptions,
+  ) => {
+    if (!snapshot || !selectedPerson || !relativeAction) {
+      return
+    }
+    const coordinates = newRelativeCoordinates(
+      snapshot,
+      selectedPerson.id,
+      relativeAction,
+      options.secondParentId ?? undefined,
+    )
+    const positionedRelative: RelativePerson = 'person' in relative
+      ? { ...relative, coordinates }
+      : relative
+    let mutation: GraphMutation
+    if (relativeAction === 'father' || relativeAction === 'mother') {
+      mutation = {
+        type: 'add_parent',
+        childId: selectedPerson.id,
+        role: relativeAction,
+        relative: positionedRelative,
+        coordinateUpdates: [],
+      }
+    } else if (relativeAction === 'child') {
+      const parents = [{
+        personId: selectedPerson.id,
+        role: options.parentRole,
+      }]
+      if (options.secondParentId) {
+        parents.push({
+          personId: options.secondParentId,
+          role: options.parentRole === 'father' ? 'mother' : 'father',
+        })
+      }
+      mutation = {
+        type: 'add_child',
+        parents,
+        relative: positionedRelative,
+        coordinateUpdates: [],
+      }
+    } else {
+      mutation = {
+        type: 'add_marriage_period',
+        personId: selectedPerson.id,
+        relative: positionedRelative,
+        marriageDate: options.marriageDate,
+        dissolutionDate: options.dissolutionDate,
+        maleNewSurname: options.maleNewSurname,
+        femaleNewSurname: options.femaleNewSurname,
+        coordinateUpdates: [],
+      }
+    }
+    await applyMutation(mutation)
+    setRelativeAction(null)
+    setRelativeSecondParentId(null)
+  }
+
+  const confirmRemoval = async () => {
+    if (!pendingRemoval) {
+      return
+    }
+    const mutation: GraphMutation = pendingRemoval.kind === 'parent'
+      ? {
+          type: 'remove_parent_link',
+          parentLinkId: pendingRemoval.link.id,
+          coordinateUpdates: [],
+        }
+      : pendingRemoval.kind === 'marriage'
+        ? {
+            type: 'remove_marriage_period',
+            marriageId: pendingRemoval.marriage.id,
+            coordinateUpdates: [],
+          }
+        : {
+            type: 'delete_person',
+            personId: pendingRemoval.person.id,
+            coordinateUpdates: [],
+          }
+    await applyMutation(mutation)
+    setPendingRemoval(null)
+  }
+
+  const editMarriage = async (
+    patch: MarriagePeriodPatchRequest,
+  ) => {
+    if (!snapshot || !marriageEditing || conflict) {
+      throw new Error('Marriage update is unavailable')
+    }
+    try {
+      const result = await marriageApi.update(
+        request,
+        treeId,
+        marriageEditing.id,
+        snapshot.etag,
+        patch,
+      )
+      setSnapshot({
+        ...snapshot,
+        etag: result.etag,
+        marriages: snapshot.marriages.map((marriage) => (
+          marriage.id === result.marriage.id ? result.marriage : marriage
+        )),
+      })
+      if (selectedPerson) {
+        setEvents((await personApi.events(
+          request,
+          treeId,
+          selectedPerson.id,
+        )).items)
+      }
+      setMarriageEditing(null)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
   return (
     <main className="tree-editor-page">
       <div className="editor-toolbar">
@@ -310,24 +531,42 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               <ReactFlowProvider>
                 <TreeCanvas
                   onSelectPerson={(personId) => void selectPerson(personId)}
-                  people={snapshot.people}
                   selectedPersonId={selectedPerson?.id ?? null}
+                  snapshot={snapshot}
                 />
               </ReactFlowProvider>
             )}
           </div>
         )}
 
-        {selectedPerson && (
+        {selectedPerson && snapshot && (
           <PersonDetailsPanel
             conflict={conflict}
             events={events}
+            onAddRelative={(action, secondParentId) => {
+              setRelativeAction(action)
+              setRelativeSecondParentId(secondParentId ?? null)
+            }}
             onClose={() => {
               setSelectedPerson(null)
               setEvents([])
             }}
+            onDeletePerson={() => setPendingRemoval({
+              kind: 'person',
+              person: selectedPerson,
+            })}
+            onEditMarriage={setMarriageEditing}
             onPatch={patchPerson}
+            onRemoveMarriage={(marriage) => setPendingRemoval({
+              kind: 'marriage',
+              marriage,
+            })}
+            onRemoveParentLink={(link) => setPendingRemoval({
+              kind: 'parent',
+              link,
+            })}
             person={selectedPerson}
+            snapshot={snapshot}
           />
         )}
       </section>
@@ -336,6 +575,34 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         <PersonFormDialog
           onCancel={() => setCreating(false)}
           onSave={createFirstPerson}
+        />
+      )}
+      {relativeAction && selectedPerson && snapshot && (
+        <RelativeDialog
+          action={relativeAction}
+          anchor={selectedPerson}
+          initialSecondParentId={relativeSecondParentId ?? undefined}
+          onCancel={() => {
+            setRelativeAction(null)
+            setRelativeSecondParentId(null)
+          }}
+          onSave={addRelative}
+          snapshot={snapshot}
+        />
+      )}
+      {marriageEditing && (
+        <MarriagePeriodDialog
+          marriage={marriageEditing}
+          onCancel={() => setMarriageEditing(null)}
+          onSave={editMarriage}
+        />
+      )}
+      {pendingRemoval && (
+        <ConfirmRelationshipDialog
+          description={t(`relationships.confirm.${pendingRemoval.kind}.description`)}
+          onCancel={() => setPendingRemoval(null)}
+          onConfirm={confirmRemoval}
+          title={t(`relationships.confirm.${pendingRemoval.kind}.title`)}
         />
       )}
     </main>

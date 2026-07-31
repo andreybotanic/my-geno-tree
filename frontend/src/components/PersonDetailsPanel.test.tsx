@@ -61,9 +61,26 @@ const renderPanel = ({
     <PersonDetailsPanel
       conflict={conflict}
       events={events}
+      onAddRelative={vi.fn()}
       onClose={onClose}
+      onDeletePerson={vi.fn()}
+      onEditMarriage={vi.fn()}
       onPatch={onPatch}
+      onRemoveMarriage={vi.fn()}
+      onRemoveParentLink={vi.fn()}
       person={value}
+      snapshot={{
+        tree: {
+          id: 'tree',
+          name: 'Family',
+          createdAt: person.createdAt,
+          updatedAt: person.updatedAt,
+        },
+        etag: '"tree"',
+        people: [value],
+        parentLinks: [],
+        marriages: [],
+      }}
     />,
   )
   return { onClose, onPatch }

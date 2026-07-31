@@ -124,15 +124,23 @@ export const treeApi = {
     person: import('./generated').PersonInput,
     coordinates: import('./generated').Coordinates,
   ) {
+    return treeApi.mutate(request, treeId, etag, {
+      type: 'create_first_person',
+      person,
+      coordinates,
+    })
+  },
+  mutate(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    etag: string,
+    mutation: import('./generated').GraphMutation,
+  ) {
     return request<import('./generated').TreeSnapshot>(
       `/trees/${treeId}/graph-mutations`,
       {
         method: 'POST',
-        body: JSON.stringify({
-          type: 'create_first_person',
-          person,
-          coordinates,
-        }),
+        body: JSON.stringify(mutation),
         headers: { 'If-Match': etag },
       },
     )
@@ -172,6 +180,25 @@ export const personApi = {
   ) {
     return request<import('./generated').EventList>(
       `/trees/${treeId}/people/${personId}/events`,
+    )
+  },
+}
+
+export const marriageApi = {
+  update(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    marriageId: string,
+    etag: string,
+    patch: import('./generated').MarriagePeriodPatchRequest,
+  ) {
+    return request<import('./generated').MarriagePeriodUpdateResult>(
+      `/trees/${treeId}/marriages/${marriageId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+        headers: { 'If-Match': etag },
+      },
     )
   },
 }

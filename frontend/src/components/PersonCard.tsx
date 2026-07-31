@@ -27,7 +27,14 @@ export function PersonCard({
     >
       <Handle
         className="person-handle"
+        id="top-target"
         position={Position.Top}
+        type="target"
+      />
+      <Handle
+        className="person-handle"
+        id="left-target"
+        position={Position.Left}
         type="target"
       />
       <div className="person-photo-placeholder" aria-hidden="true">
@@ -47,7 +54,14 @@ export function PersonCard({
       </div>
       <Handle
         className="person-handle"
+        id="bottom-source"
         position={Position.Bottom}
+        type="source"
+      />
+      <Handle
+        className="person-handle"
+        id="right-source"
+        position={Position.Right}
         type="source"
       />
     </article>

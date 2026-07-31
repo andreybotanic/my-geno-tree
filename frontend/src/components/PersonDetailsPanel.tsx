@@ -10,8 +10,11 @@ import type {
   GenealogicalDate,
   GenealogicalEvent,
   KnownText,
+  MarriagePeriod,
+  ParentLink,
   Person,
   PersonPatchRequest,
+  TreeSnapshot,
 } from '../api/generated'
 import {
   StructuredDateInput,
@@ -25,6 +28,8 @@ import {
   formatGenealogicalDate,
   formatPersonName,
 } from '../personFormatting'
+import { PersonRelationships } from './PersonRelationships'
+import type { RelativeAction } from './RelativeDialog'
 
 type PersonField = keyof Pick<
   Person,
@@ -39,9 +44,15 @@ type PersonField = keyof Pick<
 type PersonDetailsPanelProps = {
   conflict: boolean
   events: GenealogicalEvent[]
+  onAddRelative: (action: RelativeAction, secondParentId?: string) => void
   onClose: () => void
+  onDeletePerson: () => void
+  onEditMarriage: (marriage: MarriagePeriod) => void
   onPatch: (patch: PersonPatchRequest) => Promise<void>
+  onRemoveMarriage: (marriage: MarriagePeriod) => void
+  onRemoveParentLink: (link: ParentLink) => void
   person: Person
+  snapshot: TreeSnapshot
 }
 
 type EditableRowProps = {
@@ -163,9 +174,15 @@ function dateDraft(value: GenealogicalDate): DateInputState {
 export function PersonDetailsPanel({
   conflict,
   events,
+  onAddRelative,
   onClose,
+  onDeletePerson,
+  onEditMarriage,
   onPatch,
+  onRemoveMarriage,
+  onRemoveParentLink,
   person,
+  snapshot,
 }: PersonDetailsPanelProps) {
   const { t, i18n } = useTranslation()
   const [editing, setEditing] = useState<PersonField | null>(null)
@@ -358,6 +375,16 @@ export function PersonDetailsPanel({
           </EditableRow>
         ))}
       </section>
+
+      <PersonRelationships
+        onAdd={onAddRelative}
+        onDeletePerson={onDeletePerson}
+        onEditMarriage={onEditMarriage}
+        onRemoveMarriage={onRemoveMarriage}
+        onRemoveParentLink={onRemoveParentLink}
+        person={person}
+        snapshot={snapshot}
+      />
 
       <section className="person-details-section">
         <h3>{t('person.events')}</h3>

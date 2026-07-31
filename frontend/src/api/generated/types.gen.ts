@@ -188,23 +188,7 @@ export type ParentSpecification = {
     role: ParentRole;
 };
 
-export type GraphMutation = ({
-    type: 'CreateFirstPersonMutation';
-} & CreateFirstPersonMutation) | ({
-    type: 'AddParentMutation';
-} & AddParentMutation) | ({
-    type: 'AddChildMutation';
-} & AddChildMutation) | ({
-    type: 'LinkParentChildMutation';
-} & LinkParentChildMutation) | ({
-    type: 'AddMarriagePeriodMutation';
-} & AddMarriagePeriodMutation) | ({
-    type: 'RemoveParentLinkMutation';
-} & RemoveParentLinkMutation) | ({
-    type: 'RemoveMarriagePeriodMutation';
-} & RemoveMarriagePeriodMutation) | ({
-    type: 'DeletePersonMutation';
-} & DeletePersonMutation);
+export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
 
 export type CreateFirstPersonMutation = {
     type: 'create_first_person';

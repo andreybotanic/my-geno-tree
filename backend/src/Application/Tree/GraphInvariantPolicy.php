@@ -261,12 +261,41 @@ final readonly class GraphInvariantPolicy
     ): void {
         $hasParent = false;
         $hasChild = false;
-        foreach ($this->parentLinks->findAllForTree($tree) as $link) {
+        $parentLinks = $this->parentLinks->findAllForTree($tree);
+        foreach ($parentLinks as $link) {
             $hasParent = $hasParent || $link->getChild() === $person;
             $hasChild = $hasChild || $link->getParent() === $person;
         }
         if ($hasParent && $hasChild) {
             $this->conflict('INTERNAL_PERSON_CANNOT_BE_DELETED');
+        }
+        $currentPartners = [];
+        foreach ($this->marriages->findForPerson($person) as $marriage) {
+            if (null !== $marriage->getDissolutionDate()) {
+                continue;
+            }
+            $partner = $marriage->getMalePerson() === $person
+                ? $marriage->getFemalePerson()
+                : $marriage->getMalePerson();
+            $currentPartners[$partner->getId()->toRfc4122()] = true;
+        }
+        if ([] !== $currentPartners) {
+            $children = [];
+            foreach ($parentLinks as $link) {
+                if ($link->getParent() === $person) {
+                    $children[$link->getChild()->getId()->toRfc4122()] = true;
+                }
+            }
+            foreach ($parentLinks as $link) {
+                if (
+                    isset($children[$link->getChild()->getId()->toRfc4122()])
+                    && isset($currentPartners[
+                        $link->getParent()->getId()->toRfc4122()
+                    ])
+                ) {
+                    $this->conflict('CURRENT_SPOUSE_COMMON_CHILD');
+                }
+            }
         }
         $this->assertConnectedAfter($tree, removedPerson: $person);
     }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   KnownText,
@@ -188,13 +188,17 @@ export function StructuredDateInput({
 }
 
 type PersonFormDialogProps = {
+  children?: ReactNode
   onCancel: () => void
   onSave: (person: PersonInput) => Promise<void>
+  title?: string
 }
 
 export function PersonFormDialog({
+  children,
   onCancel,
   onSave,
+  title,
 }: PersonFormDialogProps) {
   const { t } = useTranslation()
   const [birthSurname, setBirthSurname] = useState(unknownText)
@@ -256,7 +260,7 @@ export function PersonFormDialog({
         className="dialog-card person-dialog"
         role="dialog"
       >
-        <h2 id="person-dialog-title">{t('person.createTitle')}</h2>
+        <h2 id="person-dialog-title">{title ?? t('person.createTitle')}</h2>
         <form onSubmit={submit}>
           <div className="person-form-grid">
             <KnownTextInput
@@ -307,6 +311,7 @@ export function PersonFormDialog({
                 state={deathDate}
               />
             )}
+            {children}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">

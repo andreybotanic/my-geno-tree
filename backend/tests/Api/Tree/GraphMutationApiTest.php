@@ -535,6 +535,36 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
     }
 
+    public function testCurrentSpouseWithCommonChildCannotBeDeleted(): void
+    {
+        [$accessToken, $tree, $snapshot, $male, $female] =
+            $this->marriedTree();
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_child',
+            'parents' => [
+                ['personId' => $male['id'], 'role' => 'father'],
+                ['personId' => $female['id'], 'role' => 'mother'],
+            ],
+            'relative' => [
+                'person' => $this->person(),
+                'coordinates' => ['x' => 120, 'y' => 240],
+            ],
+            'coordinateUpdates' => [],
+        ]);
+
+        $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'delete_person',
+            'personId' => $male['id'],
+            'coordinateUpdates' => [],
+        ]);
+
+        self::assertResponseStatusCodeSame(409);
+        self::assertSame(
+            'CURRENT_SPOUSE_COMMON_CHILD',
+            $this->responseData()['code'],
+        );
+    }
+
     /**
      * @return array{
      *     string,
