@@ -8,6 +8,9 @@ import type {
   SingleParentFlowEdge,
 } from '../treeGraph'
 
+const CARD_CONNECTION_OVERLAP = 5
+const PAIR_CORNER_RADIUS = 8
+
 export function FamilyEdge({
   data,
   id,
@@ -18,10 +21,12 @@ export function FamilyEdge({
 }: EdgeProps<FamilyFlowEdge>) {
   const pairY = Math.max(sourceY, targetY) + 24
   const pairPath = [
-    `M ${sourceX} ${sourceY}`,
-    `L ${sourceX} ${pairY}`,
-    `L ${targetX} ${pairY}`,
-    `L ${targetX} ${targetY}`,
+    `M ${sourceX} ${sourceY - CARD_CONNECTION_OVERLAP}`,
+    `L ${sourceX} ${pairY - PAIR_CORNER_RADIUS}`,
+    `Q ${sourceX} ${pairY} ${sourceX + PAIR_CORNER_RADIUS} ${pairY}`,
+    `L ${targetX - PAIR_CORNER_RADIUS} ${pairY}`,
+    `Q ${targetX} ${pairY} ${targetX} ${pairY - PAIR_CORNER_RADIUS}`,
+    `L ${targetX} ${targetY - CARD_CONNECTION_OVERLAP}`,
   ].join(' ')
   const children = data?.childPoints ?? []
   const childPath = childrenPath(

@@ -924,7 +924,7 @@
   stroke: var(--color-graph-line);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2;
+  stroke-width: 2.4;
 }
 
 .tree-edge-coparent {

@@ -51,7 +51,14 @@ describe('TreeEdges', () => {
     )
     expect(container.querySelector('.tree-edge-marriage')).toHaveAttribute(
       'd',
-      'M 100 100 L 100 124 L 400 124 L 400 100',
+      [
+        'M 100 95',
+        'L 100 116',
+        'Q 100 124 108 124',
+        'L 392 124',
+        'Q 400 124 400 116',
+        'L 400 95',
+      ].join(' '),
     )
     expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
       'd',
