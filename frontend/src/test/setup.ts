@@ -36,11 +36,11 @@ URL.revokeObjectURL = () => undefined
 Object.defineProperties(HTMLElement.prototype, {
   offsetHeight: {
     configurable: true,
-    get: () => 144,
+    get: () => 160,
   },
   offsetWidth: {
     configurable: true,
-    get: () => 220,
+    get: () => 260,
   },
 })
 

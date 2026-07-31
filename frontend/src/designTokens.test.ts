@@ -69,4 +69,16 @@ describe('semantic design contracts', () => {
       /\.event-heading \.compact-button,[^{]*\{[^}]*font-size:\s*0\.78rem;[^}]*min-width:\s*132px;/s,
     )
   })
+
+  it('uses a larger portrait card without doubled section dividers', () => {
+    expect(appStyles).toMatch(
+      /\.person-card\s*\{[^}]*grid-template-columns:\s*96px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*width:\s*260px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-photo-placeholder\s*\{[^}]*height:\s*128px;[^}]*width:\s*96px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
+    )
+  })
 })

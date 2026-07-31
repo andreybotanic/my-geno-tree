@@ -65,8 +65,8 @@ describe('tree graph presentation', () => {
       data: {
         married: true,
         childPoints: [
-          { id: 'child-1', topX: 110, topY: 240 },
-          { id: 'child-2', topX: 390, topY: 240 },
+          { id: 'child-1', topX: 130, topY: 240 },
+          { id: 'child-2', topX: 410, topY: 240 },
         ],
       },
     })])
@@ -107,11 +107,11 @@ describe('tree graph presentation', () => {
     ])
 
     expect(newRelativeCoordinates(tree, 'anchor', 'father')).toEqual({
-      x: -140,
+      x: -160,
       y: -240,
     })
     expect(newRelativeCoordinates(tree, 'anchor', 'spouse')).toEqual({
-      x: 560,
+      x: 640,
       y: 0,
     })
     expect(newRelativeCoordinates(tree, 'missing', 'child')).toEqual({

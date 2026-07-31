@@ -6,9 +6,9 @@ import type {
 } from './api/generated'
 import type { Edge } from '@xyflow/react'
 
-export const PERSON_CARD_WIDTH = 220
-export const PERSON_CARD_HEIGHT = 144
-const HORIZONTAL_STEP = 280
+export const PERSON_CARD_WIDTH = 260
+export const PERSON_CARD_HEIGHT = 160
+const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
 
 export type RelativeKind = 'child' | 'father' | 'mother' | 'spouse'

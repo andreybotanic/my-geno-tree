@@ -839,14 +839,14 @@
   border-radius: 16px;
   box-shadow: 0 12px 32px var(--color-shadow);
   display: grid;
-  gap: 12px;
-  grid-template-columns: 62px minmax(0, 1fr);
-  height: 144px;
-  padding: 15px;
+  gap: 14px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  height: 160px;
+  padding: 12px;
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
-  width: 220px;
+  width: 260px;
 }
 
 .person-card-selected {
@@ -868,8 +868,8 @@
 
 .person-photo-placeholder {
   border-radius: 11px;
-  height: 82px;
-  width: 62px;
+  height: 128px;
+  width: 96px;
 }
 
 .person-photo-placeholder img,
@@ -1079,6 +1079,11 @@
   min-height: 46px;
 }
 
+.person-details-section > .person-detail-row:last-child,
+.person-details-section > .relationship-row:last-child {
+  border-bottom: 0;
+}
+
 .relationship-row > span {
   color: var(--color-text-muted);
   font-size: 0.72rem;
@@ -1251,7 +1256,7 @@
   box-sizing: border-box;
   content: "";
   height: 13px;
-  left: -1px;
+  left: 1px;
   position: absolute;
   top: 7px;
   transform: translateX(-50%);

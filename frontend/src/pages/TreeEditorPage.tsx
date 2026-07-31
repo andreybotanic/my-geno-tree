@@ -63,6 +63,8 @@ import { navigate } from '../routing'
 import {
   buildTreeEdges,
   newRelativeCoordinates,
+  PERSON_CARD_HEIGHT,
+  PERSON_CARD_WIDTH,
   type TreeFlowEdge,
 } from '../treeGraph'
 
@@ -140,8 +142,8 @@ function TreeCanvas({
     }
     centered.current = true
     void flow.setCenter(
-      first.coordinates.x + 110,
-      first.coordinates.y + 72,
+      first.coordinates.x + PERSON_CARD_WIDTH / 2,
+      first.coordinates.y + PERSON_CARD_HEIGHT / 2,
       { duration: 0, zoom: 1 },
     )
   }, [snapshot.people])

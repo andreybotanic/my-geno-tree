@@ -28,6 +28,7 @@ import {
   formatGenealogicalDate,
   formatPersonName,
 } from '../personFormatting'
+import { canDeletePerson } from '../relationshipPermissions'
 import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
@@ -427,7 +428,6 @@ export function PersonDetailsPanel({
 
       <PersonRelationships
         onAdd={onAddRelative}
-        onDeletePerson={onDeletePerson}
         onEditMarriage={onEditMarriage}
         onRemoveMarriage={onRemoveMarriage}
         onRemoveParentLink={onRemoveParentLink}
@@ -443,6 +443,18 @@ export function PersonDetailsPanel({
         onEdit={onEditEvent}
         onReorder={onReorderEvents}
       />
+
+      {canDeletePerson(snapshot, person.id) && (
+        <section className="person-details-section danger-zone">
+          <button
+            className="danger-button"
+            onClick={onDeletePerson}
+            type="button"
+          >
+            {t('relationships.deletePerson')}
+          </button>
+        </section>
+      )}
     </aside>
   )
 }

@@ -122,6 +122,12 @@ describe('PersonDetailsPanel', () => {
     expect(screen.getByText('No photo')).toBeInTheDocument()
     expect(screen.getAllByText('c. 1900')).toHaveLength(2)
     expect(screen.getByText('Automatic event')).toBeInTheDocument()
+    const panel = screen.getByRole('complementary', {
+      name: 'Person details',
+    })
+    expect(panel.lastElementChild).toContainElement(
+      screen.getByRole('button', { name: 'Delete person' }),
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalledOnce()
   })

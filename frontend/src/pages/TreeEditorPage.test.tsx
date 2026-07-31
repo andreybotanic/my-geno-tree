@@ -622,7 +622,7 @@ describe('TreeEditorPage', () => {
         role: 'father',
         relative: {
           person: expect.objectContaining({ gender: 'unknown' }),
-          coordinates: { x: -140, y: -240 },
+          coordinates: { x: -160, y: -240 },
         },
         coordinateUpdates: [],
       })

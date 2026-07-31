@@ -12,14 +12,12 @@ import {
 } from '../personFormatting'
 import type { RelativeAction } from './RelativeDialog'
 import {
-  canDeletePerson,
   canRemoveMarriage,
   canRemoveParentLink,
 } from '../relationshipPermissions'
 
 type PersonRelationshipsProps = {
   onAdd: (action: RelativeAction, secondParentId?: string) => void
-  onDeletePerson: () => void
   onEditMarriage: (marriage: MarriagePeriod) => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
@@ -29,7 +27,6 @@ type PersonRelationshipsProps = {
 
 export function PersonRelationships({
   onAdd,
-  onDeletePerson,
   onEditMarriage,
   onRemoveMarriage,
   onRemoveParentLink,
@@ -211,17 +208,6 @@ export function PersonRelationships({
         )}
       </section>
 
-      {canDeletePerson(snapshot, person.id) && (
-        <section className="person-details-section danger-zone">
-          <button
-            className="danger-button"
-            onClick={onDeletePerson}
-            type="button"
-          >
-            {t('relationships.deletePerson')}
-          </button>
-        </section>
-      )}
     </>
   )
 }

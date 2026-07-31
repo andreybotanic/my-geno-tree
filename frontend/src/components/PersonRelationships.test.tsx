@@ -101,14 +101,12 @@ describe('PersonRelationships', () => {
 
   it('groups repeated marriage periods and exposes every family action', async () => {
     const onAdd = vi.fn()
-    const onDeletePerson = vi.fn()
     const onEditMarriage = vi.fn()
     const onRemoveMarriage = vi.fn()
     const onRemoveParentLink = vi.fn()
     render(
       <PersonRelationships
         onAdd={onAdd}
-        onDeletePerson={onDeletePerson}
         onEditMarriage={onEditMarriage}
         onRemoveMarriage={onRemoveMarriage}
         onRemoveParentLink={onRemoveParentLink}
@@ -142,9 +140,6 @@ describe('PersonRelationships', () => {
       screen.getByRole('button', { name: 'Remove Father link' }),
     )
     expect(onRemoveParentLink).toHaveBeenCalledWith(links[0])
-    expect(screen.queryByRole('button', { name: 'Delete person' }))
-      .not.toBeInTheDocument()
-    expect(onDeletePerson).not.toHaveBeenCalled()
   })
 
   it('shows missing-parent and empty-family actions', async () => {
@@ -152,7 +147,6 @@ describe('PersonRelationships', () => {
     render(
       <PersonRelationships
         onAdd={onAdd}
-        onDeletePerson={vi.fn()}
         onEditMarriage={vi.fn()}
         onRemoveMarriage={vi.fn()}
         onRemoveParentLink={vi.fn()}
@@ -178,6 +172,5 @@ describe('PersonRelationships', () => {
       ['spouse'],
       ['child'],
     ])
-    await userEvent.click(screen.getByRole('button', { name: 'Delete person' }))
   })
 })
