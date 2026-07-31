@@ -87,6 +87,25 @@ final readonly class PersonDataPolicy
         );
     }
 
+    public function dateValue(
+        mixed $value,
+        string $field,
+    ): GenealogicalDate {
+        return $this->date($value, $field);
+    }
+
+    public function optionalDateValue(
+        mixed $value,
+        string $field,
+    ): ?GenealogicalDate {
+        return $this->optionalDate($value, $field);
+    }
+
+    public function knownTextValue(mixed $value, string $field): KnownText
+    {
+        return $this->knownText($value, $field);
+    }
+
     private function build(
         KnownText $birthSurname,
         KnownText $givenName,

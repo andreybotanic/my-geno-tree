@@ -134,18 +134,134 @@ export type TreeSnapshot = {
     tree: TreeMetadata;
     etag: string;
     people: Array<Person>;
-    parentLinks: Array<{
-        [key: string]: unknown;
-    }>;
-    marriages: Array<{
-        [key: string]: unknown;
-    }>;
+    parentLinks: Array<ParentLink>;
+    marriages: Array<MarriagePeriod>;
 };
+
+export type ParentRole = 'father' | 'mother';
+
+export type ParentLink = {
+    id: string;
+    parentId: string;
+    childId: string;
+    role: ParentRole;
+};
+
+export type MarriagePeriod = {
+    id: string;
+    malePersonId: string;
+    femalePersonId: string;
+    marriageDate: GenealogicalDate;
+    dissolutionDate: GenealogicalDate | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type MarriagePeriodPatchRequest = {
+    marriageDate?: GenealogicalDate;
+    dissolutionDate?: GenealogicalDate | null;
+};
+
+export type MarriagePeriodUpdateResult = {
+    marriage: MarriagePeriod;
+    etag: string;
+};
+
+export type CoordinateUpdate = {
+    personId: string;
+    coordinates: Coordinates;
+};
+
+export type ExistingRelative = {
+    personId: string;
+};
+
+export type NewRelative = {
+    person: PersonInput;
+    coordinates: Coordinates;
+};
+
+export type RelativePerson = ExistingRelative | NewRelative;
+
+export type ParentSpecification = {
+    personId: string;
+    role: ParentRole;
+};
+
+export type GraphMutation = ({
+    type: 'CreateFirstPersonMutation';
+} & CreateFirstPersonMutation) | ({
+    type: 'AddParentMutation';
+} & AddParentMutation) | ({
+    type: 'AddChildMutation';
+} & AddChildMutation) | ({
+    type: 'LinkParentChildMutation';
+} & LinkParentChildMutation) | ({
+    type: 'AddMarriagePeriodMutation';
+} & AddMarriagePeriodMutation) | ({
+    type: 'RemoveParentLinkMutation';
+} & RemoveParentLinkMutation) | ({
+    type: 'RemoveMarriagePeriodMutation';
+} & RemoveMarriagePeriodMutation) | ({
+    type: 'DeletePersonMutation';
+} & DeletePersonMutation);
 
 export type CreateFirstPersonMutation = {
     type: 'create_first_person';
     person: PersonInput;
     coordinates: Coordinates;
+};
+
+export type AddParentMutation = {
+    type: 'add_parent';
+    childId: string;
+    role: ParentRole;
+    relative: RelativePerson;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type AddChildMutation = {
+    type: 'add_child';
+    parents: Array<ParentSpecification>;
+    relative: RelativePerson;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type LinkParentChildMutation = {
+    type: 'link_parent_child';
+    parentId: string;
+    childId: string;
+    role: ParentRole;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type AddMarriagePeriodMutation = {
+    type: 'add_marriage_period';
+    personId: string;
+    relative: RelativePerson;
+    marriageDate: GenealogicalDate;
+    dissolutionDate: GenealogicalDate | null;
+    maleNewSurname: string | null;
+    femaleNewSurname: string | null;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type RemoveParentLinkMutation = {
+    type: 'remove_parent_link';
+    parentLinkId: string;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type RemoveMarriagePeriodMutation = {
+    type: 'remove_marriage_period';
+    marriageId: string;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type DeletePersonMutation = {
+    type: 'delete_person';
+    personId: string;
+    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type GenealogicalEvent = {
@@ -614,7 +730,7 @@ export type GetTreeSnapshotResponses = {
 export type GetTreeSnapshotResponse = GetTreeSnapshotResponses[keyof GetTreeSnapshotResponses];
 
 export type MutateTreeGraphData = {
-    body: CreateFirstPersonMutation;
+    body: GraphMutation;
     headers: {
         /**
          * ETag returned by the latest tree representation
@@ -663,12 +779,70 @@ export type MutateTreeGraphError = MutateTreeGraphErrors[keyof MutateTreeGraphEr
 
 export type MutateTreeGraphResponses = {
     /**
-     * First person created atomically with its coordinates
+     * Structural graph resource removed atomically
+     */
+    200: TreeSnapshot;
+    /**
+     * Graph resources created atomically with coordinates
      */
     201: TreeSnapshot;
 };
 
 export type MutateTreeGraphResponse = MutateTreeGraphResponses[keyof MutateTreeGraphResponses];
+
+export type UpdateMarriagePeriodData = {
+    body: MarriagePeriodPatchRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        marriageId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/marriages/{marriageId}';
+};
+
+export type UpdateMarriagePeriodErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UpdateMarriagePeriodError = UpdateMarriagePeriodErrors[keyof UpdateMarriagePeriodErrors];
+
+export type UpdateMarriagePeriodResponses = {
+    /**
+     * Marriage dates and automatic events updated
+     */
+    200: MarriagePeriodUpdateResult;
+};
+
+export type UpdateMarriagePeriodResponse = UpdateMarriagePeriodResponses[keyof UpdateMarriagePeriodResponses];
 
 export type GetPersonData = {
     body?: never;

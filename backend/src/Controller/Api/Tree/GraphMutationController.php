@@ -4,7 +4,7 @@ namespace App\Controller\Api\Tree;
 
 use App\Api\RequestBodyMapper;
 use App\Api\TreeSnapshotViewFactory;
-use App\Application\Person\CreateFirstPersonService;
+use App\Application\Tree\GraphMutationService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
@@ -18,7 +18,7 @@ final readonly class GraphMutationController
 {
     public function __construct(
         private RequestBodyMapper $requestBody,
-        private CreateFirstPersonService $createFirstPerson,
+        private GraphMutationService $mutations,
         private TreeSnapshotViewFactory $snapshots,
         private TreeVersion $versions,
     ) {
@@ -38,14 +38,14 @@ final readonly class GraphMutationController
         Request $request,
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $this->createFirstPerson->create(
+        $status = $this->mutations->mutate(
             $tree,
             $this->requestBody->decodeObject($request),
             $request->headers->get('If-Match'),
         );
         $response = new JsonResponse(
             $this->snapshots->create($tree),
-            JsonResponse::HTTP_CREATED,
+            $status,
         );
         $response->headers->set('ETag', $this->versions->etag($tree));
 

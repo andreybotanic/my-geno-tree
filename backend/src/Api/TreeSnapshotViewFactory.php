@@ -5,12 +5,18 @@ namespace App\Api;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Repository\PersonRepository;
+use App\Repository\MarriagePeriodRepository;
+use App\Repository\ParentLinkRepository;
 
 final readonly class TreeSnapshotViewFactory
 {
     public function __construct(
         private PersonRepository $people,
+        private ParentLinkRepository $parentLinks,
+        private MarriagePeriodRepository $marriages,
         private PersonViewFactory $personViews,
+        private ParentLinkViewFactory $parentLinkViews,
+        private MarriagePeriodViewFactory $marriageViews,
         private TreeVersion $versions,
     ) {
     }
@@ -32,8 +38,14 @@ final readonly class TreeSnapshotViewFactory
                 $this->personViews->create(...),
                 $this->people->findAllForTree($tree),
             ),
-            'parentLinks' => [],
-            'marriages' => [],
+            'parentLinks' => array_map(
+                $this->parentLinkViews->create(...),
+                $this->parentLinks->findAllForTree($tree),
+            ),
+            'marriages' => array_map(
+                $this->marriageViews->create(...),
+                $this->marriages->findAllForTree($tree),
+            ),
         ];
     }
 }

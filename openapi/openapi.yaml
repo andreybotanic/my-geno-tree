@@ -299,10 +299,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateFirstPersonMutation"
+              $ref: "#/components/schemas/GraphMutation"
       responses:
+        "200":
+          description: Structural graph resource removed atomically
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeSnapshot"
         "201":
-          description: First person created atomically with its coordinates
+          description: Graph resources created atomically with coordinates
           headers:
             ETag:
               $ref: "#/components/headers/TreeEtag"
@@ -318,6 +327,50 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/marriages/{marriageId}:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - name: marriageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateMarriagePeriod
+      summary: Autosave dates of one marriage period
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarriagePeriodPatchRequest"
+      responses:
+        "200":
+          description: Marriage dates and automatic events updated
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarriagePeriodUpdateResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "412":
           $ref: "#/components/responses/TreeVersionConflict"
         "415":
@@ -865,11 +918,151 @@ components:
         parentLinks:
           type: array
           items:
-            type: object
+            $ref: "#/components/schemas/ParentLink"
         marriages:
           type: array
           items:
-            type: object
+            $ref: "#/components/schemas/MarriagePeriod"
+    ParentRole:
+      type: string
+      enum:
+        - father
+        - mother
+    ParentLink:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - parentId
+        - childId
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+        childId:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/ParentRole"
+    MarriagePeriod:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - malePersonId
+        - femalePersonId
+        - marriageDate
+        - dissolutionDate
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        malePersonId:
+          type: string
+          format: uuid
+        femalePersonId:
+          type: string
+          format: uuid
+        marriageDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        dissolutionDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MarriagePeriodPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        marriageDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        dissolutionDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+    MarriagePeriodUpdateResult:
+      type: object
+      additionalProperties: false
+      required:
+        - marriage
+        - etag
+      properties:
+        marriage:
+          $ref: "#/components/schemas/MarriagePeriod"
+        etag:
+          type: string
+    CoordinateUpdate:
+      type: object
+      additionalProperties: false
+      required:
+        - personId
+        - coordinates
+      properties:
+        personId:
+          type: string
+          format: uuid
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+    ExistingRelative:
+      type: object
+      additionalProperties: false
+      required:
+        - personId
+      properties:
+        personId:
+          type: string
+          format: uuid
+    NewRelative:
+      type: object
+      additionalProperties: false
+      required:
+        - person
+        - coordinates
+      properties:
+        person:
+          $ref: "#/components/schemas/PersonInput"
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+    RelativePerson:
+      oneOf:
+        - $ref: "#/components/schemas/ExistingRelative"
+        - $ref: "#/components/schemas/NewRelative"
+    ParentSpecification:
+      type: object
+      additionalProperties: false
+      required:
+        - personId
+        - role
+      properties:
+        personId:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/ParentRole"
+    GraphMutation:
+      oneOf:
+        - $ref: "#/components/schemas/CreateFirstPersonMutation"
+        - $ref: "#/components/schemas/AddParentMutation"
+        - $ref: "#/components/schemas/AddChildMutation"
+        - $ref: "#/components/schemas/LinkParentChildMutation"
+        - $ref: "#/components/schemas/AddMarriagePeriodMutation"
+        - $ref: "#/components/schemas/RemoveParentLinkMutation"
+        - $ref: "#/components/schemas/RemoveMarriagePeriodMutation"
+        - $ref: "#/components/schemas/DeletePersonMutation"
+      discriminator:
+        propertyName: type
     CreateFirstPersonMutation:
       type: object
       additionalProperties: false
@@ -885,6 +1078,176 @@ components:
           $ref: "#/components/schemas/PersonInput"
         coordinates:
           $ref: "#/components/schemas/Coordinates"
+    AddParentMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - childId
+        - role
+        - relative
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: add_parent
+        childId:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/ParentRole"
+        relative:
+          $ref: "#/components/schemas/RelativePerson"
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    AddChildMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - parents
+        - relative
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: add_child
+        parents:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/ParentSpecification"
+        relative:
+          $ref: "#/components/schemas/RelativePerson"
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    LinkParentChildMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - parentId
+        - childId
+        - role
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: link_parent_child
+        parentId:
+          type: string
+          format: uuid
+        childId:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/ParentRole"
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    AddMarriagePeriodMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - personId
+        - relative
+        - marriageDate
+        - dissolutionDate
+        - maleNewSurname
+        - femaleNewSurname
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: add_marriage_period
+        personId:
+          type: string
+          format: uuid
+        relative:
+          $ref: "#/components/schemas/RelativePerson"
+        marriageDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        dissolutionDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+        maleNewSurname:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 100
+        femaleNewSurname:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 100
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    RemoveParentLinkMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - parentLinkId
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: remove_parent_link
+        parentLinkId:
+          type: string
+          format: uuid
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    RemoveMarriagePeriodMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - marriageId
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: remove_marriage_period
+        marriageId:
+          type: string
+          format: uuid
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    DeletePersonMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - personId
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: delete_person
+        personId:
+          type: string
+          format: uuid
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
     GenealogicalEvent:
       type: object
       additionalProperties: false

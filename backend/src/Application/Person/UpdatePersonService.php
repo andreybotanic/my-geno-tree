@@ -4,6 +4,7 @@ namespace App\Application\Person;
 
 use App\Application\Event\AutomaticEventSynchronizer;
 use App\Application\Tree\TreeVersion;
+use App\Application\Tree\GraphInvariantPolicy;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
 use Doctrine\DBAL\LockMode;
@@ -14,6 +15,7 @@ final readonly class UpdatePersonService
 {
     public function __construct(
         private PersonDataPolicy $dataPolicy,
+        private GraphInvariantPolicy $graphInvariants,
         private TreeVersion $versions,
         private AutomaticEventSynchronizer $events,
         private EntityManagerInterface $entityManager,
@@ -43,6 +45,10 @@ final readonly class UpdatePersonService
             $this->entityManager->refresh($person);
 
             $data = $this->dataPolicy->patch($person, $payload);
+            $this->graphInvariants->assertPersonDataChangeAllowed(
+                $person,
+                $data,
+            );
             $changedAt = $this->clock->now();
             $person->update(
                 $data->birthSurname,

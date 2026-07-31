@@ -112,6 +112,33 @@ class GenealogicalEvent
         );
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function automaticRelated(
+        Person $person,
+        EventType $type,
+        GenealogicalDate $date,
+        string $sourceEntityType,
+        Uuid $sourceEntityId,
+        array $data,
+        DateTimeImmutable $createdAt,
+    ): self {
+        return new self(
+            $person,
+            $type,
+            EventSource::AUTOMATIC,
+            $date,
+            null,
+            null,
+            $data,
+            $sourceEntityType,
+            $sourceEntityId,
+            null,
+            $createdAt,
+        );
+    }
+
     public function getId(): Uuid
     {
         return $this->id;
@@ -185,6 +212,19 @@ class GenealogicalEvent
         DateTimeImmutable $changedAt,
     ): void {
         $this->date = $date;
+        $this->updatedAt = $changedAt;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function changeAutomatic(
+        GenealogicalDate $date,
+        array $data,
+        DateTimeImmutable $changedAt,
+    ): void {
+        $this->date = $date;
+        $this->data = $data;
         $this->updatedAt = $changedAt;
     }
 }

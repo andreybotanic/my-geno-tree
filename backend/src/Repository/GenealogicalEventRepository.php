@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Entity\Value\EventType;
+use Symfony\Component\Uid\Uuid;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -27,6 +28,26 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
             'type' => $type,
             'sourceEntityId' => $person->getId(),
         ]);
+    }
+
+    public function findAutomaticForSource(
+        Person $person,
+        EventType $type,
+        Uuid $sourceEntityId,
+    ): ?GenealogicalEvent {
+        return $this->findOneBy([
+            'person' => $person,
+            'type' => $type,
+            'sourceEntityId' => $sourceEntityId,
+        ]);
+    }
+
+    /**
+     * @return list<GenealogicalEvent>
+     */
+    public function findAllForSource(Uuid $sourceEntityId): array
+    {
+        return $this->findBy(['sourceEntityId' => $sourceEntityId]);
     }
 
     /**
