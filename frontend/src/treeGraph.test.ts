@@ -61,6 +61,8 @@ describe('tree graph presentation', () => {
 
     expect(buildTreeEdges(tree)).toEqual([expect.objectContaining({
       id: 'family:father:mother',
+      sourceHandle: 'bottom-source',
+      targetHandle: 'bottom-target',
       type: 'family',
       data: {
         married: true,

@@ -1109,10 +1109,38 @@
   color: var(--color-text-strong);
 }
 
-.family-block > small,
 .marriage-period-list span {
   color: var(--color-text-muted);
   font-size: 0.73rem;
+}
+
+.family-children {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.family-children .relationship-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.family-children h4 {
+  color: var(--color-text-strong);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.family-children .panel-empty {
+  margin: 0;
+}
+
+.family-children .relationship-list {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
 }
 
 .marriage-period-list,

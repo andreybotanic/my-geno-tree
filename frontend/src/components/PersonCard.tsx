@@ -32,12 +32,6 @@ export function PersonCard({
         position={Position.Top}
         type="target"
       />
-      <Handle
-        className="person-handle"
-        id="left-target"
-        position={Position.Left}
-        type="target"
-      />
       <div className="person-photo-placeholder" aria-hidden="true">
         <AuthenticatedImage
           alt=""
@@ -63,9 +57,9 @@ export function PersonCard({
       />
       <Handle
         className="person-handle"
-        id="right-source"
-        position={Position.Right}
-        type="source"
+        id="bottom-target"
+        position={Position.Bottom}
+        type="target"
       />
     </article>
   )

@@ -115,9 +115,9 @@ export function buildTreeEdges(
     edges.push({
       id: `family:${key}`,
       source: left.id,
-      sourceHandle: 'right-source',
+      sourceHandle: 'bottom-source',
       target: right.id,
-      targetHandle: 'left-target',
+      targetHandle: 'bottom-target',
       type: 'family',
       data: {
         childPoints,

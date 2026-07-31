@@ -270,6 +270,33 @@ describe('TreeEditorPage', () => {
     )
   })
 
+  it('closes person details when the empty tree canvas is clicked', async () => {
+    const request = vi.fn(async (path: string) => {
+      if (path.endsWith('/events')) {
+        return { items: [event] }
+      }
+      if (path.endsWith(`/people/${person.id}`)) {
+        return person
+      }
+      return snapshot([person])
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(
+      await screen.findByRole('article', { name: 'Ivanova Anna' }),
+    )
+    expect(
+      await screen.findByRole('complementary', { name: 'Person details' }),
+    ).toBeInTheDocument()
+
+    const pane = document.querySelector('.react-flow__pane')
+    expect(pane).not.toBeNull()
+    fireEvent.click(pane as Element)
+
+    expect(screen.queryByRole('complementary', { name: 'Person details' }))
+      .not.toBeInTheDocument()
+  })
+
   it('creates, edits, and deletes a manual event with current ETags', async () => {
     let currentEvents = [event]
     let deleted = false

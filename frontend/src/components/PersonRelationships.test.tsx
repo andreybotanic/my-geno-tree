@@ -118,14 +118,23 @@ describe('PersonRelationships', () => {
     expect(screen.getAllByText('Petrova')).toHaveLength(1)
     expect(screen.getByText(/2000/)).toHaveTextContent('2000 — 2005')
     expect(screen.getByText(/— — present/)).toBeInTheDocument()
-    expect(screen.getByText(/Children:/)).toHaveTextContent('Junior')
-    expect(screen.getByText('Outside')).toBeInTheDocument()
-    expect(screen.getByText('Solo')).toBeInTheDocument()
-    expect(screen.queryByText('Junior', { selector: '.relationship-list li' }))
-      .not.toBeInTheDocument()
-
     const family = screen.getByText('Petrova').closest('article')
     expect(family).not.toBeNull()
+    const childrenBlock = within(family as HTMLElement)
+      .getByRole('heading', { name: 'Children' })
+      .closest('section')
+    expect(childrenBlock).not.toBeNull()
+    expect(within(childrenBlock as HTMLElement).getByText('Junior'))
+      .toBeInTheDocument()
+    expect(screen.getByText('Outside')).toBeInTheDocument()
+    expect(screen.getByText('Solo')).toBeInTheDocument()
+    const outsideMarriage = screen.getByRole('heading', {
+      name: 'Children outside marriage',
+    }).closest('section')
+    expect(outsideMarriage).not.toBeNull()
+    expect(within(outsideMarriage as HTMLElement).queryByText('Junior'))
+      .not.toBeInTheDocument()
+
     const familyButtons = within(family as HTMLElement).getAllByRole('button')
     await userEvent.click(familyButtons[0] as HTMLElement)
     expect(onEditMarriage).toHaveBeenCalledWith(periods[0])
@@ -184,5 +193,31 @@ describe('PersonRelationships', () => {
       ['spouse'],
       ['child'],
     ])
+  })
+
+  it('shows an explicit empty children section in every family block', () => {
+    render(
+      <PersonRelationships
+        onAdd={vi.fn()}
+        onEditMarriage={vi.fn()}
+        onRemoveMarriage={vi.fn()}
+        onRemoveParentLink={vi.fn()}
+        person={selected}
+        snapshot={snapshot([], periods, [selected, spouse])}
+      />,
+    )
+
+    const family = screen.getByText('Petrova').closest('article')
+    expect(family).not.toBeNull()
+    const childrenBlock = within(family as HTMLElement)
+      .getByRole('heading', { name: 'Children' })
+      .closest('section')
+    expect(childrenBlock).not.toBeNull()
+    expect(within(childrenBlock as HTMLElement).getByText(
+      'No children in this section.',
+    )).toBeInTheDocument()
+    expect(within(childrenBlock as HTMLElement).getByRole('button', {
+      name: 'Add',
+    })).toBeInTheDocument()
   })
 })

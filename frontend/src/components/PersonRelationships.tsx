@@ -163,17 +163,25 @@ export function PersonRelationships({
                   </li>
                 ))}
               </ul>
-              {commonChildren.length > 0 && (
-                <small>
-                  {t('relationships.commonChildren')}: {' '}
-                  {commonChildren
-                    .map((child) => formatPersonName(child, t))
-                    .join(', ')}
-                </small>
-              )}
-              <AddButton
-                onClick={() => onAdd('child', spouseId)}
-              />
+              <section className="family-children">
+                <div className="relationship-heading">
+                  <h4>{t('relationships.commonChildren')}</h4>
+                  <AddButton
+                    onClick={() => onAdd('child', spouseId)}
+                  />
+                </div>
+                {commonChildren.length === 0 ? (
+                  <p className="panel-empty">
+                    {t('relationships.noChildren')}
+                  </p>
+                ) : (
+                  <ul className="relationship-list">
+                    {commonChildren.map((child) => (
+                      <li key={child.id}>{formatPersonName(child, t)}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </article>
           )
         })}

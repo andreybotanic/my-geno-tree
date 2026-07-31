@@ -16,7 +16,7 @@ export function FamilyEdge({
   targetX,
   targetY,
 }: EdgeProps<FamilyFlowEdge>) {
-  const pairY = Math.max(sourceY, targetY) + 76
+  const pairY = Math.max(sourceY, targetY) + 24
   const pairPath = [
     `M ${sourceX} ${sourceY}`,
     `L ${sourceX} ${pairY}`,

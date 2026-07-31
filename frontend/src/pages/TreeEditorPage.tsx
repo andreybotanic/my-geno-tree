@@ -107,12 +107,14 @@ function ZoomControls() {
 }
 
 type TreeCanvasProps = {
+  onClearSelection: () => void
   onSelectPerson: (personId: string) => void
   selectedPersonId: string | null
   snapshot: TreeSnapshot
 }
 
 function TreeCanvas({
+  onClearSelection,
   onSelectPerson,
   selectedPersonId,
   snapshot,
@@ -170,6 +172,7 @@ function TreeCanvas({
         centerFirstPerson(flow)
       }}
       onNodeClick={(_event, node) => onSelectPerson(node.id)}
+      onPaneClick={onClearSelection}
       panOnDrag
       proOptions={{ hideAttribution: true }}
       zoomOnDoubleClick={false}
@@ -257,6 +260,16 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [photoEditing, setPhotoEditing] = useState(false)
   const [photoDeleting, setPhotoDeleting] = useState(false)
   const [photoViewing, setPhotoViewing] = useState(false)
+
+  const closePersonDetails = useCallback(() => {
+    setSelectedPerson(null)
+    setEvents([])
+    setEventEditing(null)
+    setEventPendingDeletion(null)
+    setPhotoEditing(false)
+    setPhotoDeleting(false)
+    setPhotoViewing(false)
+  }, [])
 
   const loadSnapshot = useCallback(async () => {
     setStatus('loading')
@@ -761,6 +774,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             ) : (
               <ReactFlowProvider>
                 <TreeCanvas
+                  onClearSelection={closePersonDetails}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
                   snapshot={snapshot}
@@ -778,15 +792,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               setRelativeAction(action)
               setRelativeSecondParentId(secondParentId ?? null)
             }}
-            onClose={() => {
-              setSelectedPerson(null)
-              setEvents([])
-              setEventEditing(null)
-              setEventPendingDeletion(null)
-              setPhotoEditing(false)
-              setPhotoDeleting(false)
-              setPhotoViewing(false)
-            }}
+            onClose={closePersonDetails}
             onCreateEvent={() => setEventEditing('new')}
             onDeleteEvent={setEventPendingDeletion}
             onDeletePerson={() => setPendingRemoval({

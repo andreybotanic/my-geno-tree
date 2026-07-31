@@ -19,8 +19,8 @@ function familyProps(
     sourceY: 100,
     targetX: 400,
     targetY: 100,
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
+    sourcePosition: Position.Bottom,
+    targetPosition: Position.Bottom,
     markerStart: undefined,
     markerEnd: undefined,
     interactionWidth: 20,
@@ -51,7 +51,7 @@ describe('TreeEdges', () => {
     )
     expect(container.querySelector('.tree-edge-marriage')).toHaveAttribute(
       'd',
-      expect.stringContaining('L 400 176'),
+      'M 100 100 L 100 124 L 400 124 L 400 100',
     )
     expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
       'd',
