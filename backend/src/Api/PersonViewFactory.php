@@ -29,7 +29,17 @@ final readonly class PersonViewFactory
             'deathDate' => null === $person->getDeathDate()
                 ? null
                 : $this->dates->create($person->getDeathDate()),
-            'photoThumbnailUrl' => null,
+            'photoThumbnailUrl' => null === $person->getPhotoAttachment()
+                ? null
+                : sprintf(
+                    '/trees/%s/people/%s/photo/thumbnail?media=%s',
+                    $person->getTree()->getId()->toRfc4122(),
+                    $person->getId()->toRfc4122(),
+                    $person->getPhotoAttachment()
+                        ->getMedia()
+                        ->getId()
+                        ->toRfc4122(),
+                ),
             'coordinates' => [
                 'x' => $person->getX(),
                 'y' => $person->getY(),

@@ -55,6 +55,9 @@ class Person
     #[ORM\Column]
     private DateTimeImmutable $updatedAt;
 
+    #[ORM\OneToOne(mappedBy: 'person', targetEntity: MediaAttachment::class)]
+    private ?MediaAttachment $photoAttachment = null;
+
     public function __construct(
         FamilyTree $tree,
         KnownText $birthSurname,
@@ -140,6 +143,25 @@ class Person
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getPhotoAttachment(): ?MediaAttachment
+    {
+        return $this->photoAttachment;
+    }
+
+    public function attachPhoto(
+        MediaAttachment $attachment,
+        DateTimeImmutable $changedAt,
+    ): void {
+        $this->photoAttachment = $attachment;
+        $this->updatedAt = $changedAt;
+    }
+
+    public function detachPhoto(DateTimeImmutable $changedAt): void
+    {
+        $this->photoAttachment = null;
+        $this->updatedAt = $changedAt;
     }
 
     public function update(

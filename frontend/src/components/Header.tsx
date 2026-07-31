@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { navigate } from '../routing'
 import { AuthDialog } from './AuthDialog'
 import { LanguageSelector } from './LanguageSelector'
+import { AuthenticatedImage } from './AuthenticatedImage'
 
 export function Header() {
   const { t } = useTranslation()
@@ -53,9 +54,15 @@ export function Header() {
                 onClick={() => setMenuOpen((open) => !open)}
                 type="button"
               >
-                <span className="avatar-placeholder" aria-hidden="true">
-                  {user.username.slice(0, 1).toUpperCase()}
-                </span>
+                <AuthenticatedImage
+                  alt=""
+                  fallback={(
+                    <span className="avatar-placeholder" aria-hidden="true">
+                      {user.username.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  url={user.avatarUrl}
+                />
               </button>
               {menuOpen && (
                 <div className="profile-menu">

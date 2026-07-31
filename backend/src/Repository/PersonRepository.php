@@ -23,6 +23,10 @@ final class PersonRepository extends ServiceEntityRepository
     public function findAllForTree(FamilyTree $tree): array
     {
         return $this->createQueryBuilder('person')
+            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant')
+            ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->leftJoin('photoAttachment.media', 'photoMedia')
+            ->leftJoin('photoMedia.variants', 'photoVariant')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('person.createdAt', 'ASC')
@@ -34,6 +38,10 @@ final class PersonRepository extends ServiceEntityRepository
     public function findInTree(FamilyTree $tree, string $id): ?Person
     {
         return $this->createQueryBuilder('person')
+            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant')
+            ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->leftJoin('photoAttachment.media', 'photoMedia')
+            ->leftJoin('photoMedia.variants', 'photoVariant')
             ->andWhere('person.tree = :tree')
             ->andWhere('person.id = :id')
             ->setParameter('tree', $tree)

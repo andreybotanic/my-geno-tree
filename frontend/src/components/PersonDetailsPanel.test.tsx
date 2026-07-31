@@ -7,6 +7,7 @@ import type {
   PersonPatchRequest,
 } from '../api/generated'
 import i18n from '../i18n'
+import { AuthContext, type AuthContextValue } from '../auth/AuthContext'
 import { PersonDetailsPanel } from './PersonDetailsPanel'
 
 const person: Person = {
@@ -57,8 +58,21 @@ const renderPanel = ({
   onPatch?: (patch: PersonPatchRequest) => Promise<void>
   value?: Person
 } = {}) => {
+  const auth: AuthContextValue = {
+    accessToken: 'access',
+    isBooting: false,
+    user: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+    register: vi.fn(),
+    request: vi.fn(),
+    requestBlob: vi.fn(async () => new Blob(['image'])),
+    updateLanguage: vi.fn(),
+    updateUser: vi.fn(),
+  }
   render(
-    <PersonDetailsPanel
+    <AuthContext value={auth}>
+      <PersonDetailsPanel
       conflict={conflict}
       events={events}
       onAddRelative={vi.fn()}
@@ -66,12 +80,15 @@ const renderPanel = ({
       onCreateEvent={vi.fn()}
       onDeleteEvent={vi.fn()}
       onDeletePerson={vi.fn()}
+      onDeletePhoto={vi.fn()}
       onEditEvent={vi.fn()}
       onEditMarriage={vi.fn()}
+      onOpenPhoto={vi.fn()}
       onPatch={onPatch}
       onReorderEvents={vi.fn(async () => {})}
       onRemoveMarriage={vi.fn()}
       onRemoveParentLink={vi.fn()}
+      onUploadPhoto={vi.fn()}
       person={value}
       snapshot={{
         tree: {
@@ -85,7 +102,8 @@ const renderPanel = ({
         parentLinks: [],
         marriages: [],
       }}
-    />,
+      />
+    </AuthContext>,
   )
   return { onClose, onPatch }
 }
@@ -108,7 +126,7 @@ describe('PersonDetailsPanel', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('renders a photo and an empty timeline', () => {
+  it('renders a protected photo and an empty timeline', async () => {
     renderPanel({
       events: [],
       value: {
@@ -117,9 +135,9 @@ describe('PersonDetailsPanel', () => {
       },
     })
 
-    expect(screen.getByRole('presentation')).toHaveAttribute(
+    expect(await screen.findByRole('presentation')).toHaveAttribute(
       'src',
-      '/api/v1/media/photo/thumbnail',
+      'blob:test-image',
     )
     expect(screen.getByText('No events yet.')).toBeInTheDocument()
   })

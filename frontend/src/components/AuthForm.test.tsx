@@ -15,7 +15,9 @@ const baseContext: AuthContextValue = {
   logout: vi.fn(),
   register: vi.fn(),
   request: vi.fn(),
+  requestBlob: vi.fn(),
   updateLanguage: vi.fn(),
+  updateUser: vi.fn(),
 }
 
 function renderForm(

@@ -38,6 +38,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private DateTimeImmutable $updatedAt;
 
+    #[ORM\OneToOne(mappedBy: 'user', targetEntity: MediaAttachment::class)]
+    private ?MediaAttachment $avatarAttachment = null;
+
     public function __construct(
         string $username,
         string $email,
@@ -106,6 +109,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getAvatarAttachment(): ?MediaAttachment
+    {
+        return $this->avatarAttachment;
+    }
+
+    public function attachAvatar(
+        MediaAttachment $attachment,
+        DateTimeImmutable $changedAt,
+    ): void {
+        $this->avatarAttachment = $attachment;
+        $this->updatedAt = $changedAt;
+    }
+
+    public function detachAvatar(DateTimeImmutable $changedAt): void
+    {
+        $this->avatarAttachment = null;
+        $this->updatedAt = $changedAt;
     }
 
     public function changePreferredLanguage(

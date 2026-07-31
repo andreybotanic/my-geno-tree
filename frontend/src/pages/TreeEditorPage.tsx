@@ -33,6 +33,7 @@ import {
   ApiRequestError,
   eventApi,
   marriageApi,
+  personPhotoApi,
   personApi,
   treeApi,
 } from '../api/client'
@@ -55,6 +56,8 @@ import {
 import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
 import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { EventDialog } from '../components/EventDialog'
+import { ImageCropDialog } from '../components/ImageCropDialog'
+import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
 import { navigate } from '../routing'
 import {
   buildTreeEdges,
@@ -201,6 +204,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [eventPendingDeletion, setEventPendingDeletion] = useState<
     GenealogicalEvent | null
   >(null)
+  const [photoEditing, setPhotoEditing] = useState(false)
+  const [photoDeleting, setPhotoDeleting] = useState(false)
+  const [photoViewing, setPhotoViewing] = useState(false)
 
   const loadSnapshot = useCallback(async () => {
     setStatus('loading')
@@ -216,6 +222,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setPendingRemoval(null)
       setEventEditing(null)
       setEventPendingDeletion(null)
+      setPhotoEditing(false)
+      setPhotoDeleting(false)
+      setPhotoViewing(false)
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -571,6 +580,77 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     }
   }
 
+  const applyPhotoResult = (result: {
+    person: Person
+    etag: string
+  }) => {
+    if (!snapshot) {
+      return
+    }
+    setSelectedPerson(result.person)
+    setSnapshot({
+      ...snapshot,
+      etag: result.etag,
+      people: snapshot.people.map((person) => (
+        person.id === result.person.id ? result.person : person
+      )),
+    })
+  }
+
+  const uploadPhoto = async (
+    file: File,
+    crop: import('../api/client').CropPixels,
+  ) => {
+    if (!snapshot || !selectedPerson || conflict) {
+      throw new Error('Photo upload is unavailable')
+    }
+    try {
+      const result = await personPhotoApi.upload(
+        request,
+        treeId,
+        selectedPerson.id,
+        snapshot.etag,
+        file,
+        crop,
+      )
+      applyPhotoResult(result)
+      setPhotoEditing(false)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const deletePhoto = async () => {
+    if (!snapshot || !selectedPerson || conflict) {
+      throw new Error('Photo deletion is unavailable')
+    }
+    try {
+      const result = await personPhotoApi.remove(
+        request,
+        treeId,
+        selectedPerson.id,
+        snapshot.etag,
+      )
+      applyPhotoResult(result)
+      setPhotoDeleting(false)
+      setPhotoViewing(false)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
   return (
     <main className="tree-editor-page">
       <div className="editor-toolbar">
@@ -662,6 +742,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               setEvents([])
               setEventEditing(null)
               setEventPendingDeletion(null)
+              setPhotoEditing(false)
+              setPhotoDeleting(false)
+              setPhotoViewing(false)
             }}
             onCreateEvent={() => setEventEditing('new')}
             onDeleteEvent={setEventPendingDeletion}
@@ -669,8 +752,10 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               kind: 'person',
               person: selectedPerson,
             })}
+            onDeletePhoto={() => setPhotoDeleting(true)}
             onEditEvent={setEventEditing}
             onEditMarriage={setMarriageEditing}
+            onOpenPhoto={() => setPhotoViewing(true)}
             onPatch={patchPerson}
             onReorderEvents={reorderEvents}
             onRemoveMarriage={(marriage) => setPendingRemoval({
@@ -681,6 +766,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               kind: 'parent',
               link,
             })}
+            onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
             snapshot={snapshot}
           />
@@ -727,6 +813,34 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           onCancel={() => setEventPendingDeletion(null)}
           onConfirm={deleteEvent}
           title={t('events.deleteTitle')}
+        />
+      )}
+      {photoEditing && (
+        <ImageCropDialog
+          aspect={3 / 4}
+          onCancel={() => setPhotoEditing(false)}
+          onSave={uploadPhoto}
+          title={t('media.photoTitle')}
+        />
+      )}
+      {photoViewing && selectedPerson?.photoThumbnailUrl && (
+        <PhotoViewerDialog
+          onClose={() => setPhotoViewing(false)}
+          title={t('media.fullPhoto')}
+          url={`/trees/${treeId}/people/${selectedPerson.id}/photo${
+            selectedPerson.photoThumbnailUrl.includes('?')
+              ? `?${selectedPerson.photoThumbnailUrl.split('?')[1]}`
+              : ''
+          }`}
+        />
+      )}
+      {photoDeleting && (
+        <ConfirmRelationshipDialog
+          description={t('media.deletePhotoDescription')}
+          errorMessage={t('media.removeFailed')}
+          onCancel={() => setPhotoDeleting(false)}
+          onConfirm={deletePhoto}
+          title={t('media.deletePhotoTitle')}
         />
       )}
       {pendingRemoval && (

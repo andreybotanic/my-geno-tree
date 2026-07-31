@@ -29,13 +29,25 @@ async function readResponse<T>(response: Response): Promise<T> {
   return body as T
 }
 
+async function readBlobResponse(response: Response): Promise<Blob> {
+  if (!response.ok) {
+    const text = await response.text()
+    const body: unknown = text ? JSON.parse(text) : {}
+    throw new ApiRequestError(response.status, body as ApiError)
+  }
+
+  return response.blob()
+}
+
 export async function jsonRequest<T>(
   path: string,
   init: RequestInit,
 ): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
-  headers.set('Content-Type', 'application/json')
+  if (!(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   const response = await fetch(`/api/v1${path}`, {
     ...init,
@@ -46,10 +58,45 @@ export async function jsonRequest<T>(
   return readResponse<T>(response)
 }
 
+export async function blobRequest(
+  path: string,
+  init: RequestInit,
+): Promise<Blob> {
+  const response = await fetch(`/api/v1${path}`, {
+    ...init,
+    credentials: 'include',
+  })
+
+  return readBlobResponse(response)
+}
+
 export type AuthorizedJsonRequest = <T>(
   path: string,
   init?: RequestInit,
 ) => Promise<T>
+
+export type AuthorizedBlobRequest = (
+  path: string,
+  init?: RequestInit,
+) => Promise<Blob>
+
+export type CropPixels = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function imageForm(file: File, crop: CropPixels) {
+  const form = new FormData()
+  form.set('image', file)
+  form.set('cropX', String(Math.round(crop.x)))
+  form.set('cropY', String(Math.round(crop.y)))
+  form.set('cropWidth', String(Math.round(crop.width)))
+  form.set('cropHeight', String(Math.round(crop.height)))
+
+  return form
+}
 
 export const authApi = {
   register(input: RegisterRequest): Promise<AuthResponse> {
@@ -264,6 +311,58 @@ export const eventApi = {
       {
         method: 'PUT',
         body: JSON.stringify({ eventIds }),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+}
+
+export const profileMediaApi = {
+  uploadAvatar(
+    request: AuthorizedJsonRequest,
+    file: File,
+    crop: CropPixels,
+  ) {
+    return request<import('./generated').User>('/me/avatar', {
+      method: 'POST',
+      body: imageForm(file, crop),
+    })
+  },
+  removeAvatar(request: AuthorizedJsonRequest) {
+    return request<import('./generated').User>('/me/avatar', {
+      method: 'DELETE',
+    })
+  },
+}
+
+export const personPhotoApi = {
+  upload(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    etag: string,
+    file: File,
+    crop: CropPixels,
+  ) {
+    return request<import('./generated').PersonUpdateResult>(
+      `/trees/${treeId}/people/${personId}/photo`,
+      {
+        method: 'POST',
+        body: imageForm(file, crop),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  remove(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    etag: string,
+  ) {
+    return request<import('./generated').PersonUpdateResult>(
+      `/trees/${treeId}/people/${personId}/photo`,
+      {
+        method: 'DELETE',
         headers: { 'If-Match': etag },
       },
     )

@@ -31,6 +31,7 @@ import {
 import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
+import { AuthenticatedImage } from './AuthenticatedImage'
 
 type PersonField = keyof Pick<
   Person,
@@ -48,12 +49,15 @@ type PersonDetailsPanelProps = {
   onAddRelative: (action: RelativeAction, secondParentId?: string) => void
   onClose: () => void
   onDeletePerson: () => void
+  onDeletePhoto: () => void
   onCreateEvent: () => void
   onDeleteEvent: (event: GenealogicalEvent) => void
   onEditEvent: (event: GenealogicalEvent) => void
   onEditMarriage: (marriage: MarriagePeriod) => void
+  onOpenPhoto: () => void
   onPatch: (patch: PersonPatchRequest) => Promise<void>
   onReorderEvents: (eventIds: string[]) => Promise<void>
+  onUploadPhoto: () => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
   person: Person
@@ -184,10 +188,13 @@ export function PersonDetailsPanel({
   onCreateEvent,
   onDeleteEvent,
   onDeletePerson,
+  onDeletePhoto,
   onEditEvent,
   onEditMarriage,
+  onOpenPhoto,
   onPatch,
   onReorderEvents,
+  onUploadPhoto,
   onRemoveMarriage,
   onRemoveParentLink,
   person,
@@ -265,10 +272,44 @@ export function PersonDetailsPanel({
         </button>
       </div>
 
-      <div className="panel-photo-placeholder">
-        {person.photoThumbnailUrl
-          ? <img alt="" src={person.photoThumbnailUrl} />
-          : <span>{t('person.noPhoto')}</span>}
+      <div className="person-photo-editor">
+        <button
+          aria-label={person.photoThumbnailUrl
+            ? t('media.openPhoto')
+            : t('person.noPhoto')}
+          className="panel-photo-placeholder"
+          disabled={!person.photoThumbnailUrl}
+          onClick={onOpenPhoto}
+          type="button"
+        >
+          <AuthenticatedImage
+            alt=""
+            fallback={<span>{t('person.noPhoto')}</span>}
+            url={person.photoThumbnailUrl}
+          />
+        </button>
+        <div className="person-photo-actions">
+          <button
+            className="secondary-button compact-button"
+            disabled={conflict}
+            onClick={onUploadPhoto}
+            type="button"
+          >
+            {t(person.photoThumbnailUrl
+              ? 'media.replacePhoto'
+              : 'media.addPhoto')}
+          </button>
+          {person.photoThumbnailUrl && (
+            <button
+              className="danger-link"
+              disabled={conflict}
+              onClick={onDeletePhoto}
+              type="button"
+            >
+              {t('media.deletePhoto')}
+            </button>
+          )}
+        </div>
       </div>
 
       <section className="person-details-section">

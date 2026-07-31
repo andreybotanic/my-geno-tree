@@ -4,10 +4,12 @@ namespace App\Application\Tree;
 
 use App\Api\ApiException;
 use App\Application\Event\AutomaticEventSynchronizer;
+use App\Application\Media\MediaService;
 use App\Application\Person\PersonDataPolicy;
 use App\Application\Person\PersonLookup;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
+use App\Entity\MediaObject;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\Gender;
@@ -30,6 +32,7 @@ final readonly class StructuralGraphMutationService
         private MarriagePeriodRepository $marriages,
         private TreeVersion $versions,
         private AutomaticEventSynchronizer $events,
+        private MediaService $media,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
     ) {
@@ -48,11 +51,13 @@ final readonly class StructuralGraphMutationService
             $this->invalid('type', 'graph_mutation_type_invalid');
         }
 
+        $removedMedia = [];
         $this->entityManager->wrapInTransaction(function () use (
             $tree,
             $payload,
             $type,
             $ifMatch,
+            &$removedMedia,
         ): void {
             $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($tree);
@@ -86,6 +91,7 @@ final readonly class StructuralGraphMutationService
                     $tree,
                     $payload,
                     $changedAt,
+                    $removedMedia,
                 ),
                 default => $this->invalid(
                     'type',
@@ -94,6 +100,7 @@ final readonly class StructuralGraphMutationService
             };
             $tree->touch($changedAt);
         });
+        $this->media->deleteStored($removedMedia);
     }
 
     /**
@@ -328,10 +335,15 @@ final readonly class StructuralGraphMutationService
     /**
      * @param array<string, mixed> $payload
      */
+    /**
+     * @param array<string, mixed> $payload
+     * @param list<MediaObject> $removedMedia
+     */
     private function deletePerson(
         FamilyTree $tree,
         array $payload,
         DateTimeImmutable $changedAt,
+        array &$removedMedia,
     ): void {
         $this->assertExactKeys($payload, [
             'type',
@@ -349,6 +361,10 @@ final readonly class StructuralGraphMutationService
         foreach ($this->marriages->findForPerson($person) as $marriage) {
             $this->events->removeForSource($marriage->getId());
             $this->entityManager->remove($marriage);
+        }
+        $photo = $this->media->detachPersonPhotoRecord($person, $changedAt);
+        if ($photo instanceof MediaObject) {
+            $removedMedia[] = $photo;
         }
         $this->entityManager->remove($person);
         $this->movePeople(

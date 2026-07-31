@@ -138,6 +138,13 @@
   justify-content: center;
 }
 
+.avatar-button > img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
 .avatar-placeholder {
   height: 34px;
   width: 34px;
@@ -459,6 +466,27 @@
   height: 78px;
   margin-bottom: 24px;
   width: 78px;
+}
+
+.profile-avatar-large img {
+  border-radius: 50%;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profile-avatar-editor {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.profile-avatar-actions,
+.person-photo-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .profile-details {
@@ -805,10 +833,29 @@
 }
 
 .panel-photo-placeholder {
+  background: var(--color-surface);
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   border-radius: 13px;
   height: 180px;
   margin: 22px 0;
   width: 135px;
+}
+
+.panel-photo-placeholder:disabled {
+  cursor: default;
+}
+
+.person-photo-editor {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.person-photo-editor .panel-photo-placeholder {
+  margin: 0;
 }
 
 .panel-photo-placeholder span {
@@ -1112,6 +1159,64 @@
   max-height: calc(100svh - 48px);
   max-width: 780px;
   overflow-y: auto;
+}
+
+.image-crop-dialog {
+  max-width: 680px;
+}
+
+.image-crop-dialog h2,
+.photo-viewer-dialog h2 {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  margin: 0 0 18px;
+}
+
+.image-file-field,
+.zoom-field {
+  color: var(--color-text-muted);
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.image-file-field input {
+  color: var(--color-text);
+}
+
+.cropper-stage {
+  background: var(--color-text-strong);
+  border-radius: 12px;
+  height: min(48vh, 430px);
+  margin: 18px 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.zoom-field input {
+  accent-color: var(--color-accent);
+  width: 100%;
+}
+
+.media-help {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.photo-viewer-dialog {
+  max-height: calc(100svh - 48px);
+  max-width: min(920px, calc(100vw - 48px));
+  overflow: auto;
+}
+
+.photo-viewer-dialog img {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  max-height: calc(100svh - 190px);
+  max-width: 100%;
 }
 
 .person-dialog h2 {

@@ -17,6 +17,27 @@ import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
 import { TreeEditorPage } from './TreeEditorPage'
 
+vi.mock('../components/ImageCropDialog', () => ({
+  ImageCropDialog: ({
+    onSave,
+  }: {
+    onSave: (
+      file: File,
+      crop: { x: number; y: number; width: number; height: number },
+    ) => Promise<void>
+  }) => (
+    <button
+      onClick={() => void onSave(
+        new File(['photo'], 'photo.webp', { type: 'image/webp' }),
+        { x: 10, y: 20, width: 90, height: 120 },
+      )}
+      type="button"
+    >
+      Save photo crop
+    </button>
+  ),
+}))
+
 const treeId = '019861c4-6a93-7a2e-8ca8-51813740d4a5'
 const person: Person = {
   id: '019861c4-6a93-7a2e-8ca8-51813740d4a6',
@@ -121,7 +142,9 @@ function renderEditor(request: AuthorizedJsonRequest) {
     logout: vi.fn(),
     register: vi.fn(),
     request,
+    requestBlob: vi.fn(async () => new Blob(['image'])),
     updateLanguage: vi.fn(),
+    updateUser: vi.fn(),
   }
 
   render(
@@ -378,6 +401,81 @@ describe('TreeEditorPage', () => {
         method: 'PUT',
         body: JSON.stringify({ eventIds: [manualEvent.id, event.id] }),
         headers: { 'If-Match': '"tree-current"' },
+      },
+    )
+  })
+
+  it('uploads and confirms deletion of a primary person photo', async () => {
+    const withPhoto: Person = {
+      ...person,
+      photoThumbnailUrl:
+        `/trees/${treeId}/people/${person.id}/photo/thumbnail?media=photo`,
+    }
+    const request = vi.fn(async (
+      path: string,
+      init?: RequestInit,
+    ) => {
+      if (path.endsWith('/photo') && init?.method === 'POST') {
+        return { person: withPhoto, etag: '"tree-photo"' }
+      }
+      if (path.endsWith('/photo') && init?.method === 'DELETE') {
+        return { person, etag: '"tree-photo-removed"' }
+      }
+      if (path.endsWith('/events')) {
+        return { items: [event] }
+      }
+      if (path.endsWith(`/people/${person.id}`)) {
+        return person
+      }
+      return snapshot([person])
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(
+      await screen.findByRole('article', { name: 'Ivanova Anna' }),
+    )
+    await screen.findByRole('complementary', { name: 'Person details' })
+    await userEvent.click(screen.getByRole('button', { name: 'Add photo' }))
+    await userEvent.click(screen.getByRole('button', {
+      name: 'Save photo crop',
+    }))
+    expect(await screen.findByRole('button', { name: 'Replace photo' }))
+      .toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {
+      name: 'Open full photo',
+    }))
+    const viewer = screen.getByRole('dialog', { name: 'Full photo' })
+    expect(await within(viewer).findByRole('img', { name: 'Full photo' }))
+      .toHaveAttribute('src', 'blob:test-image')
+    await userEvent.click(within(viewer).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Full photo' }))
+      .not.toBeInTheDocument()
+    const uploadCall = (
+      request as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
+      ([path, init]) => String(path).endsWith('/photo')
+        && (init as RequestInit).method === 'POST',
+    )
+    expect(uploadCall?.[1]).toEqual(expect.objectContaining({
+      method: 'POST',
+      headers: { 'If-Match': '"tree-current"' },
+      body: expect.any(FormData),
+    }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete photo' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete photo?' })
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remove' }),
+    )
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Delete photo' }))
+        .not.toBeInTheDocument()
+    })
+    expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/people/${person.id}/photo`,
+      {
+        method: 'DELETE',
+        headers: { 'If-Match': '"tree-photo"' },
       },
     )
   })

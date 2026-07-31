@@ -12,7 +12,7 @@ final class UserViewFactory
      *     username: string,
      *     email: string,
      *     preferredLanguage: string,
-     *     avatarUrl: null,
+     *     avatarUrl: null|string,
      *     createdAt: string
      * }
      */
@@ -23,7 +23,15 @@ final class UserViewFactory
             'username' => $user->getUsername(),
             'email' => $user->getEmail(),
             'preferredLanguage' => $user->getPreferredLanguage(),
-            'avatarUrl' => null,
+            'avatarUrl' => null === $user->getAvatarAttachment()
+                ? null
+                : sprintf(
+                    '/me/avatar?media=%s',
+                    $user->getAvatarAttachment()
+                        ->getMedia()
+                        ->getId()
+                        ->toRfc4122(),
+                ),
             'createdAt' => $user->getCreatedAt()->format(DATE_ATOM),
         ];
     }

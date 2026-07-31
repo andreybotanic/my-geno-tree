@@ -33,7 +33,9 @@ function context(request: AuthorizedJsonRequest): AuthContextValue {
     logout: vi.fn(),
     register: vi.fn(),
     request,
+    requestBlob: vi.fn(async () => new Blob()),
     updateLanguage: vi.fn(),
+    updateUser: vi.fn(),
   }
 }
 

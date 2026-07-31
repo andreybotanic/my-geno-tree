@@ -156,6 +156,64 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /me/avatar:
+    get:
+      operationId: getAvatar
+      summary: Read the current user's protected processed avatar
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Processed square WebP avatar
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: uploadAvatar
+      summary: Replace the current user's avatar with a square crop
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImageCropUpload"
+      responses:
+        "200":
+          description: Profile with the replaced avatar reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deleteAvatar
+      summary: Delete the current user's avatar and its physical file
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile with no avatar reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /trees:
     get:
       operationId: listTrees
@@ -493,6 +551,114 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/people/{personId}/photo:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      operationId: getPersonPhoto
+      summary: Read the protected processed full person photo
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Processed full WebP photo
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: uploadPersonPhoto
+      summary: Replace the primary photo and create its 3:4 derivatives
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImageCropUpload"
+      responses:
+        "200":
+          description: Person and tree version with the replaced photo
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonUpdateResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deletePersonPhoto
+      summary: Delete the primary photo attachment and physical variants
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Person and tree version with no photo
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonUpdateResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+  /trees/{treeId}/people/{personId}/photo/{variant}:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+      - name: variant
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - portrait
+            - thumbnail
+    get:
+      operationId: getPersonPhotoVariant
+      summary: Read a protected portrait or thumbnail derivative
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Processed WebP derivative
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /trees/{treeId}/people/{personId}/events/{eventId}:
     parameters:
       - $ref: "#/components/parameters/TreeId"
@@ -668,6 +834,12 @@ components:
             $ref: "#/components/schemas/ApiError"
     UnsupportedMediaType:
       description: A JSON request body is required
+      content:
+        application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    PayloadTooLarge:
+      description: Uploaded image exceeds the 10 MB limit
       content:
         application/json:
           schema:
@@ -1017,6 +1189,31 @@ components:
           $ref: "#/components/schemas/Person"
         etag:
           type: string
+    ImageCropUpload:
+      type: object
+      additionalProperties: false
+      required:
+        - image
+        - cropX
+        - cropY
+        - cropWidth
+        - cropHeight
+      properties:
+        image:
+          type: string
+          format: binary
+        cropX:
+          type: integer
+          minimum: 0
+        cropY:
+          type: integer
+          minimum: 0
+        cropWidth:
+          type: integer
+          minimum: 1
+        cropHeight:
+          type: integer
+          minimum: 1
     TreeMetadata:
       type: object
       additionalProperties: false

@@ -5,6 +5,7 @@ import {
   formatLifePeriod,
   formatPersonName,
 } from '../personFormatting'
+import { AuthenticatedImage } from './AuthenticatedImage'
 
 export type PersonNodeData = {
   person: Person
@@ -38,9 +39,11 @@ export function PersonCard({
         type="target"
       />
       <div className="person-photo-placeholder" aria-hidden="true">
-        {data.person.photoThumbnailUrl
-          ? <img alt="" src={data.person.photoThumbnailUrl} />
-          : <span>?</span>}
+        <AuthenticatedImage
+          alt=""
+          fallback={<span>?</span>}
+          url={data.person.photoThumbnailUrl}
+        />
       </div>
       <div className="person-card-copy">
         <strong>{name}</strong>

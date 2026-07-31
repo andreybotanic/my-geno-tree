@@ -123,6 +123,14 @@ export type PersonUpdateResult = {
     etag: string;
 };
 
+export type ImageCropUpload = {
+    image: Blob | File;
+    cropX: number;
+    cropY: number;
+    cropWidth: number;
+    cropHeight: number;
+};
+
 export type TreeMetadata = {
     id: string;
     name: string;
@@ -547,6 +555,97 @@ export type UpdateCurrentUserResponses = {
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];
+
+export type DeleteAvatarData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/avatar';
+};
+
+export type DeleteAvatarErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+};
+
+export type DeleteAvatarError = DeleteAvatarErrors[keyof DeleteAvatarErrors];
+
+export type DeleteAvatarResponses = {
+    /**
+     * Profile with no avatar reference
+     */
+    200: User;
+};
+
+export type DeleteAvatarResponse = DeleteAvatarResponses[keyof DeleteAvatarResponses];
+
+export type GetAvatarData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/avatar';
+};
+
+export type GetAvatarErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetAvatarError = GetAvatarErrors[keyof GetAvatarErrors];
+
+export type GetAvatarResponses = {
+    /**
+     * Processed square WebP avatar
+     */
+    200: Blob | File;
+};
+
+export type GetAvatarResponse = GetAvatarResponses[keyof GetAvatarResponses];
+
+export type UploadAvatarData = {
+    body: ImageCropUpload;
+    path?: never;
+    query?: never;
+    url: '/me/avatar';
+};
+
+export type UploadAvatarErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * Uploaded image exceeds the 10 MB limit
+     */
+    413: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UploadAvatarError = UploadAvatarErrors[keyof UploadAvatarErrors];
+
+export type UploadAvatarResponses = {
+    /**
+     * Profile with the replaced avatar reference
+     */
+    200: User;
+};
+
+export type UploadAvatarResponse = UploadAvatarResponses[keyof UploadAvatarResponses];
 
 export type ListTreesData = {
     body?: never;
@@ -1029,6 +1128,167 @@ export type CreateManualEventResponses = {
 };
 
 export type CreateManualEventResponse = CreateManualEventResponses[keyof CreateManualEventResponses];
+
+export type DeletePersonPhotoData = {
+    body?: never;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/photo';
+};
+
+export type DeletePersonPhotoErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+};
+
+export type DeletePersonPhotoError = DeletePersonPhotoErrors[keyof DeletePersonPhotoErrors];
+
+export type DeletePersonPhotoResponses = {
+    /**
+     * Person and tree version with no photo
+     */
+    200: PersonUpdateResult;
+};
+
+export type DeletePersonPhotoResponse = DeletePersonPhotoResponses[keyof DeletePersonPhotoResponses];
+
+export type GetPersonPhotoData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/photo';
+};
+
+export type GetPersonPhotoErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetPersonPhotoError = GetPersonPhotoErrors[keyof GetPersonPhotoErrors];
+
+export type GetPersonPhotoResponses = {
+    /**
+     * Processed full WebP photo
+     */
+    200: Blob | File;
+};
+
+export type GetPersonPhotoResponse = GetPersonPhotoResponses[keyof GetPersonPhotoResponses];
+
+export type UploadPersonPhotoData = {
+    body: ImageCropUpload;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/photo';
+};
+
+export type UploadPersonPhotoErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * Uploaded image exceeds the 10 MB limit
+     */
+    413: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UploadPersonPhotoError = UploadPersonPhotoErrors[keyof UploadPersonPhotoErrors];
+
+export type UploadPersonPhotoResponses = {
+    /**
+     * Person and tree version with the replaced photo
+     */
+    200: PersonUpdateResult;
+};
+
+export type UploadPersonPhotoResponse = UploadPersonPhotoResponses[keyof UploadPersonPhotoResponses];
+
+export type GetPersonPhotoVariantData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+        variant: 'portrait' | 'thumbnail';
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/photo/{variant}';
+};
+
+export type GetPersonPhotoVariantErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetPersonPhotoVariantError = GetPersonPhotoVariantErrors[keyof GetPersonPhotoVariantErrors];
+
+export type GetPersonPhotoVariantResponses = {
+    /**
+     * Processed WebP derivative
+     */
+    200: Blob | File;
+};
+
+export type GetPersonPhotoVariantResponse = GetPersonPhotoVariantResponses[keyof GetPersonPhotoVariantResponses];
 
 export type DeleteManualEventData = {
     body?: never;

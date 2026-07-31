@@ -30,6 +30,9 @@ class TestDOMMatrixReadOnly {
 
 globalThis.DOMMatrixReadOnly = TestDOMMatrixReadOnly as unknown as typeof DOMMatrixReadOnly
 
+URL.createObjectURL = () => 'blob:test-image'
+URL.revokeObjectURL = () => undefined
+
 Object.defineProperties(HTMLElement.prototype, {
   offsetHeight: {
     configurable: true,

@@ -7,7 +7,12 @@ import {
   type PropsWithChildren,
 } from 'react'
 import type { User } from '../api/generated'
-import { ApiRequestError, authApi, jsonRequest } from '../api/client'
+import {
+  ApiRequestError,
+  authApi,
+  blobRequest,
+  jsonRequest,
+} from '../api/client'
 import i18n, { currentGuestLanguage } from '../i18n'
 import {
   AuthContext,
@@ -96,6 +101,45 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [acceptAuth, accessToken],
   )
 
+  const requestBlob = useCallback(
+    async (path: string, init: RequestInit = {}): Promise<Blob> => {
+      if (!accessToken) {
+        throw new Error('An authenticated session is required')
+      }
+      const withToken = (token: string) => {
+        const headers = new Headers(init.headers)
+        headers.set('Authorization', `Bearer ${token}`)
+
+        return blobRequest(path, { ...init, headers })
+      }
+      try {
+        return await withToken(accessToken)
+      } catch (error) {
+        if (!(error instanceof ApiRequestError) || error.status !== 401) {
+          throw error
+        }
+        refreshRequest.current ??= authApi
+          .refresh()
+          .finally(() => {
+            refreshRequest.current = null
+          })
+        let refreshed
+        try {
+          refreshed = await refreshRequest.current
+        } catch (refreshError) {
+          setAccessToken(null)
+          setUser(null)
+          await i18n.changeLanguage(currentGuestLanguage())
+          throw refreshError
+        }
+        acceptAuth(refreshed)
+
+        return withToken(refreshed.accessToken)
+      }
+    },
+    [acceptAuth, accessToken],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       accessToken,
@@ -122,6 +166,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       },
       request,
+      requestBlob,
       async updateLanguage(language) {
         const updated = await request<User>('/me', {
           method: 'PATCH',
@@ -130,8 +175,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setUser(updated)
         await i18n.changeLanguage(updated.preferredLanguage)
       },
+      updateUser(updatedUser) {
+        setUser(updatedUser)
+      },
     }),
-    [acceptAuth, accessToken, isBooting, request, user],
+    [acceptAuth, accessToken, isBooting, request, requestBlob, user],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
