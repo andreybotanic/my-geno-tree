@@ -49,6 +49,15 @@ describe('App', () => {
             Response.json(apiError, { status: 401 }),
           )
         }
+        if (url.endsWith('/statistics')) {
+          return Promise.resolve(Response.json({
+            accountCount: 12,
+            treeCount: 8,
+          }))
+        }
+        if (url.endsWith('/trees')) {
+          return Promise.resolve(Response.json({ items: [] }))
+        }
         return Promise.resolve(Response.json({ status: 'ok' }))
       }),
     )
@@ -58,7 +67,7 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows the localized product shell and API status', async () => {
+  it('shows the localized product shell and public counters', async () => {
     renderApp()
 
     expect(
@@ -68,7 +77,8 @@ describe('App', () => {
     ).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(screen.getByText('Local API connected')).toBeInTheDocument()
+      expect(screen.getByText('12')).toBeInTheDocument()
+      expect(screen.getByText('8')).toBeInTheDocument()
     })
     expect(
       await screen.findByRole('button', { name: 'Sign in / Register' }),
@@ -139,6 +149,9 @@ describe('App', () => {
         if (url.endsWith('/auth/login') && init?.method === 'POST') {
           return Promise.resolve(Response.json(authenticated))
         }
+        if (url.endsWith('/trees')) {
+          return Promise.resolve(Response.json({ items: [] }))
+        }
         return Promise.resolve(Response.json({ status: 'ok' }))
       },
     )
@@ -160,6 +173,49 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/trees')
   })
 
+  it('refreshes an expired access token and retries an authorized request', async () => {
+    window.history.replaceState({}, '', '/trees')
+    const renewed = {
+      ...authenticated,
+      accessToken: 'renewed-access-token',
+    }
+    let refreshCount = 0
+    const treeAuthorizations: Array<string | null> = []
+    vi.mocked(fetch).mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/auth/refresh')) {
+          refreshCount += 1
+          return Promise.resolve(Response.json(
+            refreshCount === 1 ? authenticated : renewed,
+          ))
+        }
+        if (url.endsWith('/trees')) {
+          const authorization = new Headers(init?.headers)
+            .get('Authorization')
+          treeAuthorizations.push(authorization)
+
+          return Promise.resolve(
+            authorization === 'Bearer renewed-access-token'
+              ? Response.json({ items: [] })
+              : Response.json(apiError, { status: 401 }),
+          )
+        }
+
+        return Promise.resolve(Response.json({ status: 'ok' }))
+      },
+    )
+
+    renderApp()
+
+    expect(
+      await screen.findByText('You do not have any family trees yet.'),
+    ).toBeInTheDocument()
+    expect(refreshCount).toBe(2)
+    expect(treeAuthorizations).toContain('Bearer access-token')
+    expect(treeAuthorizations).toContain('Bearer renewed-access-token')
+  })
+
   it('restores a session, updates the profile language and logs out', async () => {
     window.history.replaceState({}, '', '/profile')
     const russianUser = {
@@ -178,6 +234,15 @@ describe('App', () => {
         if (url.endsWith('/auth/logout')) {
           expect(init?.headers).toBeUndefined()
           return Promise.resolve(new Response(null, { status: 204 }))
+        }
+        if (url.endsWith('/trees')) {
+          return Promise.resolve(Response.json({ items: [] }))
+        }
+        if (url.endsWith('/statistics')) {
+          return Promise.resolve(Response.json({
+            accountCount: 1,
+            treeCount: 0,
+          }))
         }
         return Promise.resolve(Response.json({ status: 'ok' }))
       },

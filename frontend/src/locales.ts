@@ -2,6 +2,7 @@ export const resources = {
   en: {
     translation: {
       common: {
+        cancel: 'Cancel',
         close: 'Close',
         save: 'Save',
         saving: 'Saving…',
@@ -21,6 +22,7 @@ export const resources = {
         copy: 'Build family trees, preserve personal histories and keep relationships clear in one private place.',
         accounts: 'Registered accounts',
         trees: 'Family trees',
+        statistics: 'Current MyGenoTree statistics',
         apiChecking: 'Checking the local API…',
         apiReady: 'Local API connected',
         apiUnavailable: 'Local API is unavailable',
@@ -62,8 +64,32 @@ export const resources = {
         updated: 'Language saved.',
       },
       trees: {
+        back: 'My trees',
+        create: 'Create tree',
+        createTitle: 'Create a family tree',
+        delete: 'Delete',
+        deleteTitle: 'Delete tree?',
+        deleteWarning:
+          '“{{name}}” and every person, relationship, event and photo in it will be deleted permanently. This cannot be undone.',
+        deleting: 'Deleting…',
+        editorEmpty: 'This tree is empty.',
+        empty: 'You do not have any family trees yet.',
+        loading: 'Loading trees…',
+        name: 'Tree name',
+        nameConflict: 'A tree with this exact name already exists.',
+        nameInvalid: 'Enter a name between 1 and 100 characters.',
+        notFound: 'This tree does not exist or is unavailable.',
+        open: 'Open',
+        peopleCount_one: '{{count}} person',
+        peopleCount_other: '{{count}} people',
+        rename: 'Rename',
+        renameTitle: 'Rename tree',
+        requestFailed: 'The trees could not be loaded or changed.',
+        retry: 'Try again',
         title: 'My trees',
-        nextSlice: 'You do not have any family trees yet.',
+        updated: 'updated {{date}}',
+        versionConflict:
+          'This tree changed in another session. Reload the current list and try again.',
       },
       errors: {
         username_required: 'Enter a username.',
@@ -88,6 +114,7 @@ export const resources = {
   ru: {
     translation: {
       common: {
+        cancel: 'Отмена',
         close: 'Закрыть',
         save: 'Сохранить',
         saving: 'Сохранение…',
@@ -107,6 +134,7 @@ export const resources = {
         copy: 'Создавайте семейные деревья, сохраняйте истории людей и наглядно показывайте родственные связи в одном приватном месте.',
         accounts: 'Зарегистрировано аккаунтов',
         trees: 'Семейных деревьев',
+        statistics: 'Текущая статистика MyGenoTree',
         apiChecking: 'Проверяем локальный API…',
         apiReady: 'Локальный API подключён',
         apiUnavailable: 'Локальный API недоступен',
@@ -148,8 +176,34 @@ export const resources = {
         updated: 'Язык сохранён.',
       },
       trees: {
+        back: 'Мои деревья',
+        create: 'Создать дерево',
+        createTitle: 'Создание семейного дерева',
+        delete: 'Удалить',
+        deleteTitle: 'Удалить дерево?',
+        deleteWarning:
+          '«{{name}}» и все персоны, связи, события и фотографии в нём будут удалены навсегда. Это действие нельзя отменить.',
+        deleting: 'Удаление…',
+        editorEmpty: 'Это дерево пока пустое.',
+        empty: 'У вас пока нет семейных деревьев.',
+        loading: 'Загружаем деревья…',
+        name: 'Название дерева',
+        nameConflict: 'Дерево с таким названием уже существует.',
+        nameInvalid: 'Введите название длиной от 1 до 100 символов.',
+        notFound: 'Дерево не существует или недоступно.',
+        open: 'Открыть',
+        peopleCount_one: '{{count}} персона',
+        peopleCount_few: '{{count}} персоны',
+        peopleCount_many: '{{count}} персон',
+        peopleCount_other: '{{count}} персоны',
+        rename: 'Переименовать',
+        renameTitle: 'Переименование дерева',
+        requestFailed: 'Не удалось загрузить или изменить деревья.',
+        retry: 'Повторить',
         title: 'Мои деревья',
-        nextSlice: 'У вас пока нет семейных деревьев.',
+        updated: 'обновлено {{date}}',
+        versionConflict:
+          'Дерево изменено в другой сессии. Загрузите актуальный список и повторите действие.',
       },
       errors: {
         username_required: 'Введите логин.',

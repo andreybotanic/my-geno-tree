@@ -79,6 +79,33 @@
   padding: 0 14px;
 }
 
+.secondary-button,
+.danger-button {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.danger-button {
+  background: var(--color-state-danger);
+  border-color: var(--color-state-danger);
+  color: var(--color-accent-contrast);
+}
+
+.link-danger-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-state-danger);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px;
+}
+
 .language-selector select,
 .profile-language select {
   background: var(--color-surface-elevated);
@@ -225,6 +252,36 @@
   box-shadow: 0 0 0 4px var(--color-state-danger-soft);
 }
 
+.statistics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(150px, 220px));
+}
+
+.statistics article {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+}
+
+.statistics strong {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  font-size: 2rem;
+}
+
+.statistics span {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.inline-error {
+  color: var(--color-state-danger);
+}
+
 .dialog-backdrop {
   align-items: center;
   background: rgb(20 29 26 / 55%);
@@ -333,6 +390,30 @@
   padding: 3px;
 }
 
+.tree-dialog h2 {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  font-size: 1.8rem;
+  margin: 0 0 22px;
+}
+
+.tree-dialog > p {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.tree-dialog form {
+  display: grid;
+  gap: 22px;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
 .auth-page {
   align-items: center;
   display: grid;
@@ -424,6 +505,99 @@
   min-height: 1.2em;
 }
 
+.trees-heading {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 34px;
+}
+
+.tree-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.tree-card {
+  align-items: center;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding: 20px 22px;
+}
+
+.tree-card h2 {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+.tree-card p {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  margin: 7px 0 0;
+}
+
+.tree-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.tree-actions .primary-button,
+.tree-actions .secondary-button {
+  min-height: 36px;
+}
+
+.empty-state {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text-muted);
+  padding: 36px;
+  text-align: center;
+}
+
+.tree-editor-page {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  height: calc(100svh - 50px);
+}
+
+.editor-toolbar {
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 22px;
+  padding: 0 18px;
+}
+
+.back-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.empty-tree-canvas {
+  align-items: center;
+  background-color: var(--color-background);
+  background-image: radial-gradient(
+    circle,
+    var(--color-border) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  color: var(--color-text-muted);
+  display: flex;
+  justify-content: center;
+}
+
 @media (max-width: 720px) {
   .app-header {
     padding: 0 14px;
@@ -446,5 +620,19 @@
   .profile-language {
     gap: 7px;
     grid-template-columns: 1fr;
+  }
+
+  .statistics {
+    grid-template-columns: 1fr;
+  }
+
+  .trees-heading,
+  .tree-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tree-actions {
+    flex-wrap: wrap;
   }
 }

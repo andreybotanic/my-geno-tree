@@ -17,6 +17,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /statistics:
+    get:
+      operationId: getStatistics
+      summary: Read public account and non-deleted tree counters
+      responses:
+        "200":
+          description: Current public counters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statistics"
   /auth/register:
     post:
       operationId: register
@@ -145,6 +156,112 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /trees:
+    get:
+      operationId: listTrees
+      summary: List the current owner's trees newest first
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Owner's trees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createTree
+      summary: Create an empty family tree
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreeNameRequest"
+      responses:
+        "201":
+          description: Empty tree created
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+            Location:
+              description: Snapshot endpoint for the created tree
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTree"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    patch:
+      operationId: renameTree
+      summary: Rename an owned tree using optimistic concurrency
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreeNameRequest"
+      responses:
+        "200":
+          description: Tree renamed
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTree"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deleteTree
+      summary: Irreversibly delete an owned tree and all nested resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Tree deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
 components:
   securitySchemes:
     bearerAuth:
@@ -154,6 +271,25 @@ components:
   headers:
     RefreshCookie:
       description: Secure, HttpOnly, SameSite=Strict refresh-token cookie
+      schema:
+        type: string
+    TreeEtag:
+      description: Opaque version of the whole mutable tree state
+      schema:
+        type: string
+  parameters:
+    TreeId:
+      name: treeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag returned by the latest tree representation
       schema:
         type: string
   responses:
@@ -171,6 +307,12 @@ components:
             $ref: "#/components/schemas/ApiError"
     Forbidden:
       description: Authenticated account cannot receive tokens
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: The private resource is missing or unavailable to this owner
       content:
         application/json:
           schema:
@@ -193,6 +335,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ApiError"
+    TreeVersionConflict:
+      description: If-Match does not match the current tree version
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
   schemas:
     Health:
       type: object
@@ -203,6 +351,19 @@ components:
         status:
           type: string
           const: ok
+    Statistics:
+      type: object
+      additionalProperties: false
+      required:
+        - accountCount
+        - treeCount
+      properties:
+        accountCount:
+          type: integer
+          minimum: 0
+        treeCount:
+          type: integer
+          minimum: 0
     Language:
       type: string
       enum:
@@ -253,6 +414,53 @@ components:
       properties:
         language:
           $ref: "#/components/schemas/Language"
+    TreeNameRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    FamilyTree:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - personCount
+        - createdAt
+        - updatedAt
+        - etag
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        personCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        etag:
+          type: string
+    TreeList:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyTree"
     AuthResponse:
       type: object
       additionalProperties: false

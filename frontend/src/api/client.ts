@@ -1,10 +1,8 @@
 import type {
   ApiError,
   AuthResponse,
-  ChangeLanguageRequest,
   LoginRequest,
   RegisterRequest,
-  User,
 } from './generated'
 
 export class ApiRequestError extends Error {
@@ -22,7 +20,8 @@ export class ApiRequestError extends Error {
 }
 
 async function readResponse<T>(response: Response): Promise<T> {
-  const body: unknown = await response.json()
+  const text = await response.text()
+  const body: unknown = text ? JSON.parse(text) : undefined
   if (!response.ok) {
     throw new ApiRequestError(response.status, body as ApiError)
   }
@@ -30,22 +29,27 @@ async function readResponse<T>(response: Response): Promise<T> {
   return body as T
 }
 
-async function jsonRequest<T>(
+export async function jsonRequest<T>(
   path: string,
   init: RequestInit,
 ): Promise<T> {
+  const headers = new Headers(init.headers)
+  headers.set('Accept', 'application/json')
+  headers.set('Content-Type', 'application/json')
+
   const response = await fetch(`/api/v1${path}`, {
     ...init,
     credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
+    headers,
   })
 
   return readResponse<T>(response)
 }
+
+export type AuthorizedJsonRequest = <T>(
+  path: string,
+  init?: RequestInit,
+) => Promise<T>
 
 export const authApi = {
   register(input: RegisterRequest): Promise<AuthResponse> {
@@ -74,14 +78,38 @@ export const authApi = {
       throw new Error('Logout failed')
     }
   },
-  updateProfile(
-    input: ChangeLanguageRequest,
-    accessToken: string,
-  ): Promise<User> {
-    return jsonRequest<User>('/me', {
+}
+
+export const treeApi = {
+  list(request: AuthorizedJsonRequest) {
+    return request<import('./generated').TreeList>('/trees')
+  },
+  create(request: AuthorizedJsonRequest, name: string) {
+    return request<import('./generated').FamilyTree>('/trees', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+  },
+  rename(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    name: string,
+    etag: string,
+  ) {
+    return request<import('./generated').FamilyTree>(`/trees/${treeId}`, {
       method: 'PATCH',
-      body: JSON.stringify(input),
-      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ name }),
+      headers: { 'If-Match': etag },
+    })
+  },
+  remove(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    etag: string,
+  ) {
+    return request<void>(`/trees/${treeId}`, {
+      method: 'DELETE',
+      headers: { 'If-Match': etag },
     })
   },
 }

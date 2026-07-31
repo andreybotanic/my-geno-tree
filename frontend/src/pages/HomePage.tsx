@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-type HealthState = 'checking' | 'ready' | 'unavailable'
+import type { Statistics } from '../api/generated'
 
 export function HomePage() {
   const { t } = useTranslation()
-  const [health, setHealth] = useState<HealthState>('checking')
+  const [statistics, setStatistics] = useState<Statistics | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/v1/health', { signal: controller.signal })
-      .then((response) => {
+    fetch('/api/v1/statistics', { signal: controller.signal })
+      .then(async (response) => {
         if (!response.ok) {
-          throw new Error('Backend health check failed')
+          throw new Error('Statistics request failed')
         }
-        setHealth('ready')
+        setStatistics(await response.json() as Statistics)
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return
         }
-        setHealth('unavailable')
+        setUnavailable(true)
       })
 
     return () => controller.abort()
@@ -31,12 +31,21 @@ export function HomePage() {
       <p className="eyebrow">{t('home.eyebrow')}</p>
       <h1>{t('home.title')}</h1>
       <p className="welcome-copy">{t('home.copy')}</p>
-      <output className={`health health-${health}`} aria-live="polite">
-        <span aria-hidden="true" />
-        {health === 'checking' && t('home.apiChecking')}
-        {health === 'ready' && t('home.apiReady')}
-        {health === 'unavailable' && t('home.apiUnavailable')}
-      </output>
+      <section className="statistics" aria-label={t('home.statistics')}>
+        <article>
+          <strong>{statistics?.accountCount ?? '—'}</strong>
+          <span>{t('home.accounts')}</span>
+        </article>
+        <article>
+          <strong>{statistics?.treeCount ?? '—'}</strong>
+          <span>{t('home.trees')}</span>
+        </article>
+      </section>
+      {unavailable && (
+        <p className="inline-error" role="alert">
+          {t('home.apiUnavailable')}
+        </p>
+      )}
     </main>
   )
 }

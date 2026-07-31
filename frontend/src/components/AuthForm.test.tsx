@@ -14,6 +14,7 @@ const baseContext: AuthContextValue = {
   login: vi.fn(),
   logout: vi.fn(),
   register: vi.fn(),
+  request: vi.fn(),
   updateLanguage: vi.fn(),
 }
 

@@ -8,6 +8,11 @@ export type Health = {
     status: 'ok';
 };
 
+export type Statistics = {
+    accountCount: number;
+    treeCount: number;
+};
+
 export type Language = 'en' | 'ru';
 
 export type RegisterRequest = {
@@ -24,6 +29,23 @@ export type LoginRequest = {
 
 export type ChangeLanguageRequest = {
     language: Language;
+};
+
+export type TreeNameRequest = {
+    name: string;
+};
+
+export type FamilyTree = {
+    id: string;
+    name: string;
+    personCount: number;
+    createdAt: string;
+    updatedAt: string;
+    etag: string;
+};
+
+export type TreeList = {
+    items: Array<FamilyTree>;
 };
 
 export type AuthResponse = {
@@ -52,6 +74,13 @@ export type ApiError = {
     };
 };
 
+export type TreeId = string;
+
+/**
+ * ETag returned by the latest tree representation
+ */
+export type IfMatch = string;
+
 export type GetHealthData = {
     body?: never;
     path?: never;
@@ -67,6 +96,22 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type GetStatisticsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/statistics';
+};
+
+export type GetStatisticsResponses = {
+    /**
+     * Current public counters
+     */
+    200: Statistics;
+};
+
+export type GetStatisticsResponse = GetStatisticsResponses[keyof GetStatisticsResponses];
 
 export type RegisterData = {
     body: RegisterRequest;
@@ -248,3 +293,167 @@ export type UpdateCurrentUserResponses = {
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];
+
+export type ListTreesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/trees';
+};
+
+export type ListTreesErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+};
+
+export type ListTreesError = ListTreesErrors[keyof ListTreesErrors];
+
+export type ListTreesResponses = {
+    /**
+     * Owner's trees
+     */
+    200: TreeList;
+};
+
+export type ListTreesResponse = ListTreesResponses[keyof ListTreesResponses];
+
+export type CreateTreeData = {
+    body: TreeNameRequest;
+    path?: never;
+    query?: never;
+    url: '/trees';
+};
+
+export type CreateTreeErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type CreateTreeError = CreateTreeErrors[keyof CreateTreeErrors];
+
+export type CreateTreeResponses = {
+    /**
+     * Empty tree created
+     */
+    201: FamilyTree;
+};
+
+export type CreateTreeResponse = CreateTreeResponses[keyof CreateTreeResponses];
+
+export type DeleteTreeData = {
+    body?: never;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}';
+};
+
+export type DeleteTreeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+};
+
+export type DeleteTreeError = DeleteTreeErrors[keyof DeleteTreeErrors];
+
+export type DeleteTreeResponses = {
+    /**
+     * Tree deleted
+     */
+    204: void;
+};
+
+export type DeleteTreeResponse = DeleteTreeResponses[keyof DeleteTreeResponses];
+
+export type RenameTreeData = {
+    body: TreeNameRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}';
+};
+
+export type RenameTreeErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type RenameTreeError = RenameTreeErrors[keyof RenameTreeErrors];
+
+export type RenameTreeResponses = {
+    /**
+     * Tree renamed
+     */
+    200: FamilyTree;
+};
+
+export type RenameTreeResponse = RenameTreeResponses[keyof RenameTreeResponses];

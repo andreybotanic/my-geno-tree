@@ -5,6 +5,7 @@ import type {
   RegisterRequest,
   User,
 } from '../api/generated'
+import type { AuthorizedJsonRequest } from '../api/client'
 
 export type AuthContextValue = {
   accessToken: string | null
@@ -13,6 +14,7 @@ export type AuthContextValue = {
   login: (input: LoginRequest) => Promise<void>
   logout: () => Promise<void>
   register: (input: Omit<RegisterRequest, 'language'>) => Promise<void>
+  request: AuthorizedJsonRequest
   updateLanguage: (language: Language) => Promise<void>
 }
 
