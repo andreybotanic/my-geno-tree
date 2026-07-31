@@ -118,6 +118,11 @@ export type Person = PersonInput & {
     updatedAt: string;
 };
 
+export type PersonUpdateResult = {
+    person: Person;
+    etag: string;
+};
+
 export type TreeMetadata = {
     id: string;
     name: string;
@@ -746,7 +751,7 @@ export type UpdatePersonResponses = {
     /**
      * Person fields updated with automatic events synchronized
      */
-    200: Person;
+    200: PersonUpdateResult;
 };
 
 export type UpdatePersonResponse = UpdatePersonResponses[keyof UpdatePersonResponses];

@@ -112,4 +112,66 @@ export const treeApi = {
       headers: { 'If-Match': etag },
     })
   },
+  snapshot(request: AuthorizedJsonRequest, treeId: string) {
+    return request<import('./generated').TreeSnapshot>(
+      `/trees/${treeId}/snapshot`,
+    )
+  },
+  createFirstPerson(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    etag: string,
+    person: import('./generated').PersonInput,
+    coordinates: import('./generated').Coordinates,
+  ) {
+    return request<import('./generated').TreeSnapshot>(
+      `/trees/${treeId}/graph-mutations`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'create_first_person',
+          person,
+          coordinates,
+        }),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+}
+
+export const personApi = {
+  get(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+  ) {
+    return request<import('./generated').Person>(
+      `/trees/${treeId}/people/${personId}`,
+    )
+  },
+  update(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+    etag: string,
+    patch: import('./generated').PersonPatchRequest,
+  ) {
+    return request<import('./generated').PersonUpdateResult>(
+      `/trees/${treeId}/people/${personId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  events(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+  ) {
+    return request<import('./generated').EventList>(
+      `/trees/${treeId}/people/${personId}/events`,
+    )
+  },
 }

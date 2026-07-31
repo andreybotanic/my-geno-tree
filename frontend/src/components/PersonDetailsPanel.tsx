@@ -1,0 +1,382 @@
+import {
+  useRef,
+  useState,
+  type FocusEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
+import { useTranslation } from 'react-i18next'
+import type {
+  GenealogicalDate,
+  GenealogicalEvent,
+  KnownText,
+  Person,
+  PersonPatchRequest,
+} from '../api/generated'
+import {
+  StructuredDateInput,
+} from './PersonFormDialog'
+import {
+  dateValue,
+  unknownDate,
+  type DateInputState,
+} from '../personFormValues'
+import {
+  formatGenealogicalDate,
+  formatPersonName,
+} from '../personFormatting'
+
+type PersonField = keyof Pick<
+  Person,
+  | 'birthSurname'
+  | 'givenName'
+  | 'patronymic'
+  | 'gender'
+  | 'birthDate'
+  | 'deathDate'
+>
+
+type PersonDetailsPanelProps = {
+  conflict: boolean
+  events: GenealogicalEvent[]
+  onClose: () => void
+  onPatch: (patch: PersonPatchRequest) => Promise<void>
+  person: Person
+}
+
+type EditableRowProps = {
+  children: ReactNode
+  editing: boolean
+  label: string
+  onEdit: () => void
+  value: string
+}
+
+function EditableRow({
+  children,
+  editing,
+  label,
+  onEdit,
+  value,
+}: EditableRowProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="person-detail-row">
+      <span>{label}</span>
+      {editing ? children : (
+        <>
+          <strong>{value}</strong>
+          <button
+            aria-label={t('person.editField', { field: label })}
+            className="edit-field-button"
+            onClick={onEdit}
+            title={t('person.edit')}
+            type="button"
+          >
+            ✎
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+type InlineEditorProps<T> = {
+  children: ReactNode
+  onCancel: () => void
+  onCommit: () => Promise<T>
+}
+
+function InlineEditor<T>({
+  children,
+  onCancel,
+  onCommit,
+}: InlineEditorProps<T>) {
+  const { t } = useTranslation()
+  const [error, setError] = useState('')
+  const saving = useRef(false)
+
+  const save = async () => {
+    if (saving.current) {
+      return
+    }
+    saving.current = true
+    setError('')
+    try {
+      await onCommit()
+    } catch {
+      setError(t('person.saveFailed'))
+    } finally {
+      saving.current = false
+    }
+  }
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    void save()
+  }
+  const blur = (event: FocusEvent<HTMLFormElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      void save()
+    }
+  }
+
+  return (
+    <form className="inline-person-editor" onBlur={blur} onSubmit={submit}>
+      {children}
+      <button className="sr-only" type="submit">{t('common.save')}</button>
+      <button
+        className="inline-cancel-button"
+        onClick={onCancel}
+        type="button"
+      >
+        {t('common.cancel')}
+      </button>
+      {error && <small role="alert">{error}</small>}
+    </form>
+  )
+}
+
+function textDraft(value: KnownText) {
+  return {
+    unknown: value.state === 'unknown',
+    value: value.state === 'known' ? value.value : '',
+  }
+}
+
+function dateDraft(value: GenealogicalDate): DateInputState {
+  if (value.state === 'unknown') {
+    return unknownDate()
+  }
+
+  return {
+    approximate: value.precision === 'year' && value.approximate,
+    day: value.precision === 'day' ? String(value.day) : '',
+    month: value.precision !== 'year' ? String(value.month) : '',
+    precision: value.precision,
+    unknown: false,
+    year: String(value.year),
+  }
+}
+
+export function PersonDetailsPanel({
+  conflict,
+  events,
+  onClose,
+  onPatch,
+  person,
+}: PersonDetailsPanelProps) {
+  const { t, i18n } = useTranslation()
+  const [editing, setEditing] = useState<PersonField | null>(null)
+  const [text, setText] = useState(() => textDraft(person.birthSurname))
+  const [gender, setGender] = useState(person.gender)
+  const [date, setDate] = useState(() => dateDraft(person.birthDate))
+  const [living, setLiving] = useState(person.deathDate === null)
+  const language = i18n.resolvedLanguage ?? 'en'
+
+  const beginText = (
+    field: 'birthSurname' | 'givenName' | 'patronymic',
+  ) => {
+    setText(textDraft(person[field]))
+    setEditing(field)
+  }
+  const beginDate = (field: 'birthDate' | 'deathDate') => {
+    setLiving(field === 'deathDate' && person.deathDate === null)
+    setDate(dateDraft(
+      field === 'deathDate'
+        ? person.deathDate ?? { state: 'unknown' }
+        : person.birthDate,
+    ))
+    setEditing(field)
+  }
+  const saveText = async (
+    field: 'birthSurname' | 'givenName' | 'patronymic',
+  ) => {
+    const value = text.value.trim()
+    if (!text.unknown && (!value || value.length > 100)) {
+      throw new Error('invalid text')
+    }
+    await onPatch({
+      [field]: text.unknown
+        ? { state: 'unknown' }
+        : { state: 'known', value },
+    })
+    setEditing(null)
+  }
+  const saveDate = async (field: 'birthDate' | 'deathDate') => {
+    if (field === 'deathDate' && living) {
+      await onPatch({ deathDate: null })
+      setEditing(null)
+      return
+    }
+    const value = dateValue(date)
+    if (value === null) {
+      throw new Error('invalid date')
+    }
+    await onPatch({ [field]: value })
+    setEditing(null)
+  }
+
+  const dateLabel = (value: GenealogicalDate | null) => value === null
+    ? t('person.present')
+    : formatGenealogicalDate(value, language, t)
+
+  return (
+    <aside className="person-details-panel" aria-label={t('person.details')}>
+      <div className="person-panel-heading">
+        <div>
+          <p className="eyebrow">{t('person.details')}</p>
+          <h2>{formatPersonName(person, t)}</h2>
+        </div>
+        <button
+          aria-label={t('common.close')}
+          className="dialog-close"
+          onClick={onClose}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="panel-photo-placeholder">
+        {person.photoThumbnailUrl
+          ? <img alt="" src={person.photoThumbnailUrl} />
+          : <span>{t('person.noPhoto')}</span>}
+      </div>
+
+      <section className="person-details-section">
+        <h3>{t('person.personalData')}</h3>
+        {([
+          ['birthSurname', 'birthSurname'],
+          ['givenName', 'givenName'],
+          ['patronymic', 'patronymic'],
+        ] as const).map(([field, translation]) => (
+          <EditableRow
+            editing={editing === field}
+            key={field}
+            label={t(`person.${translation}`)}
+            onEdit={() => !conflict && beginText(field)}
+            value={person[field].state === 'known'
+              ? person[field].value
+              : t('person.unknown')}
+          >
+            <InlineEditor
+              onCancel={() => setEditing(null)}
+              onCommit={() => saveText(field)}
+            >
+              <label className="unknown-toggle">
+                <input
+                  checked={text.unknown}
+                  onChange={(event) => setText({
+                    ...text,
+                    unknown: event.target.checked,
+                  })}
+                  type="checkbox"
+                />
+                {t('person.unknown')}
+              </label>
+              {!text.unknown && (
+                <input
+                  aria-label={t(`person.${translation}`)}
+                  autoFocus
+                  maxLength={101}
+                  onChange={(event) => setText({
+                    ...text,
+                    value: event.target.value,
+                  })}
+                  value={text.value}
+                />
+              )}
+            </InlineEditor>
+          </EditableRow>
+        ))}
+
+        <EditableRow
+          editing={editing === 'gender'}
+          label={t('person.gender')}
+          onEdit={() => {
+            if (!conflict) {
+              setGender(person.gender)
+              setEditing('gender')
+            }
+          }}
+          value={t(`person.${person.gender}`)}
+        >
+          <InlineEditor
+            onCancel={() => setEditing(null)}
+            onCommit={async () => {
+              await onPatch({ gender })
+              setEditing(null)
+            }}
+          >
+            <select
+              aria-label={t('person.gender')}
+              autoFocus
+              onChange={(event) => setGender(
+                event.target.value as Person['gender'],
+              )}
+              value={gender}
+            >
+              <option value="unknown">{t('person.unknown')}</option>
+              <option value="male">{t('person.male')}</option>
+              <option value="female">{t('person.female')}</option>
+            </select>
+          </InlineEditor>
+        </EditableRow>
+
+        {(['birthDate', 'deathDate'] as const).map((field) => (
+          <EditableRow
+            editing={editing === field}
+            key={field}
+            label={t(`person.${field}`)}
+            onEdit={() => !conflict && beginDate(field)}
+            value={dateLabel(person[field])}
+          >
+            <InlineEditor
+              onCancel={() => setEditing(null)}
+              onCommit={() => saveDate(field)}
+            >
+              {field === 'deathDate' && (
+                <label className="unknown-toggle">
+                  <input
+                    checked={living}
+                    onChange={(event) => setLiving(event.target.checked)}
+                    type="checkbox"
+                  />
+                  {t('person.living')}
+                </label>
+              )}
+              {!(field === 'deathDate' && living) && (
+                <StructuredDateInput
+                  label={t(`person.${field}`)}
+                  onChange={setDate}
+                  state={date}
+                />
+              )}
+            </InlineEditor>
+          </EditableRow>
+        ))}
+      </section>
+
+      <section className="person-details-section">
+        <h3>{t('person.events')}</h3>
+        {events.length === 0 ? (
+          <p className="panel-empty">{t('person.noEvents')}</p>
+        ) : (
+          <ol className="event-timeline">
+            {events.map((event) => (
+              <li key={event.id}>
+                <span>{dateLabel(event.date)}</span>
+                <strong>{t(`person.eventType.${event.type}`)}</strong>
+                {event.source === 'automatic' && (
+                  <small>{t('person.automaticEvent')}</small>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </aside>
+  )
+}

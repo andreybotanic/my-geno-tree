@@ -144,9 +144,11 @@ final class PersonApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
-        $updated = $this->responseData();
+        $result = $this->responseData();
+        $updated = $result['person'];
         $updatedEtag = $this->client->getResponse()->headers->get('ETag');
         self::assertNotSame($snapshot['etag'], $updatedEtag);
+        self::assertSame($updatedEtag, $result['etag']);
         self::assertSame('female', $updated['gender']);
         self::assertSame(null, $updated['deathDate']);
         self::assertSame(

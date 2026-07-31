@@ -369,7 +369,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Person"
+                $ref: "#/components/schemas/PersonUpdateResult"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -813,6 +813,17 @@ components:
             updatedAt:
               type: string
               format: date-time
+    PersonUpdateResult:
+      type: object
+      additionalProperties: false
+      required:
+        - person
+        - etag
+      properties:
+        person:
+          $ref: "#/components/schemas/Person"
+        etag:
+          type: string
     TreeMetadata:
       type: object
       additionalProperties: false

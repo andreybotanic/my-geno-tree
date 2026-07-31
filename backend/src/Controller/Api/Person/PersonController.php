@@ -70,8 +70,12 @@ final readonly class PersonController
             $this->requestBody->decodeObject($request),
             $request->headers->get('If-Match'),
         );
-        $response = new JsonResponse($this->views->create($person));
-        $response->headers->set('ETag', $this->versions->etag($tree));
+        $etag = $this->versions->etag($tree);
+        $response = new JsonResponse([
+            'person' => $this->views->create($person),
+            'etag' => $etag,
+        ]);
+        $response->headers->set('ETag', $etag);
 
         return $response;
     }
