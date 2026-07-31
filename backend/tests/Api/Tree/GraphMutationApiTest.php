@@ -122,6 +122,117 @@ final class GraphMutationApiTest extends ApiWebTestCase
         )['gender']);
     }
 
+    public function testUnmarriedParentsAndOverlappingMarriagePeriodsAreSupported(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson(
+            $accessToken,
+            $tree,
+            $this->person(),
+        );
+        $child = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_parent',
+            'childId' => $child['id'],
+            'role' => 'father',
+            'relative' => [
+                'person' => $this->person(),
+                'coordinates' => ['x' => -120, 'y' => -220],
+            ],
+            'coordinateUpdates' => [],
+        ]);
+        $father = $this->personById(
+            $snapshot,
+            array_values(array_filter(
+                $snapshot['parentLinks'],
+                static fn (array $link): bool => 'father' === $link['role'],
+            ))[0]['parentId'],
+        );
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_parent',
+            'childId' => $child['id'],
+            'role' => 'mother',
+            'relative' => [
+                'person' => $this->person(),
+                'coordinates' => ['x' => 120, 'y' => -220],
+            ],
+            'coordinateUpdates' => [],
+        ]);
+        $mother = $this->personById(
+            $snapshot,
+            array_values(array_filter(
+                $snapshot['parentLinks'],
+                static fn (array $link): bool => 'mother' === $link['role'],
+            ))[0]['parentId'],
+        );
+
+        self::assertCount(2, $snapshot['parentLinks']);
+        self::assertSame([], $snapshot['marriages']);
+        self::assertSame('male', $father['gender']);
+        self::assertSame('female', $mother['gender']);
+
+        $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'link_parent_child',
+            'parentId' => $mother['id'],
+            'childId' => $father['id'],
+            'role' => 'father',
+            'coordinateUpdates' => [],
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            ['parent_role_gender_conflict'],
+            $this->responseData()['fields']['role'],
+        );
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_marriage_period',
+            'personId' => $father['id'],
+            'relative' => ['personId' => $mother['id']],
+            'marriageDate' => $this->knownDate('year', 1980),
+            'dissolutionDate' => $this->knownDate('year', 2000),
+            'maleNewSurname' => null,
+            'femaleNewSurname' => null,
+            'coordinateUpdates' => [],
+        ]);
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_marriage_period',
+            'personId' => $father['id'],
+            'relative' => ['personId' => $mother['id']],
+            'marriageDate' => $this->knownDate('year', 1990),
+            'dissolutionDate' => $this->knownDate('year', 2010),
+            'maleNewSurname' => null,
+            'femaleNewSurname' => null,
+            'coordinateUpdates' => [],
+        ]);
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type' => 'add_marriage_period',
+            'personId' => $father['id'],
+            'relative' => [
+                'person' => $this->person(['gender' => 'female']),
+                'coordinates' => ['x' => -360, 'y' => -220],
+            ],
+            'marriageDate' => $this->knownDate('year', 1995),
+            'dissolutionDate' => null,
+            'maleNewSurname' => null,
+            'femaleNewSurname' => null,
+            'coordinateUpdates' => [],
+        ]);
+
+        self::assertCount(3, $snapshot['marriages']);
+        self::assertCount(2, array_filter(
+            $snapshot['marriages'],
+            static fn (array $marriage): bool => $mother['id']
+                === $marriage['femalePersonId'],
+        ));
+        self::assertCount(2, array_unique(array_column(
+            $snapshot['marriages'],
+            'femalePersonId',
+        )));
+    }
+
     public function testMarriageAndTwoParentChildSynchronizeEvents(): void
     {
         $accessToken = $this->register();
