@@ -108,9 +108,12 @@ describe('App', () => {
   it('persists a guest language selected from the header', async () => {
     renderApp()
 
-    await userEvent.selectOptions(
-      await screen.findByRole('combobox', { name: 'Language' }),
-      'ru',
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Language' }),
+    )
+    expect(screen.getByTestId('language-flag-ru')).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('option', { name: 'Русский' }),
     )
 
     expect(
@@ -252,9 +255,11 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: 'Profile' }),
     ).toBeInTheDocument()
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Interface language' }),
-      'ru',
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Interface language' }),
+    )
+    await userEvent.click(
+      screen.getByRole('option', { name: 'Русский' }),
     )
     expect(
       await screen.findByText('Язык сохранён.'),

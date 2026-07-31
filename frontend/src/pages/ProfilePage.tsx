@@ -6,6 +6,7 @@ import { profileMediaApi } from '../api/client'
 import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
+import { LanguagePicker } from '../components/LanguagePicker'
 
 export function ProfilePage() {
   const { t, i18n } = useTranslation()
@@ -87,17 +88,15 @@ export function ProfilePage() {
             </dd>
           </div>
         </dl>
-        <label className="profile-language">
+        <div className="profile-language">
           <span>{t('profile.language')}</span>
-          <select
+          <LanguagePicker
             disabled={isSaving}
-            onChange={(event) => void save(event.target.value as Language)}
+            label={t('profile.language')}
+            onChange={(language) => void save(language as Language)}
             value={user.preferredLanguage}
-          >
-            <option value="en">🇺🇸 English</option>
-            <option value="ru">🇷🇺 Русский</option>
-          </select>
-        </label>
+          />
+        </div>
         <p className="save-status" aria-live="polite">
           {isSaving && t('common.saving')}
           {saved && t('profile.updated')}
