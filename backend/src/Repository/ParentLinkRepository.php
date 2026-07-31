@@ -24,7 +24,8 @@ final class ParentLinkRepository extends ServiceEntityRepository
      */
     public function findAllForTree(FamilyTree $tree): array
     {
-        return $this->createQueryBuilder('link')
+        /** @var list<ParentLink> $links */
+        $links = $this->createQueryBuilder('link')
             ->addSelect('parent', 'child')
             ->join('link.parent', 'parent')
             ->join('link.child', 'child')
@@ -33,6 +34,8 @@ final class ParentLinkRepository extends ServiceEntityRepository
             ->orderBy('link.id', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $links;
     }
 
     public function findInTree(FamilyTree $tree, string $id): ?ParentLink

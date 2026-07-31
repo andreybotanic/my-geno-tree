@@ -18,13 +18,16 @@ final class UserRepository extends ServiceEntityRepository
 
     public function findOneByLoginIdentifier(string $identifier): ?User
     {
-        return $this->createQueryBuilder('user')
+        /** @var User|null $user */
+        $user = $this->createQueryBuilder('user')
             ->where('user.username = :identifier')
             ->orWhere('user.email = :normalizedEmail')
             ->setParameter('identifier', $identifier)
             ->setParameter('normalizedEmail', mb_strtolower($identifier))
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $user;
     }
 
     public function usernameExists(string $username): bool

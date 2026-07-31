@@ -20,7 +20,8 @@ final class MediaAttachmentRepository extends ServiceEntityRepository
     /** @return list<MediaAttachment> */
     public function findAllForTree(FamilyTree $tree): array
     {
-        return $this->createQueryBuilder('attachment')
+        /** @var list<MediaAttachment> $attachments */
+        $attachments = $this->createQueryBuilder('attachment')
             ->addSelect('media', 'variant')
             ->innerJoin('attachment.person', 'person')
             ->innerJoin('attachment.media', 'media')
@@ -29,5 +30,7 @@ final class MediaAttachmentRepository extends ServiceEntityRepository
             ->setParameter('tree', $tree)
             ->getQuery()
             ->getResult();
+
+        return $attachments;
     }
 }

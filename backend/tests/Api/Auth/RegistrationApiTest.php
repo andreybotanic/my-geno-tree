@@ -19,13 +19,10 @@ final class RegistrationApiTest extends ApiWebTestCase
         );
 
         self::assertResponseStatusCodeSame(201);
-        $data = $this->responseData();
-        self::assertArrayHasKey('accessToken', $data);
-        self::assertIsString($data['accessToken']);
-        self::assertSame('ru', $data['user']['preferredLanguage']);
+        $accessToken = $this->responseString('accessToken');
+        self::assertSame('ru', $this->responseString('user', 'preferredLanguage'));
 
-        $userId = $data['user']['id'];
-        self::assertIsString($userId);
+        $userId = $this->responseString('user', 'id');
         self::assertInstanceOf(UuidV7::class, Uuid::fromString($userId));
 
         $cookie = $this->client->getCookieJar()->get(
@@ -40,10 +37,10 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertSame('strict', strtolower((string)$cookie->getSameSite()));
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer ' . $data['accessToken'],
+            'Authorization' => 'Bearer ' . $accessToken,
         ]);
         self::assertResponseIsSuccessful();
-        self::assertSame($userId, $this->responseData()['id']);
+        self::assertSame($userId, $this->responseString('id'));
     }
 
     /**
@@ -62,9 +59,8 @@ final class RegistrationApiTest extends ApiWebTestCase
         );
 
         self::assertResponseStatusCodeSame(422);
-        $data = $this->responseData();
-        self::assertSame('VALIDATION_FAILED', $data['code']);
-        self::assertContains($error, $data['fields'][$field]);
+        self::assertSame('VALIDATION_FAILED', $this->responseString('code'));
+        self::assertContains($error, $this->responseStringList('fields', $field));
     }
 
     /**
@@ -116,7 +112,7 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(201);
         self::assertSame(
             'family@example.test',
-            $this->responseData()['user']['email'],
+            $this->responseString('user', 'email'),
         );
 
         $this->jsonRequest(
@@ -130,7 +126,7 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             ['email_not_unique'],
-            $this->responseData()['fields']['email'],
+            $this->responseStringList('fields', 'email'),
         );
     }
 
@@ -179,7 +175,7 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(400);
         self::assertSame(
             'INVALID_REQUEST_BODY',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
@@ -195,7 +191,7 @@ final class RegistrationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(415);
         self::assertSame(
             'UNSUPPORTED_MEDIA_TYPE',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 }

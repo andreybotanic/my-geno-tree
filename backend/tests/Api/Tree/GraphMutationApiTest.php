@@ -6,6 +6,32 @@ use App\Tests\Api\ApiWebTestCase;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
 
+/**
+ * @phpstan-type GraphTree array{id: string, etag: string}
+ * @phpstan-type GraphPerson array{
+ *     id: string,
+ *     gender: string,
+ *     coordinates: array{x: int|float, y: int|float},
+ *     birthDate: array<string, bool|int|string>
+ * }
+ * @phpstan-type GraphParentLink array{id: string, parentId: string, childId: string, role: string}
+ * @phpstan-type GraphMarriage array{
+ *     id: string,
+ *     malePersonId: string,
+ *     femalePersonId: string,
+ *     dissolutionDate: array<string, mixed>|null
+ * }
+ * @phpstan-type GraphSnapshot array{
+ *     etag: string,
+ *     people: list<GraphPerson>,
+ *     parentLinks: list<GraphParentLink>,
+ *     marriages: list<GraphMarriage>
+ * }
+ * @phpstan-type GraphEvent array{
+ *     type: string,
+ *     data: array{childId?: string, newSurname?: string}
+ * }
+ */
 final class GraphMutationApiTest extends ApiWebTestCase
 {
     public function testParentsAreCreatedAtomicallyWithRoleAndCycleRules(): void
@@ -63,9 +89,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ['birth', 'child_birth'],
             array_column($fatherEvents, 'type'),
         );
+        $childBirthData = $fatherEvents[1]['data'];
+        if (!array_key_exists('childId', $childBirthData)) {
+            self::fail('The child birth event must reference the child.');
+        }
         self::assertSame(
             $child['id'],
-            $fatherEvents[1]['data']['childId'],
+            $childBirthData['childId'],
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -81,7 +111,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             'PARENT_ROLE_ALREADY_ASSIGNED',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -92,7 +122,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'coordinateUpdates' => [],
         ]);
         self::assertResponseStatusCodeSame(409);
-        self::assertSame('ANCESTOR_CYCLE', $this->responseData()['code']);
+        self::assertSame('ANCESTOR_CYCLE', $this->responseString('code'));
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
             'type'     => 'add_parent',
@@ -110,7 +140,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['event_before_person_birth'],
-            $this->responseData()['fields']['child.birthDate'],
+            $this->responseStringList('fields', 'child.birthDate'),
         );
 
         $current = $this->snapshot($accessToken, $tree['id']);
@@ -184,7 +214,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['parent_role_gender_conflict'],
-            $this->responseData()['fields']['role'],
+            $this->responseStringList('fields', 'role'),
         );
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -283,9 +313,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ['birth', 'marriage', 'surname_change'],
             array_column($femaleEvents, 'type'),
         );
+        $surnameChangeData = $femaleEvents[2]['data'];
+        if (!array_key_exists('newSurname', $surnameChangeData)) {
+            self::fail('The surname change event must contain a surname.');
+        }
         self::assertSame(
             'Petrova',
-            $femaleEvents[2]['data']['newSurname'],
+            $surnameChangeData['newSurname'],
         );
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -357,6 +391,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, marriage: GraphMarriage} $result */
         $result = $this->responseData();
         self::assertSame(
             $this->client->getResponse()->headers->get('ETag'),
@@ -390,6 +425,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, marriage: GraphMarriage} $latest */
         $latest = $this->responseData();
         $latestEtag = $latest['etag'];
         self::assertIsString($latestEtag);
@@ -416,6 +452,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string} $sameGenderResult */
         $sameGenderResult = $this->responseData();
         $sameGenderEtag = $sameGenderResult['etag'];
         self::assertIsString($sameGenderEtag);
@@ -436,7 +473,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['gender_conflicts_with_marriage'],
-            $this->responseData()['fields']['gender'],
+            $this->responseStringList('fields', 'gender'),
         );
 
         $this->jsonRequest(
@@ -491,7 +528,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'coordinateUpdates' => [],
         ]);
         self::assertResponseStatusCodeSame(409);
-        self::assertSame('TREE_WOULD_DISCONNECT', $this->responseData()['code']);
+        self::assertSame('TREE_WOULD_DISCONNECT', $this->responseString('code'));
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
             'type'              => 'delete_person',
@@ -551,7 +588,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             'INTERNAL_PERSON_CANNOT_BE_DELETED',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -566,7 +603,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['parents_must_be_distinct'],
-            $this->responseData()['fields']['parents'],
+            $this->responseStringList('fields', 'parents'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -588,7 +625,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             'PARENT_LINK_ALREADY_EXISTS',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -604,7 +641,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['marriage_gender_pair_invalid'],
-            $this->responseData()['fields']['personId'],
+            $this->responseStringList('fields', 'personId'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -623,7 +660,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['marriage_gender_required'],
-            $this->responseData()['fields']['personId'],
+            $this->responseStringList('fields', 'personId'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -632,7 +669,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['graph_mutation_type_invalid'],
-            $this->responseData()['fields']['type'],
+            $this->responseStringList('fields', 'type'),
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
@@ -641,7 +678,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['graph_mutation_type_invalid'],
-            $this->responseData()['fields']['type'],
+            $this->responseStringList('fields', 'type'),
         );
     }
 
@@ -671,17 +708,17 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             'CURRENT_SPOUSE_COMMON_CHILD',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
     /**
      * @return array{
      *     string,
-     *     array<string, mixed>,
-     *     array<string, mixed>,
-     *     array<string, mixed>,
-     *     array<string, mixed>
+     *     GraphTree,
+     *     GraphSnapshot,
+     *     GraphPerson,
+     *     GraphPerson
      * }
      */
     private function marriedTree(): array
@@ -724,7 +761,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return GraphSnapshot
      */
     private function mutate(
         string $accessToken,
@@ -742,11 +779,14 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ],
         );
 
-        return $this->responseData();
+        /** @var GraphSnapshot $snapshot */
+        $snapshot = $this->responseData();
+
+        return $snapshot;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return GraphSnapshot
      */
     private function snapshot(string $accessToken, string $treeId): array
     {
@@ -757,14 +797,17 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
         self::assertResponseIsSuccessful();
 
-        return $this->responseData();
+        /** @var GraphSnapshot $snapshot */
+        $snapshot = $this->responseData();
+
+        return $snapshot;
     }
 
     /**
-     * @param array<string, mixed> $tree
+     * @param GraphTree            $tree
      * @param array<string, mixed> $person
      *
-     * @return array<string, mixed>
+     * @return GraphSnapshot
      */
     private function firstPerson(
         string $accessToken,
@@ -779,9 +822,9 @@ final class GraphMutationApiTest extends ApiWebTestCase
     }
 
     /**
-     * @param array<string, mixed> $snapshot
+     * @param GraphSnapshot $snapshot
      *
-     * @return array<string, mixed>
+     * @return GraphPerson
      */
     private function personById(array $snapshot, string $id): array
     {
@@ -795,7 +838,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<GraphEvent>
      */
     private function events(
         string $accessToken,
@@ -813,7 +856,17 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
         self::assertResponseIsSuccessful();
 
-        return $this->responseData()['items'];
+        $items = $this->responseData()['items'];
+        self::assertIsArray($items);
+        $events = [];
+        foreach ($items as $item) {
+            self::assertIsArray($item);
+            /** @var GraphEvent $event */
+            $event = $item;
+            $events[] = $event;
+        }
+
+        return $events;
     }
 
     private function register(): string
@@ -825,11 +878,11 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData()['accessToken'];
+        return $this->responseString('accessToken');
     }
 
     /**
-     * @return array<string, mixed>
+     * @return GraphTree
      */
     private function createTree(string $accessToken): array
     {
@@ -841,7 +894,10 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData();
+        /** @var GraphTree $tree */
+        $tree = $this->responseData();
+
+        return $tree;
     }
 
     /**

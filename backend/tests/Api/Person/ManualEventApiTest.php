@@ -6,6 +6,22 @@ use App\Tests\Api\ApiWebTestCase;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
 
+/**
+ * @phpstan-type ManualTree array{id: string, etag: string}
+ * @phpstan-type ManualPerson array{id: string}
+ * @phpstan-type ManualEvent array{
+ *     id: string,
+ *     type: string,
+ *     source: string,
+ *     title: string|null,
+ *     description: string|null,
+ *     data: array<string, mixed>,
+ *     sourceEntityId: string|null,
+ *     manualOrder: int|null
+ * }
+ * @phpstan-type ManualSnapshot array{etag: string, people: non-empty-list<ManualPerson>}
+ * @phpstan-type EventMutation array{etag: string, event: ManualEvent}
+ */
 final class ManualEventApiTest extends ApiWebTestCase
 {
     public function testManualEventCrudAndAutomaticEventsAreImmutable(): void
@@ -58,6 +74,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var EventMutation $updated */
         $updated = $this->responseData();
         self::assertSame('surname_change', $updated['event']['type']);
         self::assertNull($updated['event']['title']);
@@ -190,7 +207,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             self::assertResponseStatusCodeSame(422);
             self::assertSame(
                 'EVENT_DATA_INVALID',
-                $this->responseData()['code'],
+                $this->responseString('code'),
             );
         }
         self::assertCount(
@@ -264,6 +281,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, items: list<ManualEvent>} $reordered */
         $reordered = $this->responseData();
         self::assertSame(
             $orderedIds,
@@ -301,7 +319,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseStatusCodeSame(422);
-        self::assertSame('EVENT_ORDER_INVALID', $this->responseData()['code']);
+        self::assertSame('EVENT_ORDER_INVALID', $this->responseString('code'));
 
         foreach ([
             ['eventIds' => [$birth['id'], $birth['id']]],
@@ -349,15 +367,17 @@ final class ManualEventApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
-        self::assertNull($this->responseData()['event']['manualOrder']);
+        /** @var EventMutation $updated */
+        $updated = $this->responseData();
+        self::assertNull($updated['event']['manualOrder']);
     }
 
     /**
      * @return array{
      *     string,
-     *     array<string, mixed>,
-     *     array<string, mixed>,
-     *     array<string, mixed>
+     *     ManualTree,
+     *     ManualSnapshot,
+     *     ManualPerson
      * }
      */
     private function personTree(): array
@@ -385,6 +405,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseStatusCodeSame(201);
+        /** @var ManualSnapshot $snapshot */
         $snapshot = $this->responseData();
 
         return [$accessToken, $tree, $snapshot, $snapshot['people'][0]];
@@ -393,7 +414,7 @@ final class ManualEventApiTest extends ApiWebTestCase
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array<string, mixed>
+     * @return EventMutation
      */
     private function createEvent(
         string $accessToken,
@@ -420,11 +441,14 @@ final class ManualEventApiTest extends ApiWebTestCase
             [201],
         );
 
-        return $this->responseData();
+        /** @var EventMutation $response */
+        $response = $this->responseData();
+
+        return $response;
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<ManualEvent>
      */
     private function events(
         string $accessToken,
@@ -447,7 +471,9 @@ final class ManualEventApiTest extends ApiWebTestCase
         $events = [];
         foreach ($items as $item) {
             self::assertIsArray($item);
-            $events[] = $item;
+            /** @var ManualEvent $event */
+            $event = $item;
+            $events[] = $event;
         }
 
         return $events;
@@ -465,11 +491,11 @@ final class ManualEventApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData()['accessToken'];
+        return $this->responseString('accessToken');
     }
 
     /**
-     * @return array<string, mixed>
+     * @return ManualTree
      */
     private function createTree(string $accessToken): array
     {
@@ -480,6 +506,7 @@ final class ManualEventApiTest extends ApiWebTestCase
             $this->authorization($accessToken),
         );
         self::assertResponseStatusCodeSame(201);
+        /** @var array{id: string} $tree */
         $tree = $this->responseData();
         $etag = $this->client->getResponse()->headers->get('ETag');
         self::assertIsString($etag);

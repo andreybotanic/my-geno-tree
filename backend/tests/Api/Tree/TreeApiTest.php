@@ -50,6 +50,7 @@ final class TreeApiTest extends ApiWebTestCase
         ]);
 
         self::assertResponseIsSuccessful();
+        /** @var list<array{id: string}> $items */
         $items = $this->responseData()['items'];
         self::assertCount(2, $items);
         self::assertSame($second['id'], $items[0]['id']);
@@ -69,7 +70,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             ['tree_name_not_unique'],
-            $this->responseData()['fields']['name'],
+            $this->responseStringList('fields', 'name'),
         );
 
         $this->createTree($accessToken, 'family');
@@ -84,7 +85,7 @@ final class TreeApiTest extends ApiWebTestCase
             self::assertResponseStatusCodeSame(422);
             self::assertSame(
                 ['tree_name_invalid'],
-                $this->responseData()['fields']['name'],
+                $this->responseStringList('fields', 'name'),
             );
         }
     }
@@ -104,6 +105,7 @@ final class TreeApiTest extends ApiWebTestCase
             $tree['etag'],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{id: string, name: string, etag: string, personCount: int} $renamed */
         $renamed = $this->responseData();
         self::assertSame('Changed', $renamed['name']);
         self::assertNotSame($tree['etag'], $renamed['etag']);
@@ -121,7 +123,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(412);
         self::assertSame(
             'TREE_VERSION_CONFLICT',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
@@ -141,7 +143,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             ['tree_name_not_unique'],
-            $this->responseData()['fields']['name'],
+            $this->responseStringList('fields', 'name'),
         );
     }
 
@@ -180,7 +182,7 @@ final class TreeApiTest extends ApiWebTestCase
             'password' => 'StrongPass2!',
             'language' => 'en',
         ]);
-        $secondAccessToken = $this->responseData()['accessToken'];
+        $secondAccessToken = $this->responseString('accessToken');
 
         $this->renameTree(
             $secondAccessToken,
@@ -218,11 +220,11 @@ final class TreeApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData()['accessToken'];
+        return $this->responseString('accessToken');
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{id: string, name: string, etag: string, personCount: int}
      */
     private function createTree(string $accessToken, string $name): array
     {
@@ -233,7 +235,10 @@ final class TreeApiTest extends ApiWebTestCase
         ]);
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData();
+        /** @var array{id: string, name: string, etag: string, personCount: int} $tree */
+        $tree = $this->responseData();
+
+        return $tree;
     }
 
     private function renameTree(

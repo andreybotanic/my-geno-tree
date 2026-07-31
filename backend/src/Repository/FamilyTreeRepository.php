@@ -23,7 +23,8 @@ final class FamilyTreeRepository extends ServiceEntityRepository
      */
     public function findAllWithPersonCountsForOwner(User $owner): array
     {
-        return $this->createQueryBuilder('tree')
+        /** @var list<array{0: FamilyTree, personCount: int|string}> $trees */
+        $trees = $this->createQueryBuilder('tree')
             ->select('tree', 'COUNT(person.id) AS personCount')
             ->leftJoin(
                 Person::class,
@@ -38,6 +39,8 @@ final class FamilyTreeRepository extends ServiceEntityRepository
             ->addOrderBy('tree.id', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $trees;
     }
 
     public function nameExistsForOwner(

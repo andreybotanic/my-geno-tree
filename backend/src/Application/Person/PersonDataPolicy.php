@@ -238,22 +238,26 @@ final readonly class PersonDataPolicy
             $this->fail($field . '.approximate', 'approximate_year_only');
         }
 
-        $month = $payload['month'] ?? null;
-        $day = $payload['day'] ?? null;
-        if (
-            DatePrecision::YEAR !== $precision
-            && (!is_int($month) || $month < 1 || $month > 12)
-        ) {
-            $this->fail($field . '.month', 'date_month_invalid');
+        $month = null;
+        if (DatePrecision::YEAR !== $precision) {
+            $monthValue = $payload['month'];
+            if (!is_int($monthValue) || $monthValue < 1 || $monthValue > 12) {
+                $this->fail($field . '.month', 'date_month_invalid');
+            }
+            $month = $monthValue;
         }
-        if (
-            DatePrecision::DAY === $precision
-            && (
-                !is_int($day)
-                || !checkdate($month, $day, $payload['year'])
-            )
-        ) {
-            $this->fail($field . '.day', 'date_day_invalid');
+
+        $day = null;
+        if (DatePrecision::DAY === $precision) {
+            $dayValue = $payload['day'];
+            if (
+                !is_int($month)
+                || !is_int($dayValue)
+                || !checkdate($month, $dayValue, $payload['year'])
+            ) {
+                $this->fail($field . '.day', 'date_day_invalid');
+            }
+            $day = $dayValue;
         }
 
         return GenealogicalDate::known(
@@ -273,8 +277,15 @@ final readonly class PersonDataPolicy
         if (!is_array($value) || array_is_list($value)) {
             $this->fail($field, 'object_required');
         }
+        $object = [];
+        foreach ($value as $key => $item) {
+            if (!is_string($key)) {
+                $this->fail($field, 'object_required');
+            }
+            $object[$key] = $item;
+        }
 
-        return $value;
+        return $object;
     }
 
     /**

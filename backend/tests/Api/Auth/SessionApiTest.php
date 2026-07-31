@@ -77,7 +77,7 @@ final class SessionApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration(),
         );
-        $registration = $this->responseData();
+        $registrationAccessToken = $this->responseString('accessToken');
         $oldRefreshToken = $this->client->getCookieJar()
             ->get(
                 RefreshCookieFactory::NAME,
@@ -89,10 +89,10 @@ final class SessionApiTest extends ApiWebTestCase
 
         $this->jsonRequest('POST', '/api/v1/auth/refresh');
         self::assertResponseIsSuccessful();
-        $rotated = $this->responseData();
+        $rotatedAccessToken = $this->responseString('accessToken');
         self::assertNotSame(
-            $registration['accessToken'],
-            $rotated['accessToken'],
+            $registrationAccessToken,
+            $rotatedAccessToken,
         );
 
         $replayClient = clone $this->client;
@@ -113,7 +113,7 @@ final class SessionApiTest extends ApiWebTestCase
         self::assertSame(401, $replayClient->getResponse()->getStatusCode());
 
         $this->jsonRequest('GET', '/api/v1/me', headers: [
-            'Authorization' => 'Bearer ' . $rotated['accessToken'],
+            'Authorization' => 'Bearer ' . $rotatedAccessToken,
         ]);
         self::assertResponseStatusCodeSame(401);
     }
@@ -125,14 +125,14 @@ final class SessionApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration(),
         );
-        $firstAccessToken = $this->responseData()['accessToken'];
+        $firstAccessToken = $this->responseString('accessToken');
         $firstClient = clone $this->client;
 
         $this->jsonRequest('POST', '/api/v1/auth/login', [
             'identifier' => 'family_admin',
             'password'   => 'StrongPass1!',
         ]);
-        $secondAccessToken = $this->responseData()['accessToken'];
+        $secondAccessToken = $this->responseString('accessToken');
 
         $firstClient->request(
             'POST',
@@ -162,7 +162,7 @@ final class SessionApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration(),
         );
-        $accessToken = $this->responseData()['accessToken'];
+        $accessToken = $this->responseString('accessToken');
 
         $this->jsonRequest('POST', '/api/v1/auth/logout');
         self::assertResponseStatusCodeSame(204);
@@ -183,7 +183,7 @@ final class SessionApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(401);
         self::assertSame(
             'INVALID_REFRESH_TOKEN',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
@@ -194,7 +194,7 @@ final class SessionApiTest extends ApiWebTestCase
             '/api/v1/auth/register',
             $this->validRegistration(),
         );
-        $accessToken = $this->responseData()['accessToken'];
+        $accessToken = $this->responseString('accessToken');
 
         $this->jsonRequest('PATCH', '/api/v1/me', [
             'language' => 'ru',
@@ -203,7 +203,7 @@ final class SessionApiTest extends ApiWebTestCase
         ]);
 
         self::assertResponseIsSuccessful();
-        self::assertSame('ru', $this->responseData()['preferredLanguage']);
+        self::assertSame('ru', $this->responseString('preferredLanguage'));
     }
 
     public function testProtectedEndpointsRequireAnActiveSession(): void

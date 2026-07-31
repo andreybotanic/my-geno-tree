@@ -612,8 +612,15 @@ final readonly class StructuralGraphMutationService
         if (!is_array($value) || array_is_list($value)) {
             $this->invalid($field, 'object_required');
         }
+        $object = [];
+        foreach ($value as $key => $item) {
+            if (!is_string($key)) {
+                $this->invalid($field, 'object_required');
+            }
+            $object[$key] = $item;
+        }
 
-        return $value;
+        return $object;
     }
 
     /**

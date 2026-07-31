@@ -6,6 +6,11 @@ use App\Tests\Api\ApiWebTestCase;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
+/**
+ * @phpstan-type MediaPerson array{id: string, photoThumbnailUrl: string|null}
+ * @phpstan-type MediaTree array{id: string, etag: string}
+ * @phpstan-type MediaSnapshot array{etag: string, people: list<MediaPerson>}
+ */
 final class MediaApiTest extends ApiWebTestCase
 {
     public function testAvatarCropReplacementDeletionAndMetadataRemoval(): void
@@ -19,12 +24,11 @@ final class MediaApiTest extends ApiWebTestCase
             ['cropX' => 0, 'cropY' => 0, 'cropWidth' => 120, 'cropHeight' => 120],
         );
         self::assertResponseIsSuccessful();
-        $profile = $this->responseData();
-        self::assertIsString($profile['avatarUrl']);
-        self::assertStringContainsString('/me/avatar?media=', $profile['avatarUrl']);
+        $avatarUrl = $this->responseString('avatarUrl');
+        self::assertStringContainsString('/me/avatar?media=', $avatarUrl);
         self::assertSame(1, $this->mediaObjectCount());
 
-        $this->authenticatedRequest('GET', '/api/v1' . $profile['avatarUrl'], $token);
+        $this->authenticatedRequest('GET', '/api/v1' . $avatarUrl, $token);
         self::assertResponseIsSuccessful();
         self::assertSame(
             'image/webp',
@@ -76,6 +80,7 @@ final class MediaApiTest extends ApiWebTestCase
             $snapshot['etag'],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, person: MediaPerson} $uploaded */
         $uploaded = $this->responseData();
         self::assertNotSame($snapshot['etag'], $uploaded['etag']);
         self::assertIsString($uploaded['person']['photoThumbnailUrl']);
@@ -119,6 +124,7 @@ final class MediaApiTest extends ApiWebTestCase
             $uploaded['etag'],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, person: MediaPerson} $replaced */
         $replaced = $this->responseData();
         $replacementPaths = $this->storagePathsForPerson($person['id']);
         self::assertCount(3, $replacementPaths);
@@ -135,6 +141,7 @@ final class MediaApiTest extends ApiWebTestCase
             $replaced['etag'],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, person: MediaPerson} $deleted */
         $deleted = $this->responseData();
         self::assertNull($deleted['person']['photoThumbnailUrl']);
         foreach ($replacementPaths as $storedPath) {
@@ -159,14 +166,14 @@ final class MediaApiTest extends ApiWebTestCase
             ['cropX' => 0, 'cropY' => 0, 'cropWidth' => 90, 'cropHeight' => 120],
             $snapshot['etag'],
         );
-        $uploaded = $this->responseData();
+        $uploadedEtag = $this->responseString('etag');
         $storedPaths = $this->storagePathsForPerson($person['id']);
 
         $this->authenticatedRequest(
             'DELETE',
             '/api/v1/trees/' . $tree['id'],
             $token,
-            $uploaded['etag'],
+            $uploadedEtag,
         );
         self::assertResponseStatusCodeSame(204);
         foreach ($storedPaths as $storedPath) {
@@ -192,7 +199,7 @@ final class MediaApiTest extends ApiWebTestCase
             $snapshot['etag'],
         );
         self::assertResponseIsSuccessful();
-        $uploaded = $this->responseData();
+        $uploadedEtag = $this->responseString('etag');
         $storedPaths = $this->storagePathsForPerson($person['id']);
 
         $this->jsonRequest(
@@ -205,7 +212,7 @@ final class MediaApiTest extends ApiWebTestCase
             ],
             [
                 'Authorization' => 'Bearer ' . $token,
-                'If-Match'      => $uploaded['etag'],
+                'If-Match'      => $uploadedEtag,
             ],
         );
         self::assertResponseIsSuccessful();
@@ -266,11 +273,7 @@ final class MediaApiTest extends ApiWebTestCase
     }
 
     /**
-     * @return array{
-     *     array<string, mixed>,
-     *     array<string, mixed>,
-     *     array<string, mixed>
-     * }
+     * @return array{MediaTree, MediaSnapshot, MediaPerson}
      */
     private function personTree(string $token): array
     {
@@ -280,6 +283,7 @@ final class MediaApiTest extends ApiWebTestCase
             ['name'          => 'Media tree'],
             ['Authorization' => 'Bearer ' . $token],
         );
+        /** @var MediaTree $tree */
         $tree = $this->responseData();
         $etag = $this->client->getResponse()->headers->get('ETag');
         self::assertIsString($etag);
@@ -303,6 +307,7 @@ final class MediaApiTest extends ApiWebTestCase
                 'If-Match'      => $etag,
             ],
         );
+        /** @var MediaSnapshot $snapshot */
         $snapshot = $this->responseData();
 
         return [$tree, $snapshot, $snapshot['people'][0]];
@@ -311,7 +316,7 @@ final class MediaApiTest extends ApiWebTestCase
     /**
      * @param array<string, mixed> $overrides
      *
-     * @return array{string, array<string, mixed>}
+     * @return array{string, array{id: string}}
      */
     private function register(array $overrides = []): array
     {
@@ -321,11 +326,10 @@ final class MediaApiTest extends ApiWebTestCase
             array_replace($this->validRegistration(), $overrides),
         );
         self::assertResponseStatusCodeSame(201);
-        $response = $this->responseData();
-        self::assertIsString($response['accessToken']);
-        self::assertIsArray($response['user']);
+        $accessToken = $this->responseString('accessToken');
+        $userId = $this->responseString('user', 'id');
 
-        return [$response['accessToken'], $response['user']];
+        return [$accessToken, ['id' => $userId]];
     }
 
     /** @param array<string, int> $crop */
@@ -462,9 +466,14 @@ final class MediaApiTest extends ApiWebTestCase
         );
         self::assertInstanceOf(\Doctrine\DBAL\Connection::class, $connection);
 
-        return (int)$connection->fetchOne(
+        $count = $connection->fetchOne(
             'SELECT COUNT(*) FROM media_object',
         );
+        if (!is_int($count) && !is_string($count)) {
+            self::fail('Expected a numeric media object count.');
+        }
+
+        return (int)$count;
     }
 
     private function singleStoragePath(string $userId): string
@@ -504,6 +513,12 @@ final class MediaApiTest extends ApiWebTestCase
             [$personId],
         );
 
-        return array_map(strval(...), $paths);
+        $storagePaths = [];
+        foreach ($paths as $path) {
+            self::assertIsString($path);
+            $storagePaths[] = $path;
+        }
+
+        return $storagePaths;
     }
 }

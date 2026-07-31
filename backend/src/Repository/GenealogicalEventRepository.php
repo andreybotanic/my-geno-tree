@@ -67,12 +67,15 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
      */
     public function findTimeline(Person $person): array
     {
-        return $this->createQueryBuilder('event')
+        /** @var list<GenealogicalEvent> $events */
+        $events = $this->createQueryBuilder('event')
             ->andWhere('event.person = :person')
             ->setParameter('person', $person)
             ->orderBy('event.createdAt', 'ASC')
             ->addOrderBy('event.id', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $events;
     }
 }

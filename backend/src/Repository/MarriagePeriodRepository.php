@@ -23,7 +23,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
      */
     public function findAllForTree(FamilyTree $tree): array
     {
-        return $this->createQueryBuilder('marriage')
+        /** @var list<MarriagePeriod> $marriages */
+        $marriages = $this->createQueryBuilder('marriage')
             ->addSelect('male', 'female')
             ->join('marriage.malePerson', 'male')
             ->join('marriage.femalePerson', 'female')
@@ -33,6 +34,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
             ->addOrderBy('marriage.id', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $marriages;
     }
 
     public function findInTree(
@@ -47,12 +50,15 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
      */
     public function findForPerson(Person $person): array
     {
-        return $this->createQueryBuilder('marriage')
+        /** @var list<MarriagePeriod> $marriages */
+        $marriages = $this->createQueryBuilder('marriage')
             ->andWhere(
                 'marriage.malePerson = :person OR marriage.femalePerson = :person',
             )
             ->setParameter('person', $person)
             ->getQuery()
             ->getResult();
+
+        return $marriages;
     }
 }

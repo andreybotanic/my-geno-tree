@@ -6,6 +6,31 @@ use App\Tests\Api\ApiWebTestCase;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
 
+/**
+ * @phpstan-type PersonTree array{id: string, etag: string}
+ * @phpstan-type PersonView array{
+ *     id: string,
+ *     birthSurname: mixed,
+ *     givenName: mixed,
+ *     gender: string,
+ *     birthDate: mixed,
+ *     deathDate: mixed,
+ *     coordinates: mixed
+ * }
+ * @phpstan-type PersonSnapshot array{
+ *     etag: string,
+ *     people: list<PersonView>,
+ *     parentLinks: list<mixed>,
+ *     marriages: list<mixed>
+ * }
+ * @phpstan-type PersonEvent array{
+ *     type: string,
+ *     source: string,
+ *     sourceEntityType: string,
+ *     sourceEntityId: string,
+ *     date: mixed
+ * }
+ */
 final class PersonApiTest extends ApiWebTestCase
 {
     public function testFirstPersonCreatesAnAtomicSnapshotAndLifecycleEvents(): void
@@ -108,7 +133,9 @@ final class PersonApiTest extends ApiWebTestCase
             '/api/v1/trees',
             headers: $this->authorization($accessToken),
         );
-        self::assertSame(1, $this->responseData()['items'][0]['personCount']);
+        /** @var array{items: list<array{personCount: int}>} $treeList */
+        $treeList = $this->responseData();
+        self::assertSame(1, $treeList['items'][0]['personCount']);
     }
 
     public function testPersonFieldsAutosaveAndSynchronizeAutomaticEvents(): void
@@ -144,6 +171,7 @@ final class PersonApiTest extends ApiWebTestCase
             ],
         );
         self::assertResponseIsSuccessful();
+        /** @var array{etag: string, person: PersonView} $result */
         $result = $this->responseData();
         $updated = $result['person'];
         $updatedEtag = $this->client->getResponse()->headers->get('ETag');
@@ -183,7 +211,7 @@ final class PersonApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(412);
         self::assertSame(
             'TREE_VERSION_CONFLICT',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
@@ -230,7 +258,7 @@ final class PersonApiTest extends ApiWebTestCase
             self::assertResponseStatusCodeSame(422);
             self::assertSame(
                 'PERSON_DATA_INVALID',
-                $this->responseData()['code'],
+                $this->responseString('code'),
             );
         }
 
@@ -243,7 +271,7 @@ final class PersonApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
             ['finite_number_required'],
-            $this->responseData()['fields']['coordinates.x'],
+            $this->responseStringList('fields', 'coordinates.x'),
         );
     }
 
@@ -266,7 +294,7 @@ final class PersonApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(400);
         self::assertSame(
             'INVALID_REQUEST_BODY',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
 
         $this->client->request(
@@ -304,7 +332,7 @@ final class PersonApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
             'FIRST_PERSON_ALREADY_EXISTS',
-            $this->responseData()['code'],
+            $this->responseString('code'),
         );
     }
 
@@ -360,11 +388,11 @@ final class PersonApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData()['accessToken'];
+        return $this->responseString('accessToken');
     }
 
     /**
-     * @return array<string, mixed>
+     * @return PersonTree
      */
     private function createTree(string $accessToken, string $name): array
     {
@@ -376,15 +404,18 @@ final class PersonApiTest extends ApiWebTestCase
         );
         self::assertResponseStatusCodeSame(201);
 
-        return $this->responseData();
+        /** @var PersonTree $tree */
+        $tree = $this->responseData();
+
+        return $tree;
     }
 
     /**
-     * @param array<string, mixed> $tree
+     * @param PersonTree           $tree
      * @param array<string, mixed> $person
      * @param array<string, mixed> $coordinates
      *
-     * @return array<string, mixed>
+     * @return PersonSnapshot
      */
     private function createFirstPerson(
         string $accessToken,
@@ -406,11 +437,14 @@ final class PersonApiTest extends ApiWebTestCase
             ],
         );
 
-        return $this->responseData();
+        /** @var PersonSnapshot $snapshot */
+        $snapshot = $this->responseData();
+
+        return $snapshot;
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<PersonEvent>
      */
     private function events(
         string $accessToken,
@@ -428,7 +462,10 @@ final class PersonApiTest extends ApiWebTestCase
         );
         self::assertResponseIsSuccessful();
 
-        return $this->responseData()['items'];
+        /** @var list<PersonEvent> $events */
+        $events = $this->responseData()['items'];
+
+        return $events;
     }
 
     /**

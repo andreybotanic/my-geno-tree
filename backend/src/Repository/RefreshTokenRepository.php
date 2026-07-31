@@ -19,17 +19,23 @@ final class RefreshTokenRepository extends ServiceEntityRepository
 
     public function findOneByPlainToken(string $token): ?RefreshToken
     {
-        return $this->queryByPlainToken($token)
+        /** @var RefreshToken|null $refreshToken */
+        $refreshToken = $this->queryByPlainToken($token)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $refreshToken;
     }
 
     public function findOneByPlainTokenForUpdate(string $token): ?RefreshToken
     {
-        return $this->queryByPlainToken($token)
+        /** @var RefreshToken|null $refreshToken */
+        $refreshToken = $this->queryByPlainToken($token)
             ->getQuery()
             ->setLockMode(LockMode::PESSIMISTIC_WRITE)
             ->getOneOrNullResult();
+
+        return $refreshToken;
     }
 
     private function queryByPlainToken(string $token): \Doctrine\ORM\QueryBuilder

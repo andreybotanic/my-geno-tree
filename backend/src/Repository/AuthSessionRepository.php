@@ -18,7 +18,8 @@ final class AuthSessionRepository extends ServiceEntityRepository
 
     public function findOneByAccessToken(string $token): ?AuthSession
     {
-        return $this->createQueryBuilder('session')
+        /** @var AuthSession|null $session */
+        $session = $this->createQueryBuilder('session')
             ->addSelect('user', 'avatarAttachment', 'avatarMedia', 'avatarVariant')
             ->innerJoin('session.user', 'user')
             ->leftJoin('user.avatarAttachment', 'avatarAttachment')
@@ -28,5 +29,7 @@ final class AuthSessionRepository extends ServiceEntityRepository
             ->setParameter('hash', hash('sha256', $token))
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $session;
     }
 }
