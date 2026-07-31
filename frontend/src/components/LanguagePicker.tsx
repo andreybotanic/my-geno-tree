@@ -121,7 +121,14 @@ export function LanguagePicker({
       >
         <LanguageFlag language={selectedLanguage.code} />
         <span>{selectedLanguage.label}</span>
-        <span aria-hidden="true" className="language-picker-chevron">⌄</span>
+        <svg
+          aria-hidden="true"
+          className="language-picker-chevron"
+          focusable="false"
+          viewBox="0 0 12 8"
+        >
+          <path d="M1 1.25 6 6.25l5-5" />
+        </svg>
       </button>
       {open && (
         <div aria-label={label} className="language-picker-menu" role="listbox">

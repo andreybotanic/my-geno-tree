@@ -15,6 +15,10 @@ describe('LanguagePicker', () => {
     )
 
     expect(screen.getByTestId('language-flag-en').tagName).toBe('svg')
+    expect(container.querySelector('.language-picker-chevron')?.tagName).toBe(
+      'svg',
+    )
+    expect(container.textContent).not.toContain('⌄')
     expect(container.textContent).not.toContain('🇺🇸')
 
     await userEvent.click(screen.getByRole('button', { name: 'Language' }))
