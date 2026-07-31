@@ -4,9 +4,10 @@ import { AuthForm } from './AuthForm'
 
 type AuthDialogProps = {
   onClose: () => void
+  onSuccess: () => void
 }
 
-export function AuthDialog({ onClose }: AuthDialogProps) {
+export function AuthDialog({ onClose, onSuccess }: AuthDialogProps) {
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export function AuthDialog({ onClose }: AuthDialogProps) {
         >
           ×
         </button>
-        <AuthForm onSuccess={onClose} />
+        <AuthForm onSuccess={onSuccess} />
       </section>
     </div>
   )

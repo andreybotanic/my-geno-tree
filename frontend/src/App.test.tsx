@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StrictMode } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import { AuthProvider } from './auth/AuthProvider'
@@ -103,6 +103,40 @@ describe('App', () => {
 
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens the default authenticated experience on the trees page', async () => {
+    vi.mocked(fetch).mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/auth/refresh')) {
+          return Promise.resolve(Response.json(apiError, { status: 401 }))
+        }
+        if (url.endsWith('/auth/login') && init?.method === 'POST') {
+          return Promise.resolve(Response.json(authenticated))
+        }
+        if (url.endsWith('/trees')) {
+          return Promise.resolve(Response.json({ items: [] }))
+        }
+        return Promise.resolve(Response.json({ status: 'ok' }))
+      },
+    )
+    renderApp()
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Sign in / Register' }),
+    )
+    await userEvent.type(
+      screen.getByLabelText('Username or email'),
+      'family_admin',
+    )
+    await userEvent.type(screen.getByLabelText('Password'), 'StrongPass1!')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'My trees' }),
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/trees')
   })
 
   it('persists a guest language selected from the header', async () => {
@@ -281,5 +315,37 @@ describe('App', () => {
       }),
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe('/')
+  })
+
+  it('shows the login with an icon menu and closes it outside', async () => {
+    window.history.replaceState({}, '', '/profile')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) {
+        return Promise.resolve(Response.json(authenticated))
+      }
+      return Promise.resolve(Response.json({ status: 'ok' }))
+    })
+    renderApp()
+
+    const profileHeading = await screen.findByRole('heading', {
+      name: 'Profile',
+    })
+    const trigger = screen.getByRole('button', {
+      name: 'Open profile menu',
+    })
+    expect(within(trigger).getByText('family_admin')).toBeInTheDocument()
+
+    await userEvent.click(trigger)
+    for (const name of ['Profile', 'My trees', 'Log out']) {
+      expect(
+        screen.getByRole('button', { name }).querySelector('svg'),
+      ).not.toBeNull()
+    }
+
+    await userEvent.click(profileHeading)
+    expect(
+      screen.queryByRole('button', { name: 'My trees' }),
+    ).not.toBeInTheDocument()
   })
 })

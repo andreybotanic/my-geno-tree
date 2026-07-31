@@ -200,7 +200,9 @@ describe('RelativeDialog', () => {
     const marriage = within(dialog).getByRole('group', {
       name: 'Marriage date',
     })
-    await userEvent.click(within(marriage).getByRole('checkbox'))
+    await userEvent.click(
+      within(marriage).getByRole('button', { name: 'Unknown' }),
+    )
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )

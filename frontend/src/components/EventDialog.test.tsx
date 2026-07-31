@@ -39,7 +39,9 @@ describe('EventDialog', () => {
     const eventDate = within(dialog).getByRole('group', {
       name: 'Event date',
     })
-    await userEvent.click(within(eventDate).getByRole('checkbox'))
+    await userEvent.click(
+      within(eventDate).getByRole('button', { name: 'Unknown' }),
+    )
     await userEvent.selectOptions(
       within(eventDate).getByRole('combobox', {
         name: 'Event date: Precision',

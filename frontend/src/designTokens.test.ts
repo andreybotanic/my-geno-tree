@@ -31,7 +31,12 @@ describe('semantic design contracts', () => {
       /\.app-header\s*\{[^}]*height:\s*50px;/s,
     )
     expect(appStyles).toMatch(
-      /\.avatar-button\s*\{[^}]*height:\s*34px;[^}]*width:\s*34px;/s,
+      /\.profile-trigger-avatar\s*\{[^}]*height:\s*34px;[^}]*width:\s*34px;/s,
     )
+  })
+
+  it('uses sans-serif typography throughout the application', () => {
+    expect(tokens).toContain('--font-heading: var(--font-body);')
+    expect(tokens).not.toMatch(/\b(?:Georgia|Times New Roman|ui-serif)\b/)
   })
 })

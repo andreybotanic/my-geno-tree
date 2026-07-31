@@ -19,9 +19,19 @@ describe('PersonFormDialog', () => {
     const surname = within(dialog).getByRole('group', {
       name: 'Birth surname',
     })
-    await userEvent.click(within(surname).getByRole('checkbox'))
+    const surnameUnknown = within(surname).getByRole('button', {
+      name: 'Unknown',
+    })
+    const surnameInput = within(surname).getByRole('textbox', {
+      name: 'Birth surname',
+    })
+    expect(surnameUnknown).toHaveAttribute('title', 'Unknown')
+    expect(surnameUnknown).toHaveAttribute('aria-pressed', 'true')
+    expect(surnameInput).toBeDisabled()
+    await userEvent.click(surnameUnknown)
+    expect(surnameInput).toBeEnabled()
     await userEvent.type(
-      within(surname).getByRole('textbox', { name: 'Birth surname' }),
+      surnameInput,
       ' Ivanova ',
     )
     await userEvent.selectOptions(
@@ -30,7 +40,9 @@ describe('PersonFormDialog', () => {
     )
 
     const birth = within(dialog).getByRole('group', { name: 'Birth date' })
-    await userEvent.click(within(birth).getByRole('checkbox'))
+    await userEvent.click(
+      within(birth).getByRole('button', { name: 'Unknown' }),
+    )
     await userEvent.selectOptions(
       within(birth).getByRole('combobox', { name: 'Birth date: Precision' }),
       'month',
@@ -48,7 +60,9 @@ describe('PersonFormDialog', () => {
       within(dialog).getByRole('checkbox', { name: 'Deceased' }),
     )
     const death = within(dialog).getByRole('group', { name: 'Death date' })
-    await userEvent.click(within(death).getByRole('checkbox'))
+    await userEvent.click(
+      within(death).getByRole('button', { name: 'Unknown' }),
+    )
     await userEvent.selectOptions(
       within(death).getByRole('combobox', { name: 'Death date: Precision' }),
       'day',
@@ -94,7 +108,9 @@ describe('PersonFormDialog', () => {
     const onSave = vi.fn(async () => {})
     render(<PersonFormDialog onCancel={vi.fn()} onSave={onSave} />)
     const surname = screen.getByRole('group', { name: 'Birth surname' })
-    await userEvent.click(within(surname).getByRole('checkbox'))
+    await userEvent.click(
+      within(surname).getByRole('button', { name: 'Unknown' }),
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

@@ -162,11 +162,26 @@ describe('PersonDetailsPanel', () => {
     const editor = screen.getByRole('textbox', { name: 'Given name' })
       .closest('form')
     expect(editor).not.toBeNull()
-    await userEvent.click(
-      within(editor as HTMLFormElement).getByRole('checkbox', {
-        name: 'Unknown',
+    const unknownToggle = within(editor as HTMLFormElement).getByRole(
+      'button',
+      { name: 'Unknown' },
+    )
+    await userEvent.click(unknownToggle)
+    expect(editor).toContainElement(
+      within(editor as HTMLFormElement).getByRole('textbox', {
+        name: 'Given name',
       }),
     )
+    expect(
+      within(editor as HTMLFormElement).getByRole('textbox', {
+        name: 'Given name',
+      }),
+    ).toBeDisabled()
+    expect(
+      within(editor as HTMLFormElement).getByRole('textbox', {
+        name: 'Given name',
+      }),
+    ).toHaveValue('')
     await userEvent.click(
       within(editor as HTMLFormElement).getByRole('button', { name: 'Save' }),
     )

@@ -32,6 +32,7 @@ import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
 import { AuthenticatedImage } from './AuthenticatedImage'
+import { UnknownToggleButton } from './UnknownToggleButton'
 
 type PersonField = keyof Pick<
   Person,
@@ -332,21 +333,11 @@ export function PersonDetailsPanel({
               onCancel={() => setEditing(null)}
               onCommit={() => saveText(field)}
             >
-              <label className="unknown-toggle">
-                <input
-                  checked={text.unknown}
-                  onChange={(event) => setText({
-                    ...text,
-                    unknown: event.target.checked,
-                  })}
-                  type="checkbox"
-                />
-                {t('person.unknown')}
-              </label>
-              {!text.unknown && (
+              <div className="unknown-field-control">
                 <input
                   aria-label={t(`person.${translation}`)}
-                  autoFocus
+                  autoFocus={!text.unknown}
+                  disabled={text.unknown}
                   maxLength={101}
                   onChange={(event) => setText({
                     ...text,
@@ -354,7 +345,15 @@ export function PersonDetailsPanel({
                   })}
                   value={text.value}
                 />
-              )}
+                <UnknownToggleButton
+                  active={text.unknown}
+                  onChange={(unknown) => setText({
+                    unknown,
+                    value: unknown ? '' : text.value,
+                  })}
+                  title={t('person.unknown')}
+                />
+              </div>
             </InlineEditor>
           </EditableRow>
         ))}

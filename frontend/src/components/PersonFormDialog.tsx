@@ -10,6 +10,7 @@ import {
   unknownDate,
   type DateInputState,
 } from '../personFormValues'
+import { UnknownToggleButton } from './UnknownToggleButton'
 
 type TextInputState = {
   unknown: boolean
@@ -45,21 +46,11 @@ function KnownTextInput({
   return (
     <fieldset className="person-fieldset">
       <legend>{label}</legend>
-      <label className="unknown-toggle">
-        <input
-          checked={state.unknown}
-          onChange={(event) => onChange({
-            ...state,
-            unknown: event.target.checked,
-          })}
-          type="checkbox"
-        />
-        {t('person.unknown')}
-      </label>
-      {!state.unknown && (
+      <div className="unknown-field-control">
         <input
           aria-label={label}
-          autoFocus
+          autoFocus={!state.unknown}
+          disabled={state.unknown}
           maxLength={101}
           onChange={(event) => onChange({
             ...state,
@@ -67,7 +58,15 @@ function KnownTextInput({
           })}
           value={state.value}
         />
-      )}
+        <UnknownToggleButton
+          active={state.unknown}
+          onChange={(unknown) => onChange({
+            unknown,
+            value: unknown ? '' : state.value,
+          })}
+          title={t('person.unknown')}
+        />
+      </div>
     </fieldset>
   )
 }
@@ -88,23 +87,13 @@ export function StructuredDateInput({
   return (
     <fieldset className="person-fieldset date-fieldset">
       <legend>{label}</legend>
-      <label className="unknown-toggle">
-        <input
-          checked={state.unknown}
-          onChange={(event) => onChange({
-            ...state,
-            unknown: event.target.checked,
-          })}
-          type="checkbox"
-        />
-        {t('person.unknown')}
-      </label>
-      {!state.unknown && (
+      <div className="unknown-field-control date-field-control">
         <div className="date-controls">
           <label>
             <span>{t('person.precision')}</span>
             <select
               aria-label={`${label}: ${t('person.precision')}`}
+              disabled={state.unknown}
               onChange={(event) => onChange({
                 ...state,
                 approximate: event.target.value === 'year'
@@ -123,6 +112,7 @@ export function StructuredDateInput({
             <span>{t('person.year')}</span>
             <input
               aria-label={`${label}: ${t('person.year')}`}
+              disabled={state.unknown}
               inputMode="numeric"
               max="9999"
               min="1582"
@@ -139,6 +129,7 @@ export function StructuredDateInput({
               <span>{t('person.month')}</span>
               <input
                 aria-label={`${label}: ${t('person.month')}`}
+                disabled={state.unknown}
                 inputMode="numeric"
                 max="12"
                 min="1"
@@ -156,6 +147,7 @@ export function StructuredDateInput({
               <span>{t('person.day')}</span>
               <input
                 aria-label={`${label}: ${t('person.day')}`}
+                disabled={state.unknown}
                 inputMode="numeric"
                 max="31"
                 min="1"
@@ -172,6 +164,7 @@ export function StructuredDateInput({
             <label className="unknown-toggle">
               <input
                 checked={state.approximate}
+                disabled={state.unknown}
                 onChange={(event) => onChange({
                   ...state,
                   approximate: event.target.checked,
@@ -182,7 +175,21 @@ export function StructuredDateInput({
             </label>
           )}
         </div>
-      )}
+        <UnknownToggleButton
+          active={state.unknown}
+          onChange={(unknown) => onChange(unknown
+            ? {
+                ...state,
+                approximate: false,
+                day: '',
+                month: '',
+                unknown: true,
+                year: '',
+              }
+            : { ...state, unknown: false })}
+          title={t('person.unknown')}
+        />
+      </div>
     </fieldset>
   )
 }
