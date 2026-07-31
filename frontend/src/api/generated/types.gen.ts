@@ -48,6 +48,123 @@ export type TreeList = {
     items: Array<FamilyTree>;
 };
 
+export type KnownText = KnownTextValue | UnknownValue;
+
+export type KnownTextValue = {
+    state: 'known';
+    value: string;
+};
+
+export type UnknownValue = {
+    state: 'unknown';
+};
+
+export type GenealogicalDate = UnknownValue | KnownYear | KnownMonth | KnownDay;
+
+export type KnownYear = {
+    state: 'known';
+    precision: 'year';
+    year: number;
+    approximate: boolean;
+};
+
+export type KnownMonth = {
+    state: 'known';
+    precision: 'month';
+    year: number;
+    month: number;
+    approximate: false;
+};
+
+export type KnownDay = {
+    state: 'known';
+    precision: 'day';
+    year: number;
+    month: number;
+    day: number;
+    approximate: false;
+};
+
+export type Gender = 'male' | 'female' | 'unknown';
+
+export type Coordinates = {
+    x: number;
+    y: number;
+};
+
+export type PersonInput = {
+    birthSurname: KnownText;
+    givenName: KnownText;
+    patronymic: KnownText;
+    gender: Gender;
+    birthDate: GenealogicalDate;
+    deathDate: GenealogicalDate | null;
+};
+
+export type PersonPatchRequest = {
+    birthSurname?: KnownText;
+    givenName?: KnownText;
+    patronymic?: KnownText;
+    gender?: Gender;
+    birthDate?: GenealogicalDate;
+    deathDate?: GenealogicalDate | null;
+};
+
+export type Person = PersonInput & {
+    id: string;
+    photoThumbnailUrl: string | null;
+    coordinates: Coordinates;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TreeMetadata = {
+    id: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TreeSnapshot = {
+    tree: TreeMetadata;
+    etag: string;
+    people: Array<Person>;
+    parentLinks: Array<{
+        [key: string]: unknown;
+    }>;
+    marriages: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+export type CreateFirstPersonMutation = {
+    type: 'create_first_person';
+    person: PersonInput;
+    coordinates: Coordinates;
+};
+
+export type GenealogicalEvent = {
+    id: string;
+    personId: string;
+    type: 'birth' | 'death' | 'marriage' | 'surname_change' | 'divorce' | 'child_birth' | 'custom';
+    source: 'automatic' | 'manual';
+    date: GenealogicalDate;
+    title: string | null;
+    description: string | null;
+    data: {
+        [key: string]: unknown;
+    };
+    sourceEntityType: string | null;
+    sourceEntityId: string | null;
+    manualOrder: number | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type EventList = {
+    items: Array<GenealogicalEvent>;
+};
+
 export type AuthResponse = {
     accessToken: string;
     accessTokenExpiresAt: string;
@@ -75,6 +192,8 @@ export type ApiError = {
 };
 
 export type TreeId = string;
+
+export type PersonId = string;
 
 /**
  * ETag returned by the latest tree representation
@@ -457,3 +576,209 @@ export type RenameTreeResponses = {
 };
 
 export type RenameTreeResponse = RenameTreeResponses[keyof RenameTreeResponses];
+
+export type GetTreeSnapshotData = {
+    body?: never;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/snapshot';
+};
+
+export type GetTreeSnapshotErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetTreeSnapshotError = GetTreeSnapshotErrors[keyof GetTreeSnapshotErrors];
+
+export type GetTreeSnapshotResponses = {
+    /**
+     * Current compact graph snapshot
+     */
+    200: TreeSnapshot;
+};
+
+export type GetTreeSnapshotResponse = GetTreeSnapshotResponses[keyof GetTreeSnapshotResponses];
+
+export type MutateTreeGraphData = {
+    body: CreateFirstPersonMutation;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/graph-mutations';
+};
+
+export type MutateTreeGraphErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type MutateTreeGraphError = MutateTreeGraphErrors[keyof MutateTreeGraphErrors];
+
+export type MutateTreeGraphResponses = {
+    /**
+     * First person created atomically with its coordinates
+     */
+    201: TreeSnapshot;
+};
+
+export type MutateTreeGraphResponse = MutateTreeGraphResponses[keyof MutateTreeGraphResponses];
+
+export type GetPersonData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}';
+};
+
+export type GetPersonErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetPersonError = GetPersonErrors[keyof GetPersonErrors];
+
+export type GetPersonResponses = {
+    /**
+     * Current person data
+     */
+    200: Person;
+};
+
+export type GetPersonResponse = GetPersonResponses[keyof GetPersonResponses];
+
+export type UpdatePersonData = {
+    body: PersonPatchRequest;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}';
+};
+
+export type UpdatePersonErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UpdatePersonError = UpdatePersonErrors[keyof UpdatePersonErrors];
+
+export type UpdatePersonResponses = {
+    /**
+     * Person fields updated with automatic events synchronized
+     */
+    200: Person;
+};
+
+export type UpdatePersonResponse = UpdatePersonResponses[keyof UpdatePersonResponses];
+
+export type ListPersonEventsData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/events';
+};
+
+export type ListPersonEventsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type ListPersonEventsError = ListPersonEventsErrors[keyof ListPersonEventsErrors];
+
+export type ListPersonEventsResponses = {
+    /**
+     * Person timeline
+     */
+    200: EventList;
+};
+
+export type ListPersonEventsResponse = ListPersonEventsResponses[keyof ListPersonEventsResponses];

@@ -30,8 +30,11 @@ final readonly class TreeCollectionController
     {
         return new JsonResponse([
             'items' => array_map(
-                $this->views->create(...),
-                $this->trees->findAllForOwner($user),
+                fn (array $result): array => $this->views->create(
+                    $result[0],
+                    (int) $result['personCount'],
+                ),
+                $this->trees->findAllWithPersonCountsForOwner($user),
             ),
         ]);
     }
@@ -44,7 +47,7 @@ final readonly class TreeCollectionController
         $input = $this->requestBody->map($request, TreeNameRequest::class);
         $tree = $this->createTree->create($user, $input->name);
         $response = new JsonResponse(
-            $this->views->create($tree),
+            $this->views->create($tree, 0),
             JsonResponse::HTTP_CREATED,
         );
         $response->headers->set('ETag', $this->versions->etag($tree));

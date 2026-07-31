@@ -262,6 +262,149 @@ paths:
           $ref: "#/components/responses/NotFound"
         "412":
           $ref: "#/components/responses/TreeVersionConflict"
+  /trees/{treeId}/snapshot:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    get:
+      operationId: getTreeSnapshot
+      summary: Read the compact graph snapshot and current tree version
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current compact graph snapshot
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /trees/{treeId}/graph-mutations:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    post:
+      operationId: mutateTreeGraph
+      summary: Apply one atomic structural graph mutation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFirstPersonMutation"
+      responses:
+        "201":
+          description: First person created atomically with its coordinates
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/people/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      operationId: getPerson
+      summary: Read full data for one person in an owned tree
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current person data
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updatePerson
+      summary: Autosave one or more coherent person fields
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonPatchRequest"
+      responses:
+        "200":
+          description: Person fields updated with automatic events synchronized
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/people/{personId}/events:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      operationId: listPersonEvents
+      summary: Read the chronological timeline for one person
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Person timeline
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     bearerAuth:
@@ -280,6 +423,13 @@ components:
   parameters:
     TreeId:
       name: treeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PersonId:
+      name: personId
       in: path
       required: true
       schema:
@@ -461,6 +611,350 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FamilyTree"
+    KnownText:
+      oneOf:
+        - $ref: "#/components/schemas/KnownTextValue"
+        - $ref: "#/components/schemas/UnknownValue"
+    KnownTextValue:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - value
+      properties:
+        state:
+          type: string
+          const: known
+        value:
+          type: string
+          minLength: 1
+          maxLength: 100
+    UnknownValue:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+      properties:
+        state:
+          type: string
+          const: unknown
+    GenealogicalDate:
+      oneOf:
+        - $ref: "#/components/schemas/UnknownValue"
+        - $ref: "#/components/schemas/KnownYear"
+        - $ref: "#/components/schemas/KnownMonth"
+        - $ref: "#/components/schemas/KnownDay"
+    KnownYear:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - precision
+        - year
+        - approximate
+      properties:
+        state:
+          type: string
+          const: known
+        precision:
+          type: string
+          const: year
+        year:
+          type: integer
+          minimum: 1582
+          maximum: 9999
+        approximate:
+          type: boolean
+    KnownMonth:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - precision
+        - year
+        - month
+        - approximate
+      properties:
+        state:
+          type: string
+          const: known
+        precision:
+          type: string
+          const: month
+        year:
+          type: integer
+          minimum: 1582
+          maximum: 9999
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        approximate:
+          type: boolean
+          const: false
+    KnownDay:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - precision
+        - year
+        - month
+        - day
+        - approximate
+      properties:
+        state:
+          type: string
+          const: known
+        precision:
+          type: string
+          const: day
+        year:
+          type: integer
+          minimum: 1582
+          maximum: 9999
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        day:
+          type: integer
+          minimum: 1
+          maximum: 31
+        approximate:
+          type: boolean
+          const: false
+    Gender:
+      type: string
+      enum:
+        - male
+        - female
+        - unknown
+    Coordinates:
+      type: object
+      additionalProperties: false
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+    PersonInput:
+      type: object
+      additionalProperties: false
+      required:
+        - birthSurname
+        - givenName
+        - patronymic
+        - gender
+        - birthDate
+        - deathDate
+      properties:
+        birthSurname:
+          $ref: "#/components/schemas/KnownText"
+        givenName:
+          $ref: "#/components/schemas/KnownText"
+        patronymic:
+          $ref: "#/components/schemas/KnownText"
+        gender:
+          $ref: "#/components/schemas/Gender"
+        birthDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        deathDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+    PersonPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        birthSurname:
+          $ref: "#/components/schemas/KnownText"
+        givenName:
+          $ref: "#/components/schemas/KnownText"
+        patronymic:
+          $ref: "#/components/schemas/KnownText"
+        gender:
+          $ref: "#/components/schemas/Gender"
+        birthDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        deathDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+    Person:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PersonInput"
+        - type: object
+          required:
+            - id
+            - photoThumbnailUrl
+            - coordinates
+            - createdAt
+            - updatedAt
+          properties:
+            id:
+              type: string
+              format: uuid
+            photoThumbnailUrl:
+              type:
+                - string
+                - "null"
+              format: uri-reference
+            coordinates:
+              $ref: "#/components/schemas/Coordinates"
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    TreeMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TreeSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - tree
+        - etag
+        - people
+        - parentLinks
+        - marriages
+      properties:
+        tree:
+          $ref: "#/components/schemas/TreeMetadata"
+        etag:
+          type: string
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+        parentLinks:
+          type: array
+          items:
+            type: object
+        marriages:
+          type: array
+          items:
+            type: object
+    CreateFirstPersonMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - person
+        - coordinates
+      properties:
+        type:
+          type: string
+          const: create_first_person
+        person:
+          $ref: "#/components/schemas/PersonInput"
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+    GenealogicalEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - personId
+        - type
+        - source
+        - date
+        - title
+        - description
+        - data
+        - sourceEntityType
+        - sourceEntityId
+        - manualOrder
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        personId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - birth
+            - death
+            - marriage
+            - surname_change
+            - divorce
+            - child_birth
+            - custom
+        source:
+          type: string
+          enum:
+            - automatic
+            - manual
+        date:
+          $ref: "#/components/schemas/GenealogicalDate"
+        title:
+          type:
+            - string
+            - "null"
+        description:
+          type:
+            - string
+            - "null"
+        data:
+          type: object
+          additionalProperties: true
+        sourceEntityType:
+          type:
+            - string
+            - "null"
+        sourceEntityId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        manualOrder:
+          type:
+            - integer
+            - "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    EventList:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenealogicalEvent"
     AuthResponse:
       type: object
       additionalProperties: false

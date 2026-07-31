@@ -68,4 +68,43 @@ final readonly class RequestBodyMapper
             $fields,
         );
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function decodeObject(Request $request): array
+    {
+        if ('json' !== $request->getContentTypeFormat()) {
+            throw new ApiException(
+                JsonResponse::HTTP_UNSUPPORTED_MEDIA_TYPE,
+                'UNSUPPORTED_MEDIA_TYPE',
+                'json_body_required',
+            );
+        }
+
+        try {
+            $payload = json_decode(
+                $request->getContent(),
+                true,
+                flags: JSON_THROW_ON_ERROR,
+            );
+        } catch (\JsonException $exception) {
+            throw new ApiException(
+                JsonResponse::HTTP_BAD_REQUEST,
+                'INVALID_REQUEST_BODY',
+                'invalid_request_body',
+                previous: $exception,
+            );
+        }
+
+        if (!is_array($payload) || array_is_list($payload)) {
+            throw new ApiException(
+                JsonResponse::HTTP_BAD_REQUEST,
+                'INVALID_REQUEST_BODY',
+                'json_object_required',
+            );
+        }
+
+        return $payload;
+    }
 }

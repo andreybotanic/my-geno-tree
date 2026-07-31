@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\FamilyTree;
+use App\Entity\Person;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -18,13 +19,21 @@ final class FamilyTreeRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return list<FamilyTree>
+     * @return list<array{0: FamilyTree, personCount: int|string}>
      */
-    public function findAllForOwner(User $owner): array
+    public function findAllWithPersonCountsForOwner(User $owner): array
     {
         return $this->createQueryBuilder('tree')
-            ->where('tree.owner = :owner')
+            ->select('tree', 'COUNT(person.id) AS personCount')
+            ->leftJoin(
+                Person::class,
+                'person',
+                'WITH',
+                'person.tree = tree',
+            )
+            ->andWhere('tree.owner = :owner')
             ->setParameter('owner', $owner)
+            ->groupBy('tree.id')
             ->orderBy('tree.updatedAt', 'DESC')
             ->addOrderBy('tree.id', 'DESC')
             ->getQuery()

@@ -4,11 +4,14 @@ namespace App\Api;
 
 use App\Entity\FamilyTree;
 use App\Application\Tree\TreeVersion;
+use App\Repository\PersonRepository;
 
 final readonly class FamilyTreeViewFactory
 {
-    public function __construct(private TreeVersion $versions)
-    {
+    public function __construct(
+        private TreeVersion $versions,
+        private PersonRepository $people,
+    ) {
     }
 
     /**
@@ -21,12 +24,16 @@ final readonly class FamilyTreeViewFactory
      *     etag: string
      * }
      */
-    public function create(FamilyTree $tree): array
+    public function create(
+        FamilyTree $tree,
+        ?int $personCount = null,
+    ): array
     {
         return [
             'id' => $tree->getId()->toRfc4122(),
             'name' => $tree->getName(),
-            'personCount' => 0,
+            'personCount' => $personCount
+                ?? $this->people->countForTree($tree),
             'createdAt' => $tree->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $tree->getUpdatedAt()->format(DATE_ATOM),
             'etag' => $this->versions->etag($tree),
