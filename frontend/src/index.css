@@ -7,6 +7,8 @@
   --color-text-muted: #68736f;
   --color-border: #dedfd8;
   --color-shadow: rgb(31 41 38 / 12%);
+  --color-backdrop: rgb(20 29 26 / 55%);
+  --shadow-dialog: 0 24px 80px rgb(20 29 26 / 24%);
   --color-placeholder: #a2aaa6;
   --color-graph-line: #697b73;
   --color-graph-marriage: #315f50;

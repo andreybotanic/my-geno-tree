@@ -16,10 +16,14 @@ describe('semantic design contracts', () => {
       '--color-placeholder',
       '--color-graph-line',
       '--color-shadow',
+      '--color-backdrop',
+      '--shadow-dialog',
     ]) {
       expect(tokens).toContain(`${token}:`)
       expect(appStyles).toContain(`var(${token})`)
     }
+
+    expect(appStyles).not.toMatch(/#[\da-f]{3,8}\b|(?:rgb|hsl)a?\(/i)
   })
 
   it('keeps the authenticated avatar inside the fixed-height header', () => {
