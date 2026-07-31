@@ -1,0 +1,59 @@
+name: my-geno-tree
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    working_dir: /srv/backend
+    environment:
+      DATABASE_URL: postgresql://mygenotree:${LOCAL_SERVICE_PASSWORD}@database:5432/mygenotree?serverVersion=18&charset=utf8
+    volumes:
+      - ./backend:/srv/backend
+      - media_storage:/srv/backend/var/storage
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    image: node:24.11.1-alpine
+    working_dir: /srv/frontend
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend:/srv/frontend
+      - ./openapi:/srv/openapi:ro
+
+  database:
+    image: postgres:18.0-alpine
+    environment:
+      POSTGRES_DB: mygenotree
+      POSTGRES_USER: mygenotree
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mygenotree -d mygenotree"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  proxy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./backend:/srv/backend:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+  media_storage:
+  caddy_data:
+  caddy_config:

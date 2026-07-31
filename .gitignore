@@ -1,0 +1,12 @@
+/.env
+/.idea/
+/.phpunit.cache/
+/backend/.env.local
+/backend/.env.*.local
+/backend/var/
+/backend/vendor/
+/frontend/dist/
+/frontend/coverage/
+/frontend/node_modules/
+/frontend/src/assets/hero.png
+/storage/

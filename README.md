@@ -1,0 +1,44 @@
+# MyGenoTree
+
+Local HTTPS MVP for creating and editing private genealogy trees.
+
+## Requirements
+
+- Docker Desktop with Docker Compose v2
+- a browser supported by the project specification
+
+No host PHP, Composer, Node.js, npm or PostgreSQL installation is required.
+
+## Start
+
+```bash
+docker compose build
+docker compose run --rm backend composer install
+docker compose run --rm frontend npm ci
+docker compose up -d
+docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
+```
+
+Open <https://localhost>.
+
+The reverse proxy creates a local development certificate on first start. To
+trust its certificate authority on Windows, export it and add it to the trusted
+root store:
+
+```powershell
+docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt .\mygenotree-local-ca.crt
+Import-Certificate -FilePath .\mygenotree-local-ca.crt -CertStoreLocation Cert:\CurrentUser\Root
+```
+
+The exported certificate can be deleted after it is trusted. The certificate
+authority and application data are retained in named Docker volumes and are not
+committed to Git.
+
+## Development commands
+
+Run all application tooling inside its service container:
+
+```bash
+docker compose exec backend composer test
+docker compose exec frontend npm test
+```
