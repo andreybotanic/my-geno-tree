@@ -1,4 +1,4 @@
-FROM php:8.5.0-fpm-bookworm
+FROM php:8.5.8-fpm-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -17,7 +17,13 @@ RUN apt-get update \
     && docker-php-ext-enable pcov \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=composer:2.8.12 /usr/bin/composer /usr/local/bin/composer
+COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer
+COPY docker/backend/entrypoint.sh /usr/local/bin/mygenotree-entrypoint
+
+RUN chmod +x /usr/local/bin/mygenotree-entrypoint
+
+ENTRYPOINT ["mygenotree-entrypoint"]
+CMD ["php-fpm"]
 
 WORKDIR /srv/backend
 

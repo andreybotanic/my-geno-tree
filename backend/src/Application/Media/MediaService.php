@@ -199,6 +199,7 @@ final readonly class MediaService
         }
         $media = $attachment->getMedia();
         $person->detachPhoto($changedAt);
+        $this->entityManager->remove($attachment);
         $this->entityManager->remove($media);
 
         return $media;
@@ -210,6 +211,7 @@ final readonly class MediaService
         $media = [];
         foreach ($this->attachments->findAllForTree($tree) as $attachment) {
             $media[] = $attachment->getMedia();
+            $this->entityManager->remove($attachment);
             $this->entityManager->remove($attachment->getMedia());
         }
 
@@ -234,6 +236,7 @@ final readonly class MediaService
         }
         $media = $attachment->getMedia();
         $user->detachAvatar($changedAt);
+        $this->entityManager->remove($attachment);
         $this->entityManager->remove($media);
 
         return $media;

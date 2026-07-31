@@ -22,6 +22,7 @@ final class MediaApiTest extends ApiWebTestCase
         $profile = $this->responseData();
         self::assertIsString($profile['avatarUrl']);
         self::assertStringContainsString('/me/avatar?media=', $profile['avatarUrl']);
+        self::assertSame(1, $this->mediaObjectCount());
 
         $this->authenticatedRequest('GET', '/api/v1'.$profile['avatarUrl'], $token);
         self::assertResponseIsSuccessful();
@@ -45,11 +46,13 @@ final class MediaApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         self::assertFalse($this->storage()->fileExists($oldPath));
         $newPath = $this->singleStoragePath($user['id']);
+        self::assertSame(1, $this->mediaObjectCount());
 
         $this->authenticatedRequest('DELETE', '/api/v1/me/avatar', $token);
         self::assertResponseIsSuccessful();
         self::assertNull($this->responseData()['avatarUrl']);
         self::assertFalse($this->storage()->fileExists($newPath));
+        self::assertSame(0, $this->mediaObjectCount());
 
         $this->authenticatedRequest('GET', '/api/v1/me/avatar', $token);
         self::assertResponseStatusCodeSame(404);
@@ -108,18 +111,36 @@ final class MediaApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(412);
         self::assertSame($paths, $this->storagePathsForPerson($person['id']));
 
+        $this->upload(
+            $path,
+            $token,
+            $photo,
+            ['cropX' => 15, 'cropY' => 20, 'cropWidth' => 90, 'cropHeight' => 120],
+            $uploaded['etag'],
+        );
+        self::assertResponseIsSuccessful();
+        $replaced = $this->responseData();
+        $replacementPaths = $this->storagePathsForPerson($person['id']);
+        self::assertCount(3, $replacementPaths);
+        self::assertNotSame($paths, $replacementPaths);
+        foreach ($paths as $storedPath) {
+            self::assertFalse($this->storage()->fileExists($storedPath));
+        }
+        self::assertSame(1, $this->mediaObjectCount());
+
         $this->authenticatedRequest(
             'DELETE',
             $path,
             $token,
-            $uploaded['etag'],
+            $replaced['etag'],
         );
         self::assertResponseIsSuccessful();
         $deleted = $this->responseData();
         self::assertNull($deleted['person']['photoThumbnailUrl']);
-        foreach ($paths as $storedPath) {
+        foreach ($replacementPaths as $storedPath) {
             self::assertFalse($this->storage()->fileExists($storedPath));
         }
+        self::assertSame(0, $this->mediaObjectCount());
     }
 
     public function testTreeDeletionRemovesPhotoFiles(): void
@@ -151,6 +172,7 @@ final class MediaApiTest extends ApiWebTestCase
         foreach ($storedPaths as $storedPath) {
             self::assertFalse($this->storage()->fileExists($storedPath));
         }
+        self::assertSame(0, $this->mediaObjectCount());
     }
 
     public function testPersonDeletionRemovesPhotoFiles(): void
@@ -191,6 +213,7 @@ final class MediaApiTest extends ApiWebTestCase
         foreach ($storedPaths as $storedPath) {
             self::assertFalse($this->storage()->fileExists($storedPath));
         }
+        self::assertSame(0, $this->mediaObjectCount());
     }
 
     public function testInvalidImageContentSizeAnimationAndCropAreRejected(): void
@@ -430,6 +453,18 @@ final class MediaApiTest extends ApiWebTestCase
         self::assertInstanceOf(FilesystemOperator::class, $storage);
 
         return $storage;
+    }
+
+    private function mediaObjectCount(): int
+    {
+        $connection = static::getContainer()->get(
+            'doctrine.dbal.default_connection',
+        );
+        self::assertInstanceOf(\Doctrine\DBAL\Connection::class, $connection);
+
+        return (int) $connection->fetchOne(
+            'SELECT COUNT(*) FROM media_object',
+        );
     }
 
     private function singleStoragePath(string $userId): string
