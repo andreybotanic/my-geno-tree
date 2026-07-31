@@ -154,6 +154,16 @@ function renderEditor(request: AuthorizedJsonRequest) {
   )
 }
 
+async function activateUnpressedUnknownButtons(container: HTMLElement) {
+  for (const button of within(container).getAllByRole('button', {
+    name: 'Unknown',
+  })) {
+    if (button.getAttribute('aria-pressed') === 'false') {
+      await userEvent.click(button)
+    }
+  }
+}
+
 describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
@@ -181,6 +191,7 @@ describe('TreeEditorPage', () => {
     const dialog = screen.getByRole('dialog', {
       name: 'Create the first person',
     })
+    await activateUnpressedUnknownButtons(dialog)
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )
@@ -589,6 +600,7 @@ describe('TreeEditorPage', () => {
     await screen.findByRole('complementary', { name: 'Person details' })
     await userEvent.click(screen.getByRole('button', { name: 'Add father' }))
     const dialog = screen.getByRole('dialog', { name: 'Add father' })
+    await activateUnpressedUnknownButtons(dialog)
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )
@@ -761,6 +773,7 @@ describe('TreeEditorPage', () => {
     await screen.findByRole('complementary', { name: 'Person details' })
     await userEvent.click(screen.getByRole('button', { name: 'Add mother' }))
     const dialog = screen.getByRole('dialog', { name: 'Add mother' })
+    await activateUnpressedUnknownButtons(dialog)
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )

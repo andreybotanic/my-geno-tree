@@ -1155,6 +1155,7 @@
 .person-select-field input:not([type="checkbox"]),
 .person-select-field select,
 .person-select-field textarea,
+.person-text-field input,
 .person-fieldset input:not([type="checkbox"]),
 .date-controls select {
   background: var(--color-surface);
@@ -1368,6 +1369,7 @@
 }
 
 .person-fieldset legend,
+.person-field-label,
 .person-select-field > span {
   color: var(--color-text);
   font-size: 0.78rem;
@@ -1375,7 +1377,8 @@
 }
 
 .unknown-toggle,
-.deceased-toggle {
+.deceased-toggle,
+.approximate-toggle {
   align-items: center;
   color: var(--color-text-muted);
   display: flex;
@@ -1383,8 +1386,14 @@
   gap: 7px;
 }
 
+.person-text-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 .unknown-field-control {
-  align-items: start;
+  align-items: center;
   display: grid;
   gap: 7px;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1398,36 +1407,31 @@
   color: var(--color-text-muted);
   cursor: pointer;
   display: inline-flex;
-  height: 28px;
+  height: 36px;
   justify-content: center;
   padding: 0;
-  width: 28px;
+  width: 36px;
 }
 
 .unknown-toggle-button:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--color-state-neutral);
+  color: var(--color-text-strong);
 }
 
 .unknown-toggle-button[aria-pressed="true"] {
-  background: var(--color-state-success-soft);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: var(--color-background);
+  border-color: var(--color-state-neutral);
+  color: var(--color-text-strong);
 }
 
 .unknown-toggle-button svg {
   fill: none;
-  height: 17px;
+  height: 18px;
   stroke: currentcolor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.35;
-  width: 17px;
-}
-
-.unknown-toggle-button .unknown-toggle-dot {
-  fill: currentcolor;
-  stroke: none;
+  width: 18px;
 }
 
 .unknown-field-control input:disabled,
@@ -1440,7 +1444,15 @@
 }
 
 .date-field-control {
-  align-items: start;
+  display: grid;
+  gap: 8px;
+}
+
+.date-input-row {
+  align-items: end;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .person-select-field {
@@ -1485,12 +1497,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.date-controls label {
+.date-controls > label {
   display: grid;
   gap: 4px;
 }
 
-.date-controls label > span {
+.date-controls > label > span {
   color: var(--color-text-muted);
   font-size: 0.69rem;
 }
@@ -1498,6 +1510,19 @@
 .deceased-toggle {
   align-self: center;
   min-height: 42px;
+}
+
+.approximate-toggle {
+  justify-self: start;
+  line-height: 1;
+}
+
+.death-date-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
 }
 
 .react-flow__node {

@@ -75,6 +75,13 @@ describe('RelativeDialog', () => {
       }),
       ' Newwoman ',
     )
+    for (const button of within(dialog).getAllByRole('button', {
+      name: 'Unknown',
+    })) {
+      if (button.getAttribute('aria-pressed') === 'false') {
+        await userEvent.click(button)
+      }
+    }
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )

@@ -5,6 +5,16 @@ import { ApiRequestError } from '../api/client'
 import i18n from '../i18n'
 import { PersonFormDialog } from './PersonFormDialog'
 
+async function activateUnpressedUnknownButtons(container: HTMLElement) {
+  for (const button of within(container).getAllByRole('button', {
+    name: 'Unknown',
+  })) {
+    if (button.getAttribute('aria-pressed') === 'false') {
+      await userEvent.click(button)
+    }
+  }
+}
+
 describe('PersonFormDialog', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en')
@@ -26,13 +36,21 @@ describe('PersonFormDialog', () => {
       name: 'Birth surname',
     })
     expect(surnameUnknown).toHaveAttribute('title', 'Unknown')
-    expect(surnameUnknown).toHaveAttribute('aria-pressed', 'true')
-    expect(surnameInput).toBeDisabled()
-    await userEvent.click(surnameUnknown)
+    expect(surnameUnknown).toHaveAttribute('aria-pressed', 'false')
     expect(surnameInput).toBeEnabled()
+    expect(surname).toHaveClass('person-text-field')
+    expect(surname.tagName).toBe('DIV')
     await userEvent.type(
       surnameInput,
       ' Ivanova ',
+    )
+    await userEvent.click(
+      within(dialog).getByRole('group', { name: 'Given name' })
+        .querySelector('button') as HTMLButtonElement,
+    )
+    await userEvent.click(
+      within(dialog).getByRole('group', { name: 'Patronymic' })
+        .querySelector('button') as HTMLButtonElement,
     )
     await userEvent.selectOptions(
       within(dialog).getByRole('combobox', { name: 'Gender' }),
@@ -40,8 +58,11 @@ describe('PersonFormDialog', () => {
     )
 
     const birth = within(dialog).getByRole('group', { name: 'Birth date' })
-    await userEvent.click(
-      within(birth).getByRole('button', { name: 'Unknown' }),
+    const approximate = within(birth).getByRole('checkbox', {
+      name: 'Approximately',
+    })
+    expect(approximate.closest('label')).toContainElement(
+      within(birth).getByText('Approximately'),
     )
     await userEvent.selectOptions(
       within(birth).getByRole('combobox', { name: 'Birth date: Precision' }),
@@ -60,9 +81,10 @@ describe('PersonFormDialog', () => {
       within(dialog).getByRole('checkbox', { name: 'Deceased' }),
     )
     const death = within(dialog).getByRole('group', { name: 'Death date' })
-    await userEvent.click(
-      within(death).getByRole('button', { name: 'Unknown' }),
-    )
+    const deceased = within(dialog).getByRole('checkbox', {
+      name: 'Deceased',
+    })
+    expect(deceased.closest('.death-date-row')).toContainElement(death)
     await userEvent.selectOptions(
       within(death).getByRole('combobox', { name: 'Death date: Precision' }),
       'day',
@@ -107,10 +129,6 @@ describe('PersonFormDialog', () => {
   it('keeps the dialog open for invalid known input', async () => {
     const onSave = vi.fn(async () => {})
     render(<PersonFormDialog onCancel={vi.fn()} onSave={onSave} />)
-    const surname = screen.getByRole('group', { name: 'Birth surname' })
-    await userEvent.click(
-      within(surname).getByRole('button', { name: 'Unknown' }),
-    )
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -136,6 +154,9 @@ describe('PersonFormDialog', () => {
     })
     render(<PersonFormDialog onCancel={vi.fn()} onSave={onSave} />)
 
+    await activateUnpressedUnknownButtons(
+      screen.getByRole('dialog', { name: 'Create the first person' }),
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message)

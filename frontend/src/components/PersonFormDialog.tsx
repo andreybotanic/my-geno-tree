@@ -17,7 +17,11 @@ type TextInputState = {
   value: string
 }
 
-const unknownText = (): TextInputState => ({ unknown: true, value: '' })
+const emptyText = (): TextInputState => ({ unknown: false, value: '' })
+const emptyDate = (): DateInputState => ({
+  ...unknownDate(),
+  unknown: false,
+})
 
 function textValue(state: TextInputState): KnownText | null {
   const value = state.value.trim()
@@ -31,12 +35,14 @@ function textValue(state: TextInputState): KnownText | null {
 }
 
 type KnownTextInputProps = {
+  autoFocus?: boolean
   label: string
   onChange: (state: TextInputState) => void
   state: TextInputState
 }
 
 function KnownTextInput({
+  autoFocus = false,
   label,
   onChange,
   state,
@@ -44,12 +50,12 @@ function KnownTextInput({
   const { t } = useTranslation()
 
   return (
-    <fieldset className="person-fieldset">
-      <legend>{label}</legend>
+    <div aria-label={label} className="person-text-field" role="group">
+      <span className="person-field-label">{label}</span>
       <div className="unknown-field-control">
         <input
           aria-label={label}
-          autoFocus={!state.unknown}
+          autoFocus={autoFocus && !state.unknown}
           disabled={state.unknown}
           maxLength={101}
           onChange={(event) => onChange({
@@ -67,7 +73,7 @@ function KnownTextInput({
           title={t('person.unknown')}
         />
       </div>
-    </fieldset>
+    </div>
   )
 }
 
@@ -87,108 +93,110 @@ export function StructuredDateInput({
   return (
     <fieldset className="person-fieldset date-fieldset">
       <legend>{label}</legend>
-      <div className="unknown-field-control date-field-control">
-        <div className="date-controls">
-          <label>
-            <span>{t('person.precision')}</span>
-            <select
-              aria-label={`${label}: ${t('person.precision')}`}
-              disabled={state.unknown}
-              onChange={(event) => onChange({
-                ...state,
-                approximate: event.target.value === 'year'
-                  ? state.approximate
-                  : false,
-                precision: event.target.value as DateInputState['precision'],
-              })}
-              value={state.precision}
-            >
-              <option value="year">{t('person.year')}</option>
-              <option value="month">{t('person.month')}</option>
-              <option value="day">{t('person.day')}</option>
-            </select>
-          </label>
-          <label>
-            <span>{t('person.year')}</span>
-            <input
-              aria-label={`${label}: ${t('person.year')}`}
-              disabled={state.unknown}
-              inputMode="numeric"
-              max="9999"
-              min="1582"
-              onChange={(event) => onChange({
-                ...state,
-                year: event.target.value,
-              })}
-              type="number"
-              value={state.year}
-            />
-          </label>
-          {state.precision !== 'year' && (
+      <div className="date-field-control">
+        <div className="date-input-row">
+          <div className="date-controls">
             <label>
-              <span>{t('person.month')}</span>
+              <span>{t('person.precision')}</span>
+              <select
+                aria-label={`${label}: ${t('person.precision')}`}
+                disabled={state.unknown}
+                onChange={(event) => onChange({
+                  ...state,
+                  approximate: event.target.value === 'year'
+                    ? state.approximate
+                    : false,
+                  precision: event.target.value as DateInputState['precision'],
+                })}
+                value={state.precision}
+              >
+                <option value="year">{t('person.year')}</option>
+                <option value="month">{t('person.month')}</option>
+                <option value="day">{t('person.day')}</option>
+              </select>
+            </label>
+            <label>
+              <span>{t('person.year')}</span>
               <input
-                aria-label={`${label}: ${t('person.month')}`}
+                aria-label={`${label}: ${t('person.year')}`}
                 disabled={state.unknown}
                 inputMode="numeric"
-                max="12"
-                min="1"
+                max="9999"
+                min="1582"
                 onChange={(event) => onChange({
                   ...state,
-                  month: event.target.value,
+                  year: event.target.value,
                 })}
                 type="number"
-                value={state.month}
+                value={state.year}
               />
             </label>
-          )}
-          {state.precision === 'day' && (
-            <label>
-              <span>{t('person.day')}</span>
-              <input
-                aria-label={`${label}: ${t('person.day')}`}
-                disabled={state.unknown}
-                inputMode="numeric"
-                max="31"
-                min="1"
-                onChange={(event) => onChange({
+            {state.precision !== 'year' && (
+              <label>
+                <span>{t('person.month')}</span>
+                <input
+                  aria-label={`${label}: ${t('person.month')}`}
+                  disabled={state.unknown}
+                  inputMode="numeric"
+                  max="12"
+                  min="1"
+                  onChange={(event) => onChange({
+                    ...state,
+                    month: event.target.value,
+                  })}
+                  type="number"
+                  value={state.month}
+                />
+              </label>
+            )}
+            {state.precision === 'day' && (
+              <label>
+                <span>{t('person.day')}</span>
+                <input
+                  aria-label={`${label}: ${t('person.day')}`}
+                  disabled={state.unknown}
+                  inputMode="numeric"
+                  max="31"
+                  min="1"
+                  onChange={(event) => onChange({
+                    ...state,
+                    day: event.target.value,
+                  })}
+                  type="number"
+                  value={state.day}
+                />
+              </label>
+            )}
+          </div>
+          <UnknownToggleButton
+            active={state.unknown}
+            onChange={(unknown) => onChange(unknown
+              ? {
                   ...state,
-                  day: event.target.value,
-                })}
-                type="number"
-                value={state.day}
-              />
-            </label>
-          )}
-          {state.precision === 'year' && (
-            <label className="unknown-toggle">
-              <input
-                checked={state.approximate}
-                disabled={state.unknown}
-                onChange={(event) => onChange({
-                  ...state,
-                  approximate: event.target.checked,
-                })}
-                type="checkbox"
-              />
-              {t('person.approximate')}
-            </label>
-          )}
+                  approximate: false,
+                  day: '',
+                  month: '',
+                  unknown: true,
+                  year: '',
+                }
+              : { ...state, unknown: false })}
+            title={t('person.unknown')}
+          />
         </div>
-        <UnknownToggleButton
-          active={state.unknown}
-          onChange={(unknown) => onChange(unknown
-            ? {
+        {state.precision === 'year' && (
+          <label className="approximate-toggle">
+            <input
+              checked={state.approximate}
+              disabled={state.unknown}
+              onChange={(event) => onChange({
                 ...state,
-                approximate: false,
-                day: '',
-                month: '',
-                unknown: true,
-                year: '',
-              }
-            : { ...state, unknown: false })}
-          title={t('person.unknown')}
-        />
+                approximate: event.target.checked,
+              })}
+              type="checkbox"
+            />
+            <span>{t('person.approximate')}</span>
+          </label>
+        )}
       </div>
     </fieldset>
   )
@@ -208,12 +216,12 @@ export function PersonFormDialog({
   title,
 }: PersonFormDialogProps) {
   const { t } = useTranslation()
-  const [birthSurname, setBirthSurname] = useState(unknownText)
-  const [givenName, setGivenName] = useState(unknownText)
-  const [patronymic, setPatronymic] = useState(unknownText)
+  const [birthSurname, setBirthSurname] = useState(emptyText)
+  const [givenName, setGivenName] = useState(emptyText)
+  const [patronymic, setPatronymic] = useState(emptyText)
   const [gender, setGender] = useState<PersonInput['gender']>('unknown')
-  const [birthDate, setBirthDate] = useState(unknownDate)
-  const [deathDate, setDeathDate] = useState(unknownDate)
+  const [birthDate, setBirthDate] = useState(emptyDate)
+  const [deathDate, setDeathDate] = useState(emptyDate)
   const [deceased, setDeceased] = useState(false)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -271,6 +279,7 @@ export function PersonFormDialog({
         <form onSubmit={submit}>
           <div className="person-form-grid">
             <KnownTextInput
+              autoFocus
               label={t('person.birthSurname')}
               onChange={setBirthSurname}
               state={birthSurname}
@@ -303,21 +312,23 @@ export function PersonFormDialog({
               onChange={setBirthDate}
               state={birthDate}
             />
-            <label className="deceased-toggle">
-              <input
-                checked={deceased}
-                onChange={(event) => setDeceased(event.target.checked)}
-                type="checkbox"
-              />
-              {t('person.deceased')}
-            </label>
-            {deceased && (
-              <StructuredDateInput
-                label={t('person.deathDate')}
-                onChange={setDeathDate}
-                state={deathDate}
-              />
-            )}
+            <div className="death-date-row">
+              <label className="deceased-toggle">
+                <input
+                  checked={deceased}
+                  onChange={(event) => setDeceased(event.target.checked)}
+                  type="checkbox"
+                />
+                {t('person.deceased')}
+              </label>
+              {deceased && (
+                <StructuredDateInput
+                  label={t('person.deathDate')}
+                  onChange={setDeathDate}
+                  state={deathDate}
+                />
+              )}
+            </div>
             {children}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
