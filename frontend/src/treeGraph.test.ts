@@ -312,7 +312,7 @@ describe('tree graph presentation', () => {
     )
   })
 
-  it('offsets partner brackets to opposite sides of their shared person', () => {
+  it('keeps brackets to opposite sides of a shared person at the base height', () => {
     const tree = snapshot(
       [
         person('left-partner', -320, 0),
@@ -345,12 +345,12 @@ describe('tree graph presentation', () => {
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
     expect(edges.get('family:centre:left-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ targetOffset: -16 }),
+        data: expect.objectContaining({ bracketDepth: 24, targetOffset: -16 }),
       }),
     )
     expect(edges.get('family:centre:right-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ sourceOffset: 16 }),
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 16 }),
       }),
     )
   })
@@ -398,7 +398,7 @@ describe('tree graph presentation', () => {
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
     expect(edges.get('family:centre:far-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 60, sourceOffset: 0 }),
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 0 }),
       }),
     )
     expect(edges.get('family:centre:left-partner')).toEqual(
@@ -408,7 +408,7 @@ describe('tree graph presentation', () => {
     )
     expect(edges.get('family:centre:near-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 32 }),
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 32 }),
       }),
     )
   })

@@ -67,6 +67,8 @@ type PartnerOutletLayout = {
   offset: number
 }
 
+type PartnerSide = 'left' | 'right'
+
 export function buildTreeEdges(
   snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks' | 'marriages'>,
 ): TreeFlowEdge[] {
@@ -155,11 +157,16 @@ export function buildTreeEdges(
     }
   }
   const outletLayout = new Map<string, PartnerOutletLayout>()
+  const partnerSide = (outlet: PartnerOutlet): PartnerSide => (
+    outlet.partnerX < (people.get(outlet.personId)?.coordinates.x ?? 0)
+      ? 'left'
+      : 'right'
+  )
   for (const outlets of outletsByPerson.values()) {
     outlets
       .sort((first, second) => (
-        (first.partnerX < (people.get(first.personId)?.coordinates.x ?? 0) ? -1 : 1)
-        - (second.partnerX < (people.get(second.personId)?.coordinates.x ?? 0) ? -1 : 1)
+        (partnerSide(first) === 'left' ? -1 : 1)
+        - (partnerSide(second) === 'left' ? -1 : 1)
         || second.partnerX - first.partnerX
         || first.familyKey.localeCompare(second.familyKey)
       ))
@@ -184,22 +191,25 @@ export function buildTreeEdges(
     )
   }
   for (const outlets of outletsByPerson.values()) {
-    outlets
-      .sort((first, second) => (
-        bracketLength(first) - bracketLength(second)
-        || first.familyKey.localeCompare(second.familyKey)
-      ))
-      .forEach((outlet, index) => {
-        const outletKey = `${outlet.familyKey}:${outlet.personId}`
-        const layout = outletLayout.get(outletKey)
-        if (!layout) {
-          return
-        }
-        outletLayout.set(outletKey, {
-          ...layout,
-          bracketDepth: 24 + index * 18,
+    for (const side of ['left', 'right'] as const) {
+      outlets
+        .filter((outlet) => partnerSide(outlet) === side)
+        .sort((first, second) => (
+          bracketLength(first) - bracketLength(second)
+          || first.familyKey.localeCompare(second.familyKey)
+        ))
+        .forEach((outlet, index) => {
+          const outletKey = `${outlet.familyKey}:${outlet.personId}`
+          const layout = outletLayout.get(outletKey)
+          if (!layout) {
+            return
+          }
+          outletLayout.set(outletKey, {
+            ...layout,
+            bracketDepth: 24 + index * 18,
+          })
         })
-      })
+    }
   }
 
   for (const [key, family] of families) {
