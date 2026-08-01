@@ -399,39 +399,69 @@ export function reflowTree(
     families.set(key, family)
   }
 
-  if (options.compact) {
-    const rootRows = new Map<number, string[]>()
-    for (const person of snapshot.people) {
-      const hasKnownParent = (parentsByChild.get(person.id) ?? [])
-        .some((parentId) => people.has(parentId))
-      if (hasKnownParent) {
-        continue
-      }
-      const roots = rootRows.get(person.coordinates.y) ?? []
-      roots.push(person.id)
-      rootRows.set(person.coordinates.y, roots)
+  const rootRows = new Map<number, string[]>()
+  for (const person of snapshot.people) {
+    const hasKnownParent = (parentsByChild.get(person.id) ?? [])
+      .some((parentId) => people.has(parentId))
+    if (hasKnownParent) {
+      continue
     }
-    for (const rootIds of rootRows.values()) {
-      rootIds
-        .sort((first, second) => (
-          (positions.get(first)?.x ?? 0) - (positions.get(second)?.x ?? 0)
-          || first.localeCompare(second)
-        ))
-        .forEach((personId, index) => {
-          const position = positions.get(personId)
-          if (position) {
-            positions.set(personId, { ...position, x: index * HORIZONTAL_STEP })
-          }
-        })
-    }
+    const roots = rootRows.get(person.coordinates.y) ?? []
+    roots.push(person.id)
+    rootRows.set(person.coordinates.y, roots)
   }
-
   const rootFamilyBlocks = arrangeRootFamilyBlocks(
     snapshot.people,
     parentsByChild,
     familyPairs,
     positions,
   )
+  const rootOrder = new Map<string, number>()
+  for (const rootIds of rootRows.values()) {
+    const originalRoots = [...rootIds].sort((first, second) => (
+      (people.get(first)?.coordinates.x ?? 0) - (people.get(second)?.coordinates.x ?? 0)
+      || first.localeCompare(second)
+    ))
+    const originalIndex = new Map(originalRoots.map((personId, index) => [
+      personId,
+      index,
+    ]))
+    const seen = new Set<string>()
+    const orderedRoots = originalRoots.flatMap((rootId) => {
+      if (seen.has(rootId)) {
+        return []
+      }
+      const block = (rootFamilyBlocks.get(rootId) ?? [rootId])
+        .filter((personId) => originalIndex.has(personId))
+        .sort((first, second) => (
+          (originalIndex.get(first) ?? 0) - (originalIndex.get(second) ?? 0)
+        ))
+      block.forEach((personId) => seen.add(personId))
+
+      return block
+    })
+    orderedRoots.forEach((personId, index) => rootOrder.set(personId, index))
+  }
+  const rootIds = new Set([...rootRows.values()].flat())
+  const compactRootRows = () => {
+    for (const rootIds of rootRows.values()) {
+      const orderedRoots = [...rootIds].sort((first, second) => (
+        (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
+      ))
+      const firstX = options.compact
+        ? 0
+        : (positions.get(orderedRoots[0] ?? '')?.x ?? 0)
+      orderedRoots.forEach((personId, index) => {
+        const position = positions.get(personId)
+        if (position) {
+          positions.set(personId, {
+            ...position,
+            x: firstX + index * HORIZONTAL_STEP,
+          })
+        }
+      })
+    }
+  }
 
   const orderedFamilies = [...families.values()]
     .sort((first, second) => (
@@ -463,39 +493,6 @@ export function reflowTree(
       })
     })
   }
-  const compactParentPairs = () => {
-    const partnerCounts = new Map<string, number>()
-    for (const [firstId, secondId] of familyPairs) {
-      partnerCounts.set(firstId, (partnerCounts.get(firstId) ?? 0) + 1)
-      partnerCounts.set(secondId, (partnerCounts.get(secondId) ?? 0) + 1)
-    }
-    orderedFamilies.forEach((family) => {
-      if (family.parentIds.length !== 2) {
-        return
-      }
-      const [firstId, secondId] = family.parentIds
-      if (!firstId || !secondId) {
-        return
-      }
-      const first = positions.get(firstId)
-      const second = positions.get(secondId)
-      if (
-        !first
-        || !second
-        || (partnerCounts.get(firstId) ?? 0) !== 1
-        || (partnerCounts.get(secondId) ?? 0) !== 1
-        || Math.abs(first.x - second.x) <= HORIZONTAL_STEP
-      ) {
-        return
-      }
-      const [leftId, rightId, left, right] = first.x <= second.x
-        ? [firstId, secondId, first, second]
-        : [secondId, firstId, second, first]
-      const centreX = (left.x + right.x) / 2
-      positions.set(leftId, { ...left, x: centreX - HORIZONTAL_STEP / 2 })
-      positions.set(rightId, { ...right, x: centreX + HORIZONTAL_STEP / 2 })
-    })
-  }
   const ancestors = (personId: string): Map<string, number> => {
     const result = new Map<string, number>()
     const visit = (id: string, distance: number) => {
@@ -513,6 +510,37 @@ export function reflowTree(
     visit(personId, 0)
     return result
   }
+  const partnersByPerson = new Map<string, Set<string>>()
+  for (const [firstId, secondId] of familyPairs) {
+    const firstPartners = partnersByPerson.get(firstId) ?? new Set<string>()
+    firstPartners.add(secondId)
+    partnersByPerson.set(firstId, firstPartners)
+    const secondPartners = partnersByPerson.get(secondId) ?? new Set<string>()
+    secondPartners.add(firstId)
+    partnersByPerson.set(secondId, secondPartners)
+  }
+  const childrenByParent = new Map<string, Set<string>>()
+  for (const link of snapshot.parentLinks) {
+    const children = childrenByParent.get(link.parentId) ?? new Set<string>()
+    children.add(link.childId)
+    childrenByParent.set(link.parentId, children)
+  }
+  const belongsToDirectFamily = (personId: string, childId: string) => (
+    (parentsByChild.get(childId) ?? []).some((parentId) => (
+      parentId === personId || partnersByPerson.get(parentId)?.has(personId)
+    ))
+  )
+  const isPartnerOfDirectChild = (personId: string, parentId: string) => (
+    [...(childrenByParent.get(parentId) ?? [])].some((childId) => (
+      partnersByPerson.get(childId)?.has(personId)
+    ))
+  )
+  const mayShareVerticalSpace = (firstId: string, secondId: string) => (
+    belongsToDirectFamily(firstId, secondId)
+    || belongsToDirectFamily(secondId, firstId)
+    || isPartnerOfDirectChild(firstId, secondId)
+    || isPartnerOfDirectChild(secondId, firstId)
+  )
   const overlappingPair = (): [string, string] | undefined => {
     const orderedPeople = [...positions.entries()]
       .sort(([, first], [, second]) => first.x - second.x || first.y - second.y)
@@ -523,15 +551,46 @@ export function reflowTree(
         if (position.x - previousPosition.x >= PERSON_CARD_WIDTH + 40) {
           break
         }
-        if (Math.abs(position.y - previousPosition.y) < PERSON_CARD_HEIGHT + 40) {
+        const verticalDistance = Math.abs(position.y - previousPosition.y)
+        if (
+          verticalDistance < PERSON_CARD_HEIGHT + 40
+          || (
+            verticalDistance === VERTICAL_STEP
+            && rootIds.has(
+              position.y < previousPosition.y ? personId : previousId,
+            )
+            && !mayShareVerticalSpace(previousId, personId)
+          )
+        ) {
           return [previousId, personId]
         }
       }
     }
     return undefined
   }
+  const shiftRootSuffix = (rootId: string, shift: number) => {
+    const root = positions.get(rootId)
+    if (!root) {
+      return false
+    }
+    const orderedRoots = [...(rootRows.get(root.y) ?? [])].sort((first, second) => (
+      (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
+    ))
+    const rootIndex = orderedRoots.indexOf(rootId)
+    if (rootIndex === -1) {
+      return false
+    }
+    orderedRoots.slice(rootIndex).forEach((personId) => {
+      const position = positions.get(personId)
+      if (position) {
+        positions.set(personId, { ...position, x: position.x + shift })
+      }
+    })
 
-  compactParentPairs()
+    return true
+  }
+
+  compactRootRows()
   alignFamilies()
   for (let attempt = 0; attempt < snapshot.people.length * 2; attempt += 1) {
     const pair = overlappingPair()
@@ -546,27 +605,24 @@ export function reflowTree(
     ))
     const candidate = roots
       .filter(([personId]) => !leftAncestors.has(personId))
-      .sort(([, firstDistance], [, secondDistance]) => firstDistance - secondDistance)[0]
+      .sort(([firstId, firstDistance], [secondId, secondDistance]) => (
+        firstDistance - secondDistance
+        || (positions.get(firstId)?.x ?? 0) - (positions.get(secondId)?.x ?? 0)
+        || firstId.localeCompare(secondId)
+      ))[0]
       ?? roots
-        .sort(([, firstDistance], [, secondDistance]) => firstDistance - secondDistance)[0]
+        .sort(([firstId, firstDistance], [secondId, secondDistance]) => (
+          firstDistance - secondDistance
+          || (positions.get(firstId)?.x ?? 0) - (positions.get(secondId)?.x ?? 0)
+          || firstId.localeCompare(secondId)
+        ))[0]
     if (candidate === undefined) {
       break
     }
-    const [rootId, distance] = candidate
-    const rootBlock = rootFamilyBlocks.get(rootId) ?? [rootId]
-    if (rootBlock.some((personId) => !positions.has(personId))) {
+    const [rootId] = candidate
+    if (!shiftRootSuffix(rootId, HORIZONTAL_STEP)) {
       break
     }
-    const shift = HORIZONTAL_STEP * 2 ** Math.min(distance, 3)
-    rootBlock.forEach((personId) => {
-      const rootPosition = positions.get(personId)
-      if (rootPosition) {
-        positions.set(personId, {
-          ...rootPosition,
-          x: rootPosition.x + shift,
-        })
-      }
-    })
     alignFamilies()
   }
 

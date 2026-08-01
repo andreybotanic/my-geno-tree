@@ -211,8 +211,127 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'mother', coordinates: { x: 160, y: 0 } },
-      { personId: 'father', coordinates: { x: 480, y: 0 } },
+      { personId: 'father', coordinates: { x: 320, y: 0 } },
+      { personId: 'first-child', coordinates: { x: -160, y: 240 } },
+      { personId: 'second-child', coordinates: { x: 160, y: 240 } },
+      { personId: 'third-child', coordinates: { x: 480, y: 240 } },
+    ])
+  })
+
+  it('compacts a multi-spouse family until children from different unions meet', () => {
+    const tree = snapshot(
+      [
+        person('first-spouse', -320, -240),
+        person('shared-parent', 320, -240),
+        person('second-spouse', 640, -240),
+        person('third-spouse', 1680, -240),
+        person('first-child', 0, 0),
+        person('second-child', 480, 0),
+        person('third-child', 1000, 0),
+      ],
+      [
+        { id: 'first-parent', parentId: 'first-spouse', childId: 'first-child', role: 'father' },
+        { id: 'shared-first', parentId: 'shared-parent', childId: 'first-child', role: 'mother' },
+        { id: 'shared-second', parentId: 'shared-parent', childId: 'second-child', role: 'mother' },
+        { id: 'second-parent', parentId: 'second-spouse', childId: 'second-child', role: 'father' },
+        { id: 'shared-third', parentId: 'shared-parent', childId: 'third-child', role: 'mother' },
+        { id: 'third-parent', parentId: 'third-spouse', childId: 'third-child', role: 'father' },
+      ],
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'shared-parent', coordinates: { x: 0, y: -240 } },
+      { personId: 'second-spouse', coordinates: { x: 320, y: -240 } },
+      { personId: 'third-spouse', coordinates: { x: 960, y: -240 } },
+      { personId: 'first-child', coordinates: { x: -160, y: 0 } },
+      { personId: 'second-child', coordinates: { x: 160, y: 0 } },
+      { personId: 'third-child', coordinates: { x: 480, y: 0 } },
+    ])
+  })
+
+  it('keeps an unrelated branch out of the horizontal span of another family', () => {
+    const tree = snapshot(
+      [
+        person('first-spouse', -320, -240),
+        person('shared-parent', 320, -240),
+        person('second-spouse', 640, -240),
+        person('third-spouse', 1680, -240),
+        person('other-parent-1', 2520, -240),
+        person('other-parent-2', 2840, -240),
+        person('first-child', 0, 0),
+        person('second-child', 480, 0),
+        person('third-child', 1000, 0),
+        person('other-child-1', 2360, 0),
+        person('other-child-2', 2680, 0),
+        person('other-child-3', 3000, 0),
+      ],
+      [
+        { id: 'first-parent', parentId: 'first-spouse', childId: 'first-child', role: 'father' },
+        { id: 'shared-first', parentId: 'shared-parent', childId: 'first-child', role: 'mother' },
+        { id: 'shared-second', parentId: 'shared-parent', childId: 'second-child', role: 'mother' },
+        { id: 'second-parent', parentId: 'second-spouse', childId: 'second-child', role: 'father' },
+        { id: 'shared-third', parentId: 'shared-parent', childId: 'third-child', role: 'mother' },
+        { id: 'third-parent', parentId: 'third-spouse', childId: 'third-child', role: 'father' },
+        { id: 'other-parent-1-link', parentId: 'other-parent-1', childId: 'other-child-1', role: 'mother' },
+        { id: 'other-parent-2-link', parentId: 'other-parent-2', childId: 'other-child-1', role: 'father' },
+        { id: 'other-parent-1-link-2', parentId: 'other-parent-1', childId: 'other-child-2', role: 'mother' },
+        { id: 'other-parent-2-link-2', parentId: 'other-parent-2', childId: 'other-child-2', role: 'father' },
+        { id: 'other-parent-1-link-3', parentId: 'other-parent-1', childId: 'other-child-3', role: 'mother' },
+        { id: 'other-parent-2-link-3', parentId: 'other-parent-2', childId: 'other-child-3', role: 'father' },
+      ],
+    )
+
+    const positions = new Map(reflowTree(tree).map((update) => [
+      update.personId,
+      update.coordinates,
+    ]))
+    expect(positions.get('other-parent-1')).toEqual({ x: 1600, y: -240 })
+    expect(positions.get('other-parent-2')).toEqual({ x: 1920, y: -240 })
+    expect(positions.get('other-child-1')).toEqual({ x: 1440, y: 0 })
+  })
+
+  it('reflows the compacted werwer branch without crossing unrelated generations', () => {
+    const tree = snapshot(
+      [
+        person('a', -320, -240), person('b', 320, -240), person('c', 640, -240),
+        person('d', 1680, -240), person('e', 2520, -240), person('f', 2840, -240),
+        person('ab', 0, 0), person('bc', 480, 0), person('bd', 1000, 0),
+        person('ef-1', 2360, 0), person('ef-2', 2680, 0), person('ef-3', 3000, 0),
+        person('grandchild-1', 1260, 240), person('grandchild-2', 1580, 240),
+      ],
+      [
+        { id: 'a-ab', parentId: 'a', childId: 'ab', role: 'father' }, { id: 'b-ab', parentId: 'b', childId: 'ab', role: 'mother' },
+        { id: 'b-bc', parentId: 'b', childId: 'bc', role: 'mother' }, { id: 'c-bc', parentId: 'c', childId: 'bc', role: 'father' },
+        { id: 'b-bd', parentId: 'b', childId: 'bd', role: 'mother' }, { id: 'd-bd', parentId: 'd', childId: 'bd', role: 'father' },
+        { id: 'e-ef-1', parentId: 'e', childId: 'ef-1', role: 'mother' }, { id: 'f-ef-1', parentId: 'f', childId: 'ef-1', role: 'father' },
+        { id: 'e-ef-2', parentId: 'e', childId: 'ef-2', role: 'mother' }, { id: 'f-ef-2', parentId: 'f', childId: 'ef-2', role: 'father' },
+        { id: 'e-ef-3', parentId: 'e', childId: 'ef-3', role: 'mother' }, { id: 'f-ef-3', parentId: 'f', childId: 'ef-3', role: 'father' },
+        { id: 'bc-grandchild-1', parentId: 'bc', childId: 'grandchild-1', role: 'father' }, { id: 'ef-1-grandchild-1', parentId: 'ef-1', childId: 'grandchild-1', role: 'mother' },
+        { id: 'bc-grandchild-2', parentId: 'bc', childId: 'grandchild-2', role: 'father' }, { id: 'ef-1-grandchild-2', parentId: 'ef-1', childId: 'grandchild-2', role: 'mother' },
+      ],
+      [
+        ['a', 'b'], ['b', 'c'], ['b', 'd'], ['bc', 'ef-1'], ['e', 'f'],
+      ].map(([malePersonId, femalePersonId], index) => ({
+        id: `marriage-${index}`, malePersonId: malePersonId!, femalePersonId: femalePersonId!,
+        marriageDate: { state: 'unknown' as const }, dissolutionDate: null,
+        createdAt: '2026-07-31T00:00:00+00:00', updatedAt: '2026-07-31T00:00:00+00:00',
+      })),
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'b', coordinates: { x: 0, y: -240 } },
+      { personId: 'c', coordinates: { x: 320, y: -240 } },
+      { personId: 'd', coordinates: { x: 960, y: -240 } },
+      { personId: 'e', coordinates: { x: 1600, y: -240 } },
+      { personId: 'f', coordinates: { x: 1920, y: -240 } },
+      { personId: 'ab', coordinates: { x: -160, y: 0 } },
+      { personId: 'bc', coordinates: { x: 160, y: 0 } },
+      { personId: 'bd', coordinates: { x: 480, y: 0 } },
+      { personId: 'ef-1', coordinates: { x: 1440, y: 0 } },
+      { personId: 'ef-2', coordinates: { x: 1760, y: 0 } },
+      { personId: 'ef-3', coordinates: { x: 2080, y: 0 } },
+      { personId: 'grandchild-1', coordinates: { x: 640, y: 240 } },
+      { personId: 'grandchild-2', coordinates: { x: 960, y: 240 } },
     ])
   })
 
@@ -258,9 +377,8 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'mother', coordinates: { x: 640, y: 0 } },
-      { personId: 'father', coordinates: { x: 960, y: 0 } },
-      { personId: 'family-child', coordinates: { x: 800, y: 240 } },
+      { personId: 'independent-parent', coordinates: { x: 640, y: 0 } },
+      { personId: 'independent-child', coordinates: { x: 640, y: 240 } },
     ])
   })
 
@@ -311,10 +429,12 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'wife-2', coordinates: { x: 960, y: 0 } },
+      { personId: 'wife-2', coordinates: { x: 640, y: 0 } },
       { personId: 'wife-1', coordinates: { x: 320, y: 0 } },
-      { personId: 'husband-2', coordinates: { x: 1280, y: 0 } },
+      { personId: 'husband-2', coordinates: { x: 960, y: 0 } },
       { personId: 'child-1', coordinates: { x: 160, y: 240 } },
+      { personId: 'child-2', coordinates: { x: 640, y: 240 } },
+      { personId: 'child-3', coordinates: { x: 960, y: 240 } },
     ])
   })
 
