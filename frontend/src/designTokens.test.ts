@@ -144,4 +144,11 @@ describe('semantic design contracts', () => {
       /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
     )
   })
+
+  it('applies the same graph line style to React Flow and child brackets', () => {
+    expect(appStyles).toMatch(
+      /\.react-flow__edge-path\.tree-edge\s*\{[^}]*stroke:\s*var\(--color-graph-line\);[^}]*stroke-linejoin:\s*round;[^}]*stroke-width:\s*2\.4;/s,
+    )
+    expect(appStyles).not.toMatch(/\.tree-edge-child\s*\{[^}]*stroke-/s)
+  })
 })

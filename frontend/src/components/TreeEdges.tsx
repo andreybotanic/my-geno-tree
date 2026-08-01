@@ -91,12 +91,7 @@ function childrenPath(
     if (!child) {
       return ''
     }
-    return [
-      `M ${familyX} ${familyY}`,
-      `L ${familyX} ${bracketY}`,
-      `L ${child.topX} ${bracketY}`,
-      `L ${child.topX} ${child.topY}`,
-    ].join(' ')
+    return childBranchPath(familyX, familyY, bracketY, child)
   }
 
   const first = children[0]
@@ -104,15 +99,69 @@ function childrenPath(
   if (!first || !last) {
     return ''
   }
-  const firstX = first.topX
-  const lastX = last.topX
+  const directChildren = children.filter((child, index) => (
+    child.topX === familyX || (index > 0 && index < children.length - 1)
+  ))
   return [
     `M ${familyX} ${familyY}`,
     `L ${familyX} ${bracketY}`,
-    `M ${firstX} ${bracketY}`,
-    `L ${lastX} ${bracketY}`,
-    ...children.map((child) => (
+    ...directChildren.map((child) => (
       `M ${child.topX} ${bracketY} L ${child.topX} ${child.topY}`
     )),
+    ...(first.topX !== familyX
+      ? [bracketBranchPath(familyX, bracketY, first)]
+      : []),
+    ...(last.topX !== familyX
+      ? [bracketBranchPath(familyX, bracketY, last)]
+      : []),
+  ].join(' ')
+}
+
+function childBranchPath(
+  familyX: number,
+  familyY: number,
+  bracketY: number,
+  child: { topX: number; topY: number },
+) {
+  const direction = Math.sign(child.topX - familyX)
+  if (direction === 0) {
+    return [
+      `M ${familyX} ${familyY}`,
+      `L ${child.topX} ${child.topY}`,
+    ].join(' ')
+  }
+  const radius = Math.min(
+    PAIR_CORNER_RADIUS,
+    Math.abs(child.topX - familyX) / 2,
+    Math.abs(child.topY - bracketY) / 2,
+  )
+
+  return [
+    `M ${familyX} ${familyY}`,
+    `L ${familyX} ${bracketY - radius}`,
+    `Q ${familyX} ${bracketY} ${familyX + direction * radius} ${bracketY}`,
+    `L ${child.topX - direction * radius} ${bracketY}`,
+    `Q ${child.topX} ${bracketY} ${child.topX} ${bracketY + radius}`,
+    `L ${child.topX} ${child.topY}`,
+  ].join(' ')
+}
+
+function bracketBranchPath(
+  familyX: number,
+  bracketY: number,
+  child: { topX: number; topY: number },
+) {
+  const direction = Math.sign(child.topX - familyX)
+  const radius = Math.min(
+    PAIR_CORNER_RADIUS,
+    Math.abs(child.topX - familyX) / 2,
+    Math.abs(child.topY - bracketY) / 2,
+  )
+
+  return [
+    `M ${familyX} ${bracketY}`,
+    `L ${child.topX - direction * radius} ${bracketY}`,
+    `Q ${child.topX} ${bracketY} ${child.topX} ${bracketY + radius}`,
+    `L ${child.topX} ${child.topY}`,
   ].join(' ')
 }

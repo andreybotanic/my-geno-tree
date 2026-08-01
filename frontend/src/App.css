@@ -927,12 +927,15 @@
   stroke-width: 2.4;
 }
 
-.tree-edge-coparent {
-  stroke-dasharray: 8 7;
+.react-flow__edge-path.tree-edge {
+  stroke: var(--color-graph-line);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
 }
 
-.tree-edge-child {
-  stroke-width: 1.7;
+.tree-edge-coparent {
+  stroke-dasharray: 8 7;
 }
 
 .zoom-controls {

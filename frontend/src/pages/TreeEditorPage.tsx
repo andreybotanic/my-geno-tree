@@ -62,6 +62,7 @@ import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
 import { navigate } from '../routing'
 import {
   buildTreeEdges,
+  newChildPlacement,
   newRelativeCoordinates,
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
@@ -427,7 +428,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     if (!snapshot || !selectedPerson || !relativeAction) {
       return
     }
-    const coordinates = newRelativeCoordinates(
+    const childPlacement = relativeAction === 'child'
+      ? newChildPlacement(
+          snapshot,
+          [selectedPerson.id, options.secondParentId]
+            .filter((personId): personId is string => personId !== undefined),
+        )
+      : null
+    const coordinates = childPlacement?.coordinates ?? newRelativeCoordinates(
       snapshot,
       selectedPerson.id,
       relativeAction,
@@ -460,7 +468,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         type: 'add_child',
         parents,
         relative: positionedRelative,
-        coordinateUpdates: [],
+        coordinateUpdates: childPlacement?.coordinateUpdates ?? [],
       }
     } else {
       mutation = {

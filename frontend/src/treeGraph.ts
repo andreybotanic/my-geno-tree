@@ -26,6 +26,14 @@ export type FamilyFlowEdge = Edge<FamilyEdgeData, 'family'>
 export type SingleParentFlowEdge = Edge<Record<string, never>, 'singleParent'>
 export type TreeFlowEdge = FamilyFlowEdge | SingleParentFlowEdge
 
+export type ChildPlacement = {
+  coordinates: Coordinates
+  coordinateUpdates: Array<{
+    personId: string
+    coordinates: Coordinates
+  }>
+}
+
 const pairKey = (first: string, second: string) => (
   [first, second].sort().join(':')
 )
@@ -168,6 +176,48 @@ export function newRelativeCoordinates(
   }
 }
 
+export function newChildPlacement(
+  snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
+  parentIds: string[],
+): ChildPlacement {
+  const parents = parentIds
+    .map((parentId) => snapshot.people.find((person) => person.id === parentId))
+    .filter((person) => person !== undefined)
+  if (parents.length !== parentIds.length) {
+    return { coordinates: { x: 0, y: 0 }, coordinateUpdates: [] }
+  }
+
+  const parentIdSet = new Set(parentIds)
+  const siblings = snapshot.people
+    .filter((person) => hasExactlyTheseParents(
+      snapshot.parentLinks,
+      person.id,
+      parentIdSet,
+    ))
+    .sort((first, second) => (
+      first.coordinates.x - second.coordinates.x
+      || first.id.localeCompare(second.id)
+    ))
+  const familyX = parents.reduce(
+    (sum, parent) => sum + parent.coordinates.x,
+    0,
+  ) / parents.length
+  const familyY = Math.max(...parents.map((parent) => parent.coordinates.y))
+  const totalChildren = siblings.length + 1
+  const positionAt = (index: number): Coordinates => ({
+    x: familyX + (index - (totalChildren - 1) / 2) * HORIZONTAL_STEP,
+    y: familyY + VERTICAL_STEP,
+  })
+
+  return {
+    coordinates: positionAt(siblings.length),
+    coordinateUpdates: siblings.map((sibling, index) => ({
+      personId: sibling.id,
+      coordinates: positionAt(index),
+    })),
+  }
+}
+
 function relativeBase(
   anchor: Coordinates,
   kind: RelativeKind,
@@ -193,5 +243,22 @@ function overlaps(first: Coordinates, second: Coordinates) {
   return (
     Math.abs(first.x - second.x) < PERSON_CARD_WIDTH + 40
     && Math.abs(first.y - second.y) < PERSON_CARD_HEIGHT + 40
+  )
+}
+
+function hasExactlyTheseParents(
+  parentLinks: ParentLink[],
+  childId: string,
+  parentIds: Set<string>,
+) {
+  const childParentIds = new Set(
+    parentLinks
+      .filter((link) => link.childId === childId)
+      .map((link) => link.parentId),
+  )
+
+  return (
+    childParentIds.size === parentIds.size
+    && [...parentIds].every((parentId) => childParentIds.has(parentId))
   )
 }

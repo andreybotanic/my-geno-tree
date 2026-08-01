@@ -62,7 +62,11 @@ describe('TreeEdges', () => {
     )
     expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
       'd',
-      expect.stringContaining('M 150 372 L 350 372'),
+      expect.stringContaining('Q 150 372 150 380'),
+    )
+    expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
+      'd',
+      expect.stringContaining('Q 350 372 350 380'),
     )
 
     rerender(

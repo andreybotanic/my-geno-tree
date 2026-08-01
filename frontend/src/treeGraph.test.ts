@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Person, TreeSnapshot } from './api/generated'
-import { buildTreeEdges, newRelativeCoordinates } from './treeGraph'
+import {
+  buildTreeEdges,
+  newChildPlacement,
+  newRelativeCoordinates,
+} from './treeGraph'
 
 const person = (id: string, x: number, y: number): Person => ({
   id,
@@ -119,6 +123,28 @@ describe('tree graph presentation', () => {
     expect(newRelativeCoordinates(tree, 'missing', 'child')).toEqual({
       x: 0,
       y: 0,
+    })
+  })
+
+  it('re-centres a couple’s children when a sibling is added', () => {
+    const tree = snapshot(
+      [
+        person('father', 0, 0),
+        person('mother', 320, 0),
+        person('first-child', 160, 240),
+      ],
+      [
+        { id: 'father-link', parentId: 'father', childId: 'first-child', role: 'father' },
+        { id: 'mother-link', parentId: 'mother', childId: 'first-child', role: 'mother' },
+      ],
+    )
+
+    expect(newChildPlacement(tree, ['father', 'mother'])).toEqual({
+      coordinates: { x: 320, y: 240 },
+      coordinateUpdates: [{
+        personId: 'first-child',
+        coordinates: { x: 0, y: 240 },
+      }],
     })
   })
 })
