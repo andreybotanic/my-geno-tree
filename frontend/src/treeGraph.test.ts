@@ -269,7 +269,7 @@ describe('tree graph presentation', () => {
     ])
   })
 
-  it('separates multiple partner brackets at their shared person', () => {
+  it('makes the longer partner bracket higher and closer to the shared person', () => {
     const tree = snapshot(
       [
         person('centre', 0, 0),
@@ -302,12 +302,12 @@ describe('tree graph presentation', () => {
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
     expect(edges.get('family:centre:near-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 16 }),
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 34 }),
       }),
     )
     expect(edges.get('family:centre:far-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 34 }),
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 16 }),
       }),
     )
   })
@@ -355,10 +355,10 @@ describe('tree graph presentation', () => {
     )
   })
 
-  it('keeps the nearest bracket centred for an odd number of partners', () => {
+  it('keeps the longest bracket centred for an odd number of partners', () => {
     const tree = snapshot(
       [
-        person('left-partner', -640, 0),
+        person('left-partner', -320, 0),
         person('centre', 0, 0),
         person('near-partner', 320, 0),
         person('far-partner', 640, 0),
@@ -396,9 +396,9 @@ describe('tree graph presentation', () => {
     )
 
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
-    expect(edges.get('family:centre:near-partner')).toEqual(
+    expect(edges.get('family:centre:far-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ sourceOffset: 0 }),
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 0 }),
       }),
     )
     expect(edges.get('family:centre:left-partner')).toEqual(
@@ -406,9 +406,9 @@ describe('tree graph presentation', () => {
         data: expect.objectContaining({ targetOffset: -16 }),
       }),
     )
-    expect(edges.get('family:centre:far-partner')).toEqual(
+    expect(edges.get('family:centre:near-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ sourceOffset: 16 }),
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 16 }),
       }),
     )
   })

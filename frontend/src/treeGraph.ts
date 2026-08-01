@@ -56,6 +56,7 @@ type ReflowSnapshot = Pick<TreeSnapshot, 'people' | 'parentLinks'> & {
 
 type PartnerOutlet = {
   familyKey: string
+  partnerId: string
   partnerX: number
   personId: string
   side: -1 | 1
@@ -140,11 +141,13 @@ export function buildTreeEdges(
       : [second, first]
     for (const outlet of [{
       familyKey: key,
+      partnerId: right.id,
       partnerX: right.coordinates.x,
       personId: left.id,
       side: 1 as const,
     }, {
       familyKey: key,
+      partnerId: left.id,
       partnerX: left.coordinates.x,
       personId: right.id,
       side: -1 as const,
@@ -164,8 +167,8 @@ export function buildTreeEdges(
       continue
     }
     const centredOutlet = [...outlets].sort((first, second) => (
-      Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
-      - Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+      Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+      - Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
       || first.familyKey.localeCompare(second.familyKey)
     ))[0]!
     centeredOutlets.add(`${centredOutlet.familyKey}:${centredOutlet.personId}`)
@@ -174,12 +177,11 @@ export function buildTreeEdges(
   for (const outlets of outletsByPersonSide.values()) {
     outlets
       .sort((first, second) => (
-        Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
-        - Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+        Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+        - Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
         || first.familyKey.localeCompare(second.familyKey)
       ))
       .forEach((outlet, index) => {
-        const multipleOnThisSide = outlets.length > 1
         const outletKey = `${outlet.familyKey}:${outlet.personId}`
         const centered = centeredOutlets.has(outletKey)
         const sideIndex = outlets
@@ -188,13 +190,41 @@ export function buildTreeEdges(
             `${previous.familyKey}:${previous.personId}`,
           )).length
         const hasMultiplePartners = (outletsByPerson.get(outlet.personId)?.length ?? 0) > 1
-        outletLayout.set(`${outlet.familyKey}:${outlet.personId}`, {
-          bracketDepth: 24 + (multipleOnThisSide
-            ? (outlets.length - index - 1) * 18
-            : 0),
+        outletLayout.set(outletKey, {
+          bracketDepth: 24,
           offset: !hasMultiplePartners || centered
             ? 0
             : outlet.side * (16 + sideIndex * 18),
+        })
+      })
+  }
+  const bracketLength = (outlet: PartnerOutlet) => {
+    const person = people.get(outlet.personId)
+    const partner = people.get(outlet.partnerId)
+    if (!person || !partner) {
+      return 0
+    }
+    const ownOffset = outletLayout.get(`${outlet.familyKey}:${outlet.personId}`)?.offset ?? 0
+    const partnerOffset = outletLayout.get(`${outlet.familyKey}:${outlet.partnerId}`)?.offset ?? 0
+    return Math.abs(
+      person.coordinates.x + ownOffset - partner.coordinates.x - partnerOffset,
+    )
+  }
+  for (const outlets of outletsByPersonSide.values()) {
+    outlets
+      .sort((first, second) => (
+        bracketLength(first) - bracketLength(second)
+        || first.familyKey.localeCompare(second.familyKey)
+      ))
+      .forEach((outlet, index) => {
+        const outletKey = `${outlet.familyKey}:${outlet.personId}`
+        const layout = outletLayout.get(outletKey)
+        if (!layout) {
+          return
+        }
+        outletLayout.set(outletKey, {
+          ...layout,
+          bracketDepth: 24 + (outlets.length - index - 1) * 18,
         })
       })
   }
