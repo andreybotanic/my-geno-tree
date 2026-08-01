@@ -614,46 +614,88 @@ export function reflowTree(
     return true
   }
 
-  compactRootRows()
-  alignFamilies()
-  for (let attempt = 0; attempt < snapshot.people.length * 2; attempt += 1) {
-    const pair = overlappingPair()
-    if (!pair) {
-      break
-    }
-    const [leftId, rightId] = pair
-    const leftAncestors = ancestors(leftId)
-    const rightAncestors = [...ancestors(rightId).entries()]
-    const roots = rightAncestors.filter(([personId]) => (
-      (parentsByChild.get(personId) ?? []).every((parentId) => !people.has(parentId))
-    ))
-    const candidate = roots
-      .filter(([personId]) => !leftAncestors.has(personId))
-      .sort(([firstId, firstDistance], [secondId, secondDistance]) => (
-        firstDistance - secondDistance
-        || (positions.get(firstId)?.x ?? 0) - (positions.get(secondId)?.x ?? 0)
-        || firstId.localeCompare(secondId)
-      ))[0]
-      ?? roots
+  const resolveCollisions = () => {
+    for (let attempt = 0; attempt < snapshot.people.length * 2; attempt += 1) {
+      const pair = overlappingPair()
+      if (!pair) {
+        break
+      }
+      const [leftId, rightId] = pair
+      const leftAncestors = ancestors(leftId)
+      const rightAncestors = [...ancestors(rightId).entries()]
+      const roots = rightAncestors.filter(([personId]) => (
+        (parentsByChild.get(personId) ?? []).every((parentId) => !people.has(parentId))
+      ))
+      const candidate = roots
+        .filter(([personId]) => !leftAncestors.has(personId))
         .sort(([firstId, firstDistance], [secondId, secondDistance]) => (
           firstDistance - secondDistance
           || (positions.get(firstId)?.x ?? 0) - (positions.get(secondId)?.x ?? 0)
           || firstId.localeCompare(secondId)
         ))[0]
-    if (candidate === undefined) {
-      break
+        ?? roots
+          .sort(([firstId, firstDistance], [secondId, secondDistance]) => (
+            firstDistance - secondDistance
+            || (positions.get(firstId)?.x ?? 0) - (positions.get(secondId)?.x ?? 0)
+            || firstId.localeCompare(secondId)
+          ))[0]
+      if (candidate === undefined) {
+        break
+      }
+      const [rootId] = candidate
+      const leftPosition = positions.get(leftId)
+      const rightPosition = positions.get(rightId)
+      const shift = isHalfSiblingPair(leftId, rightId) && leftPosition && rightPosition
+        ? 2 * (HALF_SIBLING_GAP - (rightPosition.x - leftPosition.x))
+        : HORIZONTAL_STEP
+      if (!shiftRootSuffix(rootId, shift)) {
+        break
+      }
+      alignFamilies()
     }
-    const [rootId] = candidate
-    const leftPosition = positions.get(leftId)
-    const rightPosition = positions.get(rightId)
-    const shift = isHalfSiblingPair(leftId, rightId) && leftPosition && rightPosition
-      ? 2 * (HALF_SIBLING_GAP - (rightPosition.x - leftPosition.x))
-      : HORIZONTAL_STEP
-    if (!shiftRootSuffix(rootId, shift)) {
-      break
-    }
-    alignFamilies()
   }
+
+  const balanceSharedRootPartners = () => {
+    for (const rowRootIds of rootRows.values()) {
+      const orderedRoots = [...rowRootIds].sort((first, second) => (
+        (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
+      ))
+      for (let index = 1; index < orderedRoots.length - 1; index += 1) {
+        const previousId = orderedRoots[index - 1]!
+        const personId = orderedRoots[index]!
+        const nextId = orderedRoots[index + 1]!
+        if (
+          !partnersByPerson.get(personId)?.has(previousId)
+          || !partnersByPerson.get(personId)?.has(nextId)
+        ) {
+          continue
+        }
+        const previous = positions.get(previousId)
+        const person = positions.get(personId)
+        const next = positions.get(nextId)
+        if (!previous || !person || !next) {
+          continue
+        }
+        const minimumX = previous.x + HORIZONTAL_STEP
+        const maximumX = next.x - HORIZONTAL_STEP
+        if (minimumX > maximumX) {
+          continue
+        }
+        const balancedX = Math.min(
+          maximumX,
+          Math.max(minimumX, (previous.x + next.x) / 2),
+        )
+        positions.set(personId, { ...person, x: balancedX })
+      }
+    }
+  }
+
+  compactRootRows()
+  alignFamilies()
+  resolveCollisions()
+  balanceSharedRootPartners()
+  alignFamilies()
+  resolveCollisions()
 
   return snapshot.people.flatMap((person) => {
     const coordinates = positions.get(person.id)

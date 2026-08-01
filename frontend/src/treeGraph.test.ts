@@ -218,7 +218,7 @@ describe('tree graph presentation', () => {
     ])
   })
 
-  it('leaves an additional gap between half-siblings from different unions', () => {
+  it('balances a shared parent between adjacent spouses without reducing half-sibling gaps', () => {
     const tree = snapshot(
       [
         person('first-spouse', -320, -240),
@@ -240,12 +240,12 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'shared-parent', coordinates: { x: 0, y: -240 } },
+      { personId: 'shared-parent', coordinates: { x: 60, y: -240 } },
       { personId: 'second-spouse', coordinates: { x: 440, y: -240 } },
       { personId: 'third-spouse', coordinates: { x: 1200, y: -240 } },
-      { personId: 'first-child', coordinates: { x: -160, y: 0 } },
-      { personId: 'second-child', coordinates: { x: 220, y: 0 } },
-      { personId: 'third-child', coordinates: { x: 600, y: 0 } },
+      { personId: 'first-child', coordinates: { x: -130, y: 0 } },
+      { personId: 'second-child', coordinates: { x: 250, y: 0 } },
+      { personId: 'third-child', coordinates: { x: 630, y: 0 } },
     ])
   })
 
@@ -319,19 +319,19 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'b', coordinates: { x: 0, y: -240 } },
+      { personId: 'b', coordinates: { x: 60, y: -240 } },
       { personId: 'c', coordinates: { x: 440, y: -240 } },
       { personId: 'd', coordinates: { x: 1200, y: -240 } },
       { personId: 'e', coordinates: { x: 1840, y: -240 } },
       { personId: 'f', coordinates: { x: 2160, y: -240 } },
-      { personId: 'ab', coordinates: { x: -160, y: 0 } },
-      { personId: 'bc', coordinates: { x: 220, y: 0 } },
-      { personId: 'bd', coordinates: { x: 600, y: 0 } },
+      { personId: 'ab', coordinates: { x: -130, y: 0 } },
+      { personId: 'bc', coordinates: { x: 250, y: 0 } },
+      { personId: 'bd', coordinates: { x: 630, y: 0 } },
       { personId: 'ef-1', coordinates: { x: 1680, y: 0 } },
       { personId: 'ef-2', coordinates: { x: 2000, y: 0 } },
       { personId: 'ef-3', coordinates: { x: 2320, y: 0 } },
-      { personId: 'grandchild-1', coordinates: { x: 790, y: 240 } },
-      { personId: 'grandchild-2', coordinates: { x: 1110, y: 240 } },
+      { personId: 'grandchild-1', coordinates: { x: 805, y: 240 } },
+      { personId: 'grandchild-2', coordinates: { x: 1125, y: 240 } },
     ])
   })
 
