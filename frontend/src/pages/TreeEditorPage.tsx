@@ -481,7 +481,15 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           role: relativeAction,
         }]
         : snapshot.parentLinks
-    const coordinateUpdates = reflowTree({ people, parentLinks })
+    const reflowSnapshot = {
+      people,
+      parentLinks,
+      marriages: snapshot.marriages,
+      ...(relativeAction === 'spouse'
+        ? { partnerPairs: [[selectedPerson.id, relativeId] as [string, string]] }
+        : {}),
+    }
+    const coordinateUpdates = reflowTree(reflowSnapshot)
     const coordinates = coordinateUpdates.find((update) => (
       update.personId === PREVIEW_PERSON_ID
     ))?.coordinates ?? initialCoordinates
@@ -534,6 +542,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           parentLinks: snapshot.parentLinks.filter((link) => (
             link.id !== pendingRemoval.link.id
           )),
+          marriages: snapshot.marriages,
         })
       : pendingRemoval.kind === 'person'
         ? reflowTree({
@@ -544,8 +553,18 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               link.parentId !== pendingRemoval.person.id
               && link.childId !== pendingRemoval.person.id
             )),
+            marriages: snapshot.marriages.filter((marriage) => (
+              marriage.malePersonId !== pendingRemoval.person.id
+              && marriage.femalePersonId !== pendingRemoval.person.id
+            )),
           }, { compact: true })
-        : []
+        : reflowTree({
+            people: snapshot.people,
+            parentLinks: snapshot.parentLinks,
+            marriages: snapshot.marriages.filter((marriage) => (
+              marriage.id !== pendingRemoval.marriage.id
+            )),
+          })
     const mutation: GraphMutation = pendingRemoval.kind === 'parent'
       ? {
           type: 'remove_parent_link',

@@ -3,6 +3,7 @@ import type {
   Coordinates,
   MarriagePeriod,
   ParentLink,
+  Person,
   TreeSnapshot,
 } from './api/generated'
 import type { Edge } from '@xyflow/react'
@@ -46,6 +47,11 @@ type Family = {
   children: Set<string>
   married: boolean
   people: [string, string]
+}
+
+type ReflowSnapshot = Pick<TreeSnapshot, 'people' | 'parentLinks'> & {
+  marriages?: MarriagePeriod[]
+  partnerPairs?: Array<[string, string]>
 }
 
 type PartnerOutlet = {
@@ -306,7 +312,7 @@ export function newChildPlacement(
 }
 
 export function reflowTree(
-  snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
+  snapshot: ReflowSnapshot,
   options: { compact?: boolean } = {},
 ): CoordinateUpdate[] {
   const people = new Map(snapshot.people.map((person) => [person.id, person]))
@@ -316,6 +322,7 @@ export function reflowTree(
     parents.push(link.parentId)
     parentsByChild.set(link.childId, parents)
   }
+  const familyPairs = relationshipPairs(snapshot, people, parentsByChild)
   const positions = new Map(snapshot.people.map((person) => [
     person.id,
     { ...person.coordinates },
@@ -379,6 +386,13 @@ export function reflowTree(
         })
     }
   }
+
+  arrangeRootFamilyBlocks(
+    snapshot.people,
+    parentsByChild,
+    familyPairs,
+    positions,
+  )
 
   const orderedFamilies = [...families.values()]
     .sort((first, second) => (
@@ -491,6 +505,123 @@ export function reflowTree(
 
     return [{ personId: person.id, coordinates }]
   })
+}
+
+function relationshipPairs(
+  snapshot: ReflowSnapshot,
+  people: Map<string, Person>,
+  parentsByChild: Map<string, string[]>,
+): Array<[string, string]> {
+  const pairs = new Map<string, [string, string]>()
+  const registerPair = (firstId: string, secondId: string) => {
+    if (firstId === secondId || !people.has(firstId) || !people.has(secondId)) {
+      return
+    }
+    const sortedIds = [firstId, secondId].sort()
+    const first = sortedIds[0]!
+    const second = sortedIds[1]!
+    pairs.set(`${first}:${second}`, [first, second])
+  }
+
+  for (const marriage of snapshot.marriages ?? []) {
+    registerPair(marriage.malePersonId, marriage.femalePersonId)
+  }
+  for (const [firstId, secondId] of snapshot.partnerPairs ?? []) {
+    registerPair(firstId, secondId)
+  }
+  for (const parentIds of parentsByChild.values()) {
+    const knownParentIds = [...new Set(parentIds)].filter((parentId) => (
+      people.has(parentId)
+    ))
+    if (knownParentIds.length === 2) {
+      registerPair(knownParentIds[0]!, knownParentIds[1]!)
+    }
+  }
+
+  return [...pairs.values()]
+}
+
+function arrangeRootFamilyBlocks(
+  people: Person[],
+  parentsByChild: Map<string, string[]>,
+  familyPairs: Array<[string, string]>,
+  positions: Map<string, Coordinates>,
+) {
+  const rootsByRow = new Map<number, string[]>()
+  for (const person of people) {
+    const hasKnownParent = (parentsByChild.get(person.id) ?? [])
+      .some((parentId) => positions.has(parentId))
+    if (hasKnownParent) {
+      continue
+    }
+    const roots = rootsByRow.get(person.coordinates.y) ?? []
+    roots.push(person.id)
+    rootsByRow.set(person.coordinates.y, roots)
+  }
+
+  for (const rootIds of rootsByRow.values()) {
+    const orderedRoots = [...rootIds].sort((first, second) => (
+      (positions.get(first)?.x ?? 0) - (positions.get(second)?.x ?? 0)
+      || first.localeCompare(second)
+    ))
+    const rootSet = new Set(orderedRoots)
+    const partners = new Map<string, Set<string>>()
+    for (const [firstId, secondId] of familyPairs) {
+      if (!rootSet.has(firstId) || !rootSet.has(secondId)) {
+        continue
+      }
+      const firstPartners = partners.get(firstId) ?? new Set<string>()
+      firstPartners.add(secondId)
+      partners.set(firstId, firstPartners)
+      const secondPartners = partners.get(secondId) ?? new Set<string>()
+      secondPartners.add(firstId)
+      partners.set(secondId, secondPartners)
+    }
+
+    const originalIndex = new Map(orderedRoots.map((personId, index) => [
+      personId,
+      index,
+    ]))
+    const seen = new Set<string>()
+    const blocks: string[][] = []
+    for (const rootId of orderedRoots) {
+      if (seen.has(rootId)) {
+        continue
+      }
+      const block: string[] = []
+      const pending = [rootId]
+      seen.add(rootId)
+      while (pending.length > 0) {
+        const personId = pending.pop()!
+        block.push(personId)
+        for (const partnerId of partners.get(personId) ?? []) {
+          if (!seen.has(partnerId)) {
+            seen.add(partnerId)
+            pending.push(partnerId)
+          }
+        }
+      }
+      block.sort((first, second) => (
+        (originalIndex.get(first) ?? 0) - (originalIndex.get(second) ?? 0)
+      ))
+      blocks.push(block)
+    }
+    blocks.sort((first, second) => (
+      (originalIndex.get(first[0]!) ?? 0) - (originalIndex.get(second[0]!) ?? 0)
+    ))
+
+    const arrangedRoots = blocks.flat()
+    const slotXs = orderedRoots.map((personId) => (
+      positions.get(personId)?.x ?? 0
+    ))
+    arrangedRoots.forEach((personId, index) => {
+      const position = positions.get(personId)
+      const slotX = slotXs[index]
+      if (position && slotX !== undefined) {
+        positions.set(personId, { ...position, x: slotX })
+      }
+    })
+  }
 }
 
 function childPosition(

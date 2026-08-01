@@ -232,6 +232,43 @@ describe('tree graph presentation', () => {
     ])
   })
 
+  it('keeps separate family blocks from interleaving on one generation row', () => {
+    const tree = snapshot(
+      [
+        person('husband-1', 0, 0),
+        person('wife-2', 320, 0),
+        person('wife-1', 640, 0),
+        person('husband-2', 1600, 0),
+        person('child-1', 320, 240),
+        person('child-2', 960, 240),
+        person('child-3', 1280, 240),
+      ],
+      [
+        { id: 'h1-child', parentId: 'husband-1', childId: 'child-1', role: 'father' },
+        { id: 'w1-child', parentId: 'wife-1', childId: 'child-1', role: 'mother' },
+        { id: 'h2-child-1', parentId: 'husband-2', childId: 'child-2', role: 'father' },
+        { id: 'w2-child-1', parentId: 'wife-2', childId: 'child-2', role: 'mother' },
+        { id: 'h2-child-2', parentId: 'husband-2', childId: 'child-3', role: 'father' },
+        { id: 'w2-child-2', parentId: 'wife-2', childId: 'child-3', role: 'mother' },
+      ],
+      [{
+        id: 'first-marriage',
+        malePersonId: 'husband-1',
+        femalePersonId: 'wife-1',
+        marriageDate: { state: 'unknown' },
+        dissolutionDate: null,
+        createdAt: '2026-07-31T00:00:00+00:00',
+        updatedAt: '2026-07-31T00:00:00+00:00',
+      }],
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'wife-2', coordinates: { x: 640, y: 0 } },
+      { personId: 'wife-1', coordinates: { x: 320, y: 0 } },
+      { personId: 'child-1', coordinates: { x: 160, y: 240 } },
+    ])
+  })
+
   it('separates multiple partner brackets at their shared person', () => {
     const tree = snapshot(
       [
