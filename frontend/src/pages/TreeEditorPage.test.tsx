@@ -674,7 +674,10 @@ describe('TreeEditorPage', () => {
           person: expect.objectContaining({ gender: 'unknown' }),
           coordinates: { x: -160, y: -240 },
         },
-        coordinateUpdates: [],
+        coordinateUpdates: [{
+          personId: person.id,
+          coordinates: { x: -160, y: 0 },
+        }],
       })
     })
     expect(screen.getAllByText('Petrov Ivan')).toHaveLength(2)
@@ -715,7 +718,7 @@ describe('TreeEditorPage', () => {
     )
     await screen.findByRole('complementary', { name: 'Person details' })
     await userEvent.click(
-      within(sectionByHeading('Families')).getByRole('button', { name: 'Add' }),
+      within(sectionByHeading('Families')).getAllByRole('button', { name: 'Add' })[0] as HTMLElement,
     )
     let dialog = screen.getByRole('dialog', { name: 'Add spouse' })
     await userEvent.click(

@@ -34,6 +34,28 @@ use Symfony\Component\Uid\UuidV7;
  */
 final class GraphMutationApiTest extends ApiWebTestCase
 {
+    public function testCoordinateReflowPersistsAllCalculatedPositions(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person());
+        $person = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'              => 'reflow_coordinates',
+            'coordinateUpdates' => [[
+                'personId'    => $person['id'],
+                'coordinates' => ['x' => 320, 'y' => 240],
+            ]],
+        ]);
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame(
+            ['x' => 320, 'y' => 240],
+            $this->personById($snapshot, $person['id'])['coordinates'],
+        );
+    }
+
     public function testParentsAreCreatedAtomicallyWithRoleAndCycleRules(): void
     {
         $accessToken = $this->register();

@@ -92,6 +92,11 @@ final readonly class StructuralGraphMutationService
                     $changedAt,
                     $removedMedia,
                 ),
+                'reflow_coordinates' => $this->reflowCoordinates(
+                    $tree,
+                    $payload,
+                    $changedAt,
+                ),
                 default => $this->invalid(
                     'type',
                     'graph_mutation_type_invalid',
@@ -372,6 +377,18 @@ final readonly class StructuralGraphMutationService
             $changedAt,
             $person,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function reflowCoordinates(
+        FamilyTree $tree,
+        array $payload,
+        \DateTimeImmutable $changedAt,
+    ): void {
+        $this->assertExactKeys($payload, ['type', 'coordinateUpdates']);
+        $this->movePeople($tree, $payload['coordinateUpdates'], $changedAt);
     }
 
     private function createParentLink(

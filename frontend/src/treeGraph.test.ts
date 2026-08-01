@@ -4,6 +4,7 @@ import {
   buildTreeEdges,
   newChildPlacement,
   newRelativeCoordinates,
+  reflowTree,
 } from './treeGraph'
 
 const person = (id: string, x: number, y: number): Person => ({
@@ -148,7 +149,7 @@ describe('tree graph presentation', () => {
     })
   })
 
-  it('places a child in the nearest free family block', () => {
+  it('always centres a child block on its parents', () => {
     const tree = snapshot([
       person('father', 0, 0),
       person('mother', 320, 0),
@@ -156,8 +157,59 @@ describe('tree graph presentation', () => {
     ])
 
     expect(newChildPlacement(tree, ['father', 'mother'])).toEqual({
-      coordinates: { x: 480, y: 240 },
+      coordinates: { x: 160, y: 240 },
       coordinateUpdates: [],
     })
+  })
+
+  it('cascades a parent movement through every descendant family', () => {
+    const tree = snapshot(
+      [
+        person('grandfather', 0, 0),
+        person('grandmother', 320, 0),
+        person('father', 160, 240),
+        person('mother', 480, 240),
+        person('first-child', 0, 480),
+        person('second-child', 320, 480),
+      ],
+      [
+        { id: 'grandfather-father', parentId: 'grandfather', childId: 'father', role: 'father' },
+        { id: 'grandmother-father', parentId: 'grandmother', childId: 'father', role: 'mother' },
+        { id: 'father-first', parentId: 'father', childId: 'first-child', role: 'father' },
+        { id: 'mother-first', parentId: 'mother', childId: 'first-child', role: 'mother' },
+        { id: 'father-second', parentId: 'father', childId: 'second-child', role: 'father' },
+        { id: 'mother-second', parentId: 'mother', childId: 'second-child', role: 'mother' },
+      ],
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'first-child', coordinates: { x: 160, y: 480 } },
+      { personId: 'second-child', coordinates: { x: 480, y: 480 } },
+    ])
+  })
+
+  it('separates colliding branches without losing family centring', () => {
+    const tree = snapshot(
+      [
+        person('left-parent', 0, 0),
+        person('right-parent', 320, 0),
+        person('left-child', 160, 240),
+        person('independent-parent', 320, 0),
+        person('independent-child', 320, 240),
+      ],
+      [
+        { id: 'left-link', parentId: 'left-parent', childId: 'left-child', role: 'father' },
+        { id: 'right-link', parentId: 'right-parent', childId: 'left-child', role: 'mother' },
+        { id: 'independent-link', parentId: 'independent-parent', childId: 'independent-child', role: 'father' },
+      ],
+    )
+
+    const positions = new Map(reflowTree(tree).map((update) => [
+      update.personId,
+      update.coordinates,
+    ]))
+    expect(positions.get('independent-parent')).toEqual({ x: 640, y: 0 })
+    expect(positions.get('independent-child')).toEqual({ x: 640, y: 240 })
+    expect(positions.get('left-child')).toBeUndefined()
   })
 })

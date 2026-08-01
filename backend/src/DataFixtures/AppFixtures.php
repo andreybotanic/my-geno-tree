@@ -105,6 +105,7 @@ final class AppFixtures extends Fixture
         $builder->addChild($pavel, $olga, $this->data('Морозов', 'Роман', null, Gender::MALE, $this->year(2014), null));
         $builder->addChild($dmitry, $galina, $this->data('Соколова', 'Вера', 'Дмитриевна', Gender::FEMALE, $this->year(2016), null));
 
+        $builder->reflow();
         $manager->flush();
     }
 
@@ -158,6 +159,9 @@ final class FixtureTreeBuilder
     /** @var array<string, list<Person>> */
     private array $childrenByParents = [];
 
+    /** @var array<string, list<Person>> */
+    private array $parentsByChild = [];
+
     public function __construct(
         private readonly ObjectManager $manager,
         private readonly FamilyTree $tree,
@@ -184,6 +188,7 @@ final class FixtureTreeBuilder
         $link = new ParentLink($this->tree, $parent, $child, $role);
         $this->manager->persist($link);
         $this->events->synchronizeParentLink($link, $this->createdAt);
+        $this->parentsByChild[$child->getId()->toRfc4122()][] = $parent;
 
         return $parent;
     }
@@ -209,16 +214,10 @@ final class FixtureTreeBuilder
         $familyX = ($father->getX() + $mother->getX()) / 2;
         $familyY = max($father->getY(), $mother->getY());
         $childY = $familyY + self::VERTICAL_STEP;
-        $placedFamilyX = $this->familyCentreWithoutOverlaps(
-            $siblings,
-            $familyX,
-            $childY,
-            $totalChildren,
-        );
 
         foreach ($siblings as $index => $sibling) {
             $coordinates = $this->childCoordinates(
-                $placedFamilyX,
+                $familyX,
                 $childY,
                 $totalChildren,
                 $index,
@@ -232,7 +231,7 @@ final class FixtureTreeBuilder
         $child = $this->createPerson(
             $data,
             $this->childCoordinates(
-                $placedFamilyX,
+                $familyX,
                 $childY,
                 $totalChildren,
                 count($siblings),
@@ -247,8 +246,128 @@ final class FixtureTreeBuilder
         }
         $siblings[] = $child;
         $this->childrenByParents[$key] = $siblings;
+        $this->parentsByChild[$child->getId()->toRfc4122()] = [$father, $mother];
 
         return $child;
+    }
+
+    public function reflow(): void
+    {
+        $depths = [];
+        $calculating = [];
+        $depth = function (Person $person) use (&$depth, &$depths, &$calculating): int {
+            $id = $person->getId()->toRfc4122();
+            if (isset($depths[$id])) {
+                return $depths[$id];
+            }
+            if (isset($calculating[$id])) {
+                return 0;
+            }
+            $calculating[$id] = true;
+            $parents = $this->parentsByChild[$id] ?? [];
+            $parentDepths = array_map($depth, $parents);
+            unset($calculating[$id]);
+
+            return $depths[$id] = [] === $parentDepths ? 0 : max($parentDepths) + 1;
+        };
+        $peopleById = [];
+        foreach ($this->people as $person) {
+            $peopleById[$person->getId()->toRfc4122()] = $person;
+        }
+        /** @var array<string, array{parents: list<Person>, children: list<Person>}> $families */
+        $families = [];
+        foreach ($this->parentsByChild as $childId => $parents) {
+            if ([] === $parents || !isset($peopleById[$childId])) {
+                continue;
+            }
+            $parentIds = array_map(static fn (Person $person): string => $person->getId()->toRfc4122(), $parents);
+            sort($parentIds);
+            $key = implode(':', $parentIds);
+            $families[$key] ??= ['parents' => $parents, 'children' => []];
+            $families[$key]['children'][] = $peopleById[$childId];
+        }
+        $familyKeys = array_keys($families);
+        usort($familyKeys, function (string $first, string $second) use ($depth, $families): int {
+            $firstParents = $families[$first]['parents'];
+            $secondParents = $families[$second]['parents'];
+            if ([] === $firstParents || [] === $secondParents) {
+                return 0;
+            }
+            $firstDepth = max(array_map($depth, $firstParents));
+            $secondDepth = max(array_map($depth, $secondParents));
+
+            return $firstDepth <=> $secondDepth ?: $first <=> $second;
+        });
+        $alignFamilies = function () use ($familyKeys, $families): void {
+            foreach ($familyKeys as $key) {
+                $parents = $families[$key]['parents'];
+                $children = $families[$key]['children'];
+                if ([] === $parents || [] === $children) {
+                    continue;
+                }
+                usort($children, static fn (Person $first, Person $second): int => $first->getX() <=> $second->getX() ?: $first->getId()->toRfc4122() <=> $second->getId()->toRfc4122());
+                $familyX = array_sum(array_map(static fn (Person $person): float => $person->getX(), $parents)) / count($parents);
+                $familyY = max(array_map(static fn (Person $person): float => $person->getY(), $parents));
+                foreach ($children as $index => $child) {
+                    $coordinates = $this->childCoordinates($familyX, $familyY + self::VERTICAL_STEP, count($children), $index);
+                    $child->moveTo($coordinates->x, $coordinates->y, $this->createdAt);
+                }
+            }
+        };
+        $ancestors = function (Person $person): array {
+            $result = [];
+            $visit = function (Person $current, int $distance) use (&$visit, &$result): void {
+                $id = $current->getId()->toRfc4122();
+                if (isset($result[$id]) && $result[$id]['distance'] <= $distance) {
+                    return;
+                }
+                $result[$id] = ['person' => $current, 'distance' => $distance];
+                foreach ($this->parentsByChild[$id] ?? [] as $parent) {
+                    $visit($parent, $distance + 1);
+                }
+            };
+            $visit($person, 0);
+
+            return $result;
+        };
+        $alignFamilies();
+        for ($attempt = 0; $attempt < count($this->people) * 2; ++$attempt) {
+            $people = $this->people;
+            usort($people, static fn (Person $first, Person $second): int => $first->getX() <=> $second->getX() ?: $first->getY() <=> $second->getY());
+            $pair = null;
+            foreach ($people as $index => $person) {
+                for ($previous = $index - 1; $previous >= 0; --$previous) {
+                    if ($person->getX() - $people[$previous]->getX() >= self::PERSON_CARD_WIDTH + 40) {
+                        break;
+                    }
+                    if (abs($person->getY() - $people[$previous]->getY()) < self::PERSON_CARD_HEIGHT + 40) {
+                        $pair = [$people[$previous], $person];
+                        break 2;
+                    }
+                }
+            }
+            if (null === $pair) {
+                break;
+            }
+            [$left, $right] = $pair;
+            $leftAncestors = $ancestors($left);
+            $roots = array_values(array_filter($ancestors($right), fn (array $candidate): bool => [] === ($this->parentsByChild[$candidate['person']->getId()->toRfc4122()] ?? [])));
+            $candidates = array_values(array_filter($roots, static fn (array $candidate): bool => !isset($leftAncestors[$candidate['person']->getId()->toRfc4122()])));
+            $candidates = [] !== $candidates ? $candidates : $roots;
+            usort($candidates, static fn (array $first, array $second): int => $first['distance'] <=> $second['distance']);
+            $candidate = $candidates[0] ?? null;
+            if (null === $candidate) {
+                break;
+            }
+            /** @var Person $root */
+            $root = $candidate['person'];
+            $root->moveTo(
+                $root->getX() + self::HORIZONTAL_STEP * 2 ** min($candidate['distance'], 3),
+                $root->getY(),
+                $this->createdAt,
+            );
+            $alignFamilies();
+        }
     }
 
     public function marry(
@@ -343,51 +462,6 @@ final class FixtureTreeBuilder
             $familyX + ($index - ($totalChildren - 1) / 2) * self::HORIZONTAL_STEP,
             $childY,
         );
-    }
-
-    /** @param list<Person> $siblings */
-    private function familyCentreWithoutOverlaps(
-        array $siblings,
-        float $familyX,
-        float $childY,
-        int $totalChildren,
-    ): float {
-        foreach (range(0, count($this->people) + 1) as $attempt) {
-            $ring = (int)ceil($attempt / 2);
-            $sign = 0 === $attempt ? 0 : (1 === $attempt % 2 ? 1 : -1);
-            $candidate = $familyX + $ring * self::HORIZONTAL_STEP * $sign;
-            $positions = [];
-            foreach (range(0, $totalChildren - 1) as $index) {
-                $positions[] = $this->childCoordinates(
-                    $candidate,
-                    $childY,
-                    $totalChildren,
-                    $index,
-                );
-            }
-            if ($this->childrenDoNotOverlapPeople($positions, $siblings)) {
-                return $candidate;
-            }
-        }
-
-        return $familyX;
-    }
-
-    /**
-     * @param list<Coordinates> $positions
-     * @param list<Person>      $siblings
-     */
-    private function childrenDoNotOverlapPeople(array $positions, array $siblings): bool
-    {
-        foreach ($positions as $position) {
-            foreach ($this->people as $person) {
-                if (!in_array($person, $siblings, true) && $this->overlaps($position, new Coordinates($person->getX(), $person->getY()))) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 
     private function overlapsExistingPerson(Coordinates $candidate): bool

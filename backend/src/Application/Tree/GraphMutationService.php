@@ -35,7 +35,9 @@ final readonly class GraphMutationService
 
         $this->structuralMutations->mutate($tree, $payload, $ifMatch);
 
-        return str_starts_with($type, 'remove_') || 'delete_person' === $type
+        return str_starts_with($type, 'remove_')
+            || 'delete_person' === $type
+            || 'reflow_coordinates' === $type
             ? JsonResponse::HTTP_OK
             : JsonResponse::HTTP_CREATED;
     }

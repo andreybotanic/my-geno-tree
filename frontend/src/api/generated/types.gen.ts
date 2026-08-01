@@ -196,7 +196,7 @@ export type ParentSpecification = {
     role: ParentRole;
 };
 
-export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
+export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation | ReflowCoordinatesMutation;
 
 export type CreateFirstPersonMutation = {
     type: 'create_first_person';
@@ -253,6 +253,11 @@ export type RemoveMarriagePeriodMutation = {
 export type DeletePersonMutation = {
     type: 'delete_person';
     personId: string;
+    coordinateUpdates: Array<CoordinateUpdate>;
+};
+
+export type ReflowCoordinatesMutation = {
+    type: 'reflow_coordinates';
     coordinateUpdates: Array<CoordinateUpdate>;
 };
 

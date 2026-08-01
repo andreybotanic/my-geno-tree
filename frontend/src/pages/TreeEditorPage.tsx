@@ -24,6 +24,8 @@ import type {
   MarriagePeriod,
   MarriagePeriodPatchRequest,
   ParentLink,
+  ParentRole,
+  ParentSpecification,
   Person,
   PersonInput,
   PersonPatchRequest,
@@ -62,10 +64,10 @@ import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
 import { navigate } from '../routing'
 import {
   buildTreeEdges,
-  newChildPlacement,
   newRelativeCoordinates,
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
+  reflowTree,
   type TreeFlowEdge,
 } from '../treeGraph'
 
@@ -78,6 +80,7 @@ const edgeTypes = {
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
+const PREVIEW_PERSON_ID = '__new_person__'
 
 function ZoomControls() {
   const { t } = useTranslation()
@@ -276,7 +279,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     setStatus('loading')
     try {
       const loaded = await treeApi.snapshot(request, treeId)
-      setSnapshot(loaded)
+      const coordinateUpdates = reflowTree(loaded)
+      const normalized = coordinateUpdates.length === 0
+        ? loaded
+        : await treeApi.mutate(request, treeId, loaded.etag, {
+          type: 'reflow_coordinates',
+          coordinateUpdates,
+        })
+      setSnapshot(normalized)
       setConflict(false)
       setSelectedPerson(null)
       setEvents([])
@@ -428,22 +438,59 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     if (!snapshot || !selectedPerson || !relativeAction) {
       return
     }
-    const childPlacement = relativeAction === 'child'
-      ? newChildPlacement(
-          snapshot,
-          [selectedPerson.id, options.secondParentId]
-            .filter((personId): personId is string => personId !== undefined),
-        )
-      : null
-    const coordinates = childPlacement?.coordinates ?? newRelativeCoordinates(
+    const initialCoordinates = newRelativeCoordinates(
       snapshot,
       selectedPerson.id,
       relativeAction,
       options.secondParentId ?? undefined,
     )
+    const relativeId = 'person' in relative
+      ? PREVIEW_PERSON_ID
+      : relative.personId
+    const people = 'person' in relative
+      ? [...snapshot.people, {
+        ...relative.person,
+        id: PREVIEW_PERSON_ID,
+        photoThumbnailUrl: null,
+        coordinates: initialCoordinates,
+        createdAt: '',
+        updatedAt: '',
+      }]
+      : snapshot.people
+    const parents: ParentSpecification[] = relativeAction === 'child'
+      ? [{
+        personId: selectedPerson.id,
+        role: options.parentRole,
+      }, ...(options.secondParentId ? [{
+        personId: options.secondParentId,
+          role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
+      }] : [])]
+      : []
+    const parentLinks = relativeAction === 'child'
+      ? [...snapshot.parentLinks, ...parents.map((parent, index) => ({
+        id: `preview-child-parent-${index}`,
+        parentId: parent.personId,
+        childId: relativeId,
+        role: parent.role,
+      }))]
+      : relativeAction === 'father' || relativeAction === 'mother'
+        ? [...snapshot.parentLinks, {
+          id: 'preview-parent-child',
+          parentId: relativeId,
+          childId: selectedPerson.id,
+          role: relativeAction,
+        }]
+        : snapshot.parentLinks
+    const coordinateUpdates = reflowTree({ people, parentLinks })
+    const coordinates = coordinateUpdates.find((update) => (
+      update.personId === PREVIEW_PERSON_ID
+    ))?.coordinates ?? initialCoordinates
     const positionedRelative: RelativePerson = 'person' in relative
       ? { ...relative, coordinates }
       : relative
+    const existingCoordinateUpdates = coordinateUpdates.filter((update) => (
+      update.personId !== PREVIEW_PERSON_ID
+    ))
     let mutation: GraphMutation
     if (relativeAction === 'father' || relativeAction === 'mother') {
       mutation = {
@@ -451,24 +498,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         childId: selectedPerson.id,
         role: relativeAction,
         relative: positionedRelative,
-        coordinateUpdates: [],
+        coordinateUpdates: existingCoordinateUpdates,
       }
     } else if (relativeAction === 'child') {
-      const parents = [{
-        personId: selectedPerson.id,
-        role: options.parentRole,
-      }]
-      if (options.secondParentId) {
-        parents.push({
-          personId: options.secondParentId,
-          role: options.parentRole === 'father' ? 'mother' : 'father',
-        })
-      }
       mutation = {
         type: 'add_child',
         parents,
         relative: positionedRelative,
-        coordinateUpdates: childPlacement?.coordinateUpdates ?? [],
+        coordinateUpdates: existingCoordinateUpdates,
       }
     } else {
       mutation = {
@@ -479,7 +516,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         dissolutionDate: options.dissolutionDate,
         maleNewSurname: options.maleNewSurname,
         femaleNewSurname: options.femaleNewSurname,
-        coordinateUpdates: [],
+        coordinateUpdates: existingCoordinateUpdates,
       }
     }
     await applyMutation(mutation)
@@ -488,25 +525,43 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   }
 
   const confirmRemoval = async () => {
-    if (!pendingRemoval) {
+    if (!pendingRemoval || !snapshot) {
       return
     }
+    const coordinateUpdates = pendingRemoval.kind === 'parent'
+      ? reflowTree({
+          people: snapshot.people,
+          parentLinks: snapshot.parentLinks.filter((link) => (
+            link.id !== pendingRemoval.link.id
+          )),
+        })
+      : pendingRemoval.kind === 'person'
+        ? reflowTree({
+            people: snapshot.people.filter((person) => (
+              person.id !== pendingRemoval.person.id
+            )),
+            parentLinks: snapshot.parentLinks.filter((link) => (
+              link.parentId !== pendingRemoval.person.id
+              && link.childId !== pendingRemoval.person.id
+            )),
+          })
+        : []
     const mutation: GraphMutation = pendingRemoval.kind === 'parent'
       ? {
           type: 'remove_parent_link',
           parentLinkId: pendingRemoval.link.id,
-          coordinateUpdates: [],
+          coordinateUpdates,
         }
       : pendingRemoval.kind === 'marriage'
         ? {
             type: 'remove_marriage_period',
             marriageId: pendingRemoval.marriage.id,
-            coordinateUpdates: [],
+            coordinateUpdates,
           }
         : {
             type: 'delete_person',
             personId: pendingRemoval.person.id,
-            coordinateUpdates: [],
+            coordinateUpdates,
           }
     await applyMutation(mutation)
     setPendingRemoval(null)

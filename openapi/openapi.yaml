@@ -1398,6 +1398,7 @@ components:
         - $ref: "#/components/schemas/RemoveParentLinkMutation"
         - $ref: "#/components/schemas/RemoveMarriagePeriodMutation"
         - $ref: "#/components/schemas/DeletePersonMutation"
+        - $ref: "#/components/schemas/ReflowCoordinatesMutation"
     CreateFirstPersonMutation:
       type: object
       additionalProperties: false
@@ -1579,6 +1580,20 @@ components:
         personId:
           type: string
           format: uuid
+        coordinateUpdates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinateUpdate"
+    ReflowCoordinatesMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - coordinateUpdates
+      properties:
+        type:
+          type: string
+          const: reflow_coordinates
         coordinateUpdates:
           type: array
           items:
