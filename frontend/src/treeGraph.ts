@@ -460,7 +460,40 @@ export function reflowTree(
             children.length,
             index,
           ))
-        })
+      })
+    })
+  }
+  const compactParentPairs = () => {
+    const partnerCounts = new Map<string, number>()
+    for (const [firstId, secondId] of familyPairs) {
+      partnerCounts.set(firstId, (partnerCounts.get(firstId) ?? 0) + 1)
+      partnerCounts.set(secondId, (partnerCounts.get(secondId) ?? 0) + 1)
+    }
+    orderedFamilies.forEach((family) => {
+      if (family.parentIds.length !== 2) {
+        return
+      }
+      const [firstId, secondId] = family.parentIds
+      if (!firstId || !secondId) {
+        return
+      }
+      const first = positions.get(firstId)
+      const second = positions.get(secondId)
+      if (
+        !first
+        || !second
+        || (partnerCounts.get(firstId) ?? 0) !== 1
+        || (partnerCounts.get(secondId) ?? 0) !== 1
+        || Math.abs(first.x - second.x) <= HORIZONTAL_STEP
+      ) {
+        return
+      }
+      const [leftId, rightId, left, right] = first.x <= second.x
+        ? [firstId, secondId, first, second]
+        : [secondId, firstId, second, first]
+      const centreX = (left.x + right.x) / 2
+      positions.set(leftId, { ...left, x: centreX - HORIZONTAL_STEP / 2 })
+      positions.set(rightId, { ...right, x: centreX + HORIZONTAL_STEP / 2 })
     })
   }
   const ancestors = (personId: string): Map<string, number> => {
@@ -498,6 +531,7 @@ export function reflowTree(
     return undefined
   }
 
+  compactParentPairs()
   alignFamilies()
   for (let attempt = 0; attempt < snapshot.people.length * 2; attempt += 1) {
     const pair = overlappingPair()

@@ -191,6 +191,31 @@ describe('tree graph presentation', () => {
     ])
   })
 
+  it('compacts a parent pair around the centre of its shared child block', () => {
+    const tree = snapshot(
+      [
+        person('mother', 0, 0),
+        person('father', 640, 0),
+        person('first-child', 0, 240),
+        person('second-child', 320, 240),
+        person('third-child', 640, 240),
+      ],
+      [
+        { id: 'mother-first', parentId: 'mother', childId: 'first-child', role: 'mother' },
+        { id: 'father-first', parentId: 'father', childId: 'first-child', role: 'father' },
+        { id: 'mother-second', parentId: 'mother', childId: 'second-child', role: 'mother' },
+        { id: 'father-second', parentId: 'father', childId: 'second-child', role: 'father' },
+        { id: 'mother-third', parentId: 'mother', childId: 'third-child', role: 'mother' },
+        { id: 'father-third', parentId: 'father', childId: 'third-child', role: 'father' },
+      ],
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'mother', coordinates: { x: 160, y: 0 } },
+      { personId: 'father', coordinates: { x: 480, y: 0 } },
+    ])
+  })
+
   it('separates colliding branches without losing family centring', () => {
     const tree = snapshot(
       [
@@ -263,8 +288,9 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'wife-2', coordinates: { x: 640, y: 0 } },
+      { personId: 'wife-2', coordinates: { x: 960, y: 0 } },
       { personId: 'wife-1', coordinates: { x: 320, y: 0 } },
+      { personId: 'husband-2', coordinates: { x: 1280, y: 0 } },
       { personId: 'child-1', coordinates: { x: 160, y: 240 } },
     ])
   })
