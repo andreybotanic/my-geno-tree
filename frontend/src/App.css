@@ -1005,6 +1005,30 @@
   position: static;
 }
 
+.person-panel-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.dev-copy-uid-button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  padding: 5px 7px;
+}
+
+.dev-copy-uid-button:hover {
+  background: var(--color-background);
+  color: var(--color-text-strong);
+}
+
 .panel-photo-placeholder {
   background: var(--color-surface);
   border: 0;

@@ -132,6 +132,19 @@ describe('PersonDetailsPanel', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('copies the person UID in development builds', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    renderPanel()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy UID' }))
+
+    expect(writeText).toHaveBeenCalledWith(person.id)
+  })
+
   it('renders a protected photo and an empty timeline', async () => {
     renderPanel({
       events: [],

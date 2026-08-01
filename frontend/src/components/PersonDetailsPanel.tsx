@@ -253,6 +253,13 @@ export function PersonDetailsPanel({
     await onPatch({ [field]: value })
     setEditing(null)
   }
+  const copyUid = async () => {
+    try {
+      await navigator.clipboard.writeText(person.id)
+    } catch {
+      // Clipboard access can be disabled by the browser.
+    }
+  }
 
   const dateLabel = (value: GenealogicalDate | null) => value === null
     ? t('person.present')
@@ -265,14 +272,27 @@ export function PersonDetailsPanel({
           <p className="eyebrow">{t('person.details')}</p>
           <h2>{formatPersonName(person, t)}</h2>
         </div>
-        <button
-          aria-label={t('common.close')}
-          className="dialog-close"
-          onClick={onClose}
-          type="button"
-        >
-          ×
-        </button>
+        <div className="person-panel-actions">
+          {import.meta.env.DEV && (
+            <button
+              aria-label={t('person.copyUid')}
+              className="dev-copy-uid-button"
+              onClick={() => void copyUid()}
+              title={t('person.copyUid')}
+              type="button"
+            >
+              UID
+            </button>
+          )}
+          <button
+            aria-label={t('common.close')}
+            className="dialog-close"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="person-photo-editor">
