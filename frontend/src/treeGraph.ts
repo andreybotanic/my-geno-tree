@@ -13,6 +13,7 @@ export const PERSON_CARD_HEIGHT = 160
 const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
 const PARTNER_OUTLET_SPACING = 32
+const HALF_SIBLING_GAP = 400
 
 export type RelativeKind = 'child' | 'father' | 'mother' | 'spouse'
 
@@ -398,6 +399,25 @@ export function reflowTree(
     family.childIds.push(childId)
     families.set(key, family)
   }
+  const isHalfSiblingPair = (firstId: string, secondId: string) => {
+    const firstParents = new Set(parentsByChild.get(firstId) ?? [])
+    const secondParents = new Set(parentsByChild.get(secondId) ?? [])
+    if (firstParents.size === 0 || secondParents.size === 0) {
+      return false
+    }
+
+    const sharedParents = [...firstParents].filter((parentId) => secondParents.has(parentId))
+
+    return sharedParents.length > 0 && sharedParents.length < Math.min(
+      firstParents.size,
+      secondParents.size,
+    )
+  }
+  const minimumHorizontalDistance = (firstId: string, secondId: string) => (
+    isHalfSiblingPair(firstId, secondId)
+      ? HALF_SIBLING_GAP
+      : PERSON_CARD_WIDTH + 40
+  )
 
   const rootRows = new Map<number, string[]>()
   for (const person of snapshot.people) {
@@ -548,11 +568,14 @@ export function reflowTree(
       const [personId, position] = orderedPeople[index]!
       for (let previous = index - 1; previous >= 0; previous -= 1) {
         const [previousId, previousPosition] = orderedPeople[previous]!
-        if (position.x - previousPosition.x >= PERSON_CARD_WIDTH + 40) {
+        const horizontalDistance = position.x - previousPosition.x
+        if (horizontalDistance >= HALF_SIBLING_GAP) {
           break
         }
         const verticalDistance = Math.abs(position.y - previousPosition.y)
         if (
+          horizontalDistance < minimumHorizontalDistance(previousId, personId)
+          && (
           verticalDistance < PERSON_CARD_HEIGHT + 40
           || (
             verticalDistance === VERTICAL_STEP
@@ -560,6 +583,7 @@ export function reflowTree(
               position.y < previousPosition.y ? personId : previousId,
             )
             && !mayShareVerticalSpace(previousId, personId)
+          )
           )
         ) {
           return [previousId, personId]
@@ -620,7 +644,12 @@ export function reflowTree(
       break
     }
     const [rootId] = candidate
-    if (!shiftRootSuffix(rootId, HORIZONTAL_STEP)) {
+    const leftPosition = positions.get(leftId)
+    const rightPosition = positions.get(rightId)
+    const shift = isHalfSiblingPair(leftId, rightId) && leftPosition && rightPosition
+      ? 2 * (HALF_SIBLING_GAP - (rightPosition.x - leftPosition.x))
+      : HORIZONTAL_STEP
+    if (!shiftRootSuffix(rootId, shift)) {
       break
     }
     alignFamilies()

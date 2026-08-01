@@ -218,7 +218,7 @@ describe('tree graph presentation', () => {
     ])
   })
 
-  it('compacts a multi-spouse family until children from different unions meet', () => {
+  it('leaves an additional gap between half-siblings from different unions', () => {
     const tree = snapshot(
       [
         person('first-spouse', -320, -240),
@@ -241,11 +241,11 @@ describe('tree graph presentation', () => {
 
     expect(reflowTree(tree)).toEqual([
       { personId: 'shared-parent', coordinates: { x: 0, y: -240 } },
-      { personId: 'second-spouse', coordinates: { x: 320, y: -240 } },
-      { personId: 'third-spouse', coordinates: { x: 960, y: -240 } },
+      { personId: 'second-spouse', coordinates: { x: 480, y: -240 } },
+      { personId: 'third-spouse', coordinates: { x: 1280, y: -240 } },
       { personId: 'first-child', coordinates: { x: -160, y: 0 } },
-      { personId: 'second-child', coordinates: { x: 160, y: 0 } },
-      { personId: 'third-child', coordinates: { x: 480, y: 0 } },
+      { personId: 'second-child', coordinates: { x: 240, y: 0 } },
+      { personId: 'third-child', coordinates: { x: 640, y: 0 } },
     ])
   })
 
@@ -285,9 +285,9 @@ describe('tree graph presentation', () => {
       update.personId,
       update.coordinates,
     ]))
-    expect(positions.get('other-parent-1')).toEqual({ x: 1600, y: -240 })
-    expect(positions.get('other-parent-2')).toEqual({ x: 1920, y: -240 })
-    expect(positions.get('other-child-1')).toEqual({ x: 1440, y: 0 })
+    expect(positions.get('other-parent-1')).toEqual({ x: 1920, y: -240 })
+    expect(positions.get('other-parent-2')).toEqual({ x: 2240, y: -240 })
+    expect(positions.get('other-child-1')).toEqual({ x: 1760, y: 0 })
   })
 
   it('reflows the compacted werwer branch without crossing unrelated generations', () => {
@@ -320,18 +320,18 @@ describe('tree graph presentation', () => {
 
     expect(reflowTree(tree)).toEqual([
       { personId: 'b', coordinates: { x: 0, y: -240 } },
-      { personId: 'c', coordinates: { x: 320, y: -240 } },
-      { personId: 'd', coordinates: { x: 960, y: -240 } },
-      { personId: 'e', coordinates: { x: 1600, y: -240 } },
-      { personId: 'f', coordinates: { x: 1920, y: -240 } },
+      { personId: 'c', coordinates: { x: 480, y: -240 } },
+      { personId: 'd', coordinates: { x: 1280, y: -240 } },
+      { personId: 'e', coordinates: { x: 1920, y: -240 } },
+      { personId: 'f', coordinates: { x: 2240, y: -240 } },
       { personId: 'ab', coordinates: { x: -160, y: 0 } },
-      { personId: 'bc', coordinates: { x: 160, y: 0 } },
-      { personId: 'bd', coordinates: { x: 480, y: 0 } },
-      { personId: 'ef-1', coordinates: { x: 1440, y: 0 } },
-      { personId: 'ef-2', coordinates: { x: 1760, y: 0 } },
-      { personId: 'ef-3', coordinates: { x: 2080, y: 0 } },
-      { personId: 'grandchild-1', coordinates: { x: 640, y: 240 } },
-      { personId: 'grandchild-2', coordinates: { x: 960, y: 240 } },
+      { personId: 'bc', coordinates: { x: 240, y: 0 } },
+      { personId: 'bd', coordinates: { x: 640, y: 0 } },
+      { personId: 'ef-1', coordinates: { x: 1760, y: 0 } },
+      { personId: 'ef-2', coordinates: { x: 2080, y: 0 } },
+      { personId: 'ef-3', coordinates: { x: 2400, y: 0 } },
+      { personId: 'grandchild-1', coordinates: { x: 840, y: 240 } },
+      { personId: 'grandchild-2', coordinates: { x: 1160, y: 240 } },
     ])
   })
 
