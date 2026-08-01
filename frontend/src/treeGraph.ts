@@ -12,6 +12,7 @@ export const PERSON_CARD_WIDTH = 260
 export const PERSON_CARD_HEIGHT = 160
 const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
+const PARTNER_OUTLET_SPACING = 32
 
 export type RelativeKind = 'child' | 'father' | 'mother' | 'spouse'
 
@@ -59,7 +60,6 @@ type PartnerOutlet = {
   partnerId: string
   partnerX: number
   personId: string
-  side: -1 | 1
 }
 
 type PartnerOutletLayout = {
@@ -124,7 +124,6 @@ export function buildTreeEdges(
     families.set(key, family)
   }
 
-  const outletsByPersonSide = new Map<string, PartnerOutlet[]>()
   const outletsByPerson = new Map<string, PartnerOutlet[]>()
   for (const [key, family] of families) {
     const first = people.get(family.people[0])
@@ -144,57 +143,31 @@ export function buildTreeEdges(
       partnerId: right.id,
       partnerX: right.coordinates.x,
       personId: left.id,
-      side: 1 as const,
     }, {
       familyKey: key,
       partnerId: left.id,
       partnerX: left.coordinates.x,
       personId: right.id,
-      side: -1 as const,
     }]) {
-      const outletKey = `${outlet.personId}:${outlet.side}`
-      const personOutlets = outletsByPersonSide.get(outletKey) ?? []
-      personOutlets.push(outlet)
-      outletsByPersonSide.set(outletKey, personOutlets)
       const allPersonOutlets = outletsByPerson.get(outlet.personId) ?? []
       allPersonOutlets.push(outlet)
       outletsByPerson.set(outlet.personId, allPersonOutlets)
     }
   }
-  const centeredOutlets = new Set<string>()
-  for (const outlets of outletsByPerson.values()) {
-    if (outlets.length <= 1 || outlets.length % 2 === 0) {
-      continue
-    }
-    const centredOutlet = [...outlets].sort((first, second) => (
-      Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
-      - Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
-      || first.familyKey.localeCompare(second.familyKey)
-    ))[0]!
-    centeredOutlets.add(`${centredOutlet.familyKey}:${centredOutlet.personId}`)
-  }
   const outletLayout = new Map<string, PartnerOutletLayout>()
-  for (const outlets of outletsByPersonSide.values()) {
+  for (const outlets of outletsByPerson.values()) {
     outlets
       .sort((first, second) => (
-        Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
-        - Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
+        (first.partnerX < (people.get(first.personId)?.coordinates.x ?? 0) ? -1 : 1)
+        - (second.partnerX < (people.get(second.personId)?.coordinates.x ?? 0) ? -1 : 1)
+        || second.partnerX - first.partnerX
         || first.familyKey.localeCompare(second.familyKey)
       ))
       .forEach((outlet, index) => {
         const outletKey = `${outlet.familyKey}:${outlet.personId}`
-        const centered = centeredOutlets.has(outletKey)
-        const sideIndex = outlets
-          .slice(0, index)
-          .filter((previous) => !centeredOutlets.has(
-            `${previous.familyKey}:${previous.personId}`,
-          )).length
-        const hasMultiplePartners = (outletsByPerson.get(outlet.personId)?.length ?? 0) > 1
         outletLayout.set(outletKey, {
           bracketDepth: 24,
-          offset: !hasMultiplePartners || centered
-            ? 0
-            : outlet.side * (16 + sideIndex * 18),
+          offset: (index - (outlets.length - 1) / 2) * PARTNER_OUTLET_SPACING,
         })
       })
   }
@@ -210,7 +183,7 @@ export function buildTreeEdges(
       person.coordinates.x + ownOffset - partner.coordinates.x - partnerOffset,
     )
   }
-  for (const outlets of outletsByPersonSide.values()) {
+  for (const outlets of outletsByPerson.values()) {
     outlets
       .sort((first, second) => (
         bracketLength(first) - bracketLength(second)
@@ -224,7 +197,7 @@ export function buildTreeEdges(
         }
         outletLayout.set(outletKey, {
           ...layout,
-          bracketDepth: 24 + (outlets.length - index - 1) * 18,
+          bracketDepth: 24 + index * 18,
         })
       })
   }

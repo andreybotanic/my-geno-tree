@@ -148,4 +148,70 @@ describe('TreeEdges', () => {
       expect.stringContaining('Q 384 142 384 134'),
     )
   })
+
+  it('nests brackets without intersections when every partner is on one side', () => {
+    const { container } = render(
+      <svg>
+        <FamilyEdge
+          {...{
+            ...familyProps([]),
+            id: 'near',
+            target: 'near-partner',
+            targetX: 450,
+            data: {
+              bracketDepth: 24,
+              childPoints: [],
+              married: true,
+              sourceOffset: 32,
+              targetOffset: 0,
+            },
+          }}
+        />
+        <FamilyEdge
+          {...{
+            ...familyProps([]),
+            id: 'middle',
+            target: 'middle-partner',
+            targetX: 770,
+            data: {
+              bracketDepth: 42,
+              childPoints: [],
+              married: true,
+              sourceOffset: 0,
+              targetOffset: 0,
+            },
+          }}
+        />
+        <FamilyEdge
+          {...{
+            ...familyProps([]),
+            id: 'far',
+            target: 'far-partner',
+            targetX: 1090,
+            data: {
+              bracketDepth: 60,
+              childPoints: [],
+              married: true,
+              sourceOffset: -32,
+              targetOffset: 0,
+            },
+          }}
+        />
+      </svg>,
+    )
+
+    expect(container.querySelectorAll('.tree-edge-marriage')).toHaveLength(3)
+    expect(container.querySelectorAll('.tree-edge-marriage').item(0)).toHaveAttribute(
+      'd',
+      'M 132 95 L 132 116 Q 132 124 140 124 L 442 124 Q 450 124 450 116 L 450 95',
+    )
+    expect(container.querySelectorAll('.tree-edge-marriage').item(1)).toHaveAttribute(
+      'd',
+      'M 100 95 L 100 134 Q 100 142 108 142 L 762 142 Q 770 142 770 134 L 770 95',
+    )
+    expect(container.querySelectorAll('.tree-edge-marriage').item(2)).toHaveAttribute(
+      'd',
+      'M 68 95 L 68 152 Q 68 160 76 160 L 1082 160 Q 1090 160 1090 152 L 1090 95',
+    )
+  })
 })

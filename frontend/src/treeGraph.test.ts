@@ -269,7 +269,7 @@ describe('tree graph presentation', () => {
     ])
   })
 
-  it('makes the longer partner bracket higher and closer to the shared person', () => {
+  it('keeps partner brackets ordered without crossings', () => {
     const tree = snapshot(
       [
         person('centre', 0, 0),
@@ -302,12 +302,12 @@ describe('tree graph presentation', () => {
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
     expect(edges.get('family:centre:near-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 34 }),
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 16 }),
       }),
     )
     expect(edges.get('family:centre:far-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 16 }),
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: -16 }),
       }),
     )
   })
@@ -355,7 +355,7 @@ describe('tree graph presentation', () => {
     )
   })
 
-  it('keeps the longest bracket centred for an odd number of partners', () => {
+  it('distributes odd partner outlets symmetrically around the shared person', () => {
     const tree = snapshot(
       [
         person('left-partner', -320, 0),
@@ -398,17 +398,17 @@ describe('tree graph presentation', () => {
     const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
     expect(edges.get('family:centre:far-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 0 }),
+        data: expect.objectContaining({ bracketDepth: 60, sourceOffset: 0 }),
       }),
     )
     expect(edges.get('family:centre:left-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ targetOffset: -16 }),
+        data: expect.objectContaining({ bracketDepth: 24, targetOffset: -32 }),
       }),
     )
     expect(edges.get('family:centre:near-partner')).toEqual(
       expect.objectContaining({
-        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 16 }),
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 32 }),
       }),
     )
   })
