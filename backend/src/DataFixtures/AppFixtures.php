@@ -274,6 +274,21 @@ final class FixtureTreeBuilder
         foreach ($this->people as $person) {
             $peopleById[$person->getId()->toRfc4122()] = $person;
         }
+        /** @var array<string, list<Person>> $rootRows */
+        $rootRows = [];
+        foreach ($this->people as $person) {
+            $id = $person->getId()->toRfc4122();
+            if ([] !== ($this->parentsByChild[$id] ?? [])) {
+                continue;
+            }
+            $rootRows[sprintf('%.6F', $person->getY())][] = $person;
+        }
+        foreach ($rootRows as $roots) {
+            usort($roots, static fn (Person $first, Person $second): int => $first->getX() <=> $second->getX() ?: $first->getId()->toRfc4122() <=> $second->getId()->toRfc4122());
+            foreach ($roots as $index => $root) {
+                $root->moveTo($index * self::HORIZONTAL_STEP, $root->getY(), $this->createdAt);
+            }
+        }
         /** @var array<string, array{parents: list<Person>, children: list<Person>}> $families */
         $families = [];
         foreach ($this->parentsByChild as $childId => $parents) {

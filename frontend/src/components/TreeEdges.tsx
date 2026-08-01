@@ -19,14 +19,16 @@ export function FamilyEdge({
   targetX,
   targetY,
 }: EdgeProps<FamilyFlowEdge>) {
-  const pairY = Math.max(sourceY, targetY) + 24
+  const sourceExitX = sourceX + (data?.sourceOffset ?? 0)
+  const targetExitX = targetX + (data?.targetOffset ?? 0)
+  const pairY = Math.max(sourceY, targetY) + (data?.bracketDepth ?? 24)
   const pairPath = [
-    `M ${sourceX} ${sourceY - CARD_CONNECTION_OVERLAP}`,
-    `L ${sourceX} ${pairY - PAIR_CORNER_RADIUS}`,
-    `Q ${sourceX} ${pairY} ${sourceX + PAIR_CORNER_RADIUS} ${pairY}`,
-    `L ${targetX - PAIR_CORNER_RADIUS} ${pairY}`,
-    `Q ${targetX} ${pairY} ${targetX} ${pairY - PAIR_CORNER_RADIUS}`,
-    `L ${targetX} ${targetY - CARD_CONNECTION_OVERLAP}`,
+    `M ${sourceExitX} ${sourceY - CARD_CONNECTION_OVERLAP}`,
+    `L ${sourceExitX} ${pairY - PAIR_CORNER_RADIUS}`,
+    `Q ${sourceExitX} ${pairY} ${sourceExitX + PAIR_CORNER_RADIUS} ${pairY}`,
+    `L ${targetExitX - PAIR_CORNER_RADIUS} ${pairY}`,
+    `Q ${targetExitX} ${pairY} ${targetExitX} ${pairY - PAIR_CORNER_RADIUS}`,
+    `L ${targetExitX} ${targetY - CARD_CONNECTION_OVERLAP}`,
   ].join(' ')
   const children = data?.childPoints ?? []
   const childPath = childrenPath(

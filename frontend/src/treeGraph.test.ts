@@ -70,7 +70,10 @@ describe('tree graph presentation', () => {
       targetHandle: 'bottom-target',
       type: 'family',
       data: {
+        bracketDepth: 24,
         married: true,
+        sourceOffset: 0,
+        targetOffset: 0,
         childPoints: [
           { id: 'child-1', topX: 130, topY: 240 },
           { id: 'child-2', topX: 410, topY: 240 },
@@ -211,5 +214,64 @@ describe('tree graph presentation', () => {
     expect(positions.get('independent-parent')).toEqual({ x: 640, y: 0 })
     expect(positions.get('independent-child')).toEqual({ x: 640, y: 240 })
     expect(positions.get('left-child')).toBeUndefined()
+  })
+
+  it('compacts surviving root branches after a deletion', () => {
+    const tree = snapshot([
+      person('left-root', 0, 0),
+      person('removed-root', 320, 0),
+      person('remaining-root', 1920, 0),
+    ])
+    const afterDeletion = {
+      people: tree.people.filter((person) => person.id !== 'removed-root'),
+      parentLinks: tree.parentLinks,
+    }
+
+    expect(reflowTree(afterDeletion, { compact: true })).toEqual([
+      { personId: 'remaining-root', coordinates: { x: 320, y: 0 } },
+    ])
+  })
+
+  it('separates multiple partner brackets at their shared person', () => {
+    const tree = snapshot(
+      [
+        person('centre', 0, 0),
+        person('near-partner', 320, 0),
+        person('far-partner', 640, 0),
+      ],
+      [],
+      [
+        {
+          id: 'near-marriage',
+          malePersonId: 'centre',
+          femalePersonId: 'near-partner',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+        {
+          id: 'far-marriage',
+          malePersonId: 'centre',
+          femalePersonId: 'far-partner',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+      ],
+    )
+
+    const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
+    expect(edges.get('family:centre:near-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ bracketDepth: 42, sourceOffset: 16 }),
+      }),
+    )
+    expect(edges.get('family:centre:far-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ bracketDepth: 24, sourceOffset: 34 }),
+      }),
+    )
   })
 })

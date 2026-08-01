@@ -544,7 +544,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               link.parentId !== pendingRemoval.person.id
               && link.childId !== pendingRemoval.person.id
             )),
-          })
+          }, { compact: true })
         : []
     const mutation: GraphMutation = pendingRemoval.kind === 'parent'
       ? {

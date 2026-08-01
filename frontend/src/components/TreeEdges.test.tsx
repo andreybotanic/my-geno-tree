@@ -24,7 +24,13 @@ function familyProps(
     markerStart: undefined,
     markerEnd: undefined,
     interactionWidth: 20,
-    data: { childPoints: children, married },
+    data: {
+      bracketDepth: 24,
+      childPoints: children,
+      married,
+      sourceOffset: 0,
+      targetOffset: 0,
+    },
     selected: false,
     animated: false,
     label: undefined,
@@ -112,6 +118,34 @@ describe('TreeEdges', () => {
     expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
       'd',
       expect.stringContaining('100'),
+    )
+  })
+
+  it('uses displaced outlets and separate bracket heights for multiple partners', () => {
+    const { container } = render(
+      <svg>
+        <FamilyEdge
+          {...{
+            ...familyProps([]),
+            data: {
+              bracketDepth: 42,
+              childPoints: [],
+              married: true,
+              sourceOffset: 16,
+              targetOffset: -16,
+            },
+          }}
+        />
+      </svg>,
+    )
+
+    expect(container.querySelector('.tree-edge-marriage')).toHaveAttribute(
+      'd',
+      expect.stringContaining('M 116 95 L 116 134'),
+    )
+    expect(container.querySelector('.tree-edge-marriage')).toHaveAttribute(
+      'd',
+      expect.stringContaining('Q 384 142 384 134'),
     )
   })
 })

@@ -15,12 +15,15 @@ const VERTICAL_STEP = 240
 export type RelativeKind = 'child' | 'father' | 'mother' | 'spouse'
 
 export type FamilyEdgeData = {
+  bracketDepth: number
   childPoints: Array<{
     id: string
     topX: number
     topY: number
   }>
   married: boolean
+  sourceOffset: number
+  targetOffset: number
 }
 
 export type FamilyFlowEdge = Edge<FamilyEdgeData, 'family'>
@@ -43,6 +46,18 @@ type Family = {
   children: Set<string>
   married: boolean
   people: [string, string]
+}
+
+type PartnerOutlet = {
+  familyKey: string
+  partnerX: number
+  personId: string
+  side: -1 | 1
+}
+
+type PartnerOutletLayout = {
+  bracketDepth: number
+  offset: number
 }
 
 export function buildTreeEdges(
@@ -102,15 +117,77 @@ export function buildTreeEdges(
     families.set(key, family)
   }
 
+  const outletsByPersonSide = new Map<string, PartnerOutlet[]>()
   for (const [key, family] of families) {
     const first = people.get(family.people[0])
     const second = people.get(family.people[1])
     if (!first || !second) {
       continue
     }
-    const [left, right] = first.coordinates.x <= second.coordinates.x
+    const [left, right] = first.coordinates.x < second.coordinates.x
+      || (
+        first.coordinates.x === second.coordinates.x
+        && first.id.localeCompare(second.id) < 0
+      )
       ? [first, second]
       : [second, first]
+    for (const outlet of [{
+      familyKey: key,
+      partnerX: right.coordinates.x,
+      personId: left.id,
+      side: 1 as const,
+    }, {
+      familyKey: key,
+      partnerX: left.coordinates.x,
+      personId: right.id,
+      side: -1 as const,
+    }]) {
+      const outletKey = `${outlet.personId}:${outlet.side}`
+      const personOutlets = outletsByPersonSide.get(outletKey) ?? []
+      personOutlets.push(outlet)
+      outletsByPersonSide.set(outletKey, personOutlets)
+    }
+  }
+  const outletLayout = new Map<string, PartnerOutletLayout>()
+  for (const outlets of outletsByPersonSide.values()) {
+    outlets
+      .sort((first, second) => (
+        Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
+        - Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+        || first.familyKey.localeCompare(second.familyKey)
+      ))
+      .forEach((outlet, index) => {
+        const multiplePartners = outlets.length > 1
+        outletLayout.set(`${outlet.familyKey}:${outlet.personId}`, {
+          bracketDepth: 24 + (multiplePartners
+            ? (outlets.length - index - 1) * 18
+            : 0),
+          offset: multiplePartners ? outlet.side * (16 + index * 18) : 0,
+        })
+      })
+  }
+
+  for (const [key, family] of families) {
+    const first = people.get(family.people[0])
+    const second = people.get(family.people[1])
+    if (!first || !second) {
+      continue
+    }
+    const [left, right] = first.coordinates.x < second.coordinates.x
+      || (
+        first.coordinates.x === second.coordinates.x
+        && first.id.localeCompare(second.id) < 0
+      )
+      ? [first, second]
+      : [second, first]
+    const sourceLayout = outletLayout.get(`${key}:${left.id}`) ?? {
+      bracketDepth: 24,
+      offset: 0,
+    }
+    const targetLayout = outletLayout.get(`${key}:${right.id}`) ?? {
+      bracketDepth: 24,
+      offset: 0,
+    }
     const childPoints = [...family.children]
       .map((childId) => people.get(childId))
       .filter((person) => person !== undefined)
@@ -129,8 +206,14 @@ export function buildTreeEdges(
       targetHandle: 'bottom-target',
       type: 'family',
       data: {
+        bracketDepth: Math.max(
+          sourceLayout.bracketDepth,
+          targetLayout.bracketDepth,
+        ),
         childPoints,
         married: family.married,
+        sourceOffset: sourceLayout.offset,
+        targetOffset: targetLayout.offset,
       },
     })
   }
@@ -224,6 +307,7 @@ export function newChildPlacement(
 
 export function reflowTree(
   snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
+  options: { compact?: boolean } = {},
 ): CoordinateUpdate[] {
   const people = new Map(snapshot.people.map((person) => [person.id, person]))
   const parentsByChild = new Map<string, string[]>()
@@ -267,6 +351,33 @@ export function reflowTree(
     const family = families.get(key) ?? { parentIds: knownParents, childIds: [] }
     family.childIds.push(childId)
     families.set(key, family)
+  }
+
+  if (options.compact) {
+    const rootRows = new Map<number, string[]>()
+    for (const person of snapshot.people) {
+      const hasKnownParent = (parentsByChild.get(person.id) ?? [])
+        .some((parentId) => people.has(parentId))
+      if (hasKnownParent) {
+        continue
+      }
+      const roots = rootRows.get(person.coordinates.y) ?? []
+      roots.push(person.id)
+      rootRows.set(person.coordinates.y, roots)
+    }
+    for (const rootIds of rootRows.values()) {
+      rootIds
+        .sort((first, second) => (
+          (positions.get(first)?.x ?? 0) - (positions.get(second)?.x ?? 0)
+          || first.localeCompare(second)
+        ))
+        .forEach((personId, index) => {
+          const position = positions.get(personId)
+          if (position) {
+            positions.set(personId, { ...position, x: index * HORIZONTAL_STEP })
+          }
+        })
+    }
   }
 
   const orderedFamilies = [...families.values()]
