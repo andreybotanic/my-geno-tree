@@ -29,7 +29,7 @@ final class FamilyTreeRepository extends ServiceEntityRepository
             ->leftJoin(
                 Person::class,
                 'person',
-                'WITH',
+                'ON',
                 'person.tree = tree',
             )
             ->andWhere('tree.owner = :owner')

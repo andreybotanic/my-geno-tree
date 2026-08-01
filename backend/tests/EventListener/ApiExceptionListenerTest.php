@@ -107,9 +107,9 @@ final class ApiExceptionListenerTest extends TestCase
     {
         $throwable = new \RuntimeException('sensitive');
         $event = $this->event('/api/v1/test', $throwable);
-        $logger = self::createMock(LoggerInterface::class);
+        $logger = $this->createMock(LoggerInterface::class);
         $logger
-            ->expects(self::once())
+            ->expects($this->once())
             ->method('error')
             ->with('Unhandled API exception.', ['exception' => $throwable]);
         $listener = new ApiExceptionListener(

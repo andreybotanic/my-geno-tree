@@ -77,6 +77,7 @@
 
 ## Quality Requirements
 
+- Before committing each completed feature, run the `phpstorm-inspections` skill for all affected PHP files at `WARNING` severity. Apply every available quick fix, then manually correct every remaining `WARNING`-or-higher finding that can be fixed; re-inspect each manually changed file until it is clean.
 - Cover production behavior with automated tests at the appropriate unit, integration, or API level.
 - Keep every production file at `75%` coverage or higher where the coverage tooling can measure it meaningfully.
 - Keep total automated-test code coverage at `80%` or higher.

@@ -3,6 +3,7 @@
 namespace App\Tests\Api\Media;
 
 use App\Tests\Api\ApiWebTestCase;
+use Doctrine\DBAL\Connection;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -453,7 +454,7 @@ final class MediaApiTest extends ApiWebTestCase
 
     private function storage(): FilesystemOperator
     {
-        $storage = static::getContainer()->get('media.storage');
+        $storage = static::getContainer()->get('app.test_media_storage');
         self::assertInstanceOf(FilesystemOperator::class, $storage);
 
         return $storage;
@@ -462,9 +463,9 @@ final class MediaApiTest extends ApiWebTestCase
     private function mediaObjectCount(): int
     {
         $connection = static::getContainer()->get(
-            'doctrine.dbal.default_connection',
+            Connection::class,
         );
-        self::assertInstanceOf(\Doctrine\DBAL\Connection::class, $connection);
+        self::assertInstanceOf(Connection::class, $connection);
 
         $count = $connection->fetchOne(
             'SELECT COUNT(*) FROM media_object',
@@ -501,8 +502,8 @@ final class MediaApiTest extends ApiWebTestCase
     /** @return list<string> */
     private function storagePathsForPerson(string $personId): array
     {
-        $connection = static::getContainer()->get('doctrine.dbal.default_connection');
-        self::assertInstanceOf(\Doctrine\DBAL\Connection::class, $connection);
+        $connection = static::getContainer()->get(Connection::class);
+        self::assertInstanceOf(Connection::class, $connection);
         $paths = $connection->fetchFirstColumn(
             'SELECT variant.storage_path
              FROM media_variant variant

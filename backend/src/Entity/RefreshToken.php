@@ -53,6 +53,16 @@ class RefreshToken
         return $this->session;
     }
 
+    public function getTokenHash(): string
+    {
+        return $this->tokenHash;
+    }
+
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+
     public function isUsed(): bool
     {
         return null !== $this->usedAt;

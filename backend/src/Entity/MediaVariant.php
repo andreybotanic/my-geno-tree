@@ -69,6 +69,11 @@ class MediaVariant
         return $this->type;
     }
 
+    public function getMedia(): MediaObject
+    {
+        return $this->media;
+    }
+
     public function getStoragePath(): string
     {
         return $this->storagePath;

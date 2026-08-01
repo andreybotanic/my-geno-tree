@@ -13,7 +13,7 @@ final class AuthenticationPolicyTest extends TestCase
     {
         (new AuthenticationPolicy())->assertCanIssueTokens($this->user());
 
-        self::addToAssertionCount(1);
+        $this->addToAssertionCount(1);
     }
 
     public function testUnverifiedUserCannotReceiveTokens(): void

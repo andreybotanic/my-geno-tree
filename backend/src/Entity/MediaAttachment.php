@@ -95,6 +95,16 @@ class MediaAttachment
         return $this->type;
     }
 
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function getPerson(): ?Person
+    {
+        return $this->person;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
