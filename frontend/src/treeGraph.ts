@@ -13,7 +13,7 @@ export const PERSON_CARD_HEIGHT = 160
 const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
 const PARTNER_OUTLET_SPACING = 32
-const HALF_SIBLING_GAP = 400
+const HALF_SIBLING_GAP = 380
 
 export type RelativeKind = 'child' | 'father' | 'mother' | 'spouse'
 
