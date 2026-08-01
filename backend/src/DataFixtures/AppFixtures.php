@@ -14,6 +14,8 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
+use App\Repository\FamilyTreeRepository;
+use App\Repository\UserRepository;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -21,26 +23,48 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 final class AppFixtures extends Fixture
 {
     private const string DEMO_PASSWORD = 'demo-password';
+    private const string DEMO_USERNAME = 'demo';
+    private const string DEMO_EMAIL = 'demo@example.test';
+    private const string DEMO_TREE_NAME = 'Семья Орловых';
 
     public function __construct(
         private readonly AutomaticEventSynchronizer $events,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly UserRepository $users,
+        private readonly FamilyTreeRepository $trees,
     ) {
     }
 
     public function load(ObjectManager $manager): void
     {
         $createdAt = new \DateTimeImmutable('2026-08-01T00:00:00+00:00');
-        $user = new User('demo', 'demo@example.test', '', 'ru', $createdAt);
-        $user = new User(
-            $user->getUsername(),
-            $user->getEmail(),
-            $this->passwordHasher->hashPassword($user, self::DEMO_PASSWORD),
-            $user->getPreferredLanguage(),
-            $createdAt,
-        );
-        $tree = new FamilyTree($user, 'Семья Орловых', $createdAt);
-        $manager->persist($user);
+        $user = $this->users->findOneByLoginIdentifier(self::DEMO_EMAIL);
+        if (null === $user) {
+            $user = new User(
+                self::DEMO_USERNAME,
+                self::DEMO_EMAIL,
+                '',
+                'ru',
+                $createdAt,
+            );
+            $user = new User(
+                $user->getUsername(),
+                $user->getEmail(),
+                $this->passwordHasher->hashPassword($user, self::DEMO_PASSWORD),
+                $user->getPreferredLanguage(),
+                $createdAt,
+            );
+            $manager->persist($user);
+        }
+        $existingTree = $this->trees->findOneBy([
+            'owner' => $user,
+            'name'  => self::DEMO_TREE_NAME,
+        ]);
+        if ($existingTree instanceof FamilyTree) {
+            $manager->remove($existingTree);
+            $manager->flush();
+        }
+        $tree = new FamilyTree($user, self::DEMO_TREE_NAME, $createdAt);
         $manager->persist($tree);
 
         // Four generations, built through the same relative and child-placement
