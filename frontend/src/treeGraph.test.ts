@@ -147,4 +147,17 @@ describe('tree graph presentation', () => {
       }],
     })
   })
+
+  it('places a child in the nearest free family block', () => {
+    const tree = snapshot([
+      person('father', 0, 0),
+      person('mother', 320, 0),
+      person('other-family-child', 160, 240),
+    ])
+
+    expect(newChildPlacement(tree, ['father', 'mother'])).toEqual({
+      coordinates: { x: 480, y: 240 },
+      coordinateUpdates: [],
+    })
+  })
 })

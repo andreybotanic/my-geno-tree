@@ -59,3 +59,15 @@ git config core.hooksPath .githooks
 The hook runs the backend and frontend quality commands through Docker Compose
 and blocks the commit when any formatter, static-analysis, lint, or type check
 fails. The Compose services must be running before committing.
+
+## Demo fixture
+
+To add the demo account and tree to an existing local database without
+removing current data, run:
+
+```bash
+docker compose exec backend php bin/console doctrine:fixtures:load --append --no-interaction
+```
+
+Do not run `doctrine:fixtures:load` without `--append` against a database that
+contains data you need to keep: Doctrine purges it by default.

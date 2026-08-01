@@ -204,10 +204,21 @@ export function newChildPlacement(
   ) / parents.length
   const familyY = Math.max(...parents.map((parent) => parent.coordinates.y))
   const totalChildren = siblings.length + 1
-  const positionAt = (index: number): Coordinates => ({
-    x: familyX + (index - (totalChildren - 1) / 2) * HORIZONTAL_STEP,
-    y: familyY + VERTICAL_STEP,
-  })
+  const childY = familyY + VERTICAL_STEP
+  const siblingIds = new Set(siblings.map((sibling) => sibling.id))
+  const candidateFamilyX = familyCentreWithoutOverlaps(
+    snapshot.people,
+    siblingIds,
+    familyX,
+    childY,
+    totalChildren,
+  )
+  const positionAt = (index: number): Coordinates => childPosition(
+    candidateFamilyX,
+    childY,
+    totalChildren,
+    index,
+  )
 
   return {
     coordinates: positionAt(siblings.length),
@@ -215,6 +226,43 @@ export function newChildPlacement(
       personId: sibling.id,
       coordinates: positionAt(index),
     })),
+  }
+}
+
+function familyCentreWithoutOverlaps(
+  people: TreeSnapshot['people'],
+  siblingIds: Set<string>,
+  familyX: number,
+  childY: number,
+  totalChildren: number,
+) {
+  for (let attempt = 0; attempt < people.length + 2; attempt += 1) {
+    const ring = Math.ceil(attempt / 2)
+    const sign = attempt === 0 ? 0 : (attempt % 2 === 1 ? 1 : -1)
+    const candidate = familyX + ring * HORIZONTAL_STEP * sign
+    const positions = Array.from(
+      { length: totalChildren },
+      (_, index) => childPosition(candidate, childY, totalChildren, index),
+    )
+    if (positions.every((position) => people.every((person) => (
+      siblingIds.has(person.id) || !overlaps(position, person.coordinates)
+    )))) {
+      return candidate
+    }
+  }
+
+  return familyX
+}
+
+function childPosition(
+  familyX: number,
+  childY: number,
+  totalChildren: number,
+  index: number,
+): Coordinates {
+  return {
+    x: familyX + (index - (totalChildren - 1) / 2) * HORIZONTAL_STEP,
+    y: childY,
   }
 }
 

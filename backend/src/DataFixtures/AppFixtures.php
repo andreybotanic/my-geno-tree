@@ -3,6 +3,7 @@
 namespace App\DataFixtures;
 
 use App\Application\Event\AutomaticEventSynchronizer;
+use App\Application\Person\Coordinates;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
@@ -19,7 +20,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class AppFixtures extends Fixture
 {
-    private const DEMO_PASSWORD = 'demo-password';
+    private const string DEMO_PASSWORD = 'demo-password';
 
     public function __construct(
         private readonly AutomaticEventSynchronizer $events,
@@ -42,95 +43,50 @@ final class AppFixtures extends Fixture
         $manager->persist($user);
         $manager->persist($tree);
 
-        // Четыре поколения: прародители, бабушки и дедушки, родители и дети.
-        $grigoriy = $this->person($manager, $tree, 'Орлов', 'Григорий', 'Павлович', Gender::MALE, $this->year(1925), $this->year(1994), -1280, -720, $createdAt);
-        $agafya = $this->person($manager, $tree, 'Кузнецова', 'Агафья', 'Ильинична', Gender::FEMALE, $this->year(1928), $this->year(2009), -960, -720, $createdAt);
-        $fedor = $this->person($manager, $tree, 'Волков', 'Фёдор', 'Никитич', Gender::MALE, $this->year(1927), $this->year(1998), -640, -720, $createdAt);
-        $vera = $this->person($manager, $tree, 'Волкова', 'Вера', null, Gender::FEMALE, $this->month(1931, 5), $this->year(2015), -320, -720, $createdAt);
-        $nikolai = $this->person($manager, $tree, 'Савельев', 'Николай', 'Андреевич', Gender::MALE, $this->year(1930), $this->year(2004), 320, -720, $createdAt);
-        $sofiaSenior = $this->person($manager, $tree, 'Белова', 'Софья', 'Михайловна', Gender::FEMALE, $this->day(1934, 8, 19), $this->year(2018), 640, -720, $createdAt);
-        $semyon = $this->person($manager, $tree, 'Крылов', 'Семён', null, Gender::MALE, $this->year(1932), $this->year(2010), 960, -720, $createdAt);
-        $zoya = $this->person($manager, $tree, 'Крылова', 'Зоя', 'Филипповна', Gender::FEMALE, $this->year(1936), null, 1280, -720, $createdAt);
-
-        $aleksandr = $this->person($manager, $tree, 'Орлов', 'Александр', 'Григорьевич', Gender::MALE, $this->day(1954, 2, 11), $this->year(2020), -1280, -480, $createdAt);
-        $tatiana = $this->person($manager, $tree, 'Орлова', 'Татьяна', null, Gender::FEMALE, $this->year(1958), null, -960, -480, $createdAt);
-        $larisa = $this->person($manager, $tree, 'Волкова', 'Лариса', 'Фёдоровна', Gender::FEMALE, $this->month(1957, 11), null, -480, -480, $createdAt);
-        $viktor = $this->person($manager, $tree, 'Савельев', 'Виктор', 'Николаевич', Gender::MALE, $this->year(1959), null, 480, -480, $createdAt);
-        $nadezhda = $this->person($manager, $tree, 'Крылова', 'Надежда', 'Семёновна', Gender::FEMALE, $this->day(1962, 4, 3), null, 1120, -480, $createdAt);
-
-        $ivan = $this->person($manager, $tree, 'Орлов', 'Иван', 'Александрович', Gender::MALE, $this->day(1980, 7, 2), null, -1040, -240, $createdAt);
-        $olga = $this->person($manager, $tree, 'Орлова', 'Ольга', 'Александровна', Gender::FEMALE, $this->year(1984), null, -720, -240, $createdAt);
-        $elena = $this->person($manager, $tree, 'Савельева', 'Елена', 'Викторовна', Gender::FEMALE, $this->month(1983, 9), null, 640, -240, $createdAt);
-        $galina = $this->person($manager, $tree, 'Савельева', 'Галина', null, Gender::FEMALE, $this->year(1987), null, 960, -240, $createdAt);
-        $pavel = $this->person($manager, $tree, 'Морозов', 'Павел', 'Сергеевич', Gender::MALE, $this->day(1981, 1, 28), null, -400, -240, $createdAt);
-        $dmitry = $this->person($manager, $tree, null, 'Дмитрий', 'Владимирович', Gender::MALE, $this->year(1985), null, 1440, -240, $createdAt);
-
-        $mikhail = $this->person($manager, $tree, 'Орлов', 'Михаил', 'Иванович', Gender::MALE, $this->day(2005, 3, 15), null, -520, 0, $createdAt);
-        $anna = $this->person($manager, $tree, 'Орлова', 'Анна', 'Ивановна', Gender::FEMALE, $this->month(2008, 12), null, -200, 0, $createdAt);
-        $petr = $this->person($manager, $tree, 'Орлов', null, null, Gender::MALE, GenealogicalDate::unknown(), null, 120, 0, $createdAt);
-        $sofia = $this->person($manager, $tree, 'Морозова', 'София', 'Павловна', Gender::FEMALE, $this->day(2010, 6, 7), null, -720, 0, $createdAt);
-        $roman = $this->person($manager, $tree, 'Морозов', 'Роман', null, Gender::MALE, $this->year(2014), null, -400, 0, $createdAt);
-        $veraJunior = $this->person($manager, $tree, 'Соколова', 'Вера', 'Дмитриевна', Gender::FEMALE, $this->year(2016), null, 1120, 0, $createdAt);
-
-        $this->marry($manager, $tree, $grigoriy, $agafya, $this->year(1949), $createdAt);
-        $this->marry($manager, $tree, $fedor, $vera, $this->year(1953), $createdAt);
-        $this->marry($manager, $tree, $nikolai, $sofiaSenior, $this->year(1956), $createdAt);
-        $this->marry($manager, $tree, $semyon, $zoya, $this->year(1958), $createdAt);
-        $this->marry($manager, $tree, $aleksandr, $larisa, $this->year(1978), $createdAt);
-        $this->marry($manager, $tree, $viktor, $nadezhda, $this->year(1981), $createdAt);
-        $this->marry($manager, $tree, $ivan, $elena, $this->year(2003), $createdAt);
-        $this->marry($manager, $tree, $pavel, $olga, $this->year(2007), $createdAt);
-        $this->marry($manager, $tree, $dmitry, $galina, $this->year(2012), $createdAt);
-
-        $this->parents($manager, $tree, $grigoriy, $agafya, $aleksandr, $createdAt);
-        $this->parents($manager, $tree, $grigoriy, $agafya, $tatiana, $createdAt);
-        $this->parents($manager, $tree, $fedor, $vera, $larisa, $createdAt);
-        $this->parents($manager, $tree, $nikolai, $sofiaSenior, $viktor, $createdAt);
-        $this->parents($manager, $tree, $semyon, $zoya, $nadezhda, $createdAt);
-        $this->parents($manager, $tree, $aleksandr, $larisa, $ivan, $createdAt);
-        $this->parents($manager, $tree, $aleksandr, $larisa, $olga, $createdAt);
-        $this->parents($manager, $tree, $viktor, $nadezhda, $elena, $createdAt);
-        $this->parents($manager, $tree, $viktor, $nadezhda, $galina, $createdAt);
-        $this->parents($manager, $tree, $ivan, $elena, $mikhail, $createdAt);
-        $this->parents($manager, $tree, $ivan, $elena, $anna, $createdAt);
-        $this->parents($manager, $tree, $ivan, $elena, $petr, $createdAt);
-        $this->parents($manager, $tree, $pavel, $olga, $sofia, $createdAt);
-        $this->parents($manager, $tree, $pavel, $olga, $roman, $createdAt);
-        $this->parents($manager, $tree, $dmitry, $galina, $veraJunior, $createdAt);
+        // Four generations, built through the same relative and child-placement
+        // rules as interactive graph mutations. No fixture coordinates are fixed.
+        $builder = new FixtureTreeBuilder($manager, $tree, $this->events, $createdAt);
+        $grigoriy = $builder->firstPerson($this->data('Орлов', 'Григорий', 'Павлович', Gender::MALE, $this->year(1925), $this->year(1994)));
+        $agafya = $builder->addSpouse($grigoriy, $this->data('Кузнецова', 'Агафья', 'Ильинична', Gender::FEMALE, $this->year(1928), $this->year(2009)));
+        $builder->marry($grigoriy, $agafya, $this->year(1949));
+        $aleksandr = $builder->addChild($grigoriy, $agafya, $this->data('Орлов', 'Александр', 'Григорьевич', Gender::MALE, $this->day(1954, 2, 11), $this->year(2020)));
+        $tatiana = $builder->addChild($grigoriy, $agafya, $this->data('Орлова', 'Татьяна', null, Gender::FEMALE, $this->year(1958), null));
+        $larisa = $builder->addSpouse($aleksandr, $this->data('Волкова', 'Лариса', 'Фёдоровна', Gender::FEMALE, $this->month(1957, 11), null));
+        $builder->marry($aleksandr, $larisa, $this->year(1978));
+        $fedor = $builder->addParent($larisa, ParentRole::FATHER, $this->data('Волков', 'Фёдор', 'Никитич', Gender::MALE, $this->year(1927), $this->year(1998)));
+        $vera = $builder->addParent($larisa, ParentRole::MOTHER, $this->data('Волкова', 'Вера', null, Gender::FEMALE, $this->month(1931, 5), $this->year(2015)));
+        $builder->marry($fedor, $vera, $this->year(1953));
+        $ivan = $builder->addChild($aleksandr, $larisa, $this->data('Орлов', 'Иван', 'Александрович', Gender::MALE, $this->day(1980, 7, 2), null));
+        $olga = $builder->addChild($aleksandr, $larisa, $this->data('Орлова', 'Ольга', 'Александровна', Gender::FEMALE, $this->year(1984), null));
+        $elena = $builder->addSpouse($ivan, $this->data('Савельева', 'Елена', 'Викторовна', Gender::FEMALE, $this->month(1983, 9), null));
+        $builder->marry($ivan, $elena, $this->year(2003));
+        $viktor = $builder->addParent($elena, ParentRole::FATHER, $this->data('Савельев', 'Виктор', 'Николаевич', Gender::MALE, $this->year(1959), null));
+        $nadezhda = $builder->addParent($elena, ParentRole::MOTHER, $this->data('Крылова', 'Надежда', 'Семёновна', Gender::FEMALE, $this->day(1962, 4, 3), null));
+        $builder->marry($viktor, $nadezhda, $this->year(1981));
+        $nikolai = $builder->addParent($viktor, ParentRole::FATHER, $this->data('Савельев', 'Николай', 'Андреевич', Gender::MALE, $this->year(1930), $this->year(2004)));
+        $sofiaSenior = $builder->addParent($viktor, ParentRole::MOTHER, $this->data('Белова', 'Софья', 'Михайловна', Gender::FEMALE, $this->day(1934, 8, 19), $this->year(2018)));
+        $builder->marry($nikolai, $sofiaSenior, $this->year(1956));
+        $semyon = $builder->addParent($nadezhda, ParentRole::FATHER, $this->data('Крылов', 'Семён', null, Gender::MALE, $this->year(1932), $this->year(2010)));
+        $zoya = $builder->addParent($nadezhda, ParentRole::MOTHER, $this->data('Крылова', 'Зоя', 'Филипповна', Gender::FEMALE, $this->year(1936), null));
+        $builder->marry($semyon, $zoya, $this->year(1958));
+        $galina = $builder->addChild($viktor, $nadezhda, $this->data('Савельева', 'Галина', null, Gender::FEMALE, $this->year(1987), null));
+        $pavel = $builder->addSpouse($olga, $this->data('Морозов', 'Павел', 'Сергеевич', Gender::MALE, $this->day(1981, 1, 28), null));
+        $builder->marry($pavel, $olga, $this->year(2007));
+        $dmitry = $builder->addSpouse($galina, $this->data(null, 'Дмитрий', 'Владимирович', Gender::MALE, $this->year(1985), null));
+        $builder->marry($dmitry, $galina, $this->year(2012));
+        $builder->addChild($ivan, $elena, $this->data('Орлов', 'Михаил', 'Иванович', Gender::MALE, $this->day(2005, 3, 15), null));
+        $builder->addChild($ivan, $elena, $this->data('Орлова', 'Анна', 'Ивановна', Gender::FEMALE, $this->month(2008, 12), null));
+        $builder->addChild($ivan, $elena, $this->data('Орлов', null, null, Gender::MALE, GenealogicalDate::unknown(), null));
+        $builder->addChild($pavel, $olga, $this->data('Морозова', 'София', 'Павловна', Gender::FEMALE, $this->day(2010, 6, 7), null));
+        $builder->addChild($pavel, $olga, $this->data('Морозов', 'Роман', null, Gender::MALE, $this->year(2014), null));
+        $builder->addChild($dmitry, $galina, $this->data('Соколова', 'Вера', 'Дмитриевна', Gender::FEMALE, $this->year(2016), null));
 
         $manager->flush();
     }
 
-    private function person(ObjectManager $manager, FamilyTree $tree, ?string $surname, ?string $givenName, ?string $patronymic, Gender $gender, GenealogicalDate $birthDate, ?GenealogicalDate $deathDate, float $x, float $y, \DateTimeImmutable $createdAt): Person
+    private function data(?string $surname, ?string $givenName, ?string $patronymic, Gender $gender, GenealogicalDate $birthDate, ?GenealogicalDate $deathDate): FixturePersonData
     {
-        $person = new Person($tree, $this->text($surname), $this->text($givenName), $this->text($patronymic), $gender, $birthDate, $deathDate, $x, $y, $createdAt);
-        $manager->persist($person);
-        $this->events->synchronizePersonLifecycle($person, $createdAt);
-
-        return $person;
-    }
-
-    private function marry(ObjectManager $manager, FamilyTree $tree, Person $male, Person $female, GenealogicalDate $date, \DateTimeImmutable $createdAt): void
-    {
-        $marriage = new MarriagePeriod($tree, $male, $female, $date, null, $createdAt);
-        $manager->persist($marriage);
-        $this->events->synchronizeMarriage($marriage, null, null, $createdAt);
-    }
-
-    private function parents(ObjectManager $manager, FamilyTree $tree, Person $father, Person $mother, Person $child, \DateTimeImmutable $createdAt): void
-    {
-        foreach ([
-            new ParentLink($tree, $father, $child, ParentRole::FATHER),
-            new ParentLink($tree, $mother, $child, ParentRole::MOTHER),
-        ] as $link) {
-            $manager->persist($link);
-            $this->events->synchronizeParentLink($link, $createdAt);
-        }
-    }
-
-    private function text(?string $value): KnownText
-    {
-        return null === $value ? KnownText::unknown() : KnownText::known($value);
+        return new FixturePersonData($surname, $givenName, $patronymic, $gender, $birthDate, $deathDate);
     }
 
     private function year(int $year): GenealogicalDate
@@ -146,5 +102,297 @@ final class AppFixtures extends Fixture
     private function day(int $year, int $month, int $day): GenealogicalDate
     {
         return GenealogicalDate::known(DatePrecision::DAY, $year, $month, $day, false);
+    }
+}
+
+final readonly class FixturePersonData
+{
+    public function __construct(
+        public ?string $surname,
+        public ?string $givenName,
+        public ?string $patronymic,
+        public Gender $gender,
+        public GenealogicalDate $birthDate,
+        public ?GenealogicalDate $deathDate,
+    ) {
+    }
+}
+
+/**
+ * Mirrors the placement rules in frontend/src/treeGraph.ts for fixture data.
+ */
+final class FixtureTreeBuilder
+{
+    private const PERSON_CARD_WIDTH = 260;
+    private const PERSON_CARD_HEIGHT = 160;
+    private const HORIZONTAL_STEP = 320;
+    private const VERTICAL_STEP = 240;
+
+    /** @var list<Person> */
+    private array $people = [];
+
+    /** @var array<string, list<Person>> */
+    private array $childrenByParents = [];
+
+    public function __construct(
+        private readonly ObjectManager $manager,
+        private readonly FamilyTree $tree,
+        private readonly AutomaticEventSynchronizer $events,
+        private readonly \DateTimeImmutable $createdAt,
+    ) {
+    }
+
+    public function firstPerson(FixturePersonData $data): Person
+    {
+        return $this->createPerson($data, new Coordinates(0, 0));
+    }
+
+    public function addParent(
+        Person $child,
+        ParentRole $role,
+        FixturePersonData $data,
+    ): Person {
+        $kind = ParentRole::FATHER === $role ? 'father' : 'mother';
+        $parent = $this->createPerson(
+            $data,
+            $this->newRelativeCoordinates($child, $kind),
+        );
+        $link = new ParentLink($this->tree, $parent, $child, $role);
+        $this->manager->persist($link);
+        $this->events->synchronizeParentLink($link, $this->createdAt);
+
+        return $parent;
+    }
+
+    public function addSpouse(
+        Person $person,
+        FixturePersonData $data,
+    ): Person {
+        return $this->createPerson(
+            $data,
+            $this->newRelativeCoordinates($person, 'spouse'),
+        );
+    }
+
+    public function addChild(
+        Person $father,
+        Person $mother,
+        FixturePersonData $data,
+    ): Person {
+        $key = $this->parentKey($father, $mother);
+        $siblings = $this->childrenByParents[$key] ?? [];
+        $totalChildren = count($siblings) + 1;
+        $familyX = ($father->getX() + $mother->getX()) / 2;
+        $familyY = max($father->getY(), $mother->getY());
+        $childY = $familyY + self::VERTICAL_STEP;
+        $placedFamilyX = $this->familyCentreWithoutOverlaps(
+            $siblings,
+            $familyX,
+            $childY,
+            $totalChildren,
+        );
+
+        foreach ($siblings as $index => $sibling) {
+            $coordinates = $this->childCoordinates(
+                $placedFamilyX,
+                $childY,
+                $totalChildren,
+                $index,
+            );
+            $sibling->moveTo(
+                $coordinates->x,
+                $coordinates->y,
+                $this->createdAt,
+            );
+        }
+        $child = $this->createPerson(
+            $data,
+            $this->childCoordinates(
+                $placedFamilyX,
+                $childY,
+                $totalChildren,
+                count($siblings),
+            ),
+        );
+        foreach ([
+            new ParentLink($this->tree, $father, $child, ParentRole::FATHER),
+            new ParentLink($this->tree, $mother, $child, ParentRole::MOTHER),
+        ] as $link) {
+            $this->manager->persist($link);
+            $this->events->synchronizeParentLink($link, $this->createdAt);
+        }
+        $siblings[] = $child;
+        $this->childrenByParents[$key] = $siblings;
+
+        return $child;
+    }
+
+    public function marry(
+        Person $male,
+        Person $female,
+        GenealogicalDate $date,
+    ): void {
+        $marriage = new MarriagePeriod(
+            $this->tree,
+            $male,
+            $female,
+            $date,
+            null,
+            $this->createdAt,
+        );
+        $this->manager->persist($marriage);
+        $this->events->synchronizeMarriage(
+            $marriage,
+            null,
+            null,
+            $this->createdAt,
+        );
+    }
+
+    private function createPerson(
+        FixturePersonData $data,
+        Coordinates $coordinates,
+    ): Person {
+        $person = new Person(
+            $this->tree,
+            $this->text($data->surname),
+            $this->text($data->givenName),
+            $this->text($data->patronymic),
+            $data->gender,
+            $data->birthDate,
+            $data->deathDate,
+            $coordinates->x,
+            $coordinates->y,
+            $this->createdAt,
+        );
+        $this->manager->persist($person);
+        $this->events->synchronizePersonLifecycle($person, $this->createdAt);
+        $this->people[] = $person;
+
+        return $person;
+    }
+
+    /** @param 'father'|'mother'|'spouse' $kind */
+    private function newRelativeCoordinates(Person $anchor, string $kind): Coordinates
+    {
+        $base = match ($kind) {
+            'father' => new Coordinates(
+                $anchor->getX() - self::HORIZONTAL_STEP / 2,
+                $anchor->getY() - self::VERTICAL_STEP,
+            ),
+            'mother' => new Coordinates(
+                $anchor->getX() + self::HORIZONTAL_STEP / 2,
+                $anchor->getY() - self::VERTICAL_STEP,
+            ),
+            'spouse' => new Coordinates(
+                $anchor->getX() + self::HORIZONTAL_STEP,
+                $anchor->getY(),
+            ),
+        };
+        $direction = 'father' === $kind ? -1 : 1;
+
+        for ($attempt = 0; $attempt < count($this->people) + 2; ++$attempt) {
+            $ring = (int)ceil($attempt / 2);
+            $sign = 0 === $attempt ? 0 : (1 === $attempt % 2 ? $direction : -$direction);
+            $candidate = new Coordinates(
+                $base->x + $ring * self::HORIZONTAL_STEP * $sign,
+                $base->y,
+            );
+            if (!$this->overlapsExistingPerson($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return new Coordinates(
+            $base->x + (count($this->people) + 1) * self::HORIZONTAL_STEP * $direction,
+            $base->y,
+        );
+    }
+
+    private function childCoordinates(
+        float $familyX,
+        float $childY,
+        int $totalChildren,
+        int $index,
+    ): Coordinates {
+        return new Coordinates(
+            $familyX + ($index - ($totalChildren - 1) / 2) * self::HORIZONTAL_STEP,
+            $childY,
+        );
+    }
+
+    /** @param list<Person> $siblings */
+    private function familyCentreWithoutOverlaps(
+        array $siblings,
+        float $familyX,
+        float $childY,
+        int $totalChildren,
+    ): float {
+        foreach (range(0, count($this->people) + 1) as $attempt) {
+            $ring = (int)ceil($attempt / 2);
+            $sign = 0 === $attempt ? 0 : (1 === $attempt % 2 ? 1 : -1);
+            $candidate = $familyX + $ring * self::HORIZONTAL_STEP * $sign;
+            $positions = [];
+            foreach (range(0, $totalChildren - 1) as $index) {
+                $positions[] = $this->childCoordinates(
+                    $candidate,
+                    $childY,
+                    $totalChildren,
+                    $index,
+                );
+            }
+            if ($this->childrenDoNotOverlapPeople($positions, $siblings)) {
+                return $candidate;
+            }
+        }
+
+        return $familyX;
+    }
+
+    /**
+     * @param list<Coordinates> $positions
+     * @param list<Person>      $siblings
+     */
+    private function childrenDoNotOverlapPeople(array $positions, array $siblings): bool
+    {
+        foreach ($positions as $position) {
+            foreach ($this->people as $person) {
+                if (!in_array($person, $siblings, true) && $this->overlaps($position, new Coordinates($person->getX(), $person->getY()))) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function overlapsExistingPerson(Coordinates $candidate): bool
+    {
+        foreach ($this->people as $person) {
+            if ($this->overlaps($candidate, new Coordinates($person->getX(), $person->getY()))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function overlaps(Coordinates $first, Coordinates $second): bool
+    {
+        return abs($first->x - $second->x) < self::PERSON_CARD_WIDTH + 40
+            && abs($first->y - $second->y) < self::PERSON_CARD_HEIGHT + 40;
+    }
+
+    private function parentKey(Person $first, Person $second): string
+    {
+        $ids = [$first->getId()->toRfc4122(), $second->getId()->toRfc4122()];
+        sort($ids);
+
+        return implode(':', $ids);
+    }
+
+    private function text(?string $value): KnownText
+    {
+        return null === $value ? KnownText::unknown() : KnownText::known($value);
     }
 }
