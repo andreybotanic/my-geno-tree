@@ -124,6 +124,7 @@ export function buildTreeEdges(
   }
 
   const outletsByPersonSide = new Map<string, PartnerOutlet[]>()
+  const outletsByPerson = new Map<string, PartnerOutlet[]>()
   for (const [key, family] of families) {
     const first = people.get(family.people[0])
     const second = people.get(family.people[1])
@@ -152,7 +153,22 @@ export function buildTreeEdges(
       const personOutlets = outletsByPersonSide.get(outletKey) ?? []
       personOutlets.push(outlet)
       outletsByPersonSide.set(outletKey, personOutlets)
+      const allPersonOutlets = outletsByPerson.get(outlet.personId) ?? []
+      allPersonOutlets.push(outlet)
+      outletsByPerson.set(outlet.personId, allPersonOutlets)
     }
+  }
+  const centeredOutlets = new Set<string>()
+  for (const outlets of outletsByPerson.values()) {
+    if (outlets.length <= 1 || outlets.length % 2 === 0) {
+      continue
+    }
+    const centredOutlet = [...outlets].sort((first, second) => (
+      Math.abs(first.partnerX - (people.get(first.personId)?.coordinates.x ?? 0))
+      - Math.abs(second.partnerX - (people.get(second.personId)?.coordinates.x ?? 0))
+      || first.familyKey.localeCompare(second.familyKey)
+    ))[0]!
+    centeredOutlets.add(`${centredOutlet.familyKey}:${centredOutlet.personId}`)
   }
   const outletLayout = new Map<string, PartnerOutletLayout>()
   for (const outlets of outletsByPersonSide.values()) {
@@ -163,12 +179,22 @@ export function buildTreeEdges(
         || first.familyKey.localeCompare(second.familyKey)
       ))
       .forEach((outlet, index) => {
-        const multiplePartners = outlets.length > 1
+        const multipleOnThisSide = outlets.length > 1
+        const outletKey = `${outlet.familyKey}:${outlet.personId}`
+        const centered = centeredOutlets.has(outletKey)
+        const sideIndex = outlets
+          .slice(0, index)
+          .filter((previous) => !centeredOutlets.has(
+            `${previous.familyKey}:${previous.personId}`,
+          )).length
+        const hasMultiplePartners = (outletsByPerson.get(outlet.personId)?.length ?? 0) > 1
         outletLayout.set(`${outlet.familyKey}:${outlet.personId}`, {
-          bracketDepth: 24 + (multiplePartners
+          bracketDepth: 24 + (multipleOnThisSide
             ? (outlets.length - index - 1) * 18
             : 0),
-          offset: multiplePartners ? outlet.side * (16 + index * 18) : 0,
+          offset: !hasMultiplePartners || centered
+            ? 0
+            : outlet.side * (16 + sideIndex * 18),
         })
       })
   }

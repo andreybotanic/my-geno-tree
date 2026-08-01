@@ -311,4 +311,105 @@ describe('tree graph presentation', () => {
       }),
     )
   })
+
+  it('offsets partner brackets to opposite sides of their shared person', () => {
+    const tree = snapshot(
+      [
+        person('left-partner', -320, 0),
+        person('centre', 0, 0),
+        person('right-partner', 320, 0),
+      ],
+      [],
+      [
+        {
+          id: 'left-marriage',
+          malePersonId: 'left-partner',
+          femalePersonId: 'centre',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+        {
+          id: 'right-marriage',
+          malePersonId: 'centre',
+          femalePersonId: 'right-partner',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+      ],
+    )
+
+    const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
+    expect(edges.get('family:centre:left-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ targetOffset: -16 }),
+      }),
+    )
+    expect(edges.get('family:centre:right-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourceOffset: 16 }),
+      }),
+    )
+  })
+
+  it('keeps the nearest bracket centred for an odd number of partners', () => {
+    const tree = snapshot(
+      [
+        person('left-partner', -640, 0),
+        person('centre', 0, 0),
+        person('near-partner', 320, 0),
+        person('far-partner', 640, 0),
+      ],
+      [],
+      [
+        {
+          id: 'left-marriage',
+          malePersonId: 'left-partner',
+          femalePersonId: 'centre',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+        {
+          id: 'near-marriage',
+          malePersonId: 'centre',
+          femalePersonId: 'near-partner',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+        {
+          id: 'far-marriage',
+          malePersonId: 'centre',
+          femalePersonId: 'far-partner',
+          marriageDate: { state: 'unknown' },
+          dissolutionDate: null,
+          createdAt: '2026-07-31T00:00:00+00:00',
+          updatedAt: '2026-07-31T00:00:00+00:00',
+        },
+      ],
+    )
+
+    const edges = new Map(buildTreeEdges(tree).map((edge) => [edge.id, edge]))
+    expect(edges.get('family:centre:near-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourceOffset: 0 }),
+      }),
+    )
+    expect(edges.get('family:centre:left-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ targetOffset: -16 }),
+      }),
+    )
+    expect(edges.get('family:centre:far-partner')).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourceOffset: 16 }),
+      }),
+    )
+  })
 })
