@@ -426,7 +426,7 @@ export function reflowTree(
     }
   }
 
-  arrangeRootFamilyBlocks(
+  const rootFamilyBlocks = arrangeRootFamilyBlocks(
     snapshot.people,
     parentsByChild,
     familyPairs,
@@ -553,13 +553,19 @@ export function reflowTree(
       break
     }
     const [rootId, distance] = candidate
-    const rootPosition = positions.get(rootId)
-    if (!rootPosition) {
+    const rootBlock = rootFamilyBlocks.get(rootId) ?? [rootId]
+    if (rootBlock.some((personId) => !positions.has(personId))) {
       break
     }
-    positions.set(rootId, {
-      ...rootPosition,
-      x: rootPosition.x + HORIZONTAL_STEP * 2 ** Math.min(distance, 3),
+    const shift = HORIZONTAL_STEP * 2 ** Math.min(distance, 3)
+    rootBlock.forEach((personId) => {
+      const rootPosition = positions.get(personId)
+      if (rootPosition) {
+        positions.set(personId, {
+          ...rootPosition,
+          x: rootPosition.x + shift,
+        })
+      }
     })
     alignFamilies()
   }
@@ -619,8 +625,9 @@ function arrangeRootFamilyBlocks(
   parentsByChild: Map<string, string[]>,
   familyPairs: Array<[string, string]>,
   positions: Map<string, Coordinates>,
-) {
+): Map<string, string[]> {
   const rootsByRow = new Map<number, string[]>()
+  const rootFamilyBlocks = new Map<string, string[]>()
   for (const person of people) {
     const hasKnownParent = (parentsByChild.get(person.id) ?? [])
       .some((parentId) => positions.has(parentId))
@@ -682,6 +689,11 @@ function arrangeRootFamilyBlocks(
     blocks.sort((first, second) => (
       (originalIndex.get(first[0]!) ?? 0) - (originalIndex.get(second[0]!) ?? 0)
     ))
+    for (const block of blocks) {
+      for (const personId of block) {
+        rootFamilyBlocks.set(personId, block)
+      }
+    }
 
     const arrangedRoots = blocks.flat()
     const slotXs = orderedRoots.map((personId) => (
@@ -695,6 +707,8 @@ function arrangeRootFamilyBlocks(
       }
     })
   }
+
+  return rootFamilyBlocks
 }
 
 function childPosition(

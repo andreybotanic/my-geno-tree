@@ -241,6 +241,29 @@ describe('tree graph presentation', () => {
     expect(positions.get('left-child')).toBeUndefined()
   })
 
+  it('moves an entire root family block when resolving a collision', () => {
+    const tree = snapshot(
+      [
+        person('independent-parent', 320, 0),
+        person('mother', 0, 0),
+        person('father', 320, 0),
+        person('independent-child', 320, 240),
+        person('family-child', 160, 240),
+      ],
+      [
+        { id: 'independent-link', parentId: 'independent-parent', childId: 'independent-child', role: 'father' },
+        { id: 'mother-link', parentId: 'mother', childId: 'family-child', role: 'mother' },
+        { id: 'father-link', parentId: 'father', childId: 'family-child', role: 'father' },
+      ],
+    )
+
+    expect(reflowTree(tree)).toEqual([
+      { personId: 'mother', coordinates: { x: 640, y: 0 } },
+      { personId: 'father', coordinates: { x: 960, y: 0 } },
+      { personId: 'family-child', coordinates: { x: 800, y: 240 } },
+    ])
+  })
+
   it('compacts surviving root branches after a deletion', () => {
     const tree = snapshot([
       person('left-root', 0, 0),
