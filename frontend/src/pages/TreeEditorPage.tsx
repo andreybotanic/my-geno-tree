@@ -70,6 +70,12 @@ import {
   reflowTree,
   type TreeFlowEdge,
 } from '../treeGraph'
+import {
+  LAYOUT_WARNING_THRESHOLD,
+  LIMITED_LAYOUT_SEARCH,
+  estimateLayoutCandidates,
+  type LayoutOptimizationResult,
+} from '../layoutOptimizer'
 
 type TreeEditorPageProps = {
   treeId: string
@@ -110,16 +116,109 @@ function ZoomControls() {
   )
 }
 
+type LayoutPreview = {
+  coordinateUpdates: Array<{
+    coordinates: { x: number; y: number }
+    personId: string
+  }>
+  currentWidth: number
+  limited: boolean
+  optimizedWidth: number
+  snapshot: TreeSnapshot
+}
+
+type LayoutSearch = {
+  checked: bigint
+  limited: boolean
+  total: bigint
+}
+
+type LayoutToolbarProps = {
+  onApply: () => void
+  onCancel: () => void
+  onOptimize: () => void
+  preview: LayoutPreview | null
+  search: LayoutSearch | null
+}
+
+function LayoutToolbar({
+  onApply,
+  onCancel,
+  onOptimize,
+  preview,
+  search,
+}: LayoutToolbarProps) {
+  const { t } = useTranslation()
+  const progress = search && search.total > 0n
+    ? Math.floor(Number(search.checked * 100n / search.total))
+    : 0
+
+  return (
+    <Panel className="editor-toolbar" position="top-right">
+      {search ? (
+        <div className="layout-search-status" role="status">
+          <strong>{t('editor.layoutOptimizing')}</strong>
+          <span>{progress}% · {t('editor.layoutChecked', {
+            checked: search.checked.toString(),
+            total: search.total.toString(),
+          })}</span>
+          <button className="secondary-button compact-button" onClick={onCancel} type="button">
+            {t('editor.layoutCancel')}
+          </button>
+        </div>
+      ) : preview ? (
+        <div className="layout-preview-status" role="status">
+          <strong>{t('editor.layoutPreview')}</strong>
+          <span>{t('editor.layoutSavings', {
+            current: preview.currentWidth,
+            optimized: preview.optimizedWidth,
+            saved: preview.currentWidth - preview.optimizedWidth,
+          })}</span>
+          {preview.limited && <small>{t('editor.layoutIncomplete')}</small>}
+          <div>
+            <button className="secondary-button compact-button" onClick={onCancel} type="button">
+              {t('editor.layoutReject')}
+            </button>
+            <button className="primary-button compact-button" onClick={onApply} type="button">
+              {t('editor.layoutApply')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          aria-label={t('editor.layoutOptimize')}
+          className="editor-tool-button"
+          onClick={onOptimize}
+          type="button"
+        >
+          <span aria-hidden="true">↔</span>
+          {t('editor.layoutOptimize')}
+        </button>
+      )}
+    </Panel>
+  )
+}
+
 type TreeCanvasProps = {
   onClearSelection: () => void
+  onApplyLayout: () => void
+  onCancelLayout: () => void
+  onOptimizeLayout: () => void
   onSelectPerson: (personId: string) => void
+  layoutPreview: LayoutPreview | null
+  layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
 }
 
 function TreeCanvas({
   onClearSelection,
+  onApplyLayout,
+  onCancelLayout,
+  onOptimizeLayout,
   onSelectPerson,
+  layoutPreview,
+  layoutSearch,
   selectedPersonId,
   snapshot,
 }: TreeCanvasProps) {
@@ -175,15 +274,30 @@ function TreeCanvas({
         instance.current = flow
         centerFirstPerson(flow)
       }}
-      onNodeClick={(_event, node) => onSelectPerson(node.id)}
-      onPaneClick={onClearSelection}
-      panOnDrag
+      onNodeClick={(_event, node) => {
+        if (!layoutSearch) {
+          onSelectPerson(node.id)
+        }
+      }}
+      onPaneClick={() => {
+        if (!layoutSearch) {
+          onClearSelection()
+        }
+      }}
+      panOnDrag={!layoutSearch}
       proOptions={{ hideAttribution: true }}
       zoomOnDoubleClick={false}
-      zoomOnPinch
-      zoomOnScroll
+      zoomOnPinch={!layoutSearch}
+      zoomOnScroll={!layoutSearch}
     >
       <Background color="var(--color-border)" gap={22} size={1} />
+      <LayoutToolbar
+        onApply={onApplyLayout}
+        onCancel={onCancelLayout}
+        onOptimize={onOptimizeLayout}
+        preview={layoutPreview}
+        search={layoutSearch}
+      />
       <ZoomControls />
     </ReactFlow>
   )
@@ -264,6 +378,21 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [photoEditing, setPhotoEditing] = useState(false)
   const [photoDeleting, setPhotoDeleting] = useState(false)
   const [photoViewing, setPhotoViewing] = useState(false)
+  const [layoutPreview, setLayoutPreview] = useState<LayoutPreview | null>(null)
+  const [layoutSearch, setLayoutSearch] = useState<LayoutSearch | null>(null)
+  const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
+  const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
+  const layoutWorker = useRef<Worker | null>(null)
+
+  const stopLayoutSearch = useCallback(() => {
+    layoutWorker.current?.terminate()
+    layoutWorker.current = null
+    setLayoutSearch(null)
+  }, [])
+
+  useEffect(() => () => {
+    layoutWorker.current?.terminate()
+  }, [])
 
   const closePersonDetails = useCallback(() => {
     setSelectedPerson(null)
@@ -299,6 +428,10 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setPhotoEditing(false)
       setPhotoDeleting(false)
       setPhotoViewing(false)
+      setLayoutPreview(null)
+      setLayoutSearch(null)
+      setLayoutWarning(null)
+      setLayoutNotice(null)
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -308,6 +441,93 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       )
     }
   }, [request, treeId])
+
+  const showLayoutOptimizer = () => {
+    if (!snapshot || layoutSearch || layoutPreview) {
+      return
+    }
+    setLayoutNotice(null)
+    const candidates = estimateLayoutCandidates(snapshot)
+    if (candidates > LAYOUT_WARNING_THRESHOLD) {
+      setLayoutWarning(candidates)
+      return
+    }
+    startLayoutSearch('full')
+  }
+
+  const startLayoutSearch = (mode: 'full' | 'limited') => {
+    if (!snapshot) {
+      return
+    }
+    setLayoutWarning(null)
+    setLayoutNotice(null)
+    const limit = mode === 'limited' ? LIMITED_LAYOUT_SEARCH : undefined
+    const total = estimateLayoutCandidates(snapshot)
+    setLayoutSearch({
+      checked: 0n,
+      limited: mode === 'limited' && total > LIMITED_LAYOUT_SEARCH,
+      total: limit === undefined || total < limit ? total : limit,
+    })
+    const originalSnapshot = snapshot
+    const worker = new Worker(
+      new URL('../layoutOptimizer.worker.ts', import.meta.url),
+      { type: 'module' },
+    )
+    layoutWorker.current = worker
+    worker.onmessage = (event: MessageEvent<
+      | { type: 'progress'; checked: bigint; total: bigint }
+      | { type: 'result'; result: LayoutOptimizationResult | null }
+    >) => {
+      if (event.data.type === 'progress') {
+        const progress = event.data
+        setLayoutSearch((current) => current ? {
+          ...current,
+          checked: progress.checked,
+          total: progress.total,
+        } : current)
+        return
+      }
+      worker.terminate()
+      if (layoutWorker.current === worker) {
+        layoutWorker.current = null
+      }
+      setLayoutSearch(null)
+      const result = event.data.result
+      if (!result) {
+        return
+      }
+      if (result.coordinateUpdates.length === 0) {
+        setLayoutNotice(t('editor.layoutNoImprovement'))
+        return
+      }
+      const coordinates = new Map(result.coordinateUpdates.map((update) => [
+        update.personId,
+        update.coordinates,
+      ]))
+      setLayoutPreview({
+        coordinateUpdates: result.coordinateUpdates,
+        currentWidth: result.currentWidth,
+        limited: result.limited,
+        optimizedWidth: result.optimizedWidth,
+        snapshot: {
+          ...originalSnapshot,
+          people: originalSnapshot.people.map((person) => ({
+            ...person,
+            coordinates: coordinates.get(person.id) ?? person.coordinates,
+          })),
+        },
+      })
+    }
+    worker.onerror = () => {
+      worker.terminate()
+      if (layoutWorker.current === worker) {
+        layoutWorker.current = null
+      }
+      setLayoutSearch(null)
+      setLayoutNotice(t('editor.layoutFailed'))
+    }
+    worker.postMessage({ type: 'start', snapshot: originalSnapshot, limit })
+  }
 
   useEffect(() => {
     void loadSnapshot()
@@ -393,7 +613,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   }
 
   const applyMutation = async (mutation: GraphMutation) => {
-    if (!snapshot || conflict) {
+    if (!snapshot || conflict || layoutSearch || (
+      layoutPreview && mutation.type !== 'reflow_coordinates'
+    )) {
       throw new Error('Tree mutation is unavailable')
     }
     try {
@@ -429,6 +651,30 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       }
       throw error
     }
+  }
+
+  const applyLayoutPreview = async () => {
+    if (!layoutPreview) {
+      return
+    }
+    try {
+      await applyMutation({
+        type: 'reflow_coordinates',
+        coordinateUpdates: layoutPreview.coordinateUpdates,
+      })
+      setLayoutPreview(null)
+      setLayoutNotice(t('editor.layoutApplied'))
+    } catch (error) {
+      // applyMutation already enters the standard ETag conflict state.
+      if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
+        setLayoutPreview(null)
+      }
+    }
+  }
+
+  const rejectLayoutPreview = () => {
+    setLayoutPreview(null)
+    setLayoutNotice(null)
   }
 
   const addRelative = async (
@@ -857,9 +1103,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               <ReactFlowProvider>
                 <TreeCanvas
                   onClearSelection={closePersonDetails}
+                  onApplyLayout={() => void applyLayoutPreview()}
+                  onCancelLayout={layoutSearch ? stopLayoutSearch : rejectLayoutPreview}
+                  onOptimizeLayout={showLayoutOptimizer}
                   onSelectPerson={(personId) => void selectPerson(personId)}
+                  layoutPreview={layoutPreview}
+                  layoutSearch={layoutSearch}
                   selectedPersonId={selectedPerson?.id ?? null}
-                  snapshot={snapshot}
+                  snapshot={layoutPreview?.snapshot ?? snapshot}
                 />
               </ReactFlowProvider>
             )}
@@ -868,7 +1119,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
         {selectedPerson && snapshot && (
           <PersonDetailsPanel
-            conflict={conflict}
+            conflict={conflict || layoutSearch !== null || layoutPreview !== null}
             events={events}
             onAddRelative={(action, secondParentId) => {
               setRelativeAction(action)
@@ -901,6 +1152,35 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           />
         )}
       </section>
+
+      {layoutNotice && <div className="layout-notice" role="status">{layoutNotice}</div>}
+
+      {layoutWarning !== null && (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="layout-warning-title"
+            aria-modal="true"
+            className="dialog-card layout-warning-dialog"
+            role="dialog"
+          >
+            <h2 id="layout-warning-title">{t('editor.layoutWarningTitle')}</h2>
+            <p>{t('editor.layoutWarningDescription', {
+              count: layoutWarning.toString(),
+            })}</p>
+            <div className="dialog-actions layout-warning-actions">
+              <button className="secondary-button" onClick={() => setLayoutWarning(null)} type="button">
+                {t('editor.layoutCancel')}
+              </button>
+              <button className="secondary-button" onClick={() => startLayoutSearch('limited')} type="button">
+                {t('editor.layoutFirstTenThousand')}
+              </button>
+              <button className="primary-button" onClick={() => startLayoutSearch('full')} type="button">
+                {t('editor.layoutCheckAll')}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {creating && (
         <PersonFormDialog

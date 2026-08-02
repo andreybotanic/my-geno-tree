@@ -174,10 +174,28 @@ function sectionByHeading(name: string) {
   return section
 }
 
+class OptimizerWorkerMock {
+  static instances: OptimizerWorkerMock[] = []
+  onerror: ((event: Event) => void) | null = null
+  onmessage: ((event: MessageEvent) => void) | null = null
+  postMessage = vi.fn()
+  terminate = vi.fn()
+
+  constructor() {
+    OptimizerWorkerMock.instances.push(this)
+  }
+
+  emit(message: unknown) {
+    this.onmessage?.({ data: message } as MessageEvent)
+  }
+}
+
 describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
     await i18n.changeLanguage('en')
+    OptimizerWorkerMock.instances = []
+    vi.unstubAllGlobals()
   })
 
   it('creates the first fully unknown person from the empty editor', async () => {
@@ -212,7 +230,7 @@ describe('TreeEditorPage', () => {
     expect(
       await screen.findByRole('article', { name: 'Unknown person' }),
     ).toBeInTheDocument()
-    expect(document.querySelector('.editor-toolbar')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Optimize layout' })).toBeInTheDocument()
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
       expect.objectContaining({
@@ -220,6 +238,86 @@ describe('TreeEditorPage', () => {
         headers: { 'If-Match': '"tree-current"' },
       }),
     )
+  })
+
+  it('shows a worker preview and applies only its coordinate mutation', async () => {
+    vi.stubGlobal('Worker', OptimizerWorkerMock)
+    const partner = { ...spouse, id: 'partner-two', coordinates: { x: 640, y: 0 } }
+    const tree = graphSnapshot([person, spouse, partner], [], [
+      marriage,
+      { ...marriage, id: 'marriage-two', malePersonId: partner.id },
+    ])
+    const optimized = {
+      ...tree,
+      etag: '"tree-optimized"',
+      people: tree.people.map((item) => item.id === partner.id
+        ? { ...item, coordinates: { x: -320, y: 0 } }
+        : item),
+    }
+    const request = vi.fn(async (
+      _path: string,
+      init?: RequestInit,
+    ) => init?.method === 'POST' ? optimized : tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('button', { name: 'Optimize layout' })
+    await userEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
+    expect(screen.getByText('Optimizing layout')).toBeInTheDocument()
+    const worker = OptimizerWorkerMock.instances[0]!
+    worker.emit({ type: 'progress', checked: 2n, total: 6n })
+    expect(await screen.findByText(/checked 2 of 6/)).toBeInTheDocument()
+    worker.emit({
+      type: 'result',
+      result: {
+        candidateCount: 6n,
+        checkedCount: 6n,
+        coordinateUpdates: [{ personId: partner.id, coordinates: { x: -320, y: 0 } }],
+        currentWidth: 900,
+        limited: false,
+        optimizedWidth: 580,
+      },
+    })
+
+    expect(await screen.findByText('Layout preview')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await waitFor(() => expect(request).toHaveBeenLastCalledWith(
+      `/trees/${treeId}/graph-mutations`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: 'reflow_coordinates',
+          coordinateUpdates: [{ personId: partner.id, coordinates: { x: -320, y: 0 } }],
+        }),
+        headers: { 'If-Match': '"tree-optimized"' },
+        method: 'POST',
+      }),
+    ))
+  })
+
+  it('warns before a search exceeding ten thousand layouts and can cancel it', async () => {
+    const center = { ...person, id: 'center', coordinates: { x: 0, y: 0 } }
+    const partners = Array.from({ length: 8 }, (_, index) => ({
+      ...spouse,
+      id: `partner-${index}`,
+      coordinates: { x: (index + 1) * 320, y: 0 },
+    }))
+    const tree = graphSnapshot(
+      [center, ...partners],
+      [],
+      partners.map((partner, index) => ({
+        ...marriage,
+        id: `marriage-${index}`,
+        malePersonId: partner.id,
+        femalePersonId: center.id,
+      })),
+    )
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('button', { name: 'Optimize layout' })
+    await userEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
+    expect(await screen.findByRole('dialog', { name: 'Many possible layouts' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Many possible layouts' })).not.toBeInTheDocument()
   })
 
   it('loads person details lazily and autosaves one field', async () => {
