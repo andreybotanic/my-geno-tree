@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   GenealogicalEvent,
@@ -262,10 +262,10 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('button', { name: 'Optimize layout' })
     await userEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
-    expect(screen.getByText('Optimizing layout')).toBeInTheDocument()
+    expect(screen.queryByText('Optimizing layout')).not.toBeInTheDocument()
     const worker = OptimizerWorkerMock.instances[0]!
     worker.emit({ type: 'progress', checked: 2n, total: 6n })
-    expect(await screen.findByText(/checked 2 of 6/)).toBeInTheDocument()
+    expect(screen.queryByText(/checked 2 of 6/)).not.toBeInTheDocument()
     worker.emit({
       type: 'result',
       result: {
@@ -279,6 +279,11 @@ describe('TreeEditorPage', () => {
     })
 
     expect(await screen.findByText('Layout preview')).toBeInTheDocument()
+    const originalLayout = screen.getByRole('button', { name: 'Original layout' })
+    const newLayout = screen.getByRole('button', { name: 'New layout' })
+    expect(newLayout).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(originalLayout)
+    expect(originalLayout).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await waitFor(() => expect(request).toHaveBeenLastCalledWith(
       `/trees/${treeId}/graph-mutations`,
@@ -291,6 +296,28 @@ describe('TreeEditorPage', () => {
         method: 'POST',
       }),
     ))
+  })
+
+  it('shows calculation progress separately only after a long-running search', async () => {
+    vi.stubGlobal('Worker', OptimizerWorkerMock)
+    const partner = { ...spouse, id: 'partner-two', coordinates: { x: 640, y: 0 } }
+    const tree = graphSnapshot([person, spouse, partner], [], [
+      marriage,
+      { ...marriage, id: 'marriage-two', malePersonId: partner.id },
+    ])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('button', { name: 'Optimize layout' })
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
+    expect(screen.queryByText('Optimizing layout')).not.toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(2_500))
+    expect(screen.getByText('Optimizing layout')).toBeInTheDocument()
+    expect(screen.getByText(/checked 0 of 6/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(OptimizerWorkerMock.instances[0]?.terminate).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
   })
 
   it('warns before a search exceeding ten thousand layouts and can cancel it', async () => {

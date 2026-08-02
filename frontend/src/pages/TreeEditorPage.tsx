@@ -61,6 +61,7 @@ import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { EventDialog } from '../components/EventDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
+import { ToastNotice } from '../components/ToastNotice'
 import { navigate } from '../routing'
 import {
   buildTreeEdges,
@@ -87,6 +88,7 @@ const edgeTypes = {
   singleParent: SingleParentEdge,
 }
 const PREVIEW_PERSON_ID = '__new_person__'
+const LAYOUT_PROGRESS_DELAY_MS = 2_500
 
 function ZoomControls() {
   const { t } = useTranslation()
@@ -134,67 +136,112 @@ type LayoutSearch = {
 }
 
 type LayoutToolbarProps = {
-  onApply: () => void
-  onCancel: () => void
   onOptimize: () => void
-  preview: LayoutPreview | null
-  search: LayoutSearch | null
+  unavailable: boolean
 }
 
 function LayoutToolbar({
-  onApply,
-  onCancel,
   onOptimize,
-  preview,
-  search,
+  unavailable,
 }: LayoutToolbarProps) {
   const { t } = useTranslation()
-  const progress = search && search.total > 0n
-    ? Math.floor(Number(search.checked * 100n / search.total))
-    : 0
 
   return (
     <Panel className="editor-toolbar" position="top-right">
-      {search ? (
-        <div className="layout-search-status" role="status">
-          <strong>{t('editor.layoutOptimizing')}</strong>
-          <span>{progress}% · {t('editor.layoutChecked', {
-            checked: search.checked.toString(),
-            total: search.total.toString(),
-          })}</span>
-          <button className="secondary-button compact-button" onClick={onCancel} type="button">
-            {t('editor.layoutCancel')}
-          </button>
-        </div>
-      ) : preview ? (
-        <div className="layout-preview-status" role="status">
-          <strong>{t('editor.layoutPreview')}</strong>
-          <span>{t('editor.layoutSavings', {
-            current: preview.currentWidth,
-            optimized: preview.optimizedWidth,
-            saved: preview.currentWidth - preview.optimizedWidth,
-          })}</span>
-          {preview.limited && <small>{t('editor.layoutIncomplete')}</small>}
-          <div>
-            <button className="secondary-button compact-button" onClick={onCancel} type="button">
-              {t('editor.layoutReject')}
-            </button>
-            <button className="primary-button compact-button" onClick={onApply} type="button">
-              {t('editor.layoutApply')}
-            </button>
-          </div>
-        </div>
-      ) : (
+      <button
+        aria-label={t('editor.layoutOptimize')}
+        className="editor-tool-button"
+        disabled={unavailable}
+        onClick={onOptimize}
+        title={t('editor.layoutOptimize')}
+        type="button"
+      >
+        <span aria-hidden="true">↔</span>
+      </button>
+    </Panel>
+  )
+}
+
+type LayoutProgressProps = {
+  onCancel: () => void
+  search: LayoutSearch
+}
+
+function LayoutProgress({ onCancel, search }: LayoutProgressProps) {
+  const { t } = useTranslation()
+  const progress = search.total > 0n
+    ? Number(search.checked * 100n / search.total)
+    : 0
+
+  return (
+    <Panel className="layout-progress" position="bottom-center">
+      <div role="status">
+        <strong>{t('editor.layoutOptimizing')}</strong>
+        <span>{progress}% · {t('editor.layoutChecked', {
+          checked: search.checked.toString(),
+          total: search.total.toString(),
+        })}</span>
+      </div>
+      <button className="secondary-button compact-button" onClick={onCancel} type="button">
+        {t('editor.layoutCancel')}
+      </button>
+    </Panel>
+  )
+}
+
+type LayoutPreviewControlsProps = {
+  onApply: () => void
+  onReject: () => void
+  onViewChange: (view: 'optimized' | 'original') => void
+  preview: LayoutPreview
+  view: 'optimized' | 'original'
+}
+
+function LayoutPreviewControls({
+  onApply,
+  onReject,
+  onViewChange,
+  preview,
+  view,
+}: LayoutPreviewControlsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <Panel className="layout-preview-controls" position="top-center">
+      <strong>{t('editor.layoutPreview')}</strong>
+      <span>{t('editor.layoutSavings', {
+        current: preview.currentWidth,
+        optimized: preview.optimizedWidth,
+        saved: preview.currentWidth - preview.optimizedWidth,
+      })}</span>
+      <div className="layout-preview-view-switch" role="group" aria-label={t('editor.layoutPreview')}
+      >
         <button
-          aria-label={t('editor.layoutOptimize')}
-          className="editor-tool-button"
-          onClick={onOptimize}
+          aria-pressed={view === 'original'}
+          className="secondary-button compact-button"
+          onClick={() => onViewChange('original')}
           type="button"
         >
-          <span aria-hidden="true">↔</span>
-          {t('editor.layoutOptimize')}
+          {t('editor.layoutViewOriginal')}
         </button>
-      )}
+        <button
+          aria-pressed={view === 'optimized'}
+          className="secondary-button compact-button"
+          onClick={() => onViewChange('optimized')}
+          type="button"
+        >
+          {t('editor.layoutViewOptimized')}
+        </button>
+      </div>
+      {preview.limited && <small>{t('editor.layoutIncomplete')}</small>}
+      <div className="layout-preview-actions">
+        <button className="secondary-button compact-button" onClick={onReject} type="button">
+          {t('editor.layoutReject')}
+        </button>
+        <button className="primary-button compact-button" onClick={onApply} type="button">
+          {t('editor.layoutApply')}
+        </button>
+      </div>
     </Panel>
   )
 }
@@ -203,9 +250,12 @@ type TreeCanvasProps = {
   onClearSelection: () => void
   onApplyLayout: () => void
   onCancelLayout: () => void
+  onChangeLayoutPreviewView: (view: 'optimized' | 'original') => void
   onOptimizeLayout: () => void
   onSelectPerson: (personId: string) => void
+  layoutProgressVisible: boolean
   layoutPreview: LayoutPreview | null
+  layoutPreviewView: 'optimized' | 'original'
   layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
@@ -215,9 +265,12 @@ function TreeCanvas({
   onClearSelection,
   onApplyLayout,
   onCancelLayout,
+  onChangeLayoutPreviewView,
   onOptimizeLayout,
   onSelectPerson,
+  layoutProgressVisible,
   layoutPreview,
+  layoutPreviewView,
   layoutSearch,
   selectedPersonId,
   snapshot,
@@ -292,12 +345,21 @@ function TreeCanvas({
     >
       <Background color="var(--color-border)" gap={22} size={1} />
       <LayoutToolbar
-        onApply={onApplyLayout}
-        onCancel={onCancelLayout}
         onOptimize={onOptimizeLayout}
-        preview={layoutPreview}
-        search={layoutSearch}
+        unavailable={layoutSearch !== null || layoutPreview !== null}
       />
+      {layoutSearch && layoutProgressVisible && (
+        <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
+      )}
+      {layoutPreview && (
+        <LayoutPreviewControls
+          onApply={onApplyLayout}
+          onReject={onCancelLayout}
+          onViewChange={onChangeLayoutPreviewView}
+          preview={layoutPreview}
+          view={layoutPreviewView}
+        />
+      )}
       <ZoomControls />
     </ReactFlow>
   )
@@ -379,19 +441,36 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [photoDeleting, setPhotoDeleting] = useState(false)
   const [photoViewing, setPhotoViewing] = useState(false)
   const [layoutPreview, setLayoutPreview] = useState<LayoutPreview | null>(null)
+  const [layoutPreviewView, setLayoutPreviewView] = useState<'optimized' | 'original'>(
+    'optimized',
+  )
+  const [layoutProgressVisible, setLayoutProgressVisible] = useState(false)
   const [layoutSearch, setLayoutSearch] = useState<LayoutSearch | null>(null)
   const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
   const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
   const layoutWorker = useRef<Worker | null>(null)
+  const layoutProgressTimer = useRef<number | null>(null)
+
+  const hideLayoutProgress = useCallback(() => {
+    if (layoutProgressTimer.current !== null) {
+      window.clearTimeout(layoutProgressTimer.current)
+      layoutProgressTimer.current = null
+    }
+    setLayoutProgressVisible(false)
+  }, [])
 
   const stopLayoutSearch = useCallback(() => {
     layoutWorker.current?.terminate()
     layoutWorker.current = null
     setLayoutSearch(null)
-  }, [])
+    hideLayoutProgress()
+  }, [hideLayoutProgress])
 
   useEffect(() => () => {
     layoutWorker.current?.terminate()
+    if (layoutProgressTimer.current !== null) {
+      window.clearTimeout(layoutProgressTimer.current)
+    }
   }, [])
 
   const closePersonDetails = useCallback(() => {
@@ -429,7 +508,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setPhotoDeleting(false)
       setPhotoViewing(false)
       setLayoutPreview(null)
+      setLayoutPreviewView('optimized')
       setLayoutSearch(null)
+      hideLayoutProgress()
       setLayoutWarning(null)
       setLayoutNotice(null)
       setStatus('ready')
@@ -440,7 +521,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           : 'error',
       )
     }
-  }, [request, treeId])
+  }, [hideLayoutProgress, request, treeId])
 
   const showLayoutOptimizer = () => {
     if (!snapshot || layoutSearch || layoutPreview) {
@@ -461,6 +542,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     }
     setLayoutWarning(null)
     setLayoutNotice(null)
+    hideLayoutProgress()
     const limit = mode === 'limited' ? LIMITED_LAYOUT_SEARCH : undefined
     const total = estimateLayoutCandidates(snapshot)
     setLayoutSearch({
@@ -468,6 +550,10 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       limited: mode === 'limited' && total > LIMITED_LAYOUT_SEARCH,
       total: limit === undefined || total < limit ? total : limit,
     })
+    layoutProgressTimer.current = window.setTimeout(() => {
+      setLayoutProgressVisible(true)
+      layoutProgressTimer.current = null
+    }, LAYOUT_PROGRESS_DELAY_MS)
     const originalSnapshot = snapshot
     const worker = new Worker(
       new URL('../layoutOptimizer.worker.ts', import.meta.url),
@@ -492,6 +578,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         layoutWorker.current = null
       }
       setLayoutSearch(null)
+      hideLayoutProgress()
       const result = event.data.result
       if (!result) {
         return
@@ -517,6 +604,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           })),
         },
       })
+      setLayoutPreviewView('optimized')
     }
     worker.onerror = () => {
       worker.terminate()
@@ -524,6 +612,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         layoutWorker.current = null
       }
       setLayoutSearch(null)
+      hideLayoutProgress()
       setLayoutNotice(t('editor.layoutFailed'))
     }
     worker.postMessage({ type: 'start', snapshot: originalSnapshot, limit })
@@ -663,6 +752,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         coordinateUpdates: layoutPreview.coordinateUpdates,
       })
       setLayoutPreview(null)
+      setLayoutPreviewView('optimized')
       setLayoutNotice(t('editor.layoutApplied'))
     } catch (error) {
       // applyMutation already enters the standard ETag conflict state.
@@ -674,6 +764,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
   const rejectLayoutPreview = () => {
     setLayoutPreview(null)
+    setLayoutPreviewView('optimized')
     setLayoutNotice(null)
   }
 
@@ -1105,12 +1196,17 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                   onClearSelection={closePersonDetails}
                   onApplyLayout={() => void applyLayoutPreview()}
                   onCancelLayout={layoutSearch ? stopLayoutSearch : rejectLayoutPreview}
+                  onChangeLayoutPreviewView={setLayoutPreviewView}
                   onOptimizeLayout={showLayoutOptimizer}
                   onSelectPerson={(personId) => void selectPerson(personId)}
+                  layoutProgressVisible={layoutProgressVisible}
                   layoutPreview={layoutPreview}
+                  layoutPreviewView={layoutPreviewView}
                   layoutSearch={layoutSearch}
                   selectedPersonId={selectedPerson?.id ?? null}
-                  snapshot={layoutPreview?.snapshot ?? snapshot}
+                  snapshot={layoutPreview?.snapshot && layoutPreviewView === 'optimized'
+                    ? layoutPreview.snapshot
+                    : snapshot}
                 />
               </ReactFlowProvider>
             )}
@@ -1153,7 +1249,13 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         )}
       </section>
 
-      {layoutNotice && <div className="layout-notice" role="status">{layoutNotice}</div>}
+      {layoutNotice && (
+        <ToastNotice
+          closeLabel={t('editor.noticeClose')}
+          message={layoutNotice}
+          onClose={() => setLayoutNotice(null)}
+        />
+      )}
 
       {layoutWarning !== null && (
         <div className="dialog-backdrop" role="presentation">
