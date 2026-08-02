@@ -70,7 +70,7 @@ describe('layout optimizer', () => {
     expect(first?.coordinateUpdates).not.toHaveLength(0)
   })
 
-  it('keeps a full-sibling group continuous while considering a half sibling', async () => {
+  it('keeps a full-sibling pair together while considering a half sibling', async () => {
     const tree = snapshot(
       [
         person('father', 0, 0),

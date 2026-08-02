@@ -285,9 +285,9 @@ describe('tree graph presentation', () => {
       update.personId,
       update.coordinates,
     ]))
-    expect(positions.get('other-parent-1')).toEqual({ x: 1840, y: -240 })
-    expect(positions.get('other-parent-2')).toEqual({ x: 2160, y: -240 })
-    expect(positions.get('other-child-1')).toEqual({ x: 1680, y: 0 })
+    expect(positions.get('other-parent-1')).toEqual({ x: 1660, y: -240 })
+    expect(positions.get('other-parent-2')).toEqual({ x: 1980, y: -240 })
+    expect(positions.get('other-child-1')).toEqual({ x: 1500, y: 0 })
   })
 
   it('reflows the compacted werwer branch without crossing unrelated generations', () => {
@@ -322,16 +322,16 @@ describe('tree graph presentation', () => {
       { personId: 'b', coordinates: { x: 60, y: -240 } },
       { personId: 'c', coordinates: { x: 440, y: -240 } },
       { personId: 'd', coordinates: { x: 1200, y: -240 } },
-      { personId: 'e', coordinates: { x: 1840, y: -240 } },
-      { personId: 'f', coordinates: { x: 2160, y: -240 } },
+      { personId: 'e', coordinates: { x: 1660, y: -240 } },
+      { personId: 'f', coordinates: { x: 1980, y: -240 } },
       { personId: 'ab', coordinates: { x: -130, y: 0 } },
       { personId: 'bc', coordinates: { x: 250, y: 0 } },
       { personId: 'bd', coordinates: { x: 630, y: 0 } },
-      { personId: 'ef-1', coordinates: { x: 1680, y: 0 } },
-      { personId: 'ef-2', coordinates: { x: 2000, y: 0 } },
-      { personId: 'ef-3', coordinates: { x: 2320, y: 0 } },
-      { personId: 'grandchild-1', coordinates: { x: 805, y: 240 } },
-      { personId: 'grandchild-2', coordinates: { x: 1125, y: 240 } },
+      { personId: 'ef-1', coordinates: { x: 1500, y: 0 } },
+      { personId: 'ef-2', coordinates: { x: 1820, y: 0 } },
+      { personId: 'ef-3', coordinates: { x: 2140, y: 0 } },
+      { personId: 'grandchild-1', coordinates: { x: 715, y: 240 } },
+      { personId: 'grandchild-2', coordinates: { x: 1035, y: 240 } },
     ])
   })
 
@@ -626,5 +626,62 @@ describe('tree graph presentation', () => {
     ]))
 
     expect(coordinates.get(wifeOne)?.x).toBeLessThan(coordinates.get(husbandTwo)?.x ?? 0)
+  })
+
+  it('keeps every neighbouring card apart in a dense generation', () => {
+    const people = [
+      person('grandfather', 0, -480),
+      person('grandmother', 320, -480),
+    ]
+    const parentLinks: TreeSnapshot['parentLinks'] = []
+    for (let family = 0; family < 12; family += 1) {
+      const parentId = `parent-${family}`
+      const spouseId = `spouse-${family}`
+      people.push(
+        person(parentId, family * 320, -240),
+        person(spouseId, family * 320 + 160, -240),
+      )
+      parentLinks.push(
+        { id: `${parentId}-father`, parentId: 'grandfather', childId: parentId, role: 'father' },
+        { id: `${parentId}-mother`, parentId: 'grandmother', childId: parentId, role: 'mother' },
+      )
+      for (let child = 0; child < 4; child += 1) {
+        const childId = `child-${family}-${child}`
+        people.push(person(childId, family * 320 + child * 20, 0))
+        parentLinks.push(
+          { id: `${childId}-father`, parentId, childId, role: 'father' },
+          { id: `${childId}-mother`, parentId: spouseId, childId, role: 'mother' },
+        )
+      }
+    }
+    const tree = snapshot(people, parentLinks)
+    const coordinates = new Map(tree.people.map((item) => [
+      item.id,
+      item.coordinates,
+    ]))
+    reflowTree(tree).forEach((update) => coordinates.set(update.personId, update.coordinates))
+    const generations = new Map<number, Array<{ id: string; x: number }>>()
+    tree.people.forEach((item) => {
+      const position = coordinates.get(item.id)!
+      const generation = generations.get(position.y) ?? []
+      generation.push({ id: item.id, x: position.x })
+      generations.set(position.y, generation)
+    })
+    generations.forEach((generation) => {
+      const ordered = [...generation]
+        .sort((first, second) => first.x - second.x || first.id.localeCompare(second.id))
+      for (let index = 1; index < ordered.length; index += 1) {
+        expect(ordered[index]!.x - ordered[index - 1]!.x).toBeGreaterThanOrEqual(300)
+      }
+    })
+    for (let family = 0; family < 12; family += 1) {
+      const parent = coordinates.get(`parent-${family}`)!
+      const spouse = coordinates.get(`spouse-${family}`)!
+      const children = Array.from({ length: 4 }, (_, child) => (
+        coordinates.get(`child-${family}-${child}`)!
+      ))
+      const childCentre = children.reduce((sum, child) => sum + child.x, 0) / children.length
+      expect(childCentre).toBe((parent.x + spouse.x) / 2)
+    }
   })
 })

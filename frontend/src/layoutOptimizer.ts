@@ -179,9 +179,11 @@ const buildDimensions = (snapshot: TreeSnapshot): OrderDimension[] => {
     memberIds.forEach((personId) => claimed.add(personId))
   })
 
-  // Each known-parent set is a block. Permuting blocks never puts a half
-  // sibling inside a full-sibling group; internal permutations are useful
-  // only when a sibling has their own spouse or child outside this group.
+  // Each known-parent set is a candidate-order block. This prevents the
+  // optimizer from inserting a half sibling into a full-sibling group;
+  // reflow may still separate cards when spouse-pair constraints require it.
+  // Internal permutations are useful only when a sibling has their own spouse
+  // or child outside this group.
   const childrenByParentKey = new Map<string, Map<string, string[]>>()
   parentsByChild.forEach((parents, childId) => {
     const knownParents = [...parents].filter((personId) => knownPeople.has(personId)).sort()
