@@ -483,6 +483,25 @@ export function reflowTree(
     }
   }
 
+  const partnersByPerson = new Map<string, Set<string>>()
+  for (const [firstId, secondId] of familyPairs) {
+    const firstPartners = partnersByPerson.get(firstId) ?? new Set<string>()
+    firstPartners.add(secondId)
+    partnersByPerson.set(firstId, firstPartners)
+    const secondPartners = partnersByPerson.get(secondId) ?? new Set<string>()
+    secondPartners.add(firstId)
+    partnersByPerson.set(secondId, secondPartners)
+  }
+  const partnerAnchor = (personId: string) => {
+    const partners = [...(partnersByPerson.get(personId) ?? [])]
+      .map((partnerId) => positions.get(partnerId)?.x)
+      .filter((x): x is number => x !== undefined)
+    if (partners.length === 0) {
+      return positions.get(personId)?.x ?? 0
+    }
+    return partners.reduce((sum, x) => sum + x, 0) / partners.length
+  }
+
   const orderedFamilies = [...families.values()]
     .sort((first, second) => (
       Math.max(...first.parentIds.map(depth)) - Math.max(...second.parentIds.map(depth))
@@ -500,7 +519,7 @@ export function reflowTree(
       const familyY = Math.max(...parents.map((parent) => parent.y))
       family.childIds
         .sort((first, second) => (
-          (positions.get(first)?.x ?? 0) - (positions.get(second)?.x ?? 0)
+          partnerAnchor(first) - partnerAnchor(second)
           || first.localeCompare(second)
         ))
         .forEach((childId, index, children) => {
@@ -529,15 +548,6 @@ export function reflowTree(
     }
     visit(personId, 0)
     return result
-  }
-  const partnersByPerson = new Map<string, Set<string>>()
-  for (const [firstId, secondId] of familyPairs) {
-    const firstPartners = partnersByPerson.get(firstId) ?? new Set<string>()
-    firstPartners.add(secondId)
-    partnersByPerson.set(firstId, firstPartners)
-    const secondPartners = partnersByPerson.get(secondId) ?? new Set<string>()
-    secondPartners.add(firstId)
-    partnersByPerson.set(secondId, secondPartners)
   }
   const childrenByParent = new Map<string, Set<string>>()
   for (const link of snapshot.parentLinks) {

@@ -581,4 +581,50 @@ describe('tree graph presentation', () => {
       }),
     )
   })
+
+  it('orders siblings by their external families to avoid mixing two couples', () => {
+    const husbandOne = '019fbcbd-00a0-79a9-866f-65eb99513505'
+    const wifeOne = '019fbcbd-0093-7d22-9c21-1b22f51c73fc'
+    const husbandTwo = '019fbcbd-0093-703a-9c21-1b22f16454fc'
+    const wifeTwo = '019fbcbd-0094-7d86-805a-725c60f7bb58'
+    const tree = snapshot(
+      [
+        person('parents-father', 320, 240),
+        person('parents-mother', 1120, 240),
+        person('wife-two-father', 1760, 240),
+        person('wife-two-mother', 2400, 240),
+        person(husbandOne, 0, 480),
+        person(husbandTwo, 560, 480),
+        person(wifeOne, 880, 480),
+        person(wifeTwo, 1920, 480),
+      ],
+      [
+        { id: 'father-husband-one', parentId: 'parents-father', childId: husbandTwo, role: 'father' },
+        { id: 'mother-husband-one', parentId: 'parents-mother', childId: husbandTwo, role: 'mother' },
+        { id: 'father-wife-one', parentId: 'parents-father', childId: wifeOne, role: 'father' },
+        { id: 'mother-wife-one', parentId: 'parents-mother', childId: wifeOne, role: 'mother' },
+        { id: 'father-wife-two', parentId: 'wife-two-father', childId: wifeTwo, role: 'father' },
+        { id: 'mother-wife-two', parentId: 'wife-two-mother', childId: wifeTwo, role: 'mother' },
+      ],
+      [
+        {
+          id: 'first-couple', malePersonId: husbandOne, femalePersonId: wifeOne,
+          marriageDate: { state: 'unknown' }, dissolutionDate: null,
+          createdAt: '', updatedAt: '',
+        },
+        {
+          id: 'second-couple', malePersonId: husbandTwo, femalePersonId: wifeTwo,
+          marriageDate: { state: 'unknown' }, dissolutionDate: null,
+          createdAt: '', updatedAt: '',
+        },
+      ],
+    )
+
+    const coordinates = new Map(reflowTree(tree).map((update) => [
+      update.personId,
+      update.coordinates,
+    ]))
+
+    expect(coordinates.get(wifeOne)?.x).toBeLessThan(coordinates.get(husbandTwo)?.x ?? 0)
+  })
 })
