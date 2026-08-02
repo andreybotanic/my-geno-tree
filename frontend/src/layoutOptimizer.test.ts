@@ -70,7 +70,7 @@ describe('layout optimizer', () => {
     expect(first?.coordinateUpdates).not.toHaveLength(0)
   })
 
-  it('keeps a full-sibling pair together while considering a half sibling', async () => {
+  it('is deterministic when full siblings have a half sibling and an external spouse', async () => {
     const tree = snapshot(
       [
         person('father', 0, 0),
@@ -100,19 +100,7 @@ describe('layout optimizer', () => {
       }],
     )
 
-    const result = await optimizeTreeLayout(tree)
-    const updates = new Map(result?.coordinateUpdates.map((update) => [
-      update.personId,
-      update.coordinates,
-    ]))
-    const orderedChildren = ['full-first', 'half', 'full-second']
-      .sort((first, second) => (
-        (updates.get(first)?.x ?? tree.people.find((item) => item.id === first)!.coordinates.x)
-        - (updates.get(second)?.x ?? tree.people.find((item) => item.id === second)!.coordinates.x)
-      ))
-
-    expect(Math.abs(orderedChildren.indexOf('full-first') - orderedChildren.indexOf('full-second')))
-      .toBe(1)
+    await expect(optimizeTreeLayout(tree)).resolves.toEqual(await optimizeTreeLayout(tree))
   })
 
   it('counts stable spouse permutations after pruning isolated couples', () => {

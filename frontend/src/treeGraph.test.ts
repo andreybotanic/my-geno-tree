@@ -319,19 +319,19 @@ describe('tree graph presentation', () => {
     )
 
     expect(reflowTree(tree)).toEqual([
-      { personId: 'b', coordinates: { x: 60, y: -240 } },
-      { personId: 'c', coordinates: { x: 440, y: -240 } },
-      { personId: 'd', coordinates: { x: 1200, y: -240 } },
-      { personId: 'e', coordinates: { x: 1660, y: -240 } },
-      { personId: 'f', coordinates: { x: 1980, y: -240 } },
-      { personId: 'ab', coordinates: { x: -130, y: 0 } },
-      { personId: 'bc', coordinates: { x: 250, y: 0 } },
-      { personId: 'bd', coordinates: { x: 630, y: 0 } },
-      { personId: 'ef-1', coordinates: { x: 1500, y: 0 } },
-      { personId: 'ef-2', coordinates: { x: 1820, y: 0 } },
-      { personId: 'ef-3', coordinates: { x: 2140, y: 0 } },
-      { personId: 'grandchild-1', coordinates: { x: 715, y: 240 } },
-      { personId: 'grandchild-2', coordinates: { x: 1035, y: 240 } },
+      { personId: 'b', coordinates: { x: 120, y: -240 } },
+      { personId: 'c', coordinates: { x: 560, y: -240 } },
+      { personId: 'd', coordinates: { x: 1320, y: -240 } },
+      { personId: 'e', coordinates: { x: 1620, y: -240 } },
+      { personId: 'f', coordinates: { x: 1920, y: -240 } },
+      { personId: 'ab', coordinates: { x: -100, y: 0 } },
+      { personId: 'bc', coordinates: { x: 340, y: 0 } },
+      { personId: 'bd', coordinates: { x: 720, y: 0 } },
+      { personId: 'ef-1', coordinates: { x: 1130, y: 0 } },
+      { personId: 'ef-2', coordinates: { x: 1770, y: 0 } },
+      { personId: 'ef-3', coordinates: { x: 2410, y: 0 } },
+      { personId: 'grandchild-1', coordinates: { x: 575, y: 240 } },
+      { personId: 'grandchild-2', coordinates: { x: 895, y: 240 } },
     ])
   })
 
@@ -683,5 +683,14 @@ describe('tree graph presentation', () => {
       const childCentre = children.reduce((sum, child) => sum + child.x, 0) / children.length
       expect(childCentre).toBe((parent.x + spouse.x) / 2)
     }
+    const reflowedTree = {
+      ...tree,
+      people: tree.people.map((item) => ({
+        ...item,
+        coordinates: coordinates.get(item.id)!,
+      })),
+    }
+
+    expect(reflowTree(reflowedTree)).toEqual([])
   })
 })
