@@ -256,6 +256,8 @@ describe('TreeEditorPage', () => {
     const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
     expect(anna).toHaveClass('blood-network-person')
     expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
+    expect(screen.getByText('Blood links')).toBeInTheDocument()
+    expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
 
     await userEvent.hover(anna)

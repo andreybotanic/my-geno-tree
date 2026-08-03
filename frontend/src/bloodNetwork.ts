@@ -1,4 +1,4 @@
-import type { Edge, Node } from '@xyflow/react'
+import { MarkerType, Position, type Edge, type Node } from '@xyflow/react'
 import type { Person, TreeSnapshot } from './api/generated'
 
 export const BLOOD_NETWORK_PERSON_SIZE = 72
@@ -24,10 +24,15 @@ export type BloodNetworkFamilyNode = Node<
 export type BloodNetworkFlowNode =
   | BloodNetworkFamilyNode
   | BloodNetworkPersonNode
-export type BloodNetworkFlowEdge = Edge<Record<string, never>, 'straight'>
+type BloodNetworkEdgeData = {
+  relation: 'familyToChild' | 'parentToFamily'
+}
+
+export type BloodNetworkFlowEdge = Edge<BloodNetworkEdgeData, 'straight'>
 
 type ForceNode = {
   id: string
+  mass: number
   radius: number
   x: number
   y: number
@@ -40,22 +45,47 @@ type BloodFamily = {
 }
 
 type ForceEdge = {
+  relation: BloodNetworkEdgeData['relation']
   source: string
   target: string
 }
 
-const FORCE_REPULSION = 5_200
+const FORCE_REPULSION = 14
 const FORCE_SPRING_LENGTH = 155
-const FORCE_SPRING_STRENGTH = 0.017
+const FORCE_SPRING_STRENGTH = 0.03
 const FORCE_DAMPING = 0.84
-const FORCE_GRAVITY = 0.006
+const FORCE_GRAVITY = 0.75
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 18
 const FORCE_INITIAL_ALPHA = 0.9
 const FORCE_MINIMUM_ALPHA = 0.006
-const FORCE_ALPHA_DECAY = 0.97
-const FORCE_MAX_TICKS = 210
-const FORCE_MAX_MAGNITUDE = 2
+const FORCE_ALPHA_DECAY = 0.994
+const FORCE_MAX_TICKS = 1_000
+const FORCE_MAX_MAGNITUDE = 2.5
+const FORCE_MAX_RADIUS = 1_200
+
+function networkHandles(size: number) {
+  return [
+    {
+      height: 0,
+      id: 'network-target',
+      position: Position.Top,
+      type: 'target' as const,
+      width: 0,
+      x: size / 2,
+      y: 0,
+    },
+    {
+      height: 0,
+      id: 'network-source',
+      position: Position.Bottom,
+      type: 'source' as const,
+      width: 0,
+      x: size / 2,
+      y: size,
+    },
+  ]
+}
 
 function hashId(value: string): number {
   let hash = 2_166_136_261
@@ -99,17 +129,30 @@ export function createBloodNetworkSimulation(
       : BLOOD_NETWORK_FAMILY_SIZE
     return {
       id: node.id,
+      mass: 1,
       radius: size / 2,
       x: node.position.x + size / 2,
       y: node.position.y + size / 2,
     }
   })
   const edges = network.edges.map((edge) => ({
+    relation: edge.data?.relation ?? 'familyToChild',
     source: edge.source,
     target: edge.target,
   }))
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
+  const degree = new Map(nodes.map((node) => [node.id, 0]))
+  for (const edge of edges) {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
+  }
+  for (const node of nodes) {
+    // ForceAtlas2 weighs the charge of a node by its degree plus one. This
+    // makes busy family hubs claim enough space without changing the strength
+    // of the genealogical links that hold a sibling group together.
+    node.mass = (degree.get(node.id) ?? 0) + 1
+  }
   let alpha = FORCE_INITIAL_ALPHA
   let tickCount = 0
 
@@ -134,7 +177,7 @@ export function createBloodNetworkSimulation(
           ? (minimumDistance - direction.distance) * 0.15
           : 0
         const magnitude = Math.min(FORCE_MAX_MAGNITUDE, (
-          FORCE_REPULSION / (direction.distance * direction.distance)
+          FORCE_REPULSION * first.mass * second.mass / direction.distance
           + collisionForce
         )) * alpha
         const firstForce = force.get(first.id)
@@ -156,11 +199,15 @@ export function createBloodNetworkSimulation(
         continue
       }
       const direction = directionBetween(source, target)
+      const idealLength = edge.relation === 'parentToFamily'
+        ? FORCE_SPRING_LENGTH * 1.1
+        : FORCE_SPRING_LENGTH * 0.8
       const magnitude = Math.max(
         -FORCE_MAX_MAGNITUDE,
         Math.min(
           FORCE_MAX_MAGNITUDE,
-          (direction.distance - FORCE_SPRING_LENGTH) * FORCE_SPRING_STRENGTH,
+          (direction.distance - idealLength)
+            * FORCE_SPRING_STRENGTH,
         ),
       ) * alpha
       const sourceForce = force.get(source.id)
@@ -180,8 +227,11 @@ export function createBloodNetworkSimulation(
       if (!nodeForce || !nodeVelocity) {
         continue
       }
-      nodeForce.x -= node.x * FORCE_GRAVITY * alpha
-      nodeForce.y -= node.y * FORCE_GRAVITY * alpha
+      const distanceToCenter = Math.hypot(node.x, node.y)
+      if (distanceToCenter > 0.001) {
+        nodeForce.x -= node.x / distanceToCenter * node.mass * FORCE_GRAVITY * alpha
+        nodeForce.y -= node.y / distanceToCenter * node.mass * FORCE_GRAVITY * alpha
+      }
       nodeVelocity.x = (nodeVelocity.x + nodeForce.x) * FORCE_DAMPING
       nodeVelocity.y = (nodeVelocity.y + nodeForce.y) * FORCE_DAMPING
       const speed = Math.hypot(nodeVelocity.x, nodeVelocity.y)
@@ -196,6 +246,15 @@ export function createBloodNetworkSimulation(
       }
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
+      const radius = Math.hypot(node.x, node.y)
+      if (radius > FORCE_MAX_RADIUS) {
+        // A bounded field prevents one temporarily unbalanced branch from
+        // throwing the whole temporary map outside the viewport.
+        node.x = node.x / radius * FORCE_MAX_RADIUS
+        node.y = node.y / radius * FORCE_MAX_RADIUS
+        nodeVelocity.x *= 0.2
+        nodeVelocity.y *= 0.2
+      }
     }
     alpha *= FORCE_ALPHA_DECAY
     tickCount += 1
@@ -271,6 +330,7 @@ export function buildBloodNetwork(
     const distance = 56 * Math.sqrt(index + 1)
     forceNodes.push({
       id,
+      mass: 1,
       radius,
       x: Math.cos(angle) * distance,
       y: Math.sin(angle) * distance,
@@ -288,8 +348,16 @@ export function buildBloodNetwork(
   ))
 
   const forceEdges: ForceEdge[] = families.flatMap((family) => [
-    ...family.parentIds.map((parentId) => ({ source: parentId, target: family.id })),
-    ...family.childIds.map((childId) => ({ source: family.id, target: childId })),
+    ...family.parentIds.map((parentId) => ({
+      relation: 'parentToFamily' as const,
+      source: parentId,
+      target: family.id,
+    })),
+    ...family.childIds.map((childId) => ({
+      relation: 'familyToChild' as const,
+      source: family.id,
+      target: childId,
+    })),
   ])
   const positionFor = (id: string, size: number) => {
     const position = forceNodes.find((node) => node.id === id) ?? { x: 0, y: 0 }
@@ -301,6 +369,7 @@ export function buildBloodNetwork(
       ...people.map((person) => ({
         data: { person },
         height: BLOOD_NETWORK_PERSON_SIZE,
+        handles: networkHandles(BLOOD_NETWORK_PERSON_SIZE),
         id: person.id,
         position: positionFor(person.id, BLOOD_NETWORK_PERSON_SIZE),
         type: 'bloodPerson' as const,
@@ -312,6 +381,7 @@ export function buildBloodNetwork(
           parentIds: family.parentIds,
         },
         height: BLOOD_NETWORK_FAMILY_SIZE,
+        handles: networkHandles(BLOOD_NETWORK_FAMILY_SIZE),
         id: family.id,
         position: positionFor(family.id, BLOOD_NETWORK_FAMILY_SIZE),
         type: 'bloodFamily' as const,
@@ -319,9 +389,19 @@ export function buildBloodNetwork(
       })),
     ],
     edges: forceEdges.map((edge) => ({
+      className: `blood-network-${edge.relation}-edge`,
+      data: { relation: edge.relation },
       id: `blood:${edge.source}:${edge.target}`,
+      markerEnd: {
+        color: edge.relation === 'parentToFamily'
+          ? 'var(--color-state-warning-strong)'
+          : 'var(--color-graph-line)',
+        type: MarkerType.ArrowClosed,
+      },
       source: edge.source,
+      sourceHandle: 'network-source',
       target: edge.target,
+      targetHandle: 'network-target',
       type: 'straight' as const,
     })),
   }

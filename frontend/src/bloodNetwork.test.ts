@@ -66,13 +66,45 @@ describe('buildBloodNetwork', () => {
     })
     expect(network.nodes.filter((node) => node.type === 'bloodPerson')).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ height: 72, width: 72 }),
+        expect.objectContaining({
+          handles: expect.arrayContaining([
+            expect.objectContaining({ id: 'network-source', type: 'source' }),
+            expect.objectContaining({ id: 'network-target', type: 'target' }),
+          ]),
+          height: 72,
+          width: 72,
+        }),
       ]),
     )
     expect(network.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source: 'blood-family:father:mother', target: 'first-child' }),
-      expect.objectContaining({ source: 'blood-family:father:mother', target: 'second-child' }),
-      expect.objectContaining({ source: 'blood-family:father:other-mother', target: 'half-sibling' }),
+      expect.objectContaining({
+        data: { relation: 'familyToChild' },
+        source: 'blood-family:father:mother',
+        sourceHandle: 'network-source',
+        target: 'first-child',
+        targetHandle: 'network-target',
+      }),
+      expect.objectContaining({
+        data: { relation: 'familyToChild' },
+        source: 'blood-family:father:mother',
+        sourceHandle: 'network-source',
+        target: 'second-child',
+        targetHandle: 'network-target',
+      }),
+      expect.objectContaining({
+        data: { relation: 'familyToChild' },
+        source: 'blood-family:father:other-mother',
+        sourceHandle: 'network-source',
+        target: 'half-sibling',
+        targetHandle: 'network-target',
+      }),
+    ]))
+    expect(network.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        data: { relation: 'parentToFamily' },
+        source: 'father',
+        target: 'blood-family:father:mother',
+      }),
     ]))
   })
 
@@ -114,7 +146,7 @@ describe('buildBloodNetwork', () => {
     )
 
     let running = true
-    for (let tick = 0; tick < 700 && running; tick += 1) {
+    for (let tick = 0; tick < 1_100 && running; tick += 1) {
       running = simulation.tick()
     }
 
@@ -139,11 +171,16 @@ describe('buildBloodNetwork', () => {
     }))
 
     let running = true
-    for (let tick = 0; tick < 250 && running; tick += 1) {
+    for (let tick = 0; tick < 1_100 && running; tick += 1) {
       running = simulation.tick()
     }
 
     expect(running).toBe(false)
+    const greatestCoordinate = Math.max(...simulation.getNodes().flatMap((node) => [
+      Math.abs(node.position.x),
+      Math.abs(node.position.y),
+    ]))
+    expect(greatestCoordinate).toBeLessThan(1_500)
     expect(simulation.getNodes().every((node) => (
       Number.isFinite(node.position.x)
       && Number.isFinite(node.position.y)

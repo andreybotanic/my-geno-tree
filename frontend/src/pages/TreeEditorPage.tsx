@@ -233,6 +233,25 @@ function LayoutToolbar({
   )
 }
 
+function BloodNetworkLegend() {
+  const { t } = useTranslation()
+
+  return (
+    <Panel className="blood-network-legend" position="bottom-left">
+      <strong>{t('editor.bloodNetworkLegendTitle')}</strong>
+      <span>
+        <i aria-hidden="true" className="blood-network-legend-parent" />
+        {t('editor.bloodNetworkParentArrow')}
+      </span>
+      <span>
+        <i aria-hidden="true" className="blood-network-legend-child" />
+        {t('editor.bloodNetworkChildArrow')}
+      </span>
+      <small>{t('editor.bloodNetworkForces')}</small>
+    </Panel>
+  )
+}
+
 type LayoutProgressProps = {
   onCancel: () => void
   search: LayoutSearch
@@ -486,6 +505,7 @@ function TreeCanvas({
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />
+      {view === 'network' && <BloodNetworkLegend />}
       {view === 'tree' && layoutSearch && layoutProgressVisible && (
         <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
       )}

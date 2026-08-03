@@ -1,4 +1,4 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import type { NodeProps } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
 import {
   type BloodNetworkFamilyNode,
@@ -9,15 +9,6 @@ import {
   formatPersonName,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
-
-function NetworkHandles() {
-  return (
-    <>
-      <Handle className="blood-network-handle" id="network-target" position={Position.Top} type="target" />
-      <Handle className="blood-network-handle" id="network-source" position={Position.Bottom} type="source" />
-    </>
-  )
-}
 
 export function BloodNetworkPersonNode({
   data,
@@ -32,7 +23,6 @@ export function BloodNetworkPersonNode({
 
   return (
     <article aria-label={name} className="blood-network-person">
-      <NetworkHandles />
       <AuthenticatedImage
         alt=""
         className="blood-network-photo"
@@ -55,7 +45,6 @@ export function BloodNetworkFamilyNode({
       aria-label={`Shared parents of ${data.childIds.length} children`}
       className="blood-network-family"
     >
-      <NetworkHandles />
     </span>
   )
 }
