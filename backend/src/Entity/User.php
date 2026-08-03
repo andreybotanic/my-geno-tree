@@ -185,6 +185,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 'forces'    => [
                     'averageMovementPerSecondThreshold' => 1,
                     'baseRepulsion'                     => 8,
+                    'crossBranchRepulsion'              => 2,
                     'descendantSideForce'               => 0,
                     'personFlowHingeStrength'           => 0,
                     'parentChildPathLength'             => 300,
@@ -204,6 +205,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 'forces'    => [
                     'averageMovementPerSecondThreshold' => 1,
                     'baseRepulsion'                     => 3,
+                    'crossBranchRepulsion'              => 0.5,
                     'descendantSideForce'               => 12,
                     'personFlowHingeStrength'           => 8,
                     'parentChildPathLength'             => 300,
