@@ -1131,7 +1131,7 @@
   display: grid;
   font-size: 0.76rem;
   gap: 6px;
-  max-width: 250px;
+  max-width: 280px;
   padding: 10px 12px;
 }
 
@@ -1165,6 +1165,45 @@
   color: var(--color-text-muted);
   line-height: 1.3;
   margin-top: 2px;
+}
+
+.blood-network-force-controls {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 7px;
+  margin: 3px 0 0;
+  padding: 8px 0 0;
+}
+
+.blood-network-force-controls legend {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  padding: 0;
+}
+
+.blood-network-force-control {
+  display: grid;
+  gap: 3px;
+}
+
+.blood-network-legend .blood-network-force-control > span {
+  color: var(--color-text-muted);
+  font-size: 0.71rem;
+  justify-content: space-between;
+}
+
+.blood-network-force-control output {
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.blood-network-force-control input {
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  margin: 0;
+  width: 100%;
 }
 
 .layout-progress,

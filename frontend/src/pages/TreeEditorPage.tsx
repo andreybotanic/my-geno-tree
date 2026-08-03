@@ -82,7 +82,9 @@ import {
   BLOOD_NETWORK_PERSON_SIZE,
   buildBloodNetwork,
   createBloodNetworkSimulation,
+  DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
   type BloodNetworkFlowEdge,
+  type BloodNetworkForceSettings,
   type BloodNetworkFlowNode,
 } from '../bloodNetwork'
 import {
@@ -251,7 +253,51 @@ function LayoutToolbar({
   )
 }
 
-function BloodNetworkLegend() {
+type BloodNetworkLegendProps = {
+  forces: BloodNetworkForceSettings
+  onForceChange: (key: keyof BloodNetworkForceSettings, value: number) => void
+}
+
+type BloodNetworkForceControlProps = {
+  forceKey: keyof BloodNetworkForceSettings
+  forces: BloodNetworkForceSettings
+  label: string
+  max: number
+  min: number
+  onForceChange: BloodNetworkLegendProps['onForceChange']
+  step: number
+}
+
+function BloodNetworkForceControl({
+  forceKey,
+  forces,
+  label,
+  max,
+  min,
+  onForceChange,
+  step,
+}: BloodNetworkForceControlProps) {
+  const value = forces[forceKey]
+  const id = `blood-network-force-${forceKey}`
+
+  return (
+    <label className="blood-network-force-control" htmlFor={id}>
+      <span>{label}<output>{value.toFixed(step < 0.1 ? 2 : 1)}</output></span>
+      <input
+        aria-label={label}
+        id={id}
+        max={max}
+        min={min}
+        onChange={(event) => onForceChange(forceKey, Number(event.target.value))}
+        step={step}
+        type="range"
+        value={value}
+      />
+    </label>
+  )
+}
+
+function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) {
   const { t } = useTranslation()
 
   return (
@@ -266,6 +312,45 @@ function BloodNetworkLegend() {
         {t('editor.bloodNetworkChildArrow')}
       </span>
       <small>{t('editor.bloodNetworkForces')}</small>
+      <fieldset className="blood-network-force-controls">
+        <legend>{t('editor.bloodNetworkForceControls')}</legend>
+        <BloodNetworkForceControl
+          forceKey="parentPairSpringStrength"
+          forces={forces}
+          label={t('editor.bloodNetworkParentPairSpring')}
+          max={0.5}
+          min={0.04}
+          onForceChange={onForceChange}
+          step={0.01}
+        />
+        <BloodNetworkForceControl
+          forceKey="sharedParentSpringStrength"
+          forces={forces}
+          label={t('editor.bloodNetworkSharedParentSpring')}
+          max={0.4}
+          min={0.02}
+          onForceChange={onForceChange}
+          step={0.01}
+        />
+        <BloodNetworkForceControl
+          forceKey="baseRepulsion"
+          forces={forces}
+          label={t('editor.bloodNetworkBaseRepulsion')}
+          max={8}
+          min={0.5}
+          onForceChange={onForceChange}
+          step={0.1}
+        />
+        <BloodNetworkForceControl
+          forceKey="kinshipRepulsionStep"
+          forces={forces}
+          label={t('editor.bloodNetworkKinshipRepulsion')}
+          max={0.6}
+          min={0.05}
+          onForceChange={onForceChange}
+          step={0.05}
+        />
+      </fieldset>
     </Panel>
   )
 }
@@ -396,6 +481,14 @@ function TreeCanvas({
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
     BloodNetworkFlowNode[]
   >([])
+  const latestBloodNodes = useRef<BloodNetworkFlowNode[]>([])
+  const activeBloodNetwork = useRef<{
+    edges: BloodNetworkFlowEdge[]
+    nodes: BloodNetworkFlowNode[]
+  } | null>(null)
+  const [bloodNetworkForces, setBloodNetworkForces] = useState(
+    DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+  )
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
@@ -446,29 +539,42 @@ function TreeCanvas({
 
   useLayoutEffect(() => {
     if (view !== 'network') {
+      activeBloodNetwork.current = null
+      latestBloodNodes.current = []
       setSimulatedBloodNodes([])
       return
     }
-    const simulation = createBloodNetworkSimulation(bloodNetwork)
+    const continueSimulation = activeBloodNetwork.current === bloodNetwork
+      && latestBloodNodes.current.length === bloodNetwork.nodes.length
+    const simulation = createBloodNetworkSimulation({
+      edges: bloodNetwork.edges,
+      nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
+    }, bloodNetworkForces)
+    activeBloodNetwork.current = bloodNetwork
     let animationTimer: number | null = null
     let active = true
     const initialNodes = simulation.getNodes()
+    latestBloodNodes.current = initialNodes
     setSimulatedBloodNodes(initialNodes)
     // fitView waits for React Flow to measure every node. For a large graph
     // that postpones a camera jump until well after the force map opens.
     // The temporary nodes have known sizes, so their initial bounds can place
     // the viewport immediately and the camera remains under the user's control.
-    void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
-      duration: 0,
-      padding: 0.2,
-    })
+    if (!continueSimulation) {
+      void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
+        duration: 0,
+        padding: 0.2,
+      })
+    }
 
     const animate = () => {
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
       // simulation into one visible jump on a dense map.
       const running = simulation.tick()
-      setSimulatedBloodNodes(simulation.getNodes())
+      const nextNodes = simulation.getNodes()
+      latestBloodNodes.current = nextNodes
+      setSimulatedBloodNodes(nextNodes)
       if (active && running) {
         animationTimer = window.setTimeout(animate, 32)
       }
@@ -481,7 +587,7 @@ function TreeCanvas({
         window.clearTimeout(animationTimer)
       }
     }
-  }, [bloodNetwork, view])
+  }, [bloodNetwork, bloodNetworkForces, view])
 
   return (
     <ReactFlow<EditorFlowNode, EditorFlowEdge>
@@ -525,7 +631,14 @@ function TreeCanvas({
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />
-      {view === 'network' && <BloodNetworkLegend />}
+      {view === 'network' && (
+        <BloodNetworkLegend
+          forces={bloodNetworkForces}
+          onForceChange={(key, value) => {
+            setBloodNetworkForces((current) => ({ ...current, [key]: value }))
+          }}
+        />
+      )}
       {view === 'tree' && layoutSearch && layoutProgressVisible && (
         <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
       )}

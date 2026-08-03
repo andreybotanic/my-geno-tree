@@ -260,6 +260,13 @@ describe('TreeEditorPage', () => {
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
+    const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
+    expect(parentPairSpring).toHaveValue('0.2')
+    expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
+    expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
+    expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')
+    fireEvent.change(parentPairSpring, { target: { value: '0.3' } })
+    expect(parentPairSpring).toHaveValue('0.3')
 
     await userEvent.hover(anna)
     const tooltip = within(anna).getByRole('tooltip')

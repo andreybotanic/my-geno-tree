@@ -53,11 +53,15 @@ type ForceEdge = {
   target: string
 }
 
-const FORCE_REPULSION = 3
+export type BloodNetworkForceSettings = {
+  baseRepulsion: number
+  kinshipRepulsionStep: number
+  parentPairSpringStrength: number
+  sharedParentSpringStrength: number
+}
+
 const FORCE_SPRING_LENGTH = 155
-const FORCE_SPRING_STRENGTH = 0.12
 const FORCE_PARENT_PAIR_SPRING_LENGTH = 135
-const FORCE_PARENT_PAIR_SPRING_STRENGTH = 0.2
 const FORCE_DAMPING = 0.84
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 28
@@ -75,6 +79,13 @@ const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 2.25
 const FORCE_UNRELATED_REPULSION_MULTIPLIER = 2.5
 const INITIAL_AREA_PER_NODE = 200_000
 const INITIAL_ASPECT_RATIO = 5 / 4
+
+export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
+  baseRepulsion: 3,
+  kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
+  parentPairSpringStrength: 0.2,
+  sharedParentSpringStrength: 0.12,
+}
 
 function networkHandles(size: number) {
   return [
@@ -154,7 +165,10 @@ function bloodGraphDistances(
   }))
 }
 
-export function bloodNetworkRepulsionMultiplier(pathLength: number | undefined): number {
+export function bloodNetworkRepulsionMultiplier(
+  pathLength: number | undefined,
+  kinshipRepulsionStep = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.kinshipRepulsionStep,
+): number {
   if (pathLength === undefined) {
     return FORCE_UNRELATED_REPULSION_MULTIPLIER
   }
@@ -162,7 +176,7 @@ export function bloodNetworkRepulsionMultiplier(pathLength: number | undefined):
   return Math.min(
     FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER,
     FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER
-      + Math.max(pathLength - 1, 0) * FORCE_KINSHIP_REPULSION_STEP,
+      + Math.max(pathLength - 1, 0) * kinshipRepulsionStep,
   )
 }
 
@@ -176,6 +190,7 @@ export function createBloodNetworkSimulation(
     edges: BloodNetworkFlowEdge[]
     nodes: BloodNetworkFlowNode[]
   },
+  settings: BloodNetworkForceSettings = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
 ): BloodNetworkSimulation {
   const nodes = network.nodes.map((node) => {
     const size = node.type === 'bloodPerson'
@@ -194,7 +209,7 @@ export function createBloodNetworkSimulation(
       ? FORCE_SPRING_LENGTH * 1.1
       : FORCE_SPRING_LENGTH * 0.8,
     source: edge.source,
-    strength: FORCE_SPRING_STRENGTH,
+    strength: settings.sharedParentSpringStrength,
     target: edge.target,
   }))
   const distances = bloodGraphDistances(
@@ -222,7 +237,7 @@ export function createBloodNetworkSimulation(
       node.data.parentIds.slice(index + 1).map((partnerId) => ({
         length: FORCE_PARENT_PAIR_SPRING_LENGTH,
         source: parentId,
-        strength: FORCE_PARENT_PAIR_SPRING_STRENGTH,
+        strength: settings.parentPairSpringStrength,
         target: partnerId,
       }))
     ))
@@ -256,9 +271,10 @@ export function createBloodNetworkSimulation(
           : 0
         const chargeForce = Math.min(
           FORCE_MAX_REPULSION_MAGNITUDE,
-          FORCE_REPULSION * first.mass * second.mass / direction.distance,
+          settings.baseRepulsion * first.mass * second.mass / direction.distance,
         ) * bloodNetworkRepulsionMultiplier(
           distances.get(first.id)?.get(second.id),
+          settings.kinshipRepulsionStep,
         )
         const magnitude = (chargeForce + collisionForce) * alpha
         const firstForce = force.get(first.id)
