@@ -620,6 +620,7 @@ function TreeCanvas({
     nodes: BloodNetworkFlowNode[]
   } | null>(null)
   const bloodNetworkSimulation = useRef<BloodNetworkSimulation | null>(null)
+  const draggedBloodNodeId = useRef<string | null>(null)
   const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
     BloodNetworkPreset[]
   >(() => user?.bloodNetworkPresets.map((preset) => ({
@@ -735,6 +736,9 @@ function TreeCanvas({
       edges: bloodNetwork.edges,
       nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
     }, bloodNetworkForces)
+    if (draggedBloodNodeId.current) {
+      simulation.setNodeDragging(draggedBloodNodeId.current, true)
+    }
     bloodNetworkSimulation.current = simulation
     activeBloodNetwork.current = bloodNetwork
     let animationTimer: number | null = null
@@ -816,6 +820,28 @@ function TreeCanvas({
           return
         }
         bloodNetworkSimulation.current?.moveNode(node.id, node.position)
+        const nextNodes = bloodNetworkSimulation.current?.getNodes()
+        if (!nextNodes) {
+          return
+        }
+        latestBloodNodes.current = nextNodes
+        setSimulatedBloodNodes(nextNodes)
+        setBloodNetworkMotionRevision((revision) => revision + 1)
+      }}
+      onNodeDragStart={(_event, node) => {
+        if (view !== 'network') {
+          return
+        }
+        draggedBloodNodeId.current = node.id
+        bloodNetworkSimulation.current?.setNodeDragging(node.id, true)
+      }}
+      onNodeDragStop={(_event, node) => {
+        if (view !== 'network') {
+          return
+        }
+        bloodNetworkSimulation.current?.moveNode(node.id, node.position)
+        bloodNetworkSimulation.current?.setNodeDragging(node.id, false)
+        draggedBloodNodeId.current = null
         const nextNodes = bloodNetworkSimulation.current?.getNodes()
         if (!nextNodes) {
           return

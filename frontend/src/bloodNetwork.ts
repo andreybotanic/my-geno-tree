@@ -466,6 +466,7 @@ export function bloodNetworkParentHingeMagnitude(
 export type BloodNetworkSimulation = {
   getNodes: () => BloodNetworkFlowNode[]
   moveNode: (nodeId: string, position: { x: number; y: number }) => void
+  setNodeDragging: (nodeId: string, dragging: boolean) => void
   tick: () => void
 }
 
@@ -524,6 +525,7 @@ export function createBloodNetworkSimulation(
     relationshipEdges,
   )
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
+  const draggedNodeIds = new Set<string>()
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const nodeTypes = new Map(network.nodes.map((node) => [node.id, node.type]))
   const directlyLinkedParentNodesByPerson = new Map<string, Set<string>>()
@@ -827,6 +829,13 @@ export function createBloodNetworkSimulation(
       if (!nodeForce || !nodeVelocity) {
         continue
       }
+      if (draggedNodeIds.has(node.id)) {
+        // A dragged node is a kinematic anchor: the pointer owns its position,
+        // while all force reactions still move the rest of the graph around it.
+        nodeVelocity.x = 0
+        nodeVelocity.y = 0
+        continue
+      }
       nodeVelocity.x = (nodeVelocity.x + nodeForce.x) * FORCE_DAMPING
       nodeVelocity.y = (nodeVelocity.y + nodeForce.y) * FORCE_DAMPING
       const speed = Math.hypot(nodeVelocity.x, nodeVelocity.y)
@@ -881,7 +890,23 @@ export function createBloodNetworkSimulation(
     nodeVelocity.y = 0
   }
 
-  return { getNodes, moveNode, tick }
+  const setNodeDragging = (nodeId: string, dragging: boolean) => {
+    if (!byId.has(nodeId)) {
+      return
+    }
+    if (dragging) {
+      draggedNodeIds.add(nodeId)
+    } else {
+      draggedNodeIds.delete(nodeId)
+    }
+    const nodeVelocity = velocity.get(nodeId)
+    if (nodeVelocity) {
+      nodeVelocity.x = 0
+      nodeVelocity.y = 0
+    }
+  }
+
+  return { getNodes, moveNode, setNodeDragging, tick }
 }
 
 function buildBloodFamilies(

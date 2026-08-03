@@ -317,6 +317,26 @@ describe('buildBloodNetwork', () => {
       .toEqual({ x: 720, y: -340 })
   })
 
+  it('keeps a dragged node under the pointer while forces move the graph', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
+      people: [parent, child],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    }))
+    const pointerPosition = { x: 720, y: -340 }
+
+    simulation.setNodeDragging(parent.id, true)
+    simulation.moveNode(parent.id, pointerPosition)
+    const beforeTick = simulation.getNodes()
+    simulation.tick()
+    const afterTick = simulation.getNodes()
+
+    expect(afterTick.find((node) => node.id === parent.id)?.position).toEqual(pointerPosition)
+    expect(afterTick.find((node) => node.id === child.id)?.position)
+      .not.toEqual(beforeTick.find((node) => node.id === child.id)?.position)
+  })
+
   it('measures the movement of every temporary node between rendered frames', () => {
     const network = buildBloodNetwork({
       people: [person('parent'), person('child')],
