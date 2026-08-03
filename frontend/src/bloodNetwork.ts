@@ -493,6 +493,40 @@ export function bloodNetworkAverageNodeMovement(
   return totalMovement / Math.max(nextNodes.length, 1)
 }
 
+export function rotateBloodNetworkNodes(
+  nodes: BloodNetworkFlowNode[],
+  pivotNodeId: string,
+  angle: number,
+): BloodNetworkFlowNode[] {
+  const pivot = nodes.find((node) => node.id === pivotNodeId)
+  if (!pivot) {
+    return nodes
+  }
+  const sizeFor = (node: BloodNetworkFlowNode) => (
+    node.type === 'bloodPerson' ? BLOOD_NETWORK_PERSON_SIZE : BLOOD_NETWORK_FAMILY_SIZE
+  )
+  const pivotSize = sizeFor(pivot)
+  const pivotCenter = {
+    x: pivot.position.x + pivotSize / 2,
+    y: pivot.position.y + pivotSize / 2,
+  }
+  const cosine = Math.cos(angle)
+  const sine = Math.sin(angle)
+
+  return nodes.map((node) => {
+    const size = sizeFor(node)
+    const centerX = node.position.x + size / 2 - pivotCenter.x
+    const centerY = node.position.y + size / 2 - pivotCenter.y
+    return {
+      ...node,
+      position: {
+        x: pivotCenter.x + centerX * cosine - centerY * sine - size / 2,
+        y: pivotCenter.y + centerX * sine + centerY * cosine - size / 2,
+      },
+    }
+  })
+}
+
 export function createBloodNetworkSimulation(
   network: {
     edges: BloodNetworkFlowEdge[]

@@ -163,4 +163,11 @@ describe('semantic design contracts', () => {
       /\.react-flow__node\.dragging \.blood-network-person,\s*\.react-flow__node\.dragging \.blood-network-family,[^}]*cursor:\s*grabbing;/s,
     )
   })
+
+  it('uses a circular cursor and visible pivot for blood-map rotation', () => {
+    expect(appStyles).toMatch(
+      /\.blood-network-rotation-mode \.react-flow__pane,[^}]*cursor:\s*url\(/s,
+    )
+    expect(appStyles).toMatch(/\.blood-network-rotation-pivot\s*\{[^}]*box-shadow:/s)
+  })
 })

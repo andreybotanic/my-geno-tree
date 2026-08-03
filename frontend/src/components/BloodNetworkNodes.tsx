@@ -17,6 +17,7 @@ import { AuthenticatedImage } from './AuthenticatedImage'
 
 export function BloodNetworkPersonNode({
   data,
+  selected,
 }: NodeProps<BloodNetworkPersonNode>) {
   const { i18n, t } = useTranslation()
   const name = formatPersonName(data.person, t)
@@ -27,7 +28,10 @@ export function BloodNetworkPersonNode({
   )
 
   return (
-    <article aria-label={name} className="blood-network-person">
+    <article
+      aria-label={name}
+      className={`blood-network-person${selected ? ' blood-network-rotation-pivot' : ''}`}
+    >
       <AuthenticatedImage
         alt=""
         className="blood-network-photo"
@@ -44,11 +48,12 @@ export function BloodNetworkPersonNode({
 
 export function BloodNetworkFamilyNode({
   data,
+  selected,
 }: NodeProps<BloodNetworkFamilyNode>) {
   return (
     <span
       aria-label={`Shared parents of ${data.childIds.length} children`}
-      className="blood-network-family"
+      className={`blood-network-family${selected ? ' blood-network-rotation-pivot' : ''}`}
     >
     </span>
   )

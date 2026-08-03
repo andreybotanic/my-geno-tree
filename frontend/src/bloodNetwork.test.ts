@@ -12,6 +12,7 @@ import {
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
+  rotateBloodNetworkNodes,
 } from './bloodNetwork'
 
 function person(id: string): Person {
@@ -315,6 +316,42 @@ describe('buildBloodNetwork', () => {
 
     expect(simulation.getNodes().find((node) => node.id === parent.id)?.position)
       .toEqual({ x: 720, y: -340 })
+  })
+
+  it('rotates every node around the selected node center', () => {
+    const pivot = person('pivot')
+    const other = person('other')
+    const network = buildBloodNetwork({ people: [pivot, other], parentLinks: [] })
+    const nodes = network.nodes.map((node) => ({
+      ...node,
+      position: node.id === pivot.id ? { x: 0, y: 0 } : { x: 100, y: 0 },
+    }))
+
+    const rotated = rotateBloodNetworkNodes(nodes, pivot.id, Math.PI / 2)
+
+    expect(rotated.find((node) => node.id === pivot.id)?.position).toEqual({ x: 0, y: 0 })
+    expect(rotated.find((node) => node.id === other.id)?.position.x).toBeCloseTo(0)
+    expect(rotated.find((node) => node.id === other.id)?.position.y).toBeCloseTo(100)
+  })
+
+  it('keeps a missing pivot unchanged and respects family-node centers', () => {
+    const firstParent = person('first-parent')
+    const secondParent = person('second-parent')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      people: [firstParent, secondParent, child],
+      parentLinks: [
+        parentLink(firstParent.id, child.id, 'first-parent-child'),
+        parentLink(secondParent.id, child.id, 'second-parent-child'),
+      ],
+    })
+    const family = network.nodes.find((node) => node.type === 'bloodFamily')!
+    const rotated = rotateBloodNetworkNodes(network.nodes, family.id, Math.PI / 2)
+
+    expect(rotateBloodNetworkNodes(network.nodes, 'missing', 1)).toBe(network.nodes)
+    expect(rotated.find((node) => node.id === family.id)?.position)
+      .toEqual(family.position)
+    expect(rotated).not.toEqual(network.nodes)
   })
 
   it('keeps a dragged node under the pointer while forces move the graph', () => {

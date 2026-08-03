@@ -304,6 +304,47 @@ describe('TreeEditorPage', () => {
     })
   })
 
+  it('activates rotation around a node from its context menu until Escape', async () => {
+    const tree = graphSnapshot([father, person], [parentLink])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(anna.closest('.react-flow__node')!, { clientX: 120, clientY: 140 })
+
+    expect(screen.getByRole('menu', { name: 'Node actions' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rotate' }))
+
+    expect(anna).toHaveClass('blood-network-rotation-pivot')
+    expect(document.querySelector('.blood-network-rotation-mode')).toBeInTheDocument()
+    const canvas = document.querySelector('.blood-network-rotation-mode') as HTMLElement
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    Object.assign(canvas, { setPointerCapture, releasePointerCapture })
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      buttons: 1,
+      clientX: 600,
+      clientY: 400,
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(canvas, {
+      buttons: 1,
+      clientX: 400,
+      clientY: 600,
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(canvas, { button: 0, pointerId: 1 })
+    expect(setPointerCapture).toHaveBeenCalledWith(1)
+    expect(releasePointerCapture).toHaveBeenCalledWith(1)
+    expect(anna).toHaveClass('blood-network-rotation-pivot')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(anna).not.toHaveClass('blood-network-rotation-pivot')
+    expect(document.querySelector('.blood-network-rotation-mode')).not.toBeInTheDocument()
+  })
+
   it('applies the user default force preset and saves changes only on request', async () => {
     const presets = defaultBloodNetworkPresets()
     const user: User = {

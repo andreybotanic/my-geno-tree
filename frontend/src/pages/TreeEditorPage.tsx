@@ -88,6 +88,7 @@ import {
   createBloodNetworkSimulation,
   DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
   defaultBloodNetworkPresets,
+  rotateBloodNetworkNodes,
   type BloodNetworkFlowEdge,
   type BloodNetworkForceSettings,
   type BloodNetworkFlowNode,
@@ -116,6 +117,29 @@ const edgeTypes = {
 }
 const PREVIEW_PERSON_ID = '__new_person__'
 const LAYOUT_PROGRESS_DELAY_MS = 2_500
+
+type BloodNetworkNodeContextMenu = {
+  nodeId: string
+  x: number
+  y: number
+}
+
+type BloodNetworkRotationSession = {
+  initialAngle: number
+  nodes: BloodNetworkFlowNode[]
+  pivot: { x: number; y: number }
+  pivotNodeId: string
+}
+
+function bloodNetworkNodeCenter(node: BloodNetworkFlowNode) {
+  const size = node.type === 'bloodPerson'
+    ? BLOOD_NETWORK_PERSON_SIZE
+    : BLOOD_NETWORK_FAMILY_SIZE
+  return {
+    x: node.position.x + size / 2,
+    y: node.position.y + size / 2,
+  }
+}
 
 function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   const initialBounds = {
@@ -611,6 +635,7 @@ function TreeCanvas({
 }: TreeCanvasProps) {
   type EditorFlowNode = PersonFlowNode | BloodNetworkFlowNode
   type EditorFlowEdge = TreeFlowEdge | BloodNetworkFlowEdge
+  const { t } = useTranslation()
   const instance = useRef<
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
@@ -625,6 +650,13 @@ function TreeCanvas({
   } | null>(null)
   const bloodNetworkSimulation = useRef<BloodNetworkSimulation | null>(null)
   const draggedBloodNodeId = useRef<string | null>(null)
+  const bloodNetworkRotationSession = useRef<BloodNetworkRotationSession | null>(null)
+  const [bloodNetworkContextMenu, setBloodNetworkContextMenu] = useState<
+    BloodNetworkNodeContextMenu | null
+  >(null)
+  const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
+    string | null
+  >(null)
   const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
     BloodNetworkPreset[]
   >(() => user?.bloodNetworkPresets.map((preset) => ({
@@ -663,7 +695,10 @@ function TreeCanvas({
   const nodes: EditorFlowNode[] = view === 'network'
     ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
       ? simulatedBloodNodes
-      : bloodNetwork.nodes)
+      : bloodNetwork.nodes).map((node) => ({
+        ...node,
+        selected: node.id === bloodNetworkRotationPivotNodeId,
+      }))
     : treeNodes
   const activeEdges: EditorFlowEdge[] = view === 'network'
     ? bloodNetwork.edges
@@ -683,6 +718,32 @@ function TreeCanvas({
     setBloodNetworkForces({ ...defaultPreset.forces })
     setBloodNetworkPresetsDirty(false)
   }, [user?.bloodNetworkPresets])
+
+  useEffect(() => {
+    if (view === 'network') {
+      return
+    }
+    bloodNetworkRotationSession.current = null
+    setBloodNetworkContextMenu(null)
+    setBloodNetworkRotationPivotNodeId(null)
+  }, [view])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+      setBloodNetworkContextMenu(null)
+      if (!bloodNetworkRotationPivotNodeId) {
+        return
+      }
+      event.preventDefault()
+      bloodNetworkRotationSession.current = null
+      setBloodNetworkRotationPivotNodeId(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [bloodNetworkRotationPivotNodeId])
 
   const centerFirstPerson = useCallback((
     flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
@@ -740,6 +801,14 @@ function TreeCanvas({
       })
     }
 
+    if (bloodNetworkRotationPivotNodeId) {
+      return () => {
+        if (bloodNetworkSimulation.current === simulation) {
+          bloodNetworkSimulation.current = null
+        }
+      }
+    }
+
     const animate = () => {
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
@@ -772,20 +841,87 @@ function TreeCanvas({
         window.clearTimeout(animationTimer)
       }
     }
-  }, [bloodNetwork, bloodNetworkForces, bloodNetworkMotionRevision, view])
+  }, [
+    bloodNetwork,
+    bloodNetworkForces,
+    bloodNetworkMotionRevision,
+    bloodNetworkRotationPivotNodeId,
+    view,
+  ])
 
   return (
+    <>
+    <div
+      className={bloodNetworkRotationPivotNodeId ? 'blood-network-rotation-mode' : undefined}
+      onPointerDownCapture={(event) => {
+        if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        const pivot = latestBloodNodes.current.find((node) => (
+          node.id === bloodNetworkRotationPivotNodeId
+        ))
+        const flow = instance.current
+        if (!pivot || !flow) {
+          return
+        }
+        const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+        const pivotCenter = bloodNetworkNodeCenter(pivot)
+        if (Math.hypot(pointer.x - pivotCenter.x, pointer.y - pivotCenter.y) < 1) {
+          return
+        }
+        bloodNetworkRotationSession.current = {
+          initialAngle: Math.atan2(pointer.y - pivotCenter.y, pointer.x - pivotCenter.x),
+          nodes: latestBloodNodes.current,
+          pivot: pivotCenter,
+          pivotNodeId: bloodNetworkRotationPivotNodeId,
+        }
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={(event) => {
+        const session = bloodNetworkRotationSession.current
+        if (!session || (event.buttons & 1) === 0) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        const flow = instance.current
+        if (!flow) {
+          return
+        }
+        const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+        const angle = Math.atan2(pointer.y - session.pivot.y, pointer.x - session.pivot.x)
+          - session.initialAngle
+        const rotatedNodes = rotateBloodNetworkNodes(
+          session.nodes,
+          session.pivotNodeId,
+          angle,
+        )
+        latestBloodNodes.current = rotatedNodes
+        setSimulatedBloodNodes(rotatedNodes)
+      }}
+      onPointerUpCapture={(event) => {
+        if (event.button !== 0 || !bloodNetworkRotationSession.current) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        bloodNetworkRotationSession.current = null
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }}
+    >
     <ReactFlow<EditorFlowNode, EditorFlowEdge>
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       edges={activeEdges}
       edgeTypes={edgeTypes}
-      elementsSelectable={view === 'tree'}
+      elementsSelectable={view === 'tree' || bloodNetworkRotationPivotNodeId !== null}
       maxZoom={2}
       minZoom={0.1}
       nodeTypes={nodeTypes}
       nodes={nodes}
       nodesConnectable={false}
-      nodesDraggable={view === 'network'}
+      nodesDraggable={view === 'network' && bloodNetworkRotationPivotNodeId === null}
       onInit={(flow) => {
         instance.current = flow
         if (view === 'tree') {
@@ -796,6 +932,17 @@ function TreeCanvas({
         if (view === 'tree' && !layoutSearch) {
           onSelectPerson(node.id)
         }
+      }}
+      onNodeContextMenu={(event, node) => {
+        if (view !== 'network') {
+          return
+        }
+        event.preventDefault()
+        setBloodNetworkContextMenu({
+          nodeId: node.id,
+          x: event.clientX,
+          y: event.clientY,
+        })
       }}
       onNodeDrag={(_event, node) => {
         if (view !== 'network') {
@@ -833,11 +980,16 @@ function TreeCanvas({
         setBloodNetworkMotionRevision((revision) => revision + 1)
       }}
       onPaneClick={() => {
+        setBloodNetworkContextMenu(null)
         if (view === 'tree' && !layoutSearch) {
           onClearSelection()
         }
       }}
-      panOnDrag={!layoutSearch}
+      onPaneContextMenu={(event) => {
+        event.preventDefault()
+        setBloodNetworkContextMenu(null)
+      }}
+      panOnDrag={bloodNetworkRotationPivotNodeId ? [1] : !layoutSearch}
       proOptions={{ hideAttribution: true }}
       zoomOnDoubleClick={false}
       zoomOnPinch={!layoutSearch}
@@ -929,6 +1081,31 @@ function TreeCanvas({
       )}
       <ZoomControls />
     </ReactFlow>
+    </div>
+    {bloodNetworkContextMenu && createPortal(
+      <menu
+        aria-label={t('editor.bloodNetworkNodeMenu')}
+        className="blood-network-node-menu"
+        role="menu"
+        style={{ left: bloodNetworkContextMenu.x, top: bloodNetworkContextMenu.y }}
+      >
+        <li>
+          <button
+            onClick={() => {
+              bloodNetworkRotationSession.current = null
+              setBloodNetworkRotationPivotNodeId(bloodNetworkContextMenu.nodeId)
+              setBloodNetworkContextMenu(null)
+            }}
+            role="menuitem"
+            type="button"
+          >
+            {t('editor.rotateBloodNetwork')}
+          </button>
+        </li>
+      </menu>,
+      document.body,
+    )}
+    </>
   )
 }
 
