@@ -117,4 +117,29 @@ describe('buildBloodNetwork', () => {
       Math.abs(node.position.x) < 1_000 && Math.abs(node.position.y) < 1_000
     ))).toBe(true)
   })
+
+  it('settles a 101-person graph without letting the layout escape', () => {
+    const people = Array.from({ length: 101 }, (_, index) => person(`person-${index}`))
+    const parentLinks = people.slice(24).flatMap((child, index) => [
+      parentLink(people[index % 12]!.id, child.id, `first-parent-${index}`),
+      parentLink(people[12 + (index % 12)]!.id, child.id, `second-parent-${index}`),
+    ])
+    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
+      people,
+      parentLinks,
+    }))
+
+    let running = true
+    for (let tick = 0; tick < 250 && running; tick += 1) {
+      running = simulation.tick()
+    }
+
+    expect(running).toBe(false)
+    expect(simulation.getNodes().every((node) => (
+      Number.isFinite(node.position.x)
+      && Number.isFinite(node.position.y)
+      && Math.abs(node.position.x) < 1_500
+      && Math.abs(node.position.y) < 1_500
+    ))).toBe(true)
+  })
 })

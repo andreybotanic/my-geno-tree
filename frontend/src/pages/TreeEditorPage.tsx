@@ -76,6 +76,8 @@ import {
   type TreeFlowEdge,
 } from '../treeGraph'
 import {
+  BLOOD_NETWORK_FAMILY_SIZE,
+  BLOOD_NETWORK_PERSON_SIZE,
   buildBloodNetwork,
   createBloodNetworkSimulation,
   type BloodNetworkFlowEdge,
@@ -103,6 +105,32 @@ const edgeTypes = {
 }
 const PREVIEW_PERSON_ID = '__new_person__'
 const LAYOUT_PROGRESS_DELAY_MS = 2_500
+
+function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
+  const initialBounds = {
+    maxX: Number.NEGATIVE_INFINITY,
+    maxY: Number.NEGATIVE_INFINITY,
+    minX: Number.POSITIVE_INFINITY,
+    minY: Number.POSITIVE_INFINITY,
+  }
+  const bounds = nodes.reduce((result, node) => {
+    const size = node.type === 'bloodPerson'
+      ? BLOOD_NETWORK_PERSON_SIZE
+      : BLOOD_NETWORK_FAMILY_SIZE
+    result.minX = Math.min(result.minX, node.position.x)
+    result.minY = Math.min(result.minY, node.position.y)
+    result.maxX = Math.max(result.maxX, node.position.x + size)
+    result.maxY = Math.max(result.maxY, node.position.y + size)
+    return result
+  }, initialBounds)
+
+  return {
+    height: bounds.maxY - bounds.minY,
+    width: bounds.maxX - bounds.minX,
+    x: bounds.minX,
+    y: bounds.minY,
+  }
+}
 
 function ZoomControls() {
   const { t } = useTranslation()
@@ -385,21 +413,32 @@ function TreeCanvas({
     const simulation = createBloodNetworkSimulation(bloodNetwork)
     let animationFrame: number | null = null
     let active = true
-    setSimulatedBloodNodes(simulation.getNodes())
+    const initialNodes = simulation.getNodes()
+    setSimulatedBloodNodes(initialNodes)
+    // fitView waits for React Flow to measure every node. For a large graph
+    // that postpones a camera jump until well after the force map opens.
+    // The temporary nodes have known sizes, so their initial bounds can place
+    // the viewport immediately and the camera remains under the user's control.
+    void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
+      duration: 0,
+      padding: 0.2,
+    })
 
     const animate = () => {
-      const running = simulation.tick()
+      // Two small physics steps per browser frame keep the map visibly alive
+      // while finishing in a few seconds even for a hundred-person tree.
+      // Updating React Flow once per frame avoids a second full node render
+      // for every simulation step.
+      let running = simulation.tick()
+      if (running) {
+        running = simulation.tick()
+      }
       setSimulatedBloodNodes(simulation.getNodes())
       if (active && running) {
         animationFrame = window.requestAnimationFrame(animate)
       }
     }
-    animationFrame = window.requestAnimationFrame(() => {
-      animationFrame = window.requestAnimationFrame(() => {
-        void instance.current?.fitView({ duration: 0, padding: 0.2 })
-        animate()
-      })
-    })
+    animationFrame = window.requestAnimationFrame(animate)
 
     return () => {
       active = false

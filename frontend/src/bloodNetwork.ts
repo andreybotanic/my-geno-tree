@@ -44,18 +44,18 @@ type ForceEdge = {
   target: string
 }
 
-const FORCE_REPULSION = 8_800
+const FORCE_REPULSION = 5_200
 const FORCE_SPRING_LENGTH = 155
-const FORCE_SPRING_STRENGTH = 0.035
-const FORCE_DAMPING = 0.82
-const FORCE_GRAVITY = 0.002
-const FORCE_MAX_STEP = 18
+const FORCE_SPRING_STRENGTH = 0.017
+const FORCE_DAMPING = 0.84
+const FORCE_GRAVITY = 0.006
+const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 18
-const FORCE_INITIAL_ALPHA = 1
+const FORCE_INITIAL_ALPHA = 0.9
 const FORCE_MINIMUM_ALPHA = 0.006
-const FORCE_ALPHA_DECAY = 0.992
-const FORCE_MAX_TICKS = 640
-const FORCE_MAX_MAGNITUDE = 35
+const FORCE_ALPHA_DECAY = 0.97
+const FORCE_MAX_TICKS = 210
+const FORCE_MAX_MAGNITUDE = 2
 
 function hashId(value: string): number {
   let hash = 2_166_136_261
@@ -131,7 +131,7 @@ export function createBloodNetworkSimulation(
         const direction = directionBetween(first, second)
         const minimumDistance = first.radius + second.radius + FORCE_COLLISION_PADDING
         const collisionForce = direction.distance < minimumDistance
-          ? (minimumDistance - direction.distance) * 0.45
+          ? (minimumDistance - direction.distance) * 0.15
           : 0
         const magnitude = Math.min(FORCE_MAX_MAGNITUDE, (
           FORCE_REPULSION / (direction.distance * direction.distance)
@@ -265,7 +265,10 @@ export function buildBloodNetwork(
   const goldenAngle = Math.PI * (3 - Math.sqrt(5))
   const initializeNode = (id: string, radius: number, index: number) => {
     const angle = goldenAngle * index + (hashId(id) % 360) * Math.PI / 1_800
-    const distance = 85 * Math.sqrt(index + 1)
+    // Keep the whole graph visible when the force view opens. The simulation
+    // then has room to make a visible, controlled adjustment instead of
+    // spending many seconds pulling nodes back from a very wide initial spiral.
+    const distance = 56 * Math.sqrt(index + 1)
     forceNodes.push({
       id,
       radius,
