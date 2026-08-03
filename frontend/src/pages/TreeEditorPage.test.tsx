@@ -240,6 +240,38 @@ describe('TreeEditorPage', () => {
     )
   })
 
+  it('switches to a temporary blood-only network without opening person editing', async () => {
+    const tree = graphSnapshot([father, person, spouse], [parentLink], [marriage])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show blood network' }),
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Show family tree' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
+    expect(anna).toHaveClass('blood-network-person')
+    expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
+    expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
+
+    await userEvent.hover(anna)
+    const tooltip = within(anna).getByRole('tooltip')
+    expect(tooltip).toHaveTextContent('Ivanova Anna')
+    expect(tooltip).toHaveTextContent('1900 – present')
+
+    fireEvent.click(anna)
+    await waitFor(() => {
+      expect(request).not.toHaveBeenCalledWith(
+        `/trees/${treeId}/people/${person.id}`,
+        expect.anything(),
+      )
+    })
+  })
+
   it('shows a worker preview and applies only its coordinate mutation', async () => {
     vi.stubGlobal('Worker', OptimizerWorkerMock)
     const partner = { ...spouse, id: 'partner-two', coordinates: { x: 640, y: 0 } }

@@ -145,6 +145,8 @@ export const resources = {
         loadFailed: 'The tree could not be loaded.',
         loading: 'Loading the family tree…',
         noticeClose: 'Close notification',
+        showBloodNetwork: 'Show blood network',
+        showTreeView: 'Show family tree',
         reload: 'Reload',
         versionConflict:
           'This tree changed in another session. Your unsaved value is still visible; load the current version before editing again.',
@@ -439,6 +441,8 @@ export const resources = {
         loadFailed: 'Не удалось загрузить дерево.',
         loading: 'Загружаем семейное дерево…',
         noticeClose: 'Закрыть уведомление',
+        showBloodNetwork: 'Показать карту кровного родства',
+        showTreeView: 'Показать семейное дерево',
         reload: 'Обновить',
         versionConflict:
           'Дерево изменено в другой сессии. Несохранённое значение осталось на экране; перед продолжением загрузите актуальную версию.',

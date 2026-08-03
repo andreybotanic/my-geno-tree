@@ -45,6 +45,10 @@ import {
   PersonCard,
   type PersonFlowNode,
 } from '../components/PersonCard'
+import {
+  BloodNetworkFamilyNode,
+  BloodNetworkPersonNode,
+} from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
 import {
@@ -72,6 +76,11 @@ import {
   type TreeFlowEdge,
 } from '../treeGraph'
 import {
+  buildBloodNetwork,
+  type BloodNetworkFlowEdge,
+  type BloodNetworkFlowNode,
+} from '../bloodNetwork'
+import {
   LAYOUT_WARNING_THRESHOLD,
   LIMITED_LAYOUT_SEARCH,
   estimateLayoutCandidates,
@@ -82,7 +91,11 @@ type TreeEditorPageProps = {
   treeId: string
 }
 
-const nodeTypes = { person: PersonCard }
+const nodeTypes = {
+  person: PersonCard,
+  bloodPerson: BloodNetworkPersonNode,
+  bloodFamily: BloodNetworkFamilyNode,
+}
 const edgeTypes = {
   family: FamilyEdge,
   singleParent: SingleParentEdge,
@@ -136,12 +149,16 @@ type LayoutSearch = {
 }
 
 type LayoutToolbarProps = {
+  isNetworkView: boolean
   onOptimize: () => void
+  onToggleNetworkView: () => void
   unavailable: boolean
 }
 
 function LayoutToolbar({
+  isNetworkView,
   onOptimize,
+  onToggleNetworkView,
   unavailable,
 }: LayoutToolbarProps) {
   const { t } = useTranslation()
@@ -149,15 +166,39 @@ function LayoutToolbar({
   return (
     <Panel className="editor-toolbar" position="top-right">
       <button
-        aria-label={t('editor.layoutOptimize')}
+        aria-label={isNetworkView
+          ? t('editor.showTreeView')
+          : t('editor.showBloodNetwork')}
+        aria-pressed={isNetworkView}
         className="editor-tool-button"
-        disabled={unavailable}
-        onClick={onOptimize}
-        title={t('editor.layoutOptimize')}
+        onClick={onToggleNetworkView}
+        title={isNetworkView
+          ? t('editor.showTreeView')
+          : t('editor.showBloodNetwork')}
         type="button"
       >
-        <span aria-hidden="true">↔</span>
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M6 7 12 4l6 3M6 7l-2 8m8-11v8m6-5 2 8M4 15l8 5 8-5" />
+          <circle cx="6" cy="7" r="2.3" />
+          <circle cx="12" cy="4" r="2.3" />
+          <circle cx="18" cy="7" r="2.3" />
+          <circle cx="4" cy="15" r="2.3" />
+          <circle cx="12" cy="20" r="2.3" />
+          <circle cx="20" cy="15" r="2.3" />
+        </svg>
       </button>
+      {!isNetworkView && (
+        <button
+          aria-label={t('editor.layoutOptimize')}
+          className="editor-tool-button"
+          disabled={unavailable}
+          onClick={onOptimize}
+          title={t('editor.layoutOptimize')}
+          type="button"
+        >
+          <span aria-hidden="true">↔</span>
+        </button>
+      )}
     </Panel>
   )
 }
@@ -259,6 +300,8 @@ type TreeCanvasProps = {
   layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
+  view: 'network' | 'tree'
+  onToggleNetworkView: () => void
 }
 
 function TreeCanvas({
@@ -274,12 +317,16 @@ function TreeCanvas({
   layoutSearch,
   selectedPersonId,
   snapshot,
+  view,
+  onToggleNetworkView,
 }: TreeCanvasProps) {
+  type EditorFlowNode = PersonFlowNode | BloodNetworkFlowNode
+  type EditorFlowEdge = TreeFlowEdge | BloodNetworkFlowEdge
   const instance = useRef<
-    ReactFlowInstance<PersonFlowNode, TreeFlowEdge> | null
+    ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
   const centered = useRef(false)
-  const nodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
+  const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
     type: 'person',
     position: person.coordinates,
@@ -290,9 +337,21 @@ function TreeCanvas({
     () => buildTreeEdges(snapshot),
     [snapshot],
   )
+  const bloodNetwork = useMemo(
+    () => view === 'network'
+      ? buildBloodNetwork(snapshot)
+      : { edges: [], nodes: [] },
+    [snapshot, view],
+  )
+  const nodes: EditorFlowNode[] = view === 'network'
+    ? bloodNetwork.nodes
+    : treeNodes
+  const activeEdges: EditorFlowEdge[] = view === 'network'
+    ? bloodNetwork.edges
+    : edges
 
   const centerFirstPerson = useCallback((
-    flow: ReactFlowInstance<PersonFlowNode, TreeFlowEdge>,
+    flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
   ) => {
     const first = snapshot.people[0]
     if (!first || centered.current) {
@@ -307,16 +366,28 @@ function TreeCanvas({
   }, [snapshot.people])
 
   useEffect(() => {
-    if (instance.current) {
+    if (view === 'tree' && instance.current) {
       centerFirstPerson(instance.current)
     }
-  }, [centerFirstPerson])
+  }, [centerFirstPerson, view])
+
+  useEffect(() => {
+    if (view !== 'network' || !instance.current) {
+      return
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      void instance.current?.fitView({ duration: 180, padding: 0.2 })
+    })
+
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [bloodNetwork.nodes, view])
 
   return (
-    <ReactFlow<PersonFlowNode, TreeFlowEdge>
+    <ReactFlow<EditorFlowNode, EditorFlowEdge>
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-      edges={edges}
+      edges={activeEdges}
       edgeTypes={edgeTypes}
+      elementsSelectable={view === 'tree'}
       maxZoom={2}
       minZoom={0.35}
       nodeTypes={nodeTypes}
@@ -325,15 +396,17 @@ function TreeCanvas({
       nodesDraggable={false}
       onInit={(flow) => {
         instance.current = flow
-        centerFirstPerson(flow)
+        if (view === 'tree') {
+          centerFirstPerson(flow)
+        }
       }}
       onNodeClick={(_event, node) => {
-        if (!layoutSearch) {
+        if (view === 'tree' && !layoutSearch) {
           onSelectPerson(node.id)
         }
       }}
       onPaneClick={() => {
-        if (!layoutSearch) {
+        if (view === 'tree' && !layoutSearch) {
           onClearSelection()
         }
       }}
@@ -345,13 +418,15 @@ function TreeCanvas({
     >
       <Background color="var(--color-border)" gap={22} size={1} />
       <LayoutToolbar
+        isNetworkView={view === 'network'}
         onOptimize={onOptimizeLayout}
+        onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />
-      {layoutSearch && layoutProgressVisible && (
+      {view === 'tree' && layoutSearch && layoutProgressVisible && (
         <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
       )}
-      {layoutPreview && (
+      {view === 'tree' && layoutPreview && (
         <LayoutPreviewControls
           onApply={onApplyLayout}
           onReject={onCancelLayout}
@@ -448,6 +523,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [layoutSearch, setLayoutSearch] = useState<LayoutSearch | null>(null)
   const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
   const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
+  const [view, setView] = useState<'network' | 'tree'>('tree')
   const layoutWorker = useRef<Worker | null>(null)
   const layoutProgressTimer = useRef<number | null>(null)
 
@@ -482,6 +558,18 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     setPhotoDeleting(false)
     setPhotoViewing(false)
   }, [])
+
+  const toggleNetworkView = () => {
+    if (view === 'network') {
+      setView('tree')
+      return
+    }
+    stopLayoutSearch()
+    rejectLayoutPreview()
+    setLayoutWarning(null)
+    closePersonDetails()
+    setView('network')
+  }
 
   const loadSnapshot = useCallback(async () => {
     setStatus('loading')
@@ -1154,7 +1242,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       )}
 
       <section className={`editor-workspace${
-        selectedPerson ? ' editor-workspace-panel-open' : ''
+        view === 'tree' && selectedPerson ? ' editor-workspace-panel-open' : ''
       }`}>
         {status === 'loading' && (
           <div className="editor-state">{t('editor.loading')}</div>
@@ -1207,13 +1295,15 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                   snapshot={layoutPreview?.snapshot && layoutPreviewView === 'optimized'
                     ? layoutPreview.snapshot
                     : snapshot}
+                  view={view}
+                  onToggleNetworkView={toggleNetworkView}
                 />
               </ReactFlowProvider>
             )}
           </div>
         )}
 
-        {selectedPerson && snapshot && (
+        {view === 'tree' && selectedPerson && snapshot && (
           <PersonDetailsPanel
             conflict={conflict || layoutSearch !== null || layoutPreview !== null}
             events={events}
