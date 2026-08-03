@@ -2,9 +2,11 @@ import {
   BaseEdge,
   Handle,
   Position,
+  useUpdateNodeInternals,
   type EdgeProps,
   type NodeProps,
 } from '@xyflow/react'
+import { useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   type BloodNetworkFamilyNode,
@@ -48,10 +50,20 @@ function BloodNetworkHandles() {
   )
 }
 
+function useRegisterBloodNetworkHandles(nodeId: string) {
+  const updateNodeInternals = useUpdateNodeInternals()
+
+  useLayoutEffect(() => {
+    updateNodeInternals(nodeId)
+  }, [nodeId, updateNodeInternals])
+}
+
 export function BloodNetworkPersonNode({
   data,
+  id,
   selected,
 }: NodeProps<BloodNetworkPersonNode>) {
+  useRegisterBloodNetworkHandles(id)
   const { i18n, t } = useTranslation()
   const name = formatPersonName(data.person, t)
   const lifePeriod = formatLifePeriod(
@@ -82,8 +94,10 @@ export function BloodNetworkPersonNode({
 
 export function BloodNetworkFamilyNode({
   data,
+  id,
   selected,
 }: NodeProps<BloodNetworkFamilyNode>) {
+  useRegisterBloodNetworkHandles(id)
   return (
     <span
       aria-label={`Shared parents of ${data.childIds.length} children`}
