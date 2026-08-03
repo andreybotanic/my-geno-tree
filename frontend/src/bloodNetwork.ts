@@ -80,6 +80,8 @@ const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
 const FORCE_PARENT_TRIANGLE_REPULSION = 12
+const FORCE_PARENT_TRIANGLE_INNER_RAMP = 90
+const FORCE_PARENT_TRIANGLE_OUTER_FADE = 30
 const FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER = 0.45
 const FORCE_KINSHIP_REPULSION_STEP = 0.3
 const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 2.25
@@ -158,6 +160,27 @@ function directionFromPoint(
   return { x: Math.cos(angle), y: Math.sin(angle) }
 }
 
+function distanceToSegment(
+  point: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+): number {
+  const dx = second.x - first.x
+  const dy = second.y - first.y
+  const lengthSquared = dx * dx + dy * dy
+  if (lengthSquared < 0.001) {
+    return Math.hypot(point.x - first.x, point.y - first.y)
+  }
+
+  const projection = Math.max(0, Math.min(1, (
+    (point.x - first.x) * dx + (point.y - first.y) * dy
+  ) / lengthSquared))
+  return Math.hypot(
+    point.x - (first.x + dx * projection),
+    point.y - (first.y + dy * projection),
+  )
+}
+
 export function bloodNetworkPointInTriangle(
   point: { x: number; y: number },
   first: { x: number; y: number },
@@ -173,6 +196,56 @@ export function bloodNetworkPointInTriangle(
 
   return (firstSide > 0 && secondSide > 0 && thirdSide > 0)
     || (firstSide < 0 && secondSide < 0 && thirdSide < 0)
+}
+
+export function bloodNetworkTriangleInfluence(
+  point: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  third: { x: number; y: number },
+): number {
+  const distanceToEdge = Math.min(
+    distanceToSegment(point, first, second),
+    distanceToSegment(point, second, third),
+    distanceToSegment(point, third, first),
+  )
+  const signedDistance = bloodNetworkPointInTriangle(point, first, second, third)
+    ? distanceToEdge
+    : -distanceToEdge
+  const progress = Math.max(0, Math.min(1, (
+    signedDistance + FORCE_PARENT_TRIANGLE_OUTER_FADE
+  ) / (FORCE_PARENT_TRIANGLE_OUTER_FADE + FORCE_PARENT_TRIANGLE_INNER_RAMP)))
+
+  return progress * progress * (3 - 2 * progress)
+}
+
+function parentTriangleEscapeDirection(
+  centroid: { x: number; y: number },
+  firstParent: ForceNode,
+  secondParent: ForceNode,
+  sharedParentNode: ForceNode,
+  node: ForceNode,
+): { x: number; y: number } {
+  const parentMidpoint = {
+    x: (firstParent.x + secondParent.x) / 2,
+    y: (firstParent.y + secondParent.y) / 2,
+  }
+  const towardSharedParent = directionFromPoint(parentMidpoint, sharedParentNode)
+  const radial = directionFromPoint(centroid, node)
+  const tangent = { x: -towardSharedParent.y, y: towardSharedParent.x }
+  const lateralProjection = radial.x * tangent.x + radial.y * tangent.y
+  const lateralBias = Math.abs(lateralProjection) < 0.2
+    ? (hashId(node.id) % 2 === 0 ? 0.65 : -0.65)
+    : 0
+  // The radial component gives neighbouring children different side exits.
+  // The stronger apex component keeps every exit direction away from the
+  // parent-to-parent edge, so a child cannot drag the whole graph through it.
+  const x = radial.x + towardSharedParent.x * 1.5 + tangent.x * lateralBias
+  const y = radial.y + towardSharedParent.y * 1.5 + tangent.y * lateralBias
+  const length = Math.hypot(x, y)
+  return length > 0.001
+    ? { x: x / length, y: y / length }
+    : towardSharedParent
 }
 
 function bloodGraphDistances(
@@ -380,19 +453,45 @@ export function createBloodNetworkSimulation(
           node.id === triangle.firstParentId
           || node.id === triangle.secondParentId
           || node.id === triangle.sharedParentNodeId
-          || !bloodNetworkPointInTriangle(node, firstParent, secondParent, sharedParentNode)
         ) {
           continue
         }
-        const nodeForce = force.get(node.id)
-        if (!nodeForce) {
+        const influence = bloodNetworkTriangleInfluence(
+          node,
+          firstParent,
+          secondParent,
+          sharedParentNode,
+        )
+        if (influence === 0) {
           continue
         }
-        const direction = directionFromPoint(centroid, node)
-        // This is a local exclusion zone, not a global layout force: it must
-        // remain strong even after the rest of the map has cooled down.
-        nodeForce.x += direction.x * FORCE_PARENT_TRIANGLE_REPULSION
-        nodeForce.y += direction.y * FORCE_PARENT_TRIANGLE_REPULSION
+        const nodeForce = force.get(node.id)
+        const firstParentForce = force.get(firstParent.id)
+        const secondParentForce = force.get(secondParent.id)
+        const sharedParentForce = force.get(sharedParentNode.id)
+        if (!nodeForce || !firstParentForce || !secondParentForce || !sharedParentForce) {
+          continue
+        }
+        const direction = parentTriangleEscapeDirection(
+          centroid,
+          firstParent,
+          secondParent,
+          sharedParentNode,
+          node,
+        )
+        const magnitude = FORCE_PARENT_TRIANGLE_REPULSION * influence
+        const forceX = direction.x * magnitude
+        const forceY = direction.y * magnitude
+        // This internal force has an equal reaction distributed to all three
+        // triangle vertices, so their combined force sums to zero.
+        nodeForce.x += forceX
+        nodeForce.y += forceY
+        firstParentForce.x -= forceX / 3
+        firstParentForce.y -= forceY / 3
+        secondParentForce.x -= forceX / 3
+        secondParentForce.y -= forceY / 3
+        sharedParentForce.x -= forceX / 3
+        sharedParentForce.y -= forceY / 3
       }
     }
 

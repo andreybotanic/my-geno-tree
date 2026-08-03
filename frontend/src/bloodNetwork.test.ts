@@ -4,6 +4,7 @@ import {
   bloodNetworkAverageNodeMovement,
   bloodNetworkNodeMass,
   bloodNetworkPointInTriangle,
+  bloodNetworkTriangleInfluence,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
@@ -61,6 +62,34 @@ describe('buildBloodNetwork', () => {
       secondParent,
       sharedParentNode,
     )).toBe(false)
+  })
+
+  it('smoothly fades the parent-triangle force across its boundary', () => {
+    const firstParent = { x: 0, y: 0 }
+    const secondParent = { x: 200, y: 0 }
+    const sharedParentNode = { x: 100, y: 200 }
+    const justOutside = bloodNetworkTriangleInfluence(
+      { x: 100, y: -1 },
+      firstParent,
+      secondParent,
+      sharedParentNode,
+    )
+    const justInside = bloodNetworkTriangleInfluence(
+      { x: 100, y: 1 },
+      firstParent,
+      secondParent,
+      sharedParentNode,
+    )
+
+    expect(bloodNetworkTriangleInfluence(
+      { x: 100, y: -31 },
+      firstParent,
+      secondParent,
+      sharedParentNode,
+    )).toBe(0)
+    expect(justOutside).toBeGreaterThan(0)
+    expect(justInside).toBeGreaterThan(justOutside)
+    expect(justInside - justOutside).toBeLessThan(0.03)
   })
 
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
@@ -273,7 +302,7 @@ describe('buildBloodNetwork', () => {
       [firstParent.id, { x: -36, y: -36 }],
       [secondParent.id, { x: 164, y: -36 }],
       [sharedParentNode.id, { x: 91, y: 191 }],
-      [intruder.id, { x: 64, y: 31 }],
+      [intruder.id, { x: 64, y: -31 }],
     ])
     const positionedNetwork = {
       ...network,
@@ -283,7 +312,7 @@ describe('buildBloodNetwork', () => {
       }),
     }
     expect(bloodNetworkPointInTriangle(
-      { x: 100, y: 67 },
+      { x: 100, y: 5 },
       { x: 0, y: 0 },
       { x: 200, y: 0 },
       { x: 100, y: 200 },
@@ -296,20 +325,29 @@ describe('buildBloodNetwork', () => {
       averageMovementPerSecondThreshold: 1,
     })
 
-    for (let tick = 0; tick < 20; tick += 1) {
+    simulation.tick()
+    const pushedIntruder = simulation.getNodes().find((node) => node.id === intruder.id)!
+    expect(pushedIntruder.position.y + 36).toBeGreaterThan(5)
+
+    for (let tick = 0; tick < 19; tick += 1) {
       simulation.tick()
     }
 
-    const expelledIntruder = simulation.getNodes().find((node) => node.id === intruder.id)!
+    const finalNodes = simulation.getNodes()
+    const expelledIntruder = finalNodes.find((node) => node.id === intruder.id)!
+    const finalCenter = (id: string, size: number) => {
+      const node = finalNodes.find((candidate) => candidate.id === id)!
+      return { x: node.position.x + size / 2, y: node.position.y + size / 2 }
+    }
     const intruderCenter = {
       x: expelledIntruder.position.x + 36,
       y: expelledIntruder.position.y + 36,
     }
     expect(bloodNetworkPointInTriangle(
       intruderCenter,
-      { x: 0, y: 0 },
-      { x: 200, y: 0 },
-      { x: 100, y: 200 },
+      finalCenter(firstParent.id, 72),
+      finalCenter(secondParent.id, 72),
+      finalCenter(sharedParentNode.id, 18),
     )).toBe(false)
   })
 
