@@ -19,6 +19,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useTranslation } from 'react-i18next'
 import type {
+  BloodNetworkPreset,
   GenealogicalEvent,
   GraphMutation,
   ManualEventRequest,
@@ -32,6 +33,7 @@ import type {
   PersonPatchRequest,
   RelativePerson,
   TreeSnapshot,
+  User,
 } from '../api/generated'
 import {
   ApiRequestError,
@@ -40,6 +42,7 @@ import {
   personPhotoApi,
   personApi,
   treeApi,
+  type AuthorizedJsonRequest,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import {
@@ -84,9 +87,11 @@ import {
   buildBloodNetwork,
   createBloodNetworkSimulation,
   DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+  defaultBloodNetworkPresets,
   type BloodNetworkFlowEdge,
   type BloodNetworkForceSettings,
   type BloodNetworkFlowNode,
+  type BloodNetworkSimulation,
 } from '../bloodNetwork'
 import {
   LAYOUT_WARNING_THRESHOLD,
@@ -255,8 +260,13 @@ function LayoutToolbar({
 }
 
 type BloodNetworkLegendProps = {
+  activePresetId: BloodNetworkPreset['id']
   forces: BloodNetworkForceSettings
   onForceChange: (key: keyof BloodNetworkForceSettings, value: number) => void
+  onPresetChange: (presetId: BloodNetworkPreset['id']) => void
+  onPresetDefaultChange: (presetId: BloodNetworkPreset['id']) => void
+  onPresetNameChange: (presetId: BloodNetworkPreset['id'], name: string) => void
+  presets: BloodNetworkPreset[]
 }
 
 type BloodNetworkForceControlProps = {
@@ -298,8 +308,22 @@ function BloodNetworkForceControl({
   )
 }
 
-function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) {
+function BloodNetworkLegend({
+  activePresetId,
+  forces,
+  onForceChange,
+  onPresetChange,
+  onPresetDefaultChange,
+  onPresetNameChange,
+  presets,
+}: BloodNetworkLegendProps) {
   const { t } = useTranslation()
+  const activePreset = presets.find((preset) => preset.id === activePresetId)
+    ?? presets[0]
+
+  if (!activePreset) {
+    return null
+  }
 
   return (
     <Panel className="blood-network-legend" position="bottom-left">
@@ -313,8 +337,54 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
         {t('editor.bloodNetworkChildArrow')}
       </span>
       <small>{t('editor.bloodNetworkForces')}</small>
-      <fieldset className="blood-network-force-controls">
-        <legend>{t('editor.bloodNetworkForceControls')}</legend>
+      <details className="blood-network-force-settings">
+        <summary>{t('editor.bloodNetworkForceControls')}</summary>
+        <div className="blood-network-force-settings-content">
+          <div className="blood-network-preset-controls">
+            <label>
+              <span>{t('editor.bloodNetworkPreset')}</span>
+              <select
+                aria-label={t('editor.bloodNetworkPreset')}
+                onChange={(event) => onPresetChange(
+                  event.target.value as BloodNetworkPreset['id'],
+                )}
+                value={activePreset.id}
+              >
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>{t('editor.bloodNetworkPresetName')}</span>
+              <input
+                aria-label={t('editor.bloodNetworkPresetName')}
+                defaultValue={activePreset.name}
+                key={`${activePreset.id}:${activePreset.name}`}
+                maxLength={80}
+                onBlur={(event) => {
+                  const name = event.target.value.trim()
+                  if (name) {
+                    onPresetNameChange(activePreset.id, name)
+                  } else {
+                    event.target.value = activePreset.name
+                  }
+                }}
+                type="text"
+              />
+            </label>
+            <label className="blood-network-preset-default">
+              <input
+                aria-label={t('editor.bloodNetworkPresetDefault')}
+                checked={activePreset.isDefault}
+                onChange={() => onPresetDefaultChange(activePreset.id)}
+                type="checkbox"
+              />
+              <span>{t('editor.bloodNetworkPresetDefault')}</span>
+            </label>
+          </div>
+          <fieldset className="blood-network-force-controls">
+            <legend>{t('editor.bloodNetworkForceControls')}</legend>
         <BloodNetworkForceControl
           forceKey="averageMovementPerSecondThreshold"
           forces={forces}
@@ -405,7 +475,9 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           onForceChange={onForceChange}
           step={0.1}
         />
-      </fieldset>
+          </fieldset>
+        </div>
+      </details>
     </Panel>
   )
 }
@@ -500,15 +572,18 @@ type TreeCanvasProps = {
   onCancelLayout: () => void
   onChangeLayoutPreviewView: (view: 'optimized' | 'original') => void
   onOptimizeLayout: () => void
+  request: AuthorizedJsonRequest
   onSelectPerson: (personId: string) => void
+  onToggleNetworkView: () => void
+  onUpdateUser: (user: User) => void
   layoutProgressVisible: boolean
   layoutPreview: LayoutPreview | null
   layoutPreviewView: 'optimized' | 'original'
   layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
+  user: User | null
   view: 'network' | 'tree'
-  onToggleNetworkView: () => void
 }
 
 function TreeCanvas({
@@ -517,15 +592,18 @@ function TreeCanvas({
   onCancelLayout,
   onChangeLayoutPreviewView,
   onOptimizeLayout,
+  request,
   onSelectPerson,
+  onToggleNetworkView,
+  onUpdateUser,
   layoutProgressVisible,
   layoutPreview,
   layoutPreviewView,
   layoutSearch,
   selectedPersonId,
   snapshot,
+  user,
   view,
-  onToggleNetworkView,
 }: TreeCanvasProps) {
   type EditorFlowNode = PersonFlowNode | BloodNetworkFlowNode
   type EditorFlowEdge = TreeFlowEdge | BloodNetworkFlowEdge
@@ -541,9 +619,24 @@ function TreeCanvas({
     edges: BloodNetworkFlowEdge[]
     nodes: BloodNetworkFlowNode[]
   } | null>(null)
-  const [bloodNetworkForces, setBloodNetworkForces] = useState(
-    DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
-  )
+  const bloodNetworkSimulation = useRef<BloodNetworkSimulation | null>(null)
+  const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
+    BloodNetworkPreset[]
+  >(() => user?.bloodNetworkPresets.map((preset) => ({
+    ...preset,
+    forces: { ...preset.forces },
+  })) ?? defaultBloodNetworkPresets())
+  const [activeBloodNetworkPresetId, setActiveBloodNetworkPresetId] = useState<
+    BloodNetworkPreset['id']
+  >(() => bloodNetworkPresets.find((preset) => preset.isDefault)?.id
+    ?? bloodNetworkPresets[0]?.id
+    ?? 'normal')
+  const [bloodNetworkForces, setBloodNetworkForces] = useState(() => ({
+    ...(bloodNetworkPresets.find((preset) => preset.isDefault)?.forces
+      ?? DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS),
+  }))
+  const [bloodNetworkPresetsDirty, setBloodNetworkPresetsDirty] = useState(false)
+  const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
@@ -570,6 +663,43 @@ function TreeCanvas({
   const activeEdges: EditorFlowEdge[] = view === 'network'
     ? bloodNetwork.edges
     : edges
+
+  useEffect(() => {
+    const presets = user?.bloodNetworkPresets.map((preset) => ({
+      ...preset,
+      forces: { ...preset.forces },
+    })) ?? defaultBloodNetworkPresets()
+    const defaultPreset = presets.find((preset) => preset.isDefault) ?? presets[0]
+    if (!defaultPreset) {
+      return
+    }
+    setBloodNetworkPresets(presets)
+    setActiveBloodNetworkPresetId(defaultPreset.id)
+    setBloodNetworkForces({ ...defaultPreset.forces })
+    setBloodNetworkPresetsDirty(false)
+  }, [user?.bloodNetworkPresets])
+
+  useEffect(() => {
+    if (!bloodNetworkPresetsDirty || !user) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      void request<User>('/me/blood-network-presets', {
+        method: 'PATCH',
+        body: JSON.stringify({ presets: bloodNetworkPresets }),
+      }).then((updatedUser) => {
+        onUpdateUser(updatedUser)
+      }).catch(() => undefined)
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    bloodNetworkPresets,
+    bloodNetworkPresetsDirty,
+    onUpdateUser,
+    request,
+    user,
+  ])
 
   const centerFirstPerson = useCallback((
     flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
@@ -605,6 +735,7 @@ function TreeCanvas({
       edges: bloodNetwork.edges,
       nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
     }, bloodNetworkForces)
+    bloodNetworkSimulation.current = simulation
     activeBloodNetwork.current = bloodNetwork
     let animationTimer: number | null = null
     let active = true
@@ -648,11 +779,14 @@ function TreeCanvas({
 
     return () => {
       active = false
+      if (bloodNetworkSimulation.current === simulation) {
+        bloodNetworkSimulation.current = null
+      }
       if (animationTimer !== null) {
         window.clearTimeout(animationTimer)
       }
     }
-  }, [bloodNetwork, bloodNetworkForces, view])
+  }, [bloodNetwork, bloodNetworkForces, bloodNetworkMotionRevision, view])
 
   return (
     <ReactFlow<EditorFlowNode, EditorFlowEdge>
@@ -665,7 +799,7 @@ function TreeCanvas({
       nodeTypes={nodeTypes}
       nodes={nodes}
       nodesConnectable={false}
-      nodesDraggable={false}
+      nodesDraggable={view === 'network'}
       onInit={(flow) => {
         instance.current = flow
         if (view === 'tree') {
@@ -676,6 +810,19 @@ function TreeCanvas({
         if (view === 'tree' && !layoutSearch) {
           onSelectPerson(node.id)
         }
+      }}
+      onNodeDrag={(_event, node) => {
+        if (view !== 'network') {
+          return
+        }
+        bloodNetworkSimulation.current?.moveNode(node.id, node.position)
+        const nextNodes = bloodNetworkSimulation.current?.getNodes()
+        if (!nextNodes) {
+          return
+        }
+        latestBloodNodes.current = nextNodes
+        setSimulatedBloodNodes(nextNodes)
+        setBloodNetworkMotionRevision((revision) => revision + 1)
       }}
       onPaneClick={() => {
         if (view === 'tree' && !layoutSearch) {
@@ -698,10 +845,40 @@ function TreeCanvas({
       />
       {view === 'network' && (
         <BloodNetworkLegend
+          activePresetId={activeBloodNetworkPresetId}
           forces={bloodNetworkForces}
           onForceChange={(key, value) => {
-            setBloodNetworkForces((current) => ({ ...current, [key]: value }))
+            const forces = { ...bloodNetworkForces, [key]: value }
+            setBloodNetworkForces(forces)
+            setBloodNetworkPresets((presets) => presets.map((preset) => (
+              preset.id === activeBloodNetworkPresetId
+                ? { ...preset, forces }
+                : preset
+            )))
+            setBloodNetworkPresetsDirty(true)
           }}
+          onPresetChange={(presetId) => {
+            const preset = bloodNetworkPresets.find((item) => item.id === presetId)
+            if (!preset) {
+              return
+            }
+            setActiveBloodNetworkPresetId(presetId)
+            setBloodNetworkForces({ ...preset.forces })
+          }}
+          onPresetDefaultChange={(presetId) => {
+            setBloodNetworkPresets((presets) => presets.map((preset) => ({
+              ...preset,
+              isDefault: preset.id === presetId,
+            })))
+            setBloodNetworkPresetsDirty(true)
+          }}
+          onPresetNameChange={(presetId, name) => {
+            setBloodNetworkPresets((presets) => presets.map((preset) => (
+              preset.id === presetId ? { ...preset, name } : preset
+            )))
+            setBloodNetworkPresetsDirty(true)
+          }}
+          presets={bloodNetworkPresets}
         />
       )}
       {view === 'tree' && layoutSearch && layoutProgressVisible && (
@@ -766,7 +943,7 @@ type PendingRemoval =
 
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
-  const { request } = useAuth()
+  const { request, updateUser, user } = useAuth()
   const [snapshot, setSnapshot] = useState<TreeSnapshot | null>(null)
   const [status, setStatus] = useState<'error' | 'loading' | 'missing' | 'ready'>(
     'loading',
@@ -1578,6 +1755,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                     : snapshot}
                   view={view}
                   onToggleNetworkView={toggleNetworkView}
+                  onUpdateUser={updateUser}
+                  request={request}
+                  user={user}
                 />
               </ReactFlowProvider>
             )}

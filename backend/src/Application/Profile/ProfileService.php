@@ -19,4 +19,13 @@ final readonly class ProfileService
         $user->changePreferredLanguage($language, $this->clock->now());
         $this->entityManager->flush();
     }
+
+    /**
+     * @param list<array<string, mixed>> $presets
+     */
+    public function changeBloodNetworkPresets(User $user, array $presets): void
+    {
+        $user->changeBloodNetworkPresets($presets, $this->clock->now());
+        $this->entityManager->flush();
+    }
 }

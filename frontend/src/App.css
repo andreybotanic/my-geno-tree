@@ -805,6 +805,10 @@
   background: var(--color-background);
 }
 
+.tree-canvas .react-flow__pane.draggable:not(.dragging) {
+  cursor: default;
+}
+
 .editor-state,
 .empty-tree-action {
   align-items: center;
@@ -1023,6 +1027,11 @@
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 
+.blood-network-person,
+.blood-network-family {
+  cursor: grab;
+}
+
 .blood-network-person {
   align-items: center;
   background: var(--color-surface-elevated);
@@ -1036,6 +1045,13 @@
   overflow: visible;
   position: relative;
   width: 72px;
+}
+
+.react-flow__node.dragging .blood-network-person,
+.react-flow__node.dragging .blood-network-family,
+.blood-network-person:active,
+.blood-network-family:active {
+  cursor: grabbing;
 }
 
 .blood-network-photo {
@@ -1089,7 +1105,12 @@
   transition: opacity 120ms ease, transform 120ms ease;
   visibility: hidden;
   white-space: nowrap;
-  z-index: 5;
+  z-index: 1001;
+}
+
+.react-flow__node:has(.blood-network-person:hover),
+.react-flow__node:has(.blood-network-person:focus-within) {
+  z-index: 1000 !important;
 }
 
 .blood-network-tooltip strong {
@@ -1167,13 +1188,62 @@
   margin-top: 2px;
 }
 
+.blood-network-force-settings {
+  border-top: 1px solid var(--color-border);
+  margin-top: 3px;
+  padding-top: 8px;
+}
+
+.blood-network-force-settings summary {
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+}
+
+.blood-network-force-settings-content {
+  display: grid;
+  gap: 9px;
+  margin-top: 9px;
+}
+
+.blood-network-preset-controls {
+  display: grid;
+  gap: 6px;
+}
+
+.blood-network-preset-controls > label:not(.blood-network-preset-default) {
+  color: var(--color-text-muted);
+  display: grid;
+  font-size: 0.71rem;
+  gap: 3px;
+}
+
+.blood-network-preset-controls select,
+.blood-network-preset-controls input[type='text'] {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-strong);
+  font: inherit;
+  min-height: 28px;
+  padding: 3px 6px;
+}
+
+.blood-network-preset-default {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 0.71rem;
+  gap: 5px;
+}
+
 .blood-network-force-controls {
   border: 0;
-  border-top: 1px solid var(--color-border);
   display: grid;
   gap: 7px;
-  margin: 3px 0 0;
-  padding: 8px 0 0;
+  margin: 0;
+  padding: 0;
 }
 
 .blood-network-force-controls legend {

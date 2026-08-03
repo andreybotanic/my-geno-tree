@@ -31,6 +31,33 @@ export type ChangeLanguageRequest = {
     language: Language;
 };
 
+export type BloodNetworkForceSettings = {
+    averageMovementPerSecondThreshold: number;
+    baseRepulsion: number;
+    descendantSideForce: number;
+    personFlowHingeStrength: number;
+    unrelatedParentNodeRepulsion: number;
+    kinshipRepulsionStep: number;
+    parentHingeSpringStrength: number;
+    parentHingeTargetAngle: number;
+    parentPairSpringStrength: number;
+    sharedParentSpringStrength: number;
+};
+
+export type BloodNetworkPreset = {
+    id: 'weak' | 'normal';
+    name: string;
+    isDefault: boolean;
+    forces: BloodNetworkForceSettings;
+};
+
+export type UpdateBloodNetworkPresetsRequest = {
+    presets: [
+        BloodNetworkPreset,
+        BloodNetworkPreset
+    ];
+};
+
 export type TreeNameRequest = {
     name: string;
 };
@@ -322,6 +349,10 @@ export type User = {
     username: string;
     email: string;
     preferredLanguage: Language;
+    bloodNetworkPresets: [
+        BloodNetworkPreset,
+        BloodNetworkPreset
+    ];
     avatarUrl: string | null;
     createdAt: string;
 };
@@ -651,6 +682,43 @@ export type UploadAvatarResponses = {
 };
 
 export type UploadAvatarResponse = UploadAvatarResponses[keyof UploadAvatarResponses];
+
+export type UpdateBloodNetworkPresetsData = {
+    body: UpdateBloodNetworkPresetsRequest;
+    path?: never;
+    query?: never;
+    url: '/me/blood-network-presets';
+};
+
+export type UpdateBloodNetworkPresetsErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UpdateBloodNetworkPresetsError = UpdateBloodNetworkPresetsErrors[keyof UpdateBloodNetworkPresetsErrors];
+
+export type UpdateBloodNetworkPresetsResponses = {
+    /**
+     * Updated profile
+     */
+    200: User;
+};
+
+export type UpdateBloodNetworkPresetsResponse = UpdateBloodNetworkPresetsResponses[keyof UpdateBloodNetworkPresetsResponses];
 
 export type ListTreesData = {
     body?: never;

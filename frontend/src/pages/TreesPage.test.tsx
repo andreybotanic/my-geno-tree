@@ -6,6 +6,7 @@ import type { AuthorizedJsonRequest } from '../api/client'
 import type { AuthContextValue } from '../auth/AuthContext'
 import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
+import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { TreesPage } from './TreesPage'
 
 const tree: FamilyTree = {
@@ -25,7 +26,8 @@ function context(request: AuthorizedJsonRequest): AuthContextValue {
       id: '019861c4-6a93-7a2e-8ca8-51813740d4a6',
       username: 'family_admin',
       email: 'family@example.test',
-      preferredLanguage: 'en',
+    preferredLanguage: 'en',
+    bloodNetworkPresets: defaultBloodNetworkPresets(),
       avatarUrl: null,
       createdAt: '2026-07-30T00:00:00+00:00',
     },

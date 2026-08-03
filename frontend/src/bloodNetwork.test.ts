@@ -303,6 +303,20 @@ describe('buildBloodNetwork', () => {
     ))).toBe(true)
   })
 
+  it('moves a dragged node immediately without persisting map coordinates', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
+      people: [parent, child],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    }))
+
+    simulation.moveNode(parent.id, { x: 720, y: -340 })
+
+    expect(simulation.getNodes().find((node) => node.id === parent.id)?.position)
+      .toEqual({ x: 720, y: -340 })
+  })
+
   it('measures the movement of every temporary node between rendered frames', () => {
     const network = buildBloodNetwork({
       people: [person('parent'), person('child')],

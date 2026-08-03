@@ -12,6 +12,7 @@ final class UserViewFactory
      *     username: string,
      *     email: string,
      *     preferredLanguage: string,
+     *     bloodNetworkPresets: list<array<string, mixed>>,
      *     avatarUrl: string|null,
      *     createdAt: string
      * }
@@ -19,11 +20,12 @@ final class UserViewFactory
     public function create(User $user): array
     {
         return [
-            'id'                => $user->getId()->toRfc4122(),
-            'username'          => $user->getUsername(),
-            'email'             => $user->getEmail(),
-            'preferredLanguage' => $user->getPreferredLanguage(),
-            'avatarUrl'         => null === $user->getAvatarAttachment()
+            'id'                  => $user->getId()->toRfc4122(),
+            'username'            => $user->getUsername(),
+            'email'               => $user->getEmail(),
+            'preferredLanguage'   => $user->getPreferredLanguage(),
+            'bloodNetworkPresets' => $user->getBloodNetworkPresets(),
+            'avatarUrl'           => null === $user->getAvatarAttachment()
                 ? null
                 : sprintf(
                     '/me/avatar?media=%s',

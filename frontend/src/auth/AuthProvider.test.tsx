@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthResponse, User } from '../api/generated'
 import { ApiRequestError } from '../api/client'
+import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { useAuth } from './AuthContext'
 import { AuthProvider } from './AuthProvider'
 
@@ -36,6 +37,7 @@ const user: User = {
   username: 'anna',
   email: 'anna@example.test',
   preferredLanguage: 'en',
+  bloodNetworkPresets: defaultBloodNetworkPresets(),
   avatarUrl: null,
   createdAt: '2026-07-31T00:00:00+00:00',
 }

@@ -214,6 +214,33 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /me/blood-network-presets:
+    patch:
+      operationId: updateBloodNetworkPresets
+      summary: Save the current user's two blood-network force presets
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBloodNetworkPresetsRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees:
     get:
       operationId: listTrees
@@ -929,6 +956,58 @@ components:
       properties:
         language:
           $ref: "#/components/schemas/Language"
+    BloodNetworkForceSettings:
+      type: object
+      additionalProperties: false
+      required:
+        - averageMovementPerSecondThreshold
+        - baseRepulsion
+        - descendantSideForce
+        - personFlowHingeStrength
+        - unrelatedParentNodeRepulsion
+        - kinshipRepulsionStep
+        - parentHingeSpringStrength
+        - parentHingeTargetAngle
+        - parentPairSpringStrength
+        - sharedParentSpringStrength
+      properties:
+        averageMovementPerSecondThreshold: { type: number, minimum: 0.1, maximum: 5 }
+        baseRepulsion: { type: number, minimum: 0.5, maximum: 8 }
+        descendantSideForce: { type: number, minimum: 0, maximum: 24 }
+        personFlowHingeStrength: { type: number, minimum: 0, maximum: 16 }
+        unrelatedParentNodeRepulsion: { type: number, minimum: 0, maximum: 12 }
+        kinshipRepulsionStep: { type: number, minimum: 0.05, maximum: 0.6 }
+        parentHingeSpringStrength: { type: number, minimum: 0, maximum: 10 }
+        parentHingeTargetAngle: { type: number, minimum: 10, maximum: 120 }
+        parentPairSpringStrength: { type: number, minimum: 0.04, maximum: 0.5 }
+        sharedParentSpringStrength: { type: number, minimum: 0.02, maximum: 0.4 }
+    BloodNetworkPreset:
+      type: object
+      additionalProperties: false
+      required: [id, name, isDefault, forces]
+      properties:
+        id:
+          type: string
+          enum: [weak, normal]
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        isDefault:
+          type: boolean
+        forces:
+          $ref: "#/components/schemas/BloodNetworkForceSettings"
+    UpdateBloodNetworkPresetsRequest:
+      type: object
+      additionalProperties: false
+      required: [presets]
+      properties:
+        presets:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/BloodNetworkPreset"
     TreeNameRequest:
       type: object
       additionalProperties: false
@@ -1779,6 +1858,7 @@ components:
         - username
         - email
         - preferredLanguage
+        - bloodNetworkPresets
         - avatarUrl
         - createdAt
       properties:
@@ -1792,6 +1872,12 @@ components:
           format: email
         preferredLanguage:
           $ref: "#/components/schemas/Language"
+        bloodNetworkPresets:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/BloodNetworkPreset"
         avatarUrl:
           type:
             - string

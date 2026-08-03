@@ -7,6 +7,7 @@ import type {
   ParentLink,
   Person,
   TreeSnapshot,
+  User,
 } from '../api/generated'
 import {
   ApiRequestError,
@@ -15,6 +16,7 @@ import {
 import type { AuthContextValue } from '../auth/AuthContext'
 import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
+import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { TreeEditorPage } from './TreeEditorPage'
 
 vi.mock('../components/ImageCropDialog', () => ({
@@ -133,11 +135,14 @@ function graphSnapshot(
   }
 }
 
-function renderEditor(request: AuthorizedJsonRequest) {
+function renderEditor(
+  request: AuthorizedJsonRequest,
+  user: User | null = null,
+) {
   const value: AuthContextValue = {
     accessToken: 'access',
     isBooting: false,
-    user: null,
+    user,
     login: vi.fn(),
     logout: vi.fn(),
     register: vi.fn(),
@@ -255,11 +260,13 @@ describe('TreeEditorPage', () => {
     ).toHaveAttribute('aria-pressed', 'true')
     const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
     expect(anna).toHaveClass('blood-network-person')
+    expect(anna.closest('.react-flow__node')).toHaveClass('draggable')
     expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
+    await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
     expect(screen.getByRole('slider', { name: 'Parent hinge target angle (°)' })).toHaveValue('45')
@@ -295,6 +302,55 @@ describe('TreeEditorPage', () => {
         expect.anything(),
       )
     })
+  })
+
+  it('applies the user default force preset and saves preset changes', async () => {
+    const presets = defaultBloodNetworkPresets()
+    const user: User = {
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4f0',
+      username: 'force_user',
+      email: 'force@example.test',
+      preferredLanguage: 'en',
+      avatarUrl: null,
+      bloodNetworkPresets: [
+        { ...presets[0], isDefault: true },
+        { ...presets[1], isDefault: false },
+      ],
+      createdAt: '2026-07-31T00:00:00+00:00',
+    }
+    const updatedUser: User = {
+      ...user,
+      bloodNetworkPresets: [
+        { ...user.bloodNetworkPresets[0], name: 'Open' },
+        user.bloodNetworkPresets[1],
+      ],
+    }
+    const tree = graphSnapshot([father, person], [parentLink])
+    const request = vi.fn(async (path: string) => (
+      path === '/me/blood-network-presets' ? updatedUser : tree
+    )) as unknown as AuthorizedJsonRequest
+    renderEditor(request, user)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
+
+    expect(screen.getByRole('combobox', { name: 'Force preset' })).toHaveValue('weak')
+    expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
+    expect(screen.getByRole('checkbox', { name: 'Default' })).toBeChecked()
+
+    const presetName = screen.getByRole('textbox', { name: 'Preset name' })
+    await userEvent.clear(presetName)
+    await userEvent.type(presetName, 'Open')
+    await userEvent.tab()
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      '/me/blood-network-presets',
+      expect.objectContaining({
+        body: expect.stringContaining('"name":"Open"'),
+        method: 'PATCH',
+      }),
+    ))
   })
 
   it('shows a worker preview and applies only its coordinate mutation', async () => {

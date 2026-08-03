@@ -7,6 +7,7 @@ use App\Api\UserViewFactory;
 use App\Application\Profile\ProfileService;
 use App\Entity\User;
 use App\Request\Profile\ChangeLanguageRequest;
+use App\Request\Profile\UpdateBloodNetworkPresetsRequest;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -39,6 +40,20 @@ final readonly class MeController
             ChangeLanguageRequest::class,
         );
         $this->profile->changeLanguage($user, $input->language);
+
+        return new JsonResponse($this->userView->create($user));
+    }
+
+    #[Route('/api/v1/me/blood-network-presets', name: 'api_me_blood_network_presets_patch', methods: ['PATCH'])]
+    public function updateBloodNetworkPresets(
+        Request $request,
+        #[CurrentUser] User $user,
+    ): JsonResponse {
+        $input = $this->requestBody->map(
+            $request,
+            UpdateBloodNetworkPresetsRequest::class,
+        );
+        $this->profile->changeBloodNetworkPresets($user, $input->presets);
 
         return new JsonResponse($this->userView->create($user));
     }

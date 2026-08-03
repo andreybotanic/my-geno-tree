@@ -5,6 +5,7 @@ import type { User } from '../api/generated'
 import type { AuthContextValue } from '../auth/AuthContext'
 import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
+import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { ProfilePage } from './ProfilePage'
 
 vi.mock('../components/ImageCropDialog', () => ({
@@ -33,6 +34,7 @@ const user: User = {
   username: 'family_admin',
   email: 'family@example.test',
   preferredLanguage: 'en',
+  bloodNetworkPresets: defaultBloodNetworkPresets(),
   avatarUrl: '/me/avatar?media=old',
   createdAt: '2026-07-31T00:00:00+00:00',
 }

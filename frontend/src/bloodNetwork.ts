@@ -1,5 +1,9 @@
 import { MarkerType, Position, type Edge, type Node } from '@xyflow/react'
-import type { Person, TreeSnapshot } from './api/generated'
+import type {
+  BloodNetworkPreset,
+  Person,
+  TreeSnapshot,
+} from './api/generated'
 
 export const BLOOD_NETWORK_PERSON_SIZE = 72
 export const BLOOD_NETWORK_FAMILY_SIZE = 18
@@ -120,6 +124,39 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   parentHingeTargetAngle: 45,
   parentPairSpringStrength: 0.2,
   sharedParentSpringStrength: 0.12,
+}
+
+const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
+  averageMovementPerSecondThreshold: 1,
+  baseRepulsion: 8,
+  descendantSideForce: 0,
+  personFlowHingeStrength: 0,
+  unrelatedParentNodeRepulsion: 12,
+  kinshipRepulsionStep: 0.6,
+  parentHingeSpringStrength: 0,
+  parentHingeTargetAngle: 10,
+  parentPairSpringStrength: 0.04,
+  sharedParentSpringStrength: 0.02,
+}
+
+export function defaultBloodNetworkPresets(): [
+  BloodNetworkPreset,
+  BloodNetworkPreset,
+] {
+  return [
+    {
+      forces: { ...WEAK_BLOOD_NETWORK_FORCE_SETTINGS },
+      id: 'weak',
+      isDefault: false,
+      name: 'Слабый',
+    },
+    {
+      forces: { ...DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS },
+      id: 'normal',
+      isDefault: true,
+      name: 'Нормальный',
+    },
+  ]
 }
 
 function networkHandles(size: number) {
@@ -428,6 +465,7 @@ export function bloodNetworkParentHingeMagnitude(
 
 export type BloodNetworkSimulation = {
   getNodes: () => BloodNetworkFlowNode[]
+  moveNode: (nodeId: string, position: { x: number; y: number }) => void
   tick: () => void
 }
 
@@ -824,7 +862,26 @@ export function createBloodNetworkSimulation(
     }
   })
 
-  return { getNodes, tick }
+  const moveNode = (
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => {
+    const node = byId.get(nodeId)
+    const type = nodeTypes.get(nodeId)
+    const nodeVelocity = velocity.get(nodeId)
+    if (!node || !type || !nodeVelocity) {
+      return
+    }
+    const size = type === 'bloodPerson'
+      ? BLOOD_NETWORK_PERSON_SIZE
+      : BLOOD_NETWORK_FAMILY_SIZE
+    node.x = position.x + size / 2
+    node.y = position.y + size / 2
+    nodeVelocity.x = 0
+    nodeVelocity.y = 0
+  }
+
+  return { getNodes, moveNode, tick }
 }
 
 function buildBloodFamilies(

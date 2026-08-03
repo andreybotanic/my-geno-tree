@@ -206,6 +206,77 @@ final class SessionApiTest extends ApiWebTestCase
         self::assertSame('ru', $this->responseString('preferredLanguage'));
     }
 
+    public function testBloodNetworkPresetsCanBeRenamedAndPersisted(): void
+    {
+        $this->jsonRequest(
+            'POST',
+            '/api/v1/auth/register',
+            $this->validRegistration(),
+        );
+        $accessToken = $this->responseString('accessToken');
+        $presets = [
+            [
+                'id'        => 'weak',
+                'name'      => 'Рассеянный',
+                'isDefault' => true,
+                'forces'    => $this->bloodNetworkForces(8, 0),
+            ],
+            [
+                'id'        => 'normal',
+                'name'      => 'Собранный',
+                'isDefault' => false,
+                'forces'    => $this->bloodNetworkForces(3, 12),
+            ],
+        ];
+
+        $this->jsonRequest('PATCH', '/api/v1/me/blood-network-presets', [
+            'presets' => $presets,
+        ], [
+            'Authorization' => 'Bearer ' . $accessToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($presets, $this->responseData()['bloodNetworkPresets']);
+
+        $this->jsonRequest('GET', '/api/v1/me', headers: [
+            'Authorization' => 'Bearer ' . $accessToken,
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($presets, $this->responseData()['bloodNetworkPresets']);
+    }
+
+    public function testBloodNetworkPresetsRequireExactlyOneDefault(): void
+    {
+        $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
+        $accessToken = $this->responseString('accessToken');
+
+        $this->jsonRequest('PATCH', '/api/v1/me/blood-network-presets', [
+            'presets' => [
+                [
+                    'id'        => 'weak',
+                    'name'      => 'Слабый',
+                    'isDefault' => true,
+                    'forces'    => $this->bloodNetworkForces(8, 0),
+                ],
+                [
+                    'id'        => 'normal',
+                    'name'      => 'Нормальный',
+                    'isDefault' => true,
+                    'forces'    => $this->bloodNetworkForces(3, 12),
+                ],
+            ],
+        ], [
+            'Authorization' => 'Bearer ' . $accessToken,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertContains(
+            'blood_network_preset_default_invalid',
+            $this->responseStringList('fields', 'presets'),
+        );
+    }
+
     public function testProtectedEndpointsRequireAnActiveSession(): void
     {
         $this->jsonRequest('GET', '/api/v1/me');
@@ -217,5 +288,24 @@ final class SessionApiTest extends ApiWebTestCase
             'fields'  => [],
             'details' => [],
         ], $this->responseData());
+    }
+
+    /**
+     * @return array<string, float|int>
+     */
+    private function bloodNetworkForces(int $baseRepulsion, int $descendantSideForce): array
+    {
+        return [
+            'averageMovementPerSecondThreshold' => 1,
+            'baseRepulsion'                     => $baseRepulsion,
+            'descendantSideForce'               => $descendantSideForce,
+            'personFlowHingeStrength'           => 8,
+            'unrelatedParentNodeRepulsion'      => 6,
+            'kinshipRepulsionStep'              => 0.3,
+            'parentHingeSpringStrength'         => 4,
+            'parentHingeTargetAngle'            => 45,
+            'parentPairSpringStrength'          => 0.2,
+            'sharedParentSpringStrength'        => 0.12,
+        ];
     }
 }

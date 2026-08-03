@@ -151,4 +151,16 @@ describe('semantic design contracts', () => {
     )
     expect(appStyles).not.toMatch(/\.tree-edge-child\s*\{[^}]*stroke-/s)
   })
+
+  it('uses a distinct drag cursor only over movable blood-map nodes', () => {
+    expect(appStyles).toMatch(
+      /\.tree-canvas \.react-flow__pane\.draggable:not\(\.dragging\)\s*\{[^}]*cursor:\s*default;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.blood-network-person,\s*\.blood-network-family\s*\{[^}]*cursor:\s*grab;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.react-flow__node\.dragging \.blood-network-person,\s*\.react-flow__node\.dragging \.blood-network-family,[^}]*cursor:\s*grabbing;/s,
+    )
+  })
 })

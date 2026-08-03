@@ -28,6 +28,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 2)]
     private string $preferredLanguage;
 
+    /** @var list<array<string, mixed>> */
+    #[ORM\Column(type: 'json', options: ['default' => '[]'])]
+    private array $bloodNetworkPresets;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $emailVerifiedAt;
 
@@ -52,6 +56,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->email = $email;
         $this->passwordHash = $passwordHash;
         $this->preferredLanguage = $preferredLanguage;
+        $this->bloodNetworkPresets = self::defaultBloodNetworkPresets();
         $this->emailVerifiedAt = $createdAt;
         $this->createdAt = $createdAt;
         $this->updatedAt = $createdAt;
@@ -95,6 +100,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->preferredLanguage;
     }
 
+    /** @return list<array<string, mixed>> */
+    public function getBloodNetworkPresets(): array
+    {
+        return [] === $this->bloodNetworkPresets
+            ? self::defaultBloodNetworkPresets()
+            : $this->bloodNetworkPresets;
+    }
+
     public function getEmailVerifiedAt(): ?\DateTimeImmutable
     {
         return $this->emailVerifiedAt;
@@ -135,5 +148,55 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     ): void {
         $this->preferredLanguage = $preferredLanguage;
         $this->updatedAt = $changedAt;
+    }
+
+    /** @param list<array<string, mixed>> $presets */
+    public function changeBloodNetworkPresets(
+        array $presets,
+        \DateTimeImmutable $changedAt,
+    ): void {
+        $this->bloodNetworkPresets = $presets;
+        $this->updatedAt = $changedAt;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function defaultBloodNetworkPresets(): array
+    {
+        return [
+            [
+                'id'        => 'weak',
+                'name'      => 'Слабый',
+                'isDefault' => false,
+                'forces'    => [
+                    'averageMovementPerSecondThreshold' => 1,
+                    'baseRepulsion'                     => 8,
+                    'descendantSideForce'               => 0,
+                    'personFlowHingeStrength'           => 0,
+                    'unrelatedParentNodeRepulsion'      => 12,
+                    'kinshipRepulsionStep'              => 0.6,
+                    'parentHingeSpringStrength'         => 0,
+                    'parentHingeTargetAngle'            => 10,
+                    'parentPairSpringStrength'          => 0.04,
+                    'sharedParentSpringStrength'        => 0.02,
+                ],
+            ],
+            [
+                'id'        => 'normal',
+                'name'      => 'Нормальный',
+                'isDefault' => true,
+                'forces'    => [
+                    'averageMovementPerSecondThreshold' => 1,
+                    'baseRepulsion'                     => 3,
+                    'descendantSideForce'               => 12,
+                    'personFlowHingeStrength'           => 8,
+                    'unrelatedParentNodeRepulsion'      => 6,
+                    'kinshipRepulsionStep'              => 0.3,
+                    'parentHingeSpringStrength'         => 4,
+                    'parentHingeTargetAngle'            => 45,
+                    'parentPairSpringStrength'          => 0.2,
+                    'sharedParentSpringStrength'        => 0.12,
+                ],
+            ],
+        ];
     }
 }
