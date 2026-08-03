@@ -379,26 +379,27 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('combobox', { name: 'Force preset' })).toHaveValue('weak')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
     expect(screen.getByRole('checkbox', { name: 'Default' })).toBeChecked()
+    const savePreset = screen.getByRole('button', { name: 'Save preset' })
+    expect(savePreset).toBeDisabled()
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Base repulsion' }), {
+      target: { value: '7' },
+    })
+    expect(savePreset).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reload preset' }))
+    expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
+    expect(savePreset).toBeDisabled()
 
     const presetName = screen.getByRole('textbox', { name: 'Preset name' })
     await userEvent.clear(presetName)
     await userEvent.type(presetName, 'Open')
-    fireEvent.change(screen.getByRole('slider', { name: 'Base repulsion' }), {
-      target: { value: '7' },
-    })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Reload preset' }))
-    expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
+    expect(savePreset).toBeEnabled()
 
     expect(request).not.toHaveBeenCalledWith(
       '/me/blood-network-presets',
       expect.anything(),
     )
-    fireEvent.change(screen.getByRole('slider', { name: 'Base repulsion' }), {
-      target: { value: '7' },
-    })
-    const savePreset = screen.getByRole('button', { name: 'Save preset' })
-    expect(savePreset).toBeEnabled()
     await userEvent.click(savePreset)
 
     await waitFor(() => expect(request).toHaveBeenCalledWith(

@@ -131,6 +131,28 @@ type BloodNetworkRotationSession = {
   pivotNodeId: string
 }
 
+function haveBloodNetworkPresetsChanged(
+  presets: BloodNetworkPreset[],
+  savedPresets: BloodNetworkPreset[],
+) {
+  if (presets.length !== savedPresets.length) {
+    return true
+  }
+
+  return presets.some((preset) => {
+    const savedPreset = savedPresets.find((item) => item.id === preset.id)
+    if (!savedPreset) {
+      return true
+    }
+
+    return preset.name.trim() !== savedPreset.name
+      || preset.isDefault !== savedPreset.isDefault
+      || Object.entries(preset.forces).some(([key, value]) => (
+        savedPreset.forces[key as keyof BloodNetworkForceSettings] !== value
+      ))
+  })
+}
+
 function bloodNetworkNodeCenter(node: BloodNetworkFlowNode) {
   const size = node.type === 'bloodPerson'
     ? BLOOD_NETWORK_PERSON_SIZE
@@ -678,12 +700,18 @@ function TreeCanvas({
   const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
     string | null
   >(null)
+  const savedBloodNetworkPresets = useMemo(() => (
+    user?.bloodNetworkPresets.map((preset) => ({
+      ...preset,
+      forces: { ...preset.forces },
+    })) ?? defaultBloodNetworkPresets()
+  ), [user?.bloodNetworkPresets])
   const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
     BloodNetworkPreset[]
-  >(() => user?.bloodNetworkPresets.map((preset) => ({
+  >(() => savedBloodNetworkPresets.map((preset) => ({
     ...preset,
     forces: { ...preset.forces },
-  })) ?? defaultBloodNetworkPresets())
+  })))
   const [activeBloodNetworkPresetId, setActiveBloodNetworkPresetId] = useState<
     BloodNetworkPreset['id']
   >(() => bloodNetworkPresets.find((preset) => preset.isDefault)?.id
@@ -693,7 +721,6 @@ function TreeCanvas({
     ...(bloodNetworkPresets.find((preset) => preset.isDefault)?.forces
       ?? DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS),
   }))
-  const [bloodNetworkPresetsDirty, setBloodNetworkPresetsDirty] = useState(false)
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
@@ -726,10 +753,10 @@ function TreeCanvas({
     : edges
 
   useEffect(() => {
-    const presets = user?.bloodNetworkPresets.map((preset) => ({
+    const presets = savedBloodNetworkPresets.map((preset) => ({
       ...preset,
       forces: { ...preset.forces },
-    })) ?? defaultBloodNetworkPresets()
+    }))
     const defaultPreset = presets.find((preset) => preset.isDefault) ?? presets[0]
     if (!defaultPreset) {
       return
@@ -737,8 +764,12 @@ function TreeCanvas({
     setBloodNetworkPresets(presets)
     setActiveBloodNetworkPresetId(defaultPreset.id)
     setBloodNetworkForces({ ...defaultPreset.forces })
-    setBloodNetworkPresetsDirty(false)
-  }, [user?.bloodNetworkPresets])
+  }, [savedBloodNetworkPresets])
+
+  const bloodNetworkPresetsChanged = useMemo(() => haveBloodNetworkPresetsChanged(
+    bloodNetworkPresets,
+    savedBloodNetworkPresets,
+  ), [bloodNetworkPresets, savedBloodNetworkPresets])
 
   useEffect(() => {
     if (view === 'network') {
@@ -1030,7 +1061,7 @@ function TreeCanvas({
         <BloodNetworkLegend
           activePresetId={activeBloodNetworkPresetId}
           canSavePreset={
-            bloodNetworkPresetsDirty
+            bloodNetworkPresetsChanged
             && bloodNetworkPresets.every((preset) => preset.name.trim().length > 0)
           }
           forces={bloodNetworkForces}
@@ -1042,7 +1073,6 @@ function TreeCanvas({
                 ? { ...preset, forces }
                 : preset
             )))
-            setBloodNetworkPresetsDirty(true)
           }}
           onPresetChange={(presetId) => {
             const preset = bloodNetworkPresets.find((item) => item.id === presetId)
@@ -1057,17 +1087,14 @@ function TreeCanvas({
               ...preset,
               isDefault: preset.id === presetId,
             })))
-            setBloodNetworkPresetsDirty(true)
           }}
           onPresetNameChange={(presetId, name) => {
             setBloodNetworkPresets((presets) => presets.map((preset) => (
               preset.id === presetId ? { ...preset, name } : preset
             )))
-            setBloodNetworkPresetsDirty(true)
           }}
           onPresetReload={() => {
-            const savedPresets = user?.bloodNetworkPresets ?? defaultBloodNetworkPresets()
-            const savedPreset = savedPresets.find((preset) => (
+            const savedPreset = savedBloodNetworkPresets.find((preset) => (
               preset.id === activeBloodNetworkPresetId
             ))
             if (!savedPreset) {
@@ -1080,7 +1107,7 @@ function TreeCanvas({
             )))
           }}
           onSavePreset={() => {
-            if (!user || !bloodNetworkPresetsDirty) {
+            if (!user || !bloodNetworkPresetsChanged) {
               return
             }
             const presets = bloodNetworkPresets.map((preset) => ({
@@ -1091,15 +1118,12 @@ function TreeCanvas({
               return
             }
             setBloodNetworkPresets(presets)
-            setBloodNetworkPresetsDirty(false)
             void request<User>('/me/blood-network-presets', {
               method: 'PATCH',
               body: JSON.stringify({ presets }),
             }).then((updatedUser) => {
               onUpdateUser(updatedUser)
-            }).catch(() => {
-              setBloodNetworkPresetsDirty(true)
-            })
+            }).catch(() => undefined)
           }}
           presets={bloodNetworkPresets}
         />
