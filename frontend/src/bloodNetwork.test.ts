@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
+  bloodNetworkDescendantSideForces,
   bloodNetworkDescendantSideMagnitude,
   bloodNetworkNodeMass,
   bloodNetworkParentHingeMagnitude,
@@ -63,6 +64,29 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkDescendantSideMagnitude(1, 12)).toBe(0)
     expect(bloodNetworkDescendantSideMagnitude(0.1, 12)).toBeGreaterThan(0)
     expect(bloodNetworkDescendantSideMagnitude(-1, 12)).toBe(12)
+  })
+
+  it('balances descendant-side force and torque around the family', () => {
+    const child = { x: 80, y: 70 }
+    const sharedParent = { x: 200, y: 100 }
+    const parentMidpoint = { x: 0, y: 100 }
+    const forces = bloodNetworkDescendantSideForces(
+      child,
+      sharedParent,
+      parentMidpoint,
+      12,
+    )
+    const torque = (point: { x: number; y: number }, force: { x: number; y: number }) => (
+      point.x * force.y - point.y * force.x
+    )
+
+    expect(forces.child.x + forces.sharedParent.x + forces.parentMidpoint.x).toBeCloseTo(0)
+    expect(forces.child.y + forces.sharedParent.y + forces.parentMidpoint.y).toBeCloseTo(0)
+    expect(
+      torque(child, forces.child)
+      + torque(sharedParent, forces.sharedParent)
+      + torque(parentMidpoint, forces.parentMidpoint),
+    ).toBeCloseTo(0)
   })
 
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
@@ -272,7 +296,7 @@ describe('buildBloodNetwork', () => {
       [firstParent.id, { x: -36, y: -36 }],
       [secondParent.id, { x: -36, y: 164 }],
       [sharedParentNode.id, { x: 191, y: 91 }],
-      [child.id, { x: 44, y: 64 }],
+      [child.id, { x: 44, y: 36 }],
     ])
     const positionedNetwork = {
       ...network,

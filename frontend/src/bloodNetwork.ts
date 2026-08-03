@@ -161,41 +161,6 @@ function directionBetween(
   return { distance: 0.001, x: Math.cos(angle), y: Math.sin(angle) }
 }
 
-function directionFromPoint(
-  point: { x: number; y: number },
-  node: ForceNode,
-): { x: number; y: number } {
-  const dx = node.x - point.x
-  const dy = node.y - point.y
-  const distance = Math.hypot(dx, dy)
-  if (distance > 0.001) {
-    return { x: dx / distance, y: dy / distance }
-  }
-
-  const angle = (hashId(node.id) / 0xffff_ffff) * Math.PI * 2
-  return { x: Math.cos(angle), y: Math.sin(angle) }
-}
-
-function descendantSideDirection(
-  childDirection: { x: number; y: number },
-  descendantDirection: { x: number; y: number },
-  childId: string,
-): { x: number; y: number } {
-  const alignment = childDirection.x * descendantDirection.x
-    + childDirection.y * descendantDirection.y
-  const x = descendantDirection.x - childDirection.x * alignment
-  const y = descendantDirection.y - childDirection.y * alignment
-  const length = Math.hypot(x, y)
-  if (length > 0.001) {
-    return { x: x / length, y: y / length }
-  }
-
-  const clockwise = hashId(childId) % 2 === 0
-  return clockwise
-    ? { x: -childDirection.y, y: childDirection.x }
-    : { x: childDirection.y, y: -childDirection.x }
-}
-
 function bloodGraphDistances(
   nodeIds: string[],
   edges: ForceEdge[],
@@ -267,6 +232,71 @@ export function bloodNetworkDescendantSideMagnitude(
   )))
   const smoothProgress = progress * progress * (3 - 2 * progress)
   return Math.min(FORCE_MAX_DESCENDANT_SIDE_MAGNITUDE, strength) * smoothProgress
+}
+
+export function bloodNetworkDescendantSideForces(
+  child: { x: number; y: number },
+  sharedParent: { x: number; y: number },
+  parentMidpoint: { x: number; y: number },
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.descendantSideForce,
+): {
+  child: { x: number; y: number }
+  parentMidpoint: { x: number; y: number }
+  sharedParent: { x: number; y: number }
+} {
+  const childVector = {
+    x: child.x - sharedParent.x,
+    y: child.y - sharedParent.y,
+  }
+  const descendantVector = {
+    x: sharedParent.x - parentMidpoint.x,
+    y: sharedParent.y - parentMidpoint.y,
+  }
+  const childDistance = Math.hypot(childVector.x, childVector.y)
+  const descendantDistance = Math.hypot(descendantVector.x, descendantVector.y)
+  if (childDistance < 0.001 || descendantDistance < 0.001) {
+    return {
+      child: { x: 0, y: 0 },
+      parentMidpoint: { x: 0, y: 0 },
+      sharedParent: { x: 0, y: 0 },
+    }
+  }
+  const childDirection = {
+    x: childVector.x / childDistance,
+    y: childVector.y / childDistance,
+  }
+  const descendantDirection = {
+    x: descendantVector.x / descendantDistance,
+    y: descendantVector.y / descendantDistance,
+  }
+  const alignment = childDirection.x * descendantDirection.x
+    + childDirection.y * descendantDirection.y
+  const magnitude = bloodNetworkDescendantSideMagnitude(alignment, strength)
+    * FORCE_SPRING_LENGTH
+  const childGradient = {
+    x: (descendantDirection.x - childDirection.x * alignment) / childDistance,
+    y: (descendantDirection.y - childDirection.y * alignment) / childDistance,
+  }
+  const parentGradient = {
+    x: (childDirection.x - descendantDirection.x * alignment) / descendantDistance,
+    y: (childDirection.y - descendantDirection.y * alignment) / descendantDistance,
+  }
+  const childForce = {
+    x: childGradient.x * magnitude,
+    y: childGradient.y * magnitude,
+  }
+  const parentForce = {
+    x: -parentGradient.x * magnitude,
+    y: -parentGradient.y * magnitude,
+  }
+  return {
+    child: childForce,
+    parentMidpoint: parentForce,
+    sharedParent: {
+      x: -childForce.x - parentForce.x,
+      y: -childForce.y - parentForce.y,
+    },
+  }
 }
 
 export function bloodNetworkParentHingeMagnitude(
@@ -478,7 +508,6 @@ export function createBloodNetworkSimulation(
         x: midpoint.x + parent.x / parents.length,
         y: midpoint.y + parent.y / parents.length,
       }), { x: 0, y: 0 })
-      const descendantDirection = directionFromPoint(parentMidpoint, sharedParentNode)
       for (const childId of family.childIds) {
         const child = byId.get(childId)
         const childForce = force.get(childId)
@@ -486,34 +515,23 @@ export function createBloodNetworkSimulation(
         if (!child || !childForce || !sharedParentForce) {
           continue
         }
-        const childDirection = directionBetween(sharedParentNode, child)
-        const alignment = childDirection.x * descendantDirection.x
-          + childDirection.y * descendantDirection.y
-        const magnitude = bloodNetworkDescendantSideMagnitude(
-          alignment,
+        const descendantForces = bloodNetworkDescendantSideForces(
+          child,
+          sharedParentNode,
+          parentMidpoint,
           settings.descendantSideForce,
-        ) * alpha
-        if (magnitude === 0) {
-          continue
-        }
-        const direction = descendantSideDirection(
-          childDirection,
-          descendantDirection,
-          child.id,
         )
-        const forceX = direction.x * magnitude
-        const forceY = direction.y * magnitude
-        childForce.x += forceX
-        childForce.y += forceY
-        sharedParentForce.x -= forceX / 2
-        sharedParentForce.y -= forceY / 2
+        childForce.x += descendantForces.child.x * alpha
+        childForce.y += descendantForces.child.y * alpha
+        sharedParentForce.x += descendantForces.sharedParent.x * alpha
+        sharedParentForce.y += descendantForces.sharedParent.y * alpha
         for (const parent of parents) {
           const parentForce = force.get(parent.id)
           if (!parentForce) {
             continue
           }
-          parentForce.x -= forceX / (parents.length * 2)
-          parentForce.y -= forceY / (parents.length * 2)
+          parentForce.x += descendantForces.parentMidpoint.x / parents.length * alpha
+          parentForce.y += descendantForces.parentMidpoint.y / parents.length * alpha
         }
       }
     }
