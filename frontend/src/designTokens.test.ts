@@ -166,6 +166,9 @@ describe('semantic design contracts', () => {
 
   it('uses a circular cursor and visible pivot for blood-map rotation', () => {
     expect(appStyles).toMatch(
+      /\.blood-network-canvas\s*\{[^}]*height:\s*100%;[^}]*width:\s*100%;/s,
+    )
+    expect(appStyles).toMatch(
       /\.blood-network-rotation-mode \.react-flow__pane,[^}]*cursor:\s*url\(/s,
     )
     expect(appStyles).toMatch(/\.blood-network-rotation-pivot\s*\{[^}]*box-shadow:/s)

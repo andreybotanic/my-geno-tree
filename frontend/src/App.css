@@ -805,6 +805,11 @@
   background: var(--color-background);
 }
 
+.blood-network-canvas {
+  height: 100%;
+  width: 100%;
+}
+
 .tree-canvas .react-flow__pane.draggable:not(.dragging) {
   cursor: default;
 }

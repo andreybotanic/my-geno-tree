@@ -852,7 +852,9 @@ function TreeCanvas({
   return (
     <>
     <div
-      className={bloodNetworkRotationPivotNodeId ? 'blood-network-rotation-mode' : undefined}
+      className={`blood-network-canvas${bloodNetworkRotationPivotNodeId
+        ? ' blood-network-rotation-mode'
+        : ''}`}
       onPointerDownCapture={(event) => {
         if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
           return
