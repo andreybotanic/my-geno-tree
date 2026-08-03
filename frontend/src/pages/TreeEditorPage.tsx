@@ -183,6 +183,7 @@ type LayoutSearch = {
 type LayoutToolbarProps = {
   isNetworkView: boolean
   onOptimize: () => void
+  onRegenerateNetwork: () => void
   onToggleNetworkView: () => void
   unavailable: boolean
 }
@@ -190,6 +191,7 @@ type LayoutToolbarProps = {
 function LayoutToolbar({
   isNetworkView,
   onOptimize,
+  onRegenerateNetwork,
   onToggleNetworkView,
   unavailable,
 }: LayoutToolbarProps) {
@@ -219,6 +221,20 @@ function LayoutToolbar({
           <circle cx="20" cy="15" r="2.3" />
         </svg>
       </button>
+      {isNetworkView && (
+        <button
+          aria-label={t('editor.regenerateBloodNetwork')}
+          className="editor-tool-button"
+          onClick={onRegenerateNetwork}
+          title={t('editor.regenerateBloodNetwork')}
+          type="button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M19 8a7.5 7.5 0 1 0 1 7" />
+            <path d="M19 4v4h-4" />
+          </svg>
+        </button>
+      )}
       {!isNetworkView && (
         <button
           aria-label={t('editor.layoutOptimize')}
@@ -380,6 +396,7 @@ function TreeCanvas({
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
     BloodNetworkFlowNode[]
   >([])
+  const [networkGeneration, setNetworkGeneration] = useState(0)
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
     type: 'person',
@@ -393,9 +410,9 @@ function TreeCanvas({
   )
   const bloodNetwork = useMemo(
     () => view === 'network'
-      ? buildBloodNetwork(snapshot)
+      ? buildBloodNetwork(snapshot, networkGeneration)
       : { edges: [], nodes: [] },
-    [snapshot, view],
+    [networkGeneration, snapshot, view],
   )
   const nodes: EditorFlowNode[] = view === 'network'
     ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
@@ -504,6 +521,7 @@ function TreeCanvas({
       <LayoutToolbar
         isNetworkView={view === 'network'}
         onOptimize={onOptimizeLayout}
+        onRegenerateNetwork={() => setNetworkGeneration((generation) => generation + 1)}
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />

@@ -259,6 +259,7 @@ describe('TreeEditorPage', () => {
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
 
     await userEvent.hover(anna)
     const tooltip = within(anna).getByRole('tooltip')

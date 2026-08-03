@@ -321,6 +321,7 @@ function buildBloodFamilies(
  */
 export function buildBloodNetwork(
   snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
+  generation = 0,
 ): {
   edges: BloodNetworkFlowEdge[]
   nodes: BloodNetworkFlowNode[]
@@ -331,15 +332,18 @@ export function buildBloodNetwork(
   const families = buildBloodFamilies({ people, parentLinks: snapshot.parentLinks })
   const forceNodes: ForceNode[] = []
   const nodeCount = people.length + families.length
-  const horizontalSpread = Math.max(360, Math.sqrt(nodeCount) * 95)
-  const verticalSpread = Math.max(280, Math.sqrt(nodeCount) * 75)
+  const horizontalSpread = Math.max(1_000, Math.sqrt(nodeCount) * 200)
+  const verticalSpread = Math.max(800, Math.sqrt(nodeCount) * 170)
+  const randomPosition = () => (
+    (Math.random() + generation * 0.618_033_988_749_895) % 1
+  )
   const initializeNode = (id: string, radius: number) => {
     forceNodes.push({
       id,
       mass: 1,
       radius,
-      x: (Math.random() - 0.5) * horizontalSpread,
-      y: (Math.random() - 0.5) * verticalSpread,
+      x: (randomPosition() - 0.5) * horizontalSpread,
+      y: (randomPosition() - 0.5) * verticalSpread,
     })
   }
   people.forEach((person) => initializeNode(

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
   buildBloodNetwork,
@@ -133,8 +133,10 @@ describe('buildBloodNetwork', () => {
       parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
     }
 
-    const first = buildBloodNetwork(snapshot)
-    const second = buildBloodNetwork(snapshot)
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const first = buildBloodNetwork(snapshot, 0)
+    const second = buildBloodNetwork(snapshot, 1)
+    random.mockRestore()
 
     expect(first.nodes.map((node) => ({
       data: node.data,
@@ -160,6 +162,9 @@ describe('buildBloodNetwork', () => {
     expect(first.nodes.every((node) => (
       Number.isFinite(node.position.x) && Number.isFinite(node.position.y)
     ))).toBe(true)
+    expect(first.nodes.map((node) => node.position)).not.toEqual(
+      second.nodes.map((node) => node.position),
+    )
   })
 
   it('moves the temporary nodes on every force tick and eventually settles', () => {
