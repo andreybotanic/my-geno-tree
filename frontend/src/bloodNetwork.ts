@@ -94,8 +94,6 @@ const FORCE_DAMPING = 0.84
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 28
 const FORCE_COLLISION_STRENGTH = 0.85
-const FORCE_INITIAL_ALPHA = 0.9
-const FORCE_ALPHA_DECAY = 0.994
 const FORCE_STEPS_PER_TICK = 4
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
@@ -648,8 +646,6 @@ export function createBloodNetworkSimulation(
     target: hinge.secondParentId,
   }))
   const springs = [...relationshipEdges, ...parentPairSprings]
-  let alpha = FORCE_INITIAL_ALPHA
-
   const advance = () => {
     const force = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
@@ -690,7 +686,7 @@ export function createBloodNetworkSimulation(
             settings.unrelatedParentNodeRepulsion,
           )
           : 0
-        const magnitude = (chargeForce + collisionForce + unrelatedParentNodeForce) * alpha
+        const magnitude = chargeForce + collisionForce + unrelatedParentNodeForce
         const firstForce = force.get(first.id)
         const secondForce = force.get(second.id)
         if (!firstForce || !secondForce) {
@@ -729,17 +725,17 @@ export function createBloodNetworkSimulation(
           parentMidpoint,
           settings.descendantSideForce,
         )
-        childForce.x += descendantForces.child.x * alpha
-        childForce.y += descendantForces.child.y * alpha
-        sharedParentForce.x += descendantForces.sharedParent.x * alpha
-        sharedParentForce.y += descendantForces.sharedParent.y * alpha
+        childForce.x += descendantForces.child.x
+        childForce.y += descendantForces.child.y
+        sharedParentForce.x += descendantForces.sharedParent.x
+        sharedParentForce.y += descendantForces.sharedParent.y
         for (const parent of parents) {
           const parentForce = force.get(parent.id)
           if (!parentForce) {
             continue
           }
-          parentForce.x += descendantForces.parentMidpoint.x / parents.length * alpha
-          parentForce.y += descendantForces.parentMidpoint.y / parents.length * alpha
+          parentForce.x += descendantForces.parentMidpoint.x / parents.length
+          parentForce.y += descendantForces.parentMidpoint.y / parents.length
         }
       }
     }
@@ -766,18 +762,18 @@ export function createBloodNetworkSimulation(
         outgoingParents,
         settings.personFlowHingeStrength,
       )
-      incomingParentForce.x += hingeForces.incomingParent.x * alpha
-      incomingParentForce.y += hingeForces.incomingParent.y * alpha
-      personForce.x += hingeForces.person.x * alpha
-      personForce.y += hingeForces.person.y * alpha
+      incomingParentForce.x += hingeForces.incomingParent.x
+      incomingParentForce.y += hingeForces.incomingParent.y
+      personForce.x += hingeForces.person.x
+      personForce.y += hingeForces.person.y
       outgoingParents.forEach((parentNode, index) => {
         const parentForce = force.get(parentNode.id)
         const outgoingForce = hingeForces.outgoingParents[index]
         if (!parentForce || !outgoingForce) {
           return
         }
-        parentForce.x += outgoingForce.x * alpha
-        parentForce.y += outgoingForce.y * alpha
+        parentForce.x += outgoingForce.x
+        parentForce.y += outgoingForce.y
       })
     }
 
@@ -798,7 +794,7 @@ export function createBloodNetworkSimulation(
         currentAngle,
         settings.parentHingeTargetAngle,
         settings.parentHingeSpringStrength,
-      ) * alpha
+      )
       if (magnitude === 0) {
         continue
       }
@@ -845,7 +841,7 @@ export function createBloodNetworkSimulation(
           FORCE_MAX_SPRING_MAGNITUDE,
           (direction.distance - edge.length) * edge.strength,
         ),
-      ) * alpha
+      )
       const sourceForce = force.get(source.id)
       const targetForce = force.get(target.id)
       if (!sourceForce || !targetForce) {
@@ -885,7 +881,6 @@ export function createBloodNetworkSimulation(
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
     }
-    alpha *= FORCE_ALPHA_DECAY
   }
 
   const tick = () => {

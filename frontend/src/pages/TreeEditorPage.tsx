@@ -721,6 +721,32 @@ function TreeCanvas({
     ...(bloodNetworkPresets.find((preset) => preset.isDefault)?.forces
       ?? DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS),
   }))
+  const bloodNetworkStopThresholdRef = useRef(
+    bloodNetworkForces.averageMovementPerSecondThreshold,
+  )
+  const resumeBloodNetworkAnimation = useRef<(() => void) | null>(null)
+  const bloodNetworkSimulationForces = useMemo(() => ({
+    averageMovementPerSecondThreshold: 0,
+    baseRepulsion: bloodNetworkForces.baseRepulsion,
+    descendantSideForce: bloodNetworkForces.descendantSideForce,
+    kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
+    parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
+    parentHingeTargetAngle: bloodNetworkForces.parentHingeTargetAngle,
+    parentPairSpringStrength: bloodNetworkForces.parentPairSpringStrength,
+    personFlowHingeStrength: bloodNetworkForces.personFlowHingeStrength,
+    sharedParentSpringStrength: bloodNetworkForces.sharedParentSpringStrength,
+    unrelatedParentNodeRepulsion: bloodNetworkForces.unrelatedParentNodeRepulsion,
+  }), [
+    bloodNetworkForces.baseRepulsion,
+    bloodNetworkForces.descendantSideForce,
+    bloodNetworkForces.kinshipRepulsionStep,
+    bloodNetworkForces.parentHingeSpringStrength,
+    bloodNetworkForces.parentHingeTargetAngle,
+    bloodNetworkForces.parentPairSpringStrength,
+    bloodNetworkForces.personFlowHingeStrength,
+    bloodNetworkForces.sharedParentSpringStrength,
+    bloodNetworkForces.unrelatedParentNodeRepulsion,
+  ])
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
@@ -765,6 +791,11 @@ function TreeCanvas({
     setActiveBloodNetworkPresetId(defaultPreset.id)
     setBloodNetworkForces({ ...defaultPreset.forces })
   }, [savedBloodNetworkPresets])
+
+  useEffect(() => {
+    bloodNetworkStopThresholdRef.current = bloodNetworkForces.averageMovementPerSecondThreshold
+    resumeBloodNetworkAnimation.current?.()
+  }, [bloodNetworkForces.averageMovementPerSecondThreshold])
 
   const bloodNetworkPresetsChanged = useMemo(() => haveBloodNetworkPresetsChanged(
     bloodNetworkPresets,
@@ -830,7 +861,7 @@ function TreeCanvas({
     const simulation = createBloodNetworkSimulation({
       edges: bloodNetwork.edges,
       nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
-    }, bloodNetworkForces)
+    }, bloodNetworkSimulationForces)
     if (draggedBloodNodeId.current) {
       simulation.setNodeDragging(draggedBloodNodeId.current, true)
     }
@@ -861,7 +892,18 @@ function TreeCanvas({
       }
     }
 
-    const animate = () => {
+    let animationScheduled = false
+    const scheduleAnimation = () => {
+      if (!active || animationScheduled) {
+        return
+      }
+      animationScheduled = true
+      animationTimer = window.setTimeout(() => {
+        animationScheduled = false
+        animate()
+      }, 16)
+    }
+    function animate() {
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
       // simulation into one visible jump on a dense map.
@@ -877,15 +919,20 @@ function TreeCanvas({
       setSimulatedBloodNodes(nextNodes)
       if (
         active
-        && averageMovementPerSecond > bloodNetworkForces.averageMovementPerSecondThreshold
+        && averageMovementPerSecond > bloodNetworkStopThresholdRef.current
       ) {
-        animationTimer = window.setTimeout(animate, 16)
+        scheduleAnimation()
       }
     }
-    animationTimer = window.setTimeout(animate, 16)
+    resumeBloodNetworkAnimation.current = () => {
+      previousFrameTimestamp = performance.now()
+      scheduleAnimation()
+    }
+    scheduleAnimation()
 
     return () => {
       active = false
+      resumeBloodNetworkAnimation.current = null
       if (bloodNetworkSimulation.current === simulation) {
         bloodNetworkSimulation.current = null
       }
@@ -895,7 +942,7 @@ function TreeCanvas({
     }
   }, [
     bloodNetwork,
-    bloodNetworkForces,
+    bloodNetworkSimulationForces,
     bloodNetworkMotionRevision,
     bloodNetworkRotationPivotNodeId,
     view,

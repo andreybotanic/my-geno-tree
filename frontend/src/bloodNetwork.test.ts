@@ -645,4 +645,45 @@ describe('buildBloodNetwork', () => {
       && Math.abs(node.position.y) < 5_000
     ))).toBe(true)
   })
+
+  it('does not weaken spring forces as the simulation runs', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      people: [parent, child],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    })
+    const positionedNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => ({
+        ...node,
+        position: node.id === parent.id
+          ? { x: 0, y: 0 }
+          : node.type === 'bloodFamily'
+            ? { x: 50_000, y: 0 }
+            : { x: 100_000, y: 0 },
+      })),
+    }
+    const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      averageMovementPerSecondThreshold: 1,
+      baseRepulsion: 0,
+      descendantSideForce: 0,
+      kinshipRepulsionStep: 0,
+      parentHingeSpringStrength: 0,
+      parentHingeTargetAngle: 45,
+      parentPairSpringStrength: 0,
+      personFlowHingeStrength: 0,
+      sharedParentSpringStrength: 1,
+      unrelatedParentNodeRepulsion: 0,
+    })
+
+    for (let tick = 0; tick < 250; tick += 1) {
+      simulation.tick()
+    }
+    const before = simulation.getNodes().find((node) => node.id === parent.id)!
+    simulation.tick()
+    const after = simulation.getNodes().find((node) => node.id === parent.id)!
+
+    expect(after.position.x - before.position.x).toBeGreaterThan(10)
+  })
 })
