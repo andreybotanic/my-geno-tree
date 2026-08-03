@@ -68,8 +68,8 @@ describe('buildBloodNetwork', () => {
       expect.arrayContaining([
         expect.objectContaining({
           handles: expect.arrayContaining([
-            expect.objectContaining({ id: 'network-source', type: 'source' }),
-            expect.objectContaining({ id: 'network-target', type: 'target' }),
+            expect.objectContaining({ id: 'network-source', type: 'source', x: 36, y: 36 }),
+            expect.objectContaining({ id: 'network-target', type: 'target', x: 36, y: 36 }),
           ]),
           height: 72,
           width: 72,
@@ -78,21 +78,33 @@ describe('buildBloodNetwork', () => {
     )
     expect(network.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        data: { relation: 'familyToChild' },
+        data: {
+          relation: 'familyToChild',
+          sourceRadius: 9,
+          targetRadius: 36,
+        },
         source: 'blood-family:father:mother',
         sourceHandle: 'network-source',
         target: 'first-child',
         targetHandle: 'network-target',
       }),
       expect.objectContaining({
-        data: { relation: 'familyToChild' },
+        data: {
+          relation: 'familyToChild',
+          sourceRadius: 9,
+          targetRadius: 36,
+        },
         source: 'blood-family:father:mother',
         sourceHandle: 'network-source',
         target: 'second-child',
         targetHandle: 'network-target',
       }),
       expect.objectContaining({
-        data: { relation: 'familyToChild' },
+        data: {
+          relation: 'familyToChild',
+          sourceRadius: 9,
+          targetRadius: 36,
+        },
         source: 'blood-family:father:other-mother',
         sourceHandle: 'network-source',
         target: 'half-sibling',
@@ -101,7 +113,11 @@ describe('buildBloodNetwork', () => {
     ]))
     expect(network.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        data: { relation: 'parentToFamily' },
+        data: {
+          relation: 'parentToFamily',
+          sourceRadius: 36,
+          targetRadius: 9,
+        },
         source: 'father',
         target: 'blood-family:father:mother',
       }),

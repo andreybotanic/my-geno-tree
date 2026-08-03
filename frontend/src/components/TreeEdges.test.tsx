@@ -5,6 +5,8 @@ import type {
   FamilyFlowEdge,
   SingleParentFlowEdge,
 } from '../treeGraph'
+import type { BloodNetworkFlowEdge } from '../bloodNetwork'
+import { BloodNetworkEdge } from './BloodNetworkNodes'
 import { FamilyEdge, SingleParentEdge } from './TreeEdges'
 
 function familyProps(
@@ -212,6 +214,52 @@ describe('TreeEdges', () => {
     expect(container.querySelectorAll('.tree-edge-marriage').item(2)).toHaveAttribute(
       'd',
       'M 68 95 L 68 152 Q 68 160 76 160 L 1082 160 Q 1090 160 1090 152 L 1090 95',
+    )
+  })
+
+  it('draws blood-network arrows along the vector between node centers', () => {
+    const { container } = render(
+      <svg>
+        <BloodNetworkEdge
+          {...({
+            id: 'blood-network',
+            source: 'parent',
+            target: 'child',
+            sourceX: 100,
+            sourceY: 100,
+            targetX: 400,
+            targetY: 300,
+            sourcePosition: Position.Left,
+            targetPosition: Position.Left,
+            markerStart: undefined,
+            markerEnd: 'url(#arrow)',
+            interactionWidth: 20,
+            data: {
+              relation: 'familyToChild',
+              sourceRadius: 36,
+              targetRadius: 9,
+            },
+            selected: false,
+            animated: false,
+            label: undefined,
+            labelStyle: undefined,
+            labelShowBg: undefined,
+            labelBgStyle: undefined,
+            labelBgPadding: undefined,
+            labelBgBorderRadius: undefined,
+            style: undefined,
+          } as unknown as EdgeProps<BloodNetworkFlowEdge>)}
+        />
+      </svg>,
+    )
+
+    const distance = Math.hypot(300, 200)
+    expect(container.querySelector('.blood-network-familyToChild-edge')).toHaveAttribute(
+      'd',
+      [
+        `M ${100 + (300 / distance) * 36} ${100 + (200 / distance) * 36}`,
+        `L ${400 - (300 / distance) * 9} ${300 - (200 / distance) * 9}`,
+      ].join(' '),
     )
   })
 })

@@ -1,7 +1,12 @@
-import type { NodeProps } from '@xyflow/react'
+import {
+  BaseEdge,
+  type EdgeProps,
+  type NodeProps,
+} from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
 import {
   type BloodNetworkFamilyNode,
+  type BloodNetworkFlowEdge,
   type BloodNetworkPersonNode,
 } from '../bloodNetwork'
 import {
@@ -47,4 +52,34 @@ export function BloodNetworkFamilyNode({
     >
     </span>
   )
+}
+
+export function BloodNetworkEdge({
+  data,
+  id,
+  markerEnd,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+}: EdgeProps<BloodNetworkFlowEdge>) {
+  const deltaX = targetX - sourceX
+  const deltaY = targetY - sourceY
+  const distance = Math.hypot(deltaX, deltaY)
+  if (distance < 0.001) {
+    return null
+  }
+  const directionX = deltaX / distance
+  const directionY = deltaY / distance
+  const sourceRadius = data?.sourceRadius ?? 0
+  const targetRadius = data?.targetRadius ?? 0
+  const path = [
+    `M ${sourceX + directionX * sourceRadius} ${sourceY + directionY * sourceRadius}`,
+    `L ${targetX - directionX * targetRadius} ${targetY - directionY * targetRadius}`,
+  ].join(' ')
+
+  const className = `blood-network-${data?.relation ?? 'familyToChild'}-edge`
+  return markerEnd
+    ? <BaseEdge className={className} id={id} markerEnd={markerEnd} path={path} />
+    : <BaseEdge className={className} id={id} path={path} />
 }

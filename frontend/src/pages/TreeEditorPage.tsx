@@ -48,6 +48,7 @@ import {
 } from '../components/PersonCard'
 import {
   BloodNetworkFamilyNode,
+  BloodNetworkEdge,
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
@@ -101,6 +102,7 @@ const nodeTypes = {
   bloodFamily: BloodNetworkFamilyNode,
 }
 const edgeTypes = {
+  bloodNetwork: BloodNetworkEdge,
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
