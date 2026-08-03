@@ -64,6 +64,8 @@ export type BloodNetworkForceSettings = {
   baseRepulsion: number
   unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
+  parentHingeSpringStrength: number
+  parentHingeTargetAngle: number
   parentPairSpringStrength: number
   sharedParentSpringStrength: number
 }
@@ -80,6 +82,7 @@ const FORCE_STEPS_PER_TICK = 4
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
+const FORCE_MAX_PARENT_HINGE_MAGNITUDE = 6
 const FORCE_PARENT_TRIANGLE_REPULSION = 12
 const FORCE_PARENT_TRIANGLE_INNER_RAMP = 90
 const FORCE_PARENT_TRIANGLE_OUTER_FADE = 30
@@ -96,6 +99,8 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   baseRepulsion: 3,
   unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
+  parentHingeSpringStrength: 4,
+  parentHingeTargetAngle: 45,
   parentPairSpringStrength: 0.2,
   sharedParentSpringStrength: 0.12,
 }
@@ -309,6 +314,21 @@ export function bloodNetworkUnrelatedParentNodeRepulsion(
 ): number {
   const proximity = Math.max(0, 1 - distance / FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE)
   return strength * proximity ** 4
+}
+
+export function bloodNetworkParentHingeMagnitude(
+  currentAngle: number,
+  targetAngleDegrees: number,
+  strength: number,
+): number {
+  const targetAngle = targetAngleDegrees * Math.PI / 180
+  return Math.max(
+    -FORCE_MAX_PARENT_HINGE_MAGNITUDE,
+    Math.min(
+      FORCE_MAX_PARENT_HINGE_MAGNITUDE,
+      (targetAngle - currentAngle) * strength,
+    ),
+  )
 }
 
 export type BloodNetworkSimulation = {
@@ -538,6 +558,57 @@ export function createBloodNetworkSimulation(
         sharedParentForce.x -= forceX / 3
         sharedParentForce.y -= forceY / 3
       }
+    }
+
+    for (const triangle of parentTriangles) {
+      const firstParent = byId.get(triangle.firstParentId)
+      const secondParent = byId.get(triangle.secondParentId)
+      const sharedParentNode = byId.get(triangle.sharedParentNodeId)
+      if (!firstParent || !secondParent || !sharedParentNode) {
+        continue
+      }
+      const firstDirection = directionBetween(sharedParentNode, firstParent)
+      const secondDirection = directionBetween(sharedParentNode, secondParent)
+      const dotProduct = Math.max(-1, Math.min(1,
+        firstDirection.x * secondDirection.x + firstDirection.y * secondDirection.y,
+      ))
+      const currentAngle = Math.acos(dotProduct)
+      const magnitude = bloodNetworkParentHingeMagnitude(
+        currentAngle,
+        settings.parentHingeTargetAngle,
+        settings.parentHingeSpringStrength,
+      ) * alpha
+      if (magnitude === 0) {
+        continue
+      }
+      const crossProduct = firstDirection.x * secondDirection.y
+        - firstDirection.y * secondDirection.x
+      const orientation = crossProduct === 0
+        ? (hashId(triangle.sharedParentNodeId) % 2 === 0 ? 1 : -1)
+        : Math.sign(crossProduct)
+      const firstTangent = orientation > 0
+        ? { x: firstDirection.y, y: -firstDirection.x }
+        : { x: -firstDirection.y, y: firstDirection.x }
+      const secondTangent = orientation > 0
+        ? { x: -secondDirection.y, y: secondDirection.x }
+        : { x: secondDirection.y, y: -secondDirection.x }
+      const firstParentForce = force.get(firstParent.id)
+      const secondParentForce = force.get(secondParent.id)
+      const sharedParentForce = force.get(sharedParentNode.id)
+      if (!firstParentForce || !secondParentForce || !sharedParentForce) {
+        continue
+      }
+      const firstForceX = firstTangent.x * magnitude
+      const firstForceY = firstTangent.y * magnitude
+      const secondForceX = secondTangent.x * magnitude
+      const secondForceY = secondTangent.y * magnitude
+      // The two tangential parent forces get an equal reaction at the pivot.
+      firstParentForce.x += firstForceX
+      firstParentForce.y += firstForceY
+      secondParentForce.x += secondForceX
+      secondParentForce.y += secondForceY
+      sharedParentForce.x -= firstForceX + secondForceX
+      sharedParentForce.y -= firstForceY + secondForceY
     }
 
     for (const edge of springs) {

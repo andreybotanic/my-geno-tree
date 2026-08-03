@@ -3,6 +3,7 @@ import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
   bloodNetworkNodeMass,
+  bloodNetworkParentHingeMagnitude,
   bloodNetworkPointInTriangle,
   bloodNetworkTriangleInfluence,
   bloodNetworkUnrelatedParentNodeRepulsion,
@@ -51,6 +52,12 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkUnrelatedParentNodeRepulsion(90, 6)).toBeLessThan(0.4)
     expect(bloodNetworkUnrelatedParentNodeRepulsion(180, 6)).toBe(0)
     expect(bloodNetworkUnrelatedParentNodeRepulsion(500, 6)).toBe(0)
+  })
+
+  it('uses the target angle to correct a parent hinge in either direction', () => {
+    expect(bloodNetworkParentHingeMagnitude(Math.PI / 18, 60, 4)).toBeGreaterThan(0)
+    expect(bloodNetworkParentHingeMagnitude(Math.PI / 3, 60, 4)).toBeCloseTo(0)
+    expect(bloodNetworkParentHingeMagnitude(Math.PI * 2 / 3, 60, 4)).toBeLessThan(0)
   })
 
   it('recognizes only points inside a parent triangle', () => {
@@ -328,6 +335,8 @@ describe('buildBloodNetwork', () => {
     const simulation = createBloodNetworkSimulation(positionedNetwork, {
       baseRepulsion: 0,
       kinshipRepulsionStep: 0,
+      parentHingeSpringStrength: 0,
+      parentHingeTargetAngle: 45,
       parentPairSpringStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 0,
@@ -385,6 +394,8 @@ describe('buildBloodNetwork', () => {
     const simulation = createBloodNetworkSimulation(positionedNetwork, {
       baseRepulsion: 0,
       kinshipRepulsionStep: 0,
+      parentHingeSpringStrength: 0,
+      parentHingeTargetAngle: 45,
       parentPairSpringStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 12,
@@ -398,16 +409,78 @@ describe('buildBloodNetwork', () => {
     expect(nodes.get(intruder.id)!.position.y).toBeGreaterThan(64)
   })
 
+  it('widens an acute angle at a shared parent node', () => {
+    const firstParent = person('first-parent')
+    const secondParent = person('second-parent')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      people: [firstParent, secondParent, child],
+      parentLinks: [
+        parentLink(firstParent.id, child.id, 'first-child'),
+        parentLink(secondParent.id, child.id, 'second-child'),
+      ],
+    })
+    const sharedParentNode = network.nodes.find((node) => node.type === 'bloodFamily')!
+    const positions = new Map([
+      [firstParent.id, { x: 254, y: -114 }],
+      [secondParent.id, { x: 254, y: 42 }],
+      [child.id, { x: 964, y: -36 }],
+      [sharedParentNode.id, { x: -9, y: -9 }],
+    ])
+    const positionedNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      }),
+    }
+    const angleAtParentNode = (nodes: ReturnType<typeof simulation.getNodes>) => {
+      const center = (id: string, size: number) => {
+        const node = nodes.find((candidate) => candidate.id === id)!
+        return { x: node.position.x + size / 2, y: node.position.y + size / 2 }
+      }
+      const pivot = center(sharedParentNode.id, 18)
+      const first = center(firstParent.id, 72)
+      const second = center(secondParent.id, 72)
+      const firstLength = Math.hypot(first.x - pivot.x, first.y - pivot.y)
+      const secondLength = Math.hypot(second.x - pivot.x, second.y - pivot.y)
+      const dot = ((first.x - pivot.x) * (second.x - pivot.x)
+        + (first.y - pivot.y) * (second.y - pivot.y)) / (firstLength * secondLength)
+      return Math.acos(Math.max(-1, Math.min(1, dot)))
+    }
+    const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      baseRepulsion: 0,
+      kinshipRepulsionStep: 0,
+      parentHingeSpringStrength: 4,
+      parentHingeTargetAngle: 60,
+      parentPairSpringStrength: 0,
+      sharedParentSpringStrength: 0,
+      unrelatedParentNodeRepulsion: 0,
+      averageMovementPerSecondThreshold: 1,
+    })
+    const initialAngle = angleAtParentNode(simulation.getNodes())
+
+    for (let tick = 0; tick < 10; tick += 1) {
+      simulation.tick()
+    }
+
+    expect(angleAtParentNode(simulation.getNodes())).toBeGreaterThan(initialAngle)
+  })
+
   it('keeps a 101-person graph bounded during force simulation', () => {
     const people = Array.from({ length: 101 }, (_, index) => person(`person-${index}`))
     const parentLinks = people.slice(24).flatMap((child, index) => [
       parentLink(people[index % 12]!.id, child.id, `first-parent-${index}`),
       parentLink(people[12 + (index % 12)]!.id, child.id, `second-parent-${index}`),
     ])
-    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
-      people,
-      parentLinks,
-    }))
+    let seed = 0x12345678
+    const random = vi.spyOn(Math, 'random').mockImplementation(() => {
+      seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0
+      return seed / 0x1_0000_0000
+    })
+    const network = buildBloodNetwork({ people, parentLinks })
+    random.mockRestore()
+    const simulation = createBloodNetworkSimulation(network)
 
     for (let tick = 0; tick < 300; tick += 1) {
       simulation.tick()

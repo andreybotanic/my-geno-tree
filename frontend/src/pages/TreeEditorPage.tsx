@@ -334,6 +334,24 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           step={0.01}
         />
         <BloodNetworkForceControl
+          forceKey="parentHingeTargetAngle"
+          forces={forces}
+          label={t('editor.bloodNetworkParentHingeTargetAngle')}
+          max={120}
+          min={10}
+          onForceChange={onForceChange}
+          step={1}
+        />
+        <BloodNetworkForceControl
+          forceKey="parentHingeSpringStrength"
+          forces={forces}
+          label={t('editor.bloodNetworkParentHingeSpring')}
+          max={10}
+          min={0}
+          onForceChange={onForceChange}
+          step={0.1}
+        />
+        <BloodNetworkForceControl
           forceKey="sharedParentSpringStrength"
           forces={forces}
           label={t('editor.bloodNetworkSharedParentSpring')}
