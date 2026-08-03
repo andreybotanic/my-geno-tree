@@ -65,10 +65,17 @@ type DescendantSideFamily = {
   sharedParentNodeId: string
 }
 
+type PersonFlowHinge = {
+  incomingParentNodeId: string
+  outgoingParentNodeIds: string[]
+  personId: string
+}
+
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
   descendantSideForce: number
+  personFlowHingeStrength: number
   unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
   parentHingeSpringStrength: number
@@ -91,6 +98,7 @@ const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
 const FORCE_MAX_PARENT_HINGE_MAGNITUDE = 6
 const FORCE_MAX_DESCENDANT_SIDE_MAGNITUDE = 24
+const FORCE_MAX_PERSON_FLOW_HINGE_MAGNITUDE = 16
 const FORCE_DESCENDANT_SIDE_SAFE_ALIGNMENT = Math.cos(Math.PI * 75 / 180)
 const FORCE_DESCENDANT_SIDE_FULL_ALIGNMENT = Math.cos(Math.PI * 105 / 180)
 const FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE = 180
@@ -105,6 +113,7 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
   descendantSideForce: 12,
+  personFlowHingeStrength: 8,
   unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentHingeSpringStrength: 4,
@@ -299,6 +308,109 @@ export function bloodNetworkDescendantSideForces(
   }
 }
 
+export function bloodNetworkPersonFlowHingeMagnitude(
+  alignment: number,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.personFlowHingeStrength,
+): number {
+  return Math.min(FORCE_MAX_PERSON_FLOW_HINGE_MAGNITUDE, strength)
+    * (1 - Math.max(-1, Math.min(1, alignment))) / 2
+}
+
+export function bloodNetworkPersonFlowHingeForces(
+  incomingParent: { x: number; y: number },
+  person: { x: number; y: number },
+  outgoingParents: Array<{ x: number; y: number }>,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.personFlowHingeStrength,
+): {
+  incomingParent: { x: number; y: number }
+  outgoingParents: Array<{ x: number; y: number }>
+  person: { x: number; y: number }
+} {
+  const incomingVector = {
+    x: person.x - incomingParent.x,
+    y: person.y - incomingParent.y,
+  }
+  const incomingDistance = Math.hypot(incomingVector.x, incomingVector.y)
+  const outgoingVectors = outgoingParents.map((outgoingParent) => {
+    const vector = {
+      x: outgoingParent.x - person.x,
+      y: outgoingParent.y - person.y,
+    }
+    const distance = Math.hypot(vector.x, vector.y)
+    return { distance, vector }
+  })
+  if (incomingDistance < 0.001 || outgoingVectors.some(({ distance }) => distance < 0.001)) {
+    return {
+      incomingParent: { x: 0, y: 0 },
+      outgoingParents: outgoingParents.map(() => ({ x: 0, y: 0 })),
+      person: { x: 0, y: 0 },
+    }
+  }
+  const incomingDirection = {
+    x: incomingVector.x / incomingDistance,
+    y: incomingVector.y / incomingDistance,
+  }
+  const outgoingDirections = outgoingVectors.map(({ distance, vector }) => ({
+    x: vector.x / distance,
+    y: vector.y / distance,
+  }))
+  const outgoingSum = outgoingDirections.reduce((sum, direction) => ({
+    x: sum.x + direction.x,
+    y: sum.y + direction.y,
+  }), { x: 0, y: 0 })
+  const outgoingSumLength = Math.hypot(outgoingSum.x, outgoingSum.y)
+  if (outgoingSumLength < 0.001) {
+    return {
+      incomingParent: { x: 0, y: 0 },
+      outgoingParents: outgoingParents.map(() => ({ x: 0, y: 0 })),
+      person: { x: 0, y: 0 },
+    }
+  }
+  const outgoingDirection = {
+    x: outgoingSum.x / outgoingSumLength,
+    y: outgoingSum.y / outgoingSumLength,
+  }
+  const alignment = incomingDirection.x * outgoingDirection.x
+    + incomingDirection.y * outgoingDirection.y
+  const magnitude = bloodNetworkPersonFlowHingeMagnitude(alignment, strength)
+    * FORCE_SPRING_LENGTH
+  const incomingGradient = {
+    x: (outgoingDirection.x - incomingDirection.x * alignment) / incomingDistance,
+    y: (outgoingDirection.y - incomingDirection.y * alignment) / incomingDistance,
+  }
+  const outgoingGradients = outgoingDirections.map((direction, index) => {
+    const distance = outgoingVectors[index]!.distance
+    const incomingProjection = direction.x * incomingDirection.x
+      + direction.y * incomingDirection.y
+    const outgoingProjection = direction.x * outgoingDirection.x
+      + direction.y * outgoingDirection.y
+    return {
+      x: (incomingDirection.x - outgoingDirection.x * alignment
+        - direction.x * (incomingProjection - outgoingProjection * alignment))
+        / (outgoingSumLength * distance),
+      y: (incomingDirection.y - outgoingDirection.y * alignment
+        - direction.y * (incomingProjection - outgoingProjection * alignment))
+        / (outgoingSumLength * distance),
+    }
+  })
+  const incomingForce = {
+    x: -incomingGradient.x * magnitude,
+    y: -incomingGradient.y * magnitude,
+  }
+  const outgoingForces = outgoingGradients.map((gradient) => ({
+    x: gradient.x * magnitude,
+    y: gradient.y * magnitude,
+  }))
+  return {
+    incomingParent: incomingForce,
+    outgoingParents: outgoingForces,
+    person: {
+      x: -incomingForce.x - outgoingForces.reduce((sum, force) => sum + force.x, 0),
+      y: -incomingForce.y - outgoingForces.reduce((sum, force) => sum + force.y, 0),
+    },
+  }
+}
+
 export function bloodNetworkParentHingeMagnitude(
   currentAngle: number,
   targetAngleDegrees: number,
@@ -433,6 +545,28 @@ export function createBloodNetworkSimulation(
       sharedParentNodeId: node.id,
     }]
   })
+  const incomingParentNodeByPerson = new Map<string, string>()
+  const outgoingParentNodesByPerson = new Map<string, string[]>()
+  for (const edge of network.edges) {
+    if (edge.data?.relation === 'familyToChild') {
+      incomingParentNodeByPerson.set(edge.target, edge.source)
+      continue
+    }
+    if (edge.data?.relation === 'parentToFamily') {
+      const outgoingParentNodes = outgoingParentNodesByPerson.get(edge.source) ?? []
+      outgoingParentNodes.push(edge.target)
+      outgoingParentNodesByPerson.set(edge.source, outgoingParentNodes)
+    }
+  }
+  const personFlowHinges: PersonFlowHinge[] = [...incomingParentNodeByPerson].flatMap(([
+    personId,
+    incomingParentNodeId,
+  ]) => {
+    const outgoingParentNodeIds = outgoingParentNodesByPerson.get(personId) ?? []
+    return outgoingParentNodeIds.length === 0
+      ? []
+      : [{ incomingParentNodeId, outgoingParentNodeIds, personId }]
+  })
   const parentPairSprings: ForceEdge[] = parentHinges.map((hinge) => ({
     length: FORCE_PARENT_PAIR_SPRING_LENGTH,
     source: hinge.firstParentId,
@@ -534,6 +668,43 @@ export function createBloodNetworkSimulation(
           parentForce.y += descendantForces.parentMidpoint.y / parents.length * alpha
         }
       }
+    }
+
+    for (const hinge of personFlowHinges) {
+      const incomingParent = byId.get(hinge.incomingParentNodeId)
+      const person = byId.get(hinge.personId)
+      const outgoingParents = hinge.outgoingParentNodeIds.flatMap((parentNodeId) => {
+        const parentNode = byId.get(parentNodeId)
+        return parentNode ? [parentNode] : []
+      })
+      if (!incomingParent || !person || outgoingParents.length === 0) {
+        continue
+      }
+      const incomingParentForce = force.get(incomingParent.id)
+      const personForce = force.get(person.id)
+      const outgoingParentForces = outgoingParents.map((parentNode) => force.get(parentNode.id))
+      if (!incomingParentForce || !personForce || outgoingParentForces.some((nodeForce) => !nodeForce)) {
+        continue
+      }
+      const hingeForces = bloodNetworkPersonFlowHingeForces(
+        incomingParent,
+        person,
+        outgoingParents,
+        settings.personFlowHingeStrength,
+      )
+      incomingParentForce.x += hingeForces.incomingParent.x * alpha
+      incomingParentForce.y += hingeForces.incomingParent.y * alpha
+      personForce.x += hingeForces.person.x * alpha
+      personForce.y += hingeForces.person.y * alpha
+      outgoingParents.forEach((parentNode, index) => {
+        const parentForce = force.get(parentNode.id)
+        const outgoingForce = hingeForces.outgoingParents[index]
+        if (!parentForce || !outgoingForce) {
+          return
+        }
+        parentForce.x += outgoingForce.x * alpha
+        parentForce.y += outgoingForce.y * alpha
+      })
     }
 
     for (const hinge of parentHinges) {

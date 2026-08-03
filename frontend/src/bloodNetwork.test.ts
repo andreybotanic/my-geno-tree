@@ -6,6 +6,8 @@ import {
   bloodNetworkDescendantSideMagnitude,
   bloodNetworkNodeMass,
   bloodNetworkParentHingeMagnitude,
+  bloodNetworkPersonFlowHingeForces,
+  bloodNetworkPersonFlowHingeMagnitude,
   bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
@@ -86,6 +88,40 @@ describe('buildBloodNetwork', () => {
       torque(child, forces.child)
       + torque(sharedParent, forces.sharedParent)
       + torque(parentMidpoint, forces.parentMidpoint),
+    ).toBeCloseTo(0)
+  })
+
+  it('keeps a person flow hinge torque-balanced', () => {
+    const incomingParent = { x: 0, y: 0 }
+    const personPosition = { x: 100, y: 100 }
+    const outgoingParents = [{ x: 260, y: 120 }, { x: 230, y: 260 }]
+    const forces = bloodNetworkPersonFlowHingeForces(
+      incomingParent,
+      personPosition,
+      outgoingParents,
+      8,
+    )
+    const torque = (point: { x: number; y: number }, force: { x: number; y: number }) => (
+      point.x * force.y - point.y * force.x
+    )
+
+    expect(bloodNetworkPersonFlowHingeMagnitude(1, 8)).toBe(0)
+    expect(bloodNetworkPersonFlowHingeMagnitude(0, 8)).toBe(4)
+    expect(bloodNetworkPersonFlowHingeMagnitude(-1, 8)).toBe(8)
+    expect(
+      forces.incomingParent.x + forces.person.x
+      + forces.outgoingParents.reduce((sum, force) => sum + force.x, 0),
+    ).toBeCloseTo(0)
+    expect(
+      forces.incomingParent.y + forces.person.y
+      + forces.outgoingParents.reduce((sum, force) => sum + force.y, 0),
+    ).toBeCloseTo(0)
+    expect(
+      torque(incomingParent, forces.incomingParent)
+      + torque(personPosition, forces.person)
+      + forces.outgoingParents.reduce((sum, force, index) => (
+        sum + torque(outgoingParents[index]!, force)
+      ), 0),
     ).toBeCloseTo(0)
   })
 
@@ -313,6 +349,7 @@ describe('buildBloodNetwork', () => {
       parentHingeSpringStrength: 0,
       parentHingeTargetAngle: 45,
       parentPairSpringStrength: 0,
+      personFlowHingeStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 0,
     })
@@ -337,6 +374,71 @@ describe('buildBloodNetwork', () => {
     }
 
     expect(descendantAlignment(simulation.getNodes())).toBeGreaterThan(initialAlignment)
+  })
+
+  it('aligns a person between the incoming and outgoing blood arrows', () => {
+    const grandparent = person('grandparent')
+    const parent = person('parent')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      people: [grandparent, parent, child],
+      parentLinks: [
+        parentLink(grandparent.id, parent.id, 'grandparent-parent'),
+        parentLink(parent.id, child.id, 'parent-child'),
+      ],
+    })
+    const incomingParentNode = network.nodes.find((node) => (
+      node.type === 'bloodFamily' && node.data.childIds.includes(parent.id)
+    ))!
+    const outgoingParentNode = network.nodes.find((node) => (
+      node.type === 'bloodFamily' && node.data.parentIds.includes(parent.id)
+    ))!
+    const positions = new Map([
+      [grandparent.id, { x: -36, y: -36 }],
+      [incomingParentNode.id, { x: 91, y: -9 }],
+      [parent.id, { x: 164, y: 64 }],
+      [outgoingParentNode.id, { x: 341, y: 91 }],
+      [child.id, { x: 414, y: 64 }],
+    ])
+    const positionedNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      }),
+    }
+    const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      averageMovementPerSecondThreshold: 1,
+      baseRepulsion: 0,
+      descendantSideForce: 0,
+      kinshipRepulsionStep: 0,
+      parentHingeSpringStrength: 0,
+      parentHingeTargetAngle: 45,
+      parentPairSpringStrength: 0,
+      personFlowHingeStrength: 8,
+      sharedParentSpringStrength: 0,
+      unrelatedParentNodeRepulsion: 0,
+    })
+    const flowAlignment = (nodes: ReturnType<typeof simulation.getNodes>) => {
+      const center = (id: string, size: number) => {
+        const node = nodes.find((candidate) => candidate.id === id)!
+        return { x: node.position.x + size / 2, y: node.position.y + size / 2 }
+      }
+      const incoming = center(incomingParentNode.id, 18)
+      const currentParent = center(parent.id, 72)
+      const outgoing = center(outgoingParentNode.id, 18)
+      const incomingVector = { x: currentParent.x - incoming.x, y: currentParent.y - incoming.y }
+      const outgoingVector = { x: outgoing.x - currentParent.x, y: outgoing.y - currentParent.y }
+      return (incomingVector.x * outgoingVector.x + incomingVector.y * outgoingVector.y)
+        / (Math.hypot(incomingVector.x, incomingVector.y) * Math.hypot(outgoingVector.x, outgoingVector.y))
+    }
+    const initialAlignment = flowAlignment(simulation.getNodes())
+
+    for (let tick = 0; tick < 25; tick += 1) {
+      simulation.tick()
+    }
+
+    expect(flowAlignment(simulation.getNodes())).toBeGreaterThan(initialAlignment)
   })
 
   it('repels only people not directly connected to a parent node', () => {
@@ -368,6 +470,7 @@ describe('buildBloodNetwork', () => {
       parentHingeSpringStrength: 0,
       parentHingeTargetAngle: 45,
       parentPairSpringStrength: 0,
+      personFlowHingeStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 12,
       averageMovementPerSecondThreshold: 1,
@@ -426,6 +529,7 @@ describe('buildBloodNetwork', () => {
       parentHingeSpringStrength: 4,
       parentHingeTargetAngle: 60,
       parentPairSpringStrength: 0,
+      personFlowHingeStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 0,
       averageMovementPerSecondThreshold: 1,

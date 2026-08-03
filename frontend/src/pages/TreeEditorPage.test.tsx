@@ -265,6 +265,7 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Parent hinge target angle (°)' })).toHaveValue('45')
     expect(screen.getByRole('slider', { name: 'Parent hinge spring' })).toHaveValue('4')
     expect(screen.getByRole('slider', { name: 'Descendant-side force' })).toHaveValue('12')
+    expect(screen.getByRole('slider', { name: 'Person flow hinge' })).toHaveValue('8')
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
     expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')

@@ -361,6 +361,15 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           step={0.1}
         />
         <BloodNetworkForceControl
+          forceKey="personFlowHingeStrength"
+          forces={forces}
+          label={t('editor.bloodNetworkPersonFlowHinge')}
+          max={16}
+          min={0}
+          onForceChange={onForceChange}
+          step={0.1}
+        />
+        <BloodNetworkForceControl
           forceKey="sharedParentSpringStrength"
           forces={forces}
           label={t('editor.bloodNetworkSharedParentSpring')}
