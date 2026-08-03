@@ -360,6 +360,15 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           onForceChange={onForceChange}
           step={0.05}
         />
+        <BloodNetworkForceControl
+          forceKey="unrelatedParentNodeRepulsion"
+          forces={forces}
+          label={t('editor.bloodNetworkUnrelatedParentNodeRepulsion')}
+          max={12}
+          min={0}
+          onForceChange={onForceChange}
+          step={0.1}
+        />
       </fieldset>
     </Panel>
   )

@@ -265,6 +265,10 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
     expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')
+    expect(screen.getByRole(
+      'slider',
+      { name: 'Unrelated parent-node repulsion' },
+    )).toHaveValue('6')
     const settlementThreshold = screen.getByRole(
       'slider',
       { name: 'Settlement threshold (px/node/s)' },

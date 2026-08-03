@@ -62,6 +62,7 @@ type ParentTriangle = {
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
+  unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
   parentPairSpringStrength: number
   sharedParentSpringStrength: number
@@ -82,6 +83,7 @@ const FORCE_MAX_SPRING_MAGNITUDE = 10
 const FORCE_PARENT_TRIANGLE_REPULSION = 12
 const FORCE_PARENT_TRIANGLE_INNER_RAMP = 90
 const FORCE_PARENT_TRIANGLE_OUTER_FADE = 30
+const FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE = 180
 const FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER = 0.45
 const FORCE_KINSHIP_REPULSION_STEP = 0.3
 const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 2.25
@@ -92,6 +94,7 @@ const INITIAL_ASPECT_RATIO = 5 / 4
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
+  unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentPairSpringStrength: 0.2,
   sharedParentSpringStrength: 0.12,
@@ -300,6 +303,14 @@ export function bloodNetworkNodeMass(
   return nodeType === 'bloodFamily' ? 1 : relationshipDegree + 1
 }
 
+export function bloodNetworkUnrelatedParentNodeRepulsion(
+  distance: number,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.unrelatedParentNodeRepulsion,
+): number {
+  const proximity = Math.max(0, 1 - distance / FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE)
+  return strength * proximity ** 4
+}
+
 export type BloodNetworkSimulation = {
   getNodes: () => BloodNetworkFlowNode[]
   tick: () => void
@@ -362,6 +373,27 @@ export function createBloodNetworkSimulation(
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const nodeTypes = new Map(network.nodes.map((node) => [node.id, node.type]))
+  const directlyLinkedParentNodesByPerson = new Map<string, Set<string>>()
+  for (const edge of relationshipEdges) {
+    const sourceType = nodeTypes.get(edge.source)
+    const targetType = nodeTypes.get(edge.target)
+    const personId = sourceType === 'bloodPerson'
+      ? edge.source
+      : targetType === 'bloodPerson'
+        ? edge.target
+        : null
+    const parentNodeId = sourceType === 'bloodFamily'
+      ? edge.source
+      : targetType === 'bloodFamily'
+        ? edge.target
+        : null
+    if (!personId || !parentNodeId) {
+      continue
+    }
+    const linkedNodes = directlyLinkedParentNodesByPerson.get(personId) ?? new Set<string>()
+    linkedNodes.add(parentNodeId)
+    directlyLinkedParentNodesByPerson.set(personId, linkedNodes)
+  }
   const degree = new Map(nodes.map((node) => [node.id, 0]))
   for (const edge of relationshipEdges) {
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
@@ -424,7 +456,20 @@ export function createBloodNetworkSimulation(
           distances.get(first.id)?.get(second.id),
           settings.kinshipRepulsionStep,
         )
-        const magnitude = (chargeForce + collisionForce) * alpha
+        const person = nodeTypes.get(first.id) === 'bloodPerson' ? first : (
+          nodeTypes.get(second.id) === 'bloodPerson' ? second : null
+        )
+        const parentNode = nodeTypes.get(first.id) === 'bloodFamily' ? first : (
+          nodeTypes.get(second.id) === 'bloodFamily' ? second : null
+        )
+        const unrelatedParentNodeForce = person && parentNode
+          && !directlyLinkedParentNodesByPerson.get(person.id)?.has(parentNode.id)
+          ? bloodNetworkUnrelatedParentNodeRepulsion(
+            direction.distance,
+            settings.unrelatedParentNodeRepulsion,
+          )
+          : 0
+        const magnitude = (chargeForce + collisionForce + unrelatedParentNodeForce) * alpha
         const firstForce = force.get(first.id)
         const secondForce = force.get(second.id)
         if (!firstForce || !secondForce) {

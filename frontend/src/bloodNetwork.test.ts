@@ -5,6 +5,7 @@ import {
   bloodNetworkNodeMass,
   bloodNetworkPointInTriangle,
   bloodNetworkTriangleInfluence,
+  bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
@@ -43,6 +44,13 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkNodeMass('bloodFamily', 20)).toBe(1)
     expect(bloodNetworkNodeMass('bloodPerson', 1)).toBe(2)
     expect(bloodNetworkNodeMass('bloodPerson', 4)).toBe(5)
+  })
+
+  it('limits unrelated parent-node repulsion to a local range', () => {
+    expect(bloodNetworkUnrelatedParentNodeRepulsion(0, 6)).toBe(6)
+    expect(bloodNetworkUnrelatedParentNodeRepulsion(90, 6)).toBeLessThan(0.4)
+    expect(bloodNetworkUnrelatedParentNodeRepulsion(180, 6)).toBe(0)
+    expect(bloodNetworkUnrelatedParentNodeRepulsion(500, 6)).toBe(0)
   })
 
   it('recognizes only points inside a parent triangle', () => {
@@ -322,6 +330,7 @@ describe('buildBloodNetwork', () => {
       kinshipRepulsionStep: 0,
       parentPairSpringStrength: 0,
       sharedParentSpringStrength: 0,
+      unrelatedParentNodeRepulsion: 0,
       averageMovementPerSecondThreshold: 1,
     })
 
@@ -349,6 +358,44 @@ describe('buildBloodNetwork', () => {
       finalCenter(secondParent.id, 72),
       finalCenter(sharedParentNode.id, 18),
     )).toBe(false)
+  })
+
+  it('repels only people not directly connected to a parent node', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const intruder = person('intruder')
+    const network = buildBloodNetwork({
+      people: [parent, child, intruder],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    })
+    const parentNode = network.nodes.find((node) => node.type === 'bloodFamily')!
+    const positions = new Map([
+      [parent.id, { x: -536, y: -36 }],
+      [child.id, { x: 124, y: -36 }],
+      [intruder.id, { x: -36, y: 64 }],
+      [parentNode.id, { x: -9, y: -9 }],
+    ])
+    const positionedNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      }),
+    }
+    const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      baseRepulsion: 0,
+      kinshipRepulsionStep: 0,
+      parentPairSpringStrength: 0,
+      sharedParentSpringStrength: 0,
+      unrelatedParentNodeRepulsion: 12,
+      averageMovementPerSecondThreshold: 1,
+    })
+
+    simulation.tick()
+
+    const nodes = new Map(simulation.getNodes().map((node) => [node.id, node]))
+    expect(nodes.get(child.id)!.position).toEqual({ x: 124, y: -36 })
+    expect(nodes.get(intruder.id)!.position.y).toBeGreaterThan(64)
   })
 
   it('keeps a 101-person graph bounded during force simulation', () => {
