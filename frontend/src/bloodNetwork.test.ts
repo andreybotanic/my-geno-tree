@@ -223,20 +223,12 @@ describe('buildBloodNetwork', () => {
     ))).toBe(true)
   })
 
-  it('requires sustained low average movement before stopping', () => {
-    const parent = person('parent')
-    const child = person('child')
+  it('stops after one complete tick when every node stays still', () => {
     const simulation = createBloodNetworkSimulation(buildBloodNetwork({
-      people: [parent, child],
-      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
-    }), {
-      ...DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
-      averageMovementThreshold: 10,
-    })
+      people: [person('isolated')],
+      parentLinks: [],
+    }), DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS)
 
-    for (let tick = 0; tick < 11; tick += 1) {
-      expect(simulation.tick()).toBe(true)
-    }
     expect(simulation.tick()).toBe(false)
   })
 

@@ -110,7 +110,6 @@ const edgeTypes = {
 }
 const PREVIEW_PERSON_ID = '__new_person__'
 const LAYOUT_PROGRESS_DELAY_MS = 2_500
-const BLOOD_NETWORK_TICKS_PER_FRAME = 4
 
 function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   const initialBounds = {
@@ -581,10 +580,7 @@ function TreeCanvas({
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
       // simulation into one visible jump on a dense map.
-      let running = true
-      for (let tick = 0; tick < BLOOD_NETWORK_TICKS_PER_FRAME && running; tick += 1) {
-        running = simulation.tick()
-      }
+      const running = simulation.tick()
       const nextNodes = simulation.getNodes()
       latestBloodNodes.current = nextNodes
       setSimulatedBloodNodes(nextNodes)

@@ -69,7 +69,7 @@ const FORCE_COLLISION_PADDING = 28
 const FORCE_COLLISION_STRENGTH = 0.85
 const FORCE_INITIAL_ALPHA = 0.9
 const FORCE_ALPHA_DECAY = 0.994
-const FORCE_SETTLEMENT_STREAK_LENGTH = 12
+const FORCE_STEPS_PER_TICK = 4
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
@@ -256,9 +256,8 @@ export function createBloodNetworkSimulation(
   })
   const springs = [...relationshipEdges, ...parentPairSprings]
   let alpha = FORCE_INITIAL_ALPHA
-  let lowMovementTickCount = 0
 
-  const tick = () => {
+  const advance = () => {
     const force = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
       const first = nodes[firstIndex]
@@ -347,12 +346,16 @@ export function createBloodNetworkSimulation(
       totalMovement += Math.hypot(nodeVelocity.x, nodeVelocity.y)
     }
     alpha *= FORCE_ALPHA_DECAY
-    const averageMovement = totalMovement / Math.max(nodes.length, 1)
-    lowMovementTickCount = averageMovement > settings.averageMovementThreshold
-      ? 0
-      : lowMovementTickCount + 1
+    return totalMovement / Math.max(nodes.length, 1)
+  }
 
-    return lowMovementTickCount < FORCE_SETTLEMENT_STREAK_LENGTH
+  const tick = () => {
+    let averageMovement = 0
+    for (let step = 0; step < FORCE_STEPS_PER_TICK; step += 1) {
+      averageMovement += advance()
+    }
+
+    return averageMovement > settings.averageMovementThreshold
   }
 
   const getNodes = () => network.nodes.map((node) => {
