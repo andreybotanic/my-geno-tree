@@ -44,7 +44,6 @@ type ForceEdge = {
   target: string
 }
 
-const FORCE_ITERATIONS = 320
 const FORCE_REPULSION = 8_800
 const FORCE_SPRING_LENGTH = 155
 const FORCE_SPRING_STRENGTH = 0.035
@@ -52,6 +51,11 @@ const FORCE_DAMPING = 0.82
 const FORCE_GRAVITY = 0.002
 const FORCE_MAX_STEP = 18
 const FORCE_COLLISION_PADDING = 18
+const FORCE_INITIAL_ALPHA = 1
+const FORCE_MINIMUM_ALPHA = 0.006
+const FORCE_ALPHA_DECAY = 0.992
+const FORCE_MAX_TICKS = 640
+const FORCE_MAX_MAGNITUDE = 35
 
 function hashId(value: string): number {
   let hash = 2_166_136_261
@@ -78,14 +82,41 @@ function directionBetween(
   return { distance: 0.001, x: Math.cos(angle), y: Math.sin(angle) }
 }
 
-function layoutForceNodes(nodes: ForceNode[], edges: ForceEdge[]): Map<string, {
-  x: number
-  y: number
-}> {
+export type BloodNetworkSimulation = {
+  getNodes: () => BloodNetworkFlowNode[]
+  tick: () => boolean
+}
+
+export function createBloodNetworkSimulation(
+  network: {
+    edges: BloodNetworkFlowEdge[]
+    nodes: BloodNetworkFlowNode[]
+  },
+): BloodNetworkSimulation {
+  const nodes = network.nodes.map((node) => {
+    const size = node.type === 'bloodPerson'
+      ? BLOOD_NETWORK_PERSON_SIZE
+      : BLOOD_NETWORK_FAMILY_SIZE
+    return {
+      id: node.id,
+      radius: size / 2,
+      x: node.position.x + size / 2,
+      y: node.position.y + size / 2,
+    }
+  })
+  const edges = network.edges.map((edge) => ({
+    source: edge.source,
+    target: edge.target,
+  }))
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
+  let alpha = FORCE_INITIAL_ALPHA
+  let tickCount = 0
 
-  for (let iteration = 0; iteration < FORCE_ITERATIONS; iteration += 1) {
+  const tick = () => {
+    if (alpha < FORCE_MINIMUM_ALPHA || tickCount >= FORCE_MAX_TICKS) {
+      return false
+    }
     const force = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
       const first = nodes[firstIndex]
@@ -102,8 +133,10 @@ function layoutForceNodes(nodes: ForceNode[], edges: ForceEdge[]): Map<string, {
         const collisionForce = direction.distance < minimumDistance
           ? (minimumDistance - direction.distance) * 0.45
           : 0
-        const magnitude = FORCE_REPULSION / (direction.distance * direction.distance)
+        const magnitude = Math.min(FORCE_MAX_MAGNITUDE, (
+          FORCE_REPULSION / (direction.distance * direction.distance)
           + collisionForce
+        )) * alpha
         const firstForce = force.get(first.id)
         const secondForce = force.get(second.id)
         if (!firstForce || !secondForce) {
@@ -123,8 +156,13 @@ function layoutForceNodes(nodes: ForceNode[], edges: ForceEdge[]): Map<string, {
         continue
       }
       const direction = directionBetween(source, target)
-      const magnitude = (direction.distance - FORCE_SPRING_LENGTH)
-        * FORCE_SPRING_STRENGTH
+      const magnitude = Math.max(
+        -FORCE_MAX_MAGNITUDE,
+        Math.min(
+          FORCE_MAX_MAGNITUDE,
+          (direction.distance - FORCE_SPRING_LENGTH) * FORCE_SPRING_STRENGTH,
+        ),
+      ) * alpha
       const sourceForce = force.get(source.id)
       const targetForce = force.get(target.id)
       if (!sourceForce || !targetForce) {
@@ -142,11 +180,16 @@ function layoutForceNodes(nodes: ForceNode[], edges: ForceEdge[]): Map<string, {
       if (!nodeForce || !nodeVelocity) {
         continue
       }
-      nodeForce.x -= node.x * FORCE_GRAVITY
-      nodeForce.y -= node.y * FORCE_GRAVITY
+      nodeForce.x -= node.x * FORCE_GRAVITY * alpha
+      nodeForce.y -= node.y * FORCE_GRAVITY * alpha
       nodeVelocity.x = (nodeVelocity.x + nodeForce.x) * FORCE_DAMPING
       nodeVelocity.y = (nodeVelocity.y + nodeForce.y) * FORCE_DAMPING
       const speed = Math.hypot(nodeVelocity.x, nodeVelocity.y)
+      if (!Number.isFinite(speed)) {
+        nodeVelocity.x = 0
+        nodeVelocity.y = 0
+        continue
+      }
       if (speed > FORCE_MAX_STEP) {
         nodeVelocity.x = nodeVelocity.x / speed * FORCE_MAX_STEP
         nodeVelocity.y = nodeVelocity.y / speed * FORCE_MAX_STEP
@@ -154,9 +197,23 @@ function layoutForceNodes(nodes: ForceNode[], edges: ForceEdge[]): Map<string, {
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
     }
+    alpha *= FORCE_ALPHA_DECAY
+    tickCount += 1
+    return alpha >= FORCE_MINIMUM_ALPHA && tickCount < FORCE_MAX_TICKS
   }
 
-  return new Map(nodes.map((node) => [node.id, { x: node.x, y: node.y }]))
+  const getNodes = () => network.nodes.map((node) => {
+    const size = node.type === 'bloodPerson'
+      ? BLOOD_NETWORK_PERSON_SIZE
+      : BLOOD_NETWORK_FAMILY_SIZE
+    const position = byId.get(node.id) ?? { x: 0, y: 0 }
+    return {
+      ...node,
+      position: { x: position.x - size / 2, y: position.y - size / 2 },
+    }
+  })
+
+  return { getNodes, tick }
 }
 
 function buildBloodFamilies(
@@ -231,9 +288,8 @@ export function buildBloodNetwork(
     ...family.parentIds.map((parentId) => ({ source: parentId, target: family.id })),
     ...family.childIds.map((childId) => ({ source: family.id, target: childId })),
   ])
-  const positions = layoutForceNodes(forceNodes, forceEdges)
   const positionFor = (id: string, size: number) => {
-    const position = positions.get(id) ?? { x: 0, y: 0 }
+    const position = forceNodes.find((node) => node.id === id) ?? { x: 0, y: 0 }
     return { x: position.x - size / 2, y: position.y - size / 2 }
   }
 

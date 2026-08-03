@@ -77,6 +77,7 @@ import {
 } from '../treeGraph'
 import {
   buildBloodNetwork,
+  createBloodNetworkSimulation,
   type BloodNetworkFlowEdge,
   type BloodNetworkFlowNode,
 } from '../bloodNetwork'
@@ -326,6 +327,9 @@ function TreeCanvas({
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
   const centered = useRef(false)
+  const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
+    BloodNetworkFlowNode[]
+  >([])
   const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
     id: person.id,
     type: 'person',
@@ -344,7 +348,9 @@ function TreeCanvas({
     [snapshot, view],
   )
   const nodes: EditorFlowNode[] = view === 'network'
-    ? bloodNetwork.nodes
+    ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
+      ? simulatedBloodNodes
+      : bloodNetwork.nodes)
     : treeNodes
   const activeEdges: EditorFlowEdge[] = view === 'network'
     ? bloodNetwork.edges
@@ -372,15 +378,36 @@ function TreeCanvas({
   }, [centerFirstPerson, view])
 
   useEffect(() => {
-    if (view !== 'network' || !instance.current) {
+    if (view !== 'network') {
+      setSimulatedBloodNodes([])
       return
     }
-    const animationFrame = window.requestAnimationFrame(() => {
-      void instance.current?.fitView({ duration: 180, padding: 0.2 })
+    const simulation = createBloodNetworkSimulation(bloodNetwork)
+    let animationFrame: number | null = null
+    let active = true
+    setSimulatedBloodNodes(simulation.getNodes())
+
+    const animate = () => {
+      const running = simulation.tick()
+      setSimulatedBloodNodes(simulation.getNodes())
+      if (active && running) {
+        animationFrame = window.requestAnimationFrame(animate)
+      }
+    }
+    animationFrame = window.requestAnimationFrame(() => {
+      animationFrame = window.requestAnimationFrame(() => {
+        void instance.current?.fitView({ duration: 0, padding: 0.2 })
+        animate()
+      })
     })
 
-    return () => window.cancelAnimationFrame(animationFrame)
-  }, [bloodNetwork.nodes, view])
+    return () => {
+      active = false
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+    }
+  }, [bloodNetwork, view])
 
   return (
     <ReactFlow<EditorFlowNode, EditorFlowEdge>

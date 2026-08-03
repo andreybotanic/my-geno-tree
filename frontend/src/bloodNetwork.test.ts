@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
-import { buildBloodNetwork } from './bloodNetwork'
+import {
+  buildBloodNetwork,
+  createBloodNetworkSimulation,
+} from './bloodNetwork'
 
 function person(id: string): Person {
   return {
@@ -83,6 +86,35 @@ describe('buildBloodNetwork', () => {
     ]))
     expect(first.nodes.every((node) => (
       Number.isFinite(node.position.x) && Number.isFinite(node.position.y)
+    ))).toBe(true)
+  })
+
+  it('moves the temporary nodes on every force tick and eventually settles', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      people: [parent, child],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    })
+    const simulation = createBloodNetworkSimulation(network)
+    const initialPositions = simulation.getNodes().map((node) => node.position)
+
+    expect(simulation.tick()).toBe(true)
+    expect(simulation.getNodes().map((node) => node.position)).not.toEqual(
+      initialPositions,
+    )
+
+    let running = true
+    for (let tick = 0; tick < 700 && running; tick += 1) {
+      running = simulation.tick()
+    }
+
+    expect(running).toBe(false)
+    expect(simulation.getNodes().every((node) => (
+      Number.isFinite(node.position.x) && Number.isFinite(node.position.y)
+    ))).toBe(true)
+    expect(simulation.getNodes().every((node) => (
+      Math.abs(node.position.x) < 1_000 && Math.abs(node.position.y) < 1_000
     ))).toBe(true)
   })
 })
