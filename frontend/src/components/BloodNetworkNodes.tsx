@@ -1,16 +1,14 @@
 import {
-  BaseEdge,
-  Handle,
-  Position,
-  useUpdateNodeInternals,
-  type EdgeProps,
   type NodeProps,
+  ViewportPortal,
 } from '@xyflow/react'
-import { useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  BLOOD_NETWORK_FAMILY_SIZE,
+  BLOOD_NETWORK_PERSON_SIZE,
   type BloodNetworkFamilyNode,
   type BloodNetworkFlowEdge,
+  type BloodNetworkFlowNode,
   type BloodNetworkPersonNode,
 } from '../bloodNetwork'
 import {
@@ -19,51 +17,89 @@ import {
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
 
-const centeredNetworkHandleStyle = {
-  height: 0,
-  left: '50%',
-  opacity: 0,
-  pointerEvents: 'none' as const,
-  top: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 0,
+const BLOOD_NETWORK_ARROW_MARKER_ID = 'blood-network-arrowhead'
+
+function bloodNetworkNodeCenter(node: BloodNetworkFlowNode) {
+  const size = node.type === 'bloodPerson'
+    ? BLOOD_NETWORK_PERSON_SIZE
+    : BLOOD_NETWORK_FAMILY_SIZE
+  return {
+    x: node.position.x + size / 2,
+    y: node.position.y + size / 2,
+  }
 }
 
-function BloodNetworkHandles() {
+export function BloodNetworkEdgesOverlay({
+  edges,
+  nodes,
+}: {
+  edges: BloodNetworkFlowEdge[]
+  nodes: BloodNetworkFlowNode[]
+}) {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]))
+
   return (
-    <>
-      <Handle
-        id="network-target"
-        isConnectable={false}
-        position={Position.Left}
-        style={centeredNetworkHandleStyle}
-        type="target"
-      />
-      <Handle
-        id="network-source"
-        isConnectable={false}
-        position={Position.Left}
-        style={centeredNetworkHandleStyle}
-        type="source"
-      />
-    </>
+    <ViewportPortal>
+      <svg
+        aria-hidden="true"
+        className="blood-network-edge-overlay"
+        height="1"
+        width="1"
+      >
+        <defs>
+          <marker
+            id={BLOOD_NETWORK_ARROW_MARKER_ID}
+            markerHeight="8"
+            markerUnits="strokeWidth"
+            markerWidth="8"
+            orient="auto"
+            refX="7"
+            refY="4"
+            viewBox="0 0 8 8"
+          >
+            <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
+          </marker>
+        </defs>
+        {edges.map((edge) => {
+          const source = nodesById.get(edge.source)
+          const target = nodesById.get(edge.target)
+          if (!source || !target) {
+            return null
+          }
+          const sourceCenter = bloodNetworkNodeCenter(source)
+          const targetCenter = bloodNetworkNodeCenter(target)
+          const deltaX = targetCenter.x - sourceCenter.x
+          const deltaY = targetCenter.y - sourceCenter.y
+          const distance = Math.hypot(deltaX, deltaY)
+          if (distance < 0.001) {
+            return null
+          }
+          const directionX = deltaX / distance
+          const directionY = deltaY / distance
+          const sourceRadius = edge.data?.sourceRadius ?? 0
+          const targetRadius = edge.data?.targetRadius ?? 0
+
+          return (
+            <line
+              className={`blood-network-${edge.data?.relation ?? 'familyToChild'}-edge`}
+              key={edge.id}
+              markerEnd={`url(#${BLOOD_NETWORK_ARROW_MARKER_ID})`}
+              x1={sourceCenter.x + directionX * sourceRadius}
+              x2={targetCenter.x - directionX * targetRadius}
+              y1={sourceCenter.y + directionY * sourceRadius}
+              y2={targetCenter.y - directionY * targetRadius}
+            />
+          )
+        })}
+      </svg>
+    </ViewportPortal>
   )
-}
-
-function useRegisterBloodNetworkHandles(nodeId: string) {
-  const updateNodeInternals = useUpdateNodeInternals()
-
-  useLayoutEffect(() => {
-    updateNodeInternals(nodeId)
-  }, [nodeId, updateNodeInternals])
 }
 
 export function BloodNetworkPersonNode({
   data,
-  id,
   selected,
 }: NodeProps<BloodNetworkPersonNode>) {
-  useRegisterBloodNetworkHandles(id)
   const { i18n, t } = useTranslation()
   const name = formatPersonName(data.person, t)
   const lifePeriod = formatLifePeriod(
@@ -87,53 +123,19 @@ export function BloodNetworkPersonNode({
         <strong>{name}</strong>
         <span>{lifePeriod}</span>
       </span>
-      <BloodNetworkHandles />
     </article>
   )
 }
 
 export function BloodNetworkFamilyNode({
   data,
-  id,
   selected,
 }: NodeProps<BloodNetworkFamilyNode>) {
-  useRegisterBloodNetworkHandles(id)
   return (
     <span
       aria-label={`Shared parents of ${data.childIds.length} children`}
       className={`blood-network-family${selected ? ' blood-network-rotation-pivot' : ''}`}
     >
-      <BloodNetworkHandles />
     </span>
   )
-}
-
-export function BloodNetworkEdge({
-  data,
-  id,
-  markerEnd,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-}: EdgeProps<BloodNetworkFlowEdge>) {
-  const deltaX = targetX - sourceX
-  const deltaY = targetY - sourceY
-  const distance = Math.hypot(deltaX, deltaY)
-  if (distance < 0.001) {
-    return null
-  }
-  const directionX = deltaX / distance
-  const directionY = deltaY / distance
-  const sourceRadius = data?.sourceRadius ?? 0
-  const targetRadius = data?.targetRadius ?? 0
-  const path = [
-    `M ${sourceX + directionX * sourceRadius} ${sourceY + directionY * sourceRadius}`,
-    `L ${targetX - directionX * targetRadius} ${targetY - directionY * targetRadius}`,
-  ].join(' ')
-
-  const className = `blood-network-${data?.relation ?? 'familyToChild'}-edge`
-  return markerEnd
-    ? <BaseEdge className={className} id={id} markerEnd={markerEnd} path={path} />
-    : <BaseEdge className={className} id={id} path={path} />
 }

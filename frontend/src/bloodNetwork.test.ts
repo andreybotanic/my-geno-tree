@@ -216,9 +216,7 @@ describe('buildBloodNetwork', () => {
           targetRadius: 36,
         },
         source: 'blood-family:father:mother',
-        sourceHandle: 'network-source',
         target: 'first-child',
-        targetHandle: 'network-target',
       }),
       expect.objectContaining({
         data: {
@@ -227,9 +225,7 @@ describe('buildBloodNetwork', () => {
           targetRadius: 36,
         },
         source: 'blood-family:father:mother',
-        sourceHandle: 'network-source',
         target: 'second-child',
-        targetHandle: 'network-target',
       }),
       expect.objectContaining({
         data: {
@@ -238,9 +234,7 @@ describe('buildBloodNetwork', () => {
           targetRadius: 36,
         },
         source: 'blood-family:father:other-mother',
-        sourceHandle: 'network-source',
         target: 'half-sibling',
-        targetHandle: 'network-target',
       }),
     ]))
     expect(network.edges).toEqual(expect.arrayContaining([

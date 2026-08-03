@@ -1190,6 +1190,24 @@
   stroke-width: 2;
 }
 
+.blood-network-edge-overlay {
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
+.blood-network-edge-overlay .blood-network-parentToFamily-edge {
+  stroke: var(--color-state-warning-strong);
+  stroke-width: 2.4;
+}
+
+.blood-network-edge-overlay .blood-network-familyToChild-edge {
+  stroke: color-mix(in srgb, var(--color-graph-line) 84%, var(--color-text-strong));
+  stroke-width: 2;
+}
+
 .blood-network-legend {
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);

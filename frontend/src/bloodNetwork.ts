@@ -1064,9 +1064,7 @@ export function buildBloodNetwork(
         type: MarkerType.ArrowClosed,
       },
       source: edge.source,
-      sourceHandle: 'network-source',
       target: edge.target,
-      targetHandle: 'network-target',
       type: 'bloodNetwork' as const,
     })),
   }

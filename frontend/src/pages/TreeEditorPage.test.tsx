@@ -262,9 +262,8 @@ describe('TreeEditorPage', () => {
     expect(anna).toHaveClass('blood-network-person')
     expect(anna.closest('.react-flow__node')).toHaveClass('draggable')
     expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
-    expect(document.querySelectorAll('.react-flow__handle')).toHaveLength(8)
     await waitFor(() => {
-      expect(document.querySelectorAll('.react-flow__edge')).toHaveLength(2)
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
@@ -273,11 +272,16 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Regenerate blood network' }))
     await waitFor(() => {
-      expect(document.querySelectorAll('.react-flow__edge')).toHaveLength(2)
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
     await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
+    await userEvent.click(parentPairSpring)
+    await userEvent.keyboard('{ArrowRight}')
+    await waitFor(() => {
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
+    })
     expect(screen.getByRole('slider', { name: 'Parent hinge target angle (°)' })).toHaveValue('45')
     expect(screen.getByRole('slider', { name: 'Parent hinge spring' })).toHaveValue('4')
     expect(screen.getByRole('slider', { name: 'Descendant-side force' })).toHaveValue('12')

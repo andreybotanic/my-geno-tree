@@ -52,7 +52,7 @@ import {
 } from '../components/PersonCard'
 import {
   BloodNetworkFamilyNode,
-  BloodNetworkEdge,
+  BloodNetworkEdgesOverlay,
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
@@ -113,7 +113,6 @@ const nodeTypes = {
   bloodFamily: BloodNetworkFamilyNode,
 }
 const edgeTypes = {
-  bloodNetwork: BloodNetworkEdge,
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
@@ -823,17 +822,18 @@ function TreeCanvas({
       ? restoreBloodNetworkNodePositions(generatedBloodNetwork, snapshot.bloodNetworkState)
       : generatedBloodNetwork
   ), [generatedBloodNetwork, isSavedBloodNetworkStateCompatible, snapshot.bloodNetworkState])
-  const nodes: EditorFlowNode[] = view === 'network'
+  const activeBloodNodes = view === 'network'
     ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
       ? simulatedBloodNodes
-      : bloodNetwork.nodes).map((node) => ({
+      : bloodNetwork.nodes)
+    : []
+  const nodes: EditorFlowNode[] = view === 'network'
+    ? activeBloodNodes.map((node) => ({
         ...node,
         selected: node.id === bloodNetworkRotationPivotNodeId,
       }))
     : treeNodes
-  const activeEdges: EditorFlowEdge[] = view === 'network'
-    ? bloodNetwork.edges
-    : edges
+  const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : edges
 
   useEffect(() => {
     const presets = savedBloodNetworkPresets.map((preset) => ({
@@ -1193,6 +1193,12 @@ function TreeCanvas({
       zoomOnPinch={!layoutSearch}
       zoomOnScroll={!layoutSearch}
     >
+      {view === 'network' && (
+        <BloodNetworkEdgesOverlay
+          edges={bloodNetwork.edges}
+          nodes={activeBloodNodes}
+        />
+      )}
       <Background color="var(--color-border)" gap={22} size={1} />
       <LayoutToolbar
         isNetworkView={view === 'network'}
