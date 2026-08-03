@@ -53,15 +53,22 @@ type ForceEdge = {
   target: string
 }
 
-type ParentTriangle = {
+type ParentHinge = {
   firstParentId: string
   secondParentId: string
+  sharedParentNodeId: string
+}
+
+type DescendantSideFamily = {
+  childIds: string[]
+  parentIds: string[]
   sharedParentNodeId: string
 }
 
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
+  descendantSideForce: number
   unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
   parentHingeSpringStrength: number
@@ -83,9 +90,9 @@ const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
 const FORCE_MAX_PARENT_HINGE_MAGNITUDE = 6
-const FORCE_PARENT_TRIANGLE_REPULSION = 12
-const FORCE_PARENT_TRIANGLE_INNER_RAMP = 90
-const FORCE_PARENT_TRIANGLE_OUTER_FADE = 30
+const FORCE_MAX_DESCENDANT_SIDE_MAGNITUDE = 24
+const FORCE_DESCENDANT_SIDE_SAFE_ALIGNMENT = Math.cos(Math.PI * 75 / 180)
+const FORCE_DESCENDANT_SIDE_FULL_ALIGNMENT = Math.cos(Math.PI * 105 / 180)
 const FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE = 180
 const FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER = 0.45
 const FORCE_KINSHIP_REPULSION_STEP = 0.3
@@ -97,6 +104,7 @@ const INITIAL_ASPECT_RATIO = 5 / 4
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
+  descendantSideForce: 12,
   unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentHingeSpringStrength: 4,
@@ -168,92 +176,24 @@ function directionFromPoint(
   return { x: Math.cos(angle), y: Math.sin(angle) }
 }
 
-function distanceToSegment(
-  point: { x: number; y: number },
-  first: { x: number; y: number },
-  second: { x: number; y: number },
-): number {
-  const dx = second.x - first.x
-  const dy = second.y - first.y
-  const lengthSquared = dx * dx + dy * dy
-  if (lengthSquared < 0.001) {
-    return Math.hypot(point.x - first.x, point.y - first.y)
-  }
-
-  const projection = Math.max(0, Math.min(1, (
-    (point.x - first.x) * dx + (point.y - first.y) * dy
-  ) / lengthSquared))
-  return Math.hypot(
-    point.x - (first.x + dx * projection),
-    point.y - (first.y + dy * projection),
-  )
-}
-
-export function bloodNetworkPointInTriangle(
-  point: { x: number; y: number },
-  first: { x: number; y: number },
-  second: { x: number; y: number },
-  third: { x: number; y: number },
-): boolean {
-  const side = (from: { x: number; y: number }, to: { x: number; y: number }) => (
-    (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x)
-  )
-  const firstSide = side(first, second)
-  const secondSide = side(second, third)
-  const thirdSide = side(third, first)
-
-  return (firstSide > 0 && secondSide > 0 && thirdSide > 0)
-    || (firstSide < 0 && secondSide < 0 && thirdSide < 0)
-}
-
-export function bloodNetworkTriangleInfluence(
-  point: { x: number; y: number },
-  first: { x: number; y: number },
-  second: { x: number; y: number },
-  third: { x: number; y: number },
-): number {
-  const distanceToEdge = Math.min(
-    distanceToSegment(point, first, second),
-    distanceToSegment(point, second, third),
-    distanceToSegment(point, third, first),
-  )
-  const signedDistance = bloodNetworkPointInTriangle(point, first, second, third)
-    ? distanceToEdge
-    : -distanceToEdge
-  const progress = Math.max(0, Math.min(1, (
-    signedDistance + FORCE_PARENT_TRIANGLE_OUTER_FADE
-  ) / (FORCE_PARENT_TRIANGLE_OUTER_FADE + FORCE_PARENT_TRIANGLE_INNER_RAMP)))
-
-  return progress * progress * (3 - 2 * progress)
-}
-
-function parentTriangleEscapeDirection(
-  centroid: { x: number; y: number },
-  firstParent: ForceNode,
-  secondParent: ForceNode,
-  sharedParentNode: ForceNode,
-  node: ForceNode,
+function descendantSideDirection(
+  childDirection: { x: number; y: number },
+  descendantDirection: { x: number; y: number },
+  childId: string,
 ): { x: number; y: number } {
-  const parentMidpoint = {
-    x: (firstParent.x + secondParent.x) / 2,
-    y: (firstParent.y + secondParent.y) / 2,
-  }
-  const towardSharedParent = directionFromPoint(parentMidpoint, sharedParentNode)
-  const radial = directionFromPoint(centroid, node)
-  const tangent = { x: -towardSharedParent.y, y: towardSharedParent.x }
-  const lateralProjection = radial.x * tangent.x + radial.y * tangent.y
-  const lateralBias = Math.abs(lateralProjection) < 0.2
-    ? (hashId(node.id) % 2 === 0 ? 0.65 : -0.65)
-    : 0
-  // The radial component gives neighbouring children different side exits.
-  // The stronger apex component keeps every exit direction away from the
-  // parent-to-parent edge, so a child cannot drag the whole graph through it.
-  const x = radial.x + towardSharedParent.x * 1.5 + tangent.x * lateralBias
-  const y = radial.y + towardSharedParent.y * 1.5 + tangent.y * lateralBias
+  const alignment = childDirection.x * descendantDirection.x
+    + childDirection.y * descendantDirection.y
+  const x = descendantDirection.x - childDirection.x * alignment
+  const y = descendantDirection.y - childDirection.y * alignment
   const length = Math.hypot(x, y)
-  return length > 0.001
-    ? { x: x / length, y: y / length }
-    : towardSharedParent
+  if (length > 0.001) {
+    return { x: x / length, y: y / length }
+  }
+
+  const clockwise = hashId(childId) % 2 === 0
+  return clockwise
+    ? { x: -childDirection.y, y: childDirection.x }
+    : { x: childDirection.y, y: -childDirection.x }
 }
 
 function bloodGraphDistances(
@@ -314,6 +254,19 @@ export function bloodNetworkUnrelatedParentNodeRepulsion(
 ): number {
   const proximity = Math.max(0, 1 - distance / FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE)
   return strength * proximity ** 4
+}
+
+export function bloodNetworkDescendantSideMagnitude(
+  alignment: number,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.descendantSideForce,
+): number {
+  const progress = Math.max(0, Math.min(1, (
+    FORCE_DESCENDANT_SIDE_SAFE_ALIGNMENT - alignment
+  ) / (
+    FORCE_DESCENDANT_SIDE_SAFE_ALIGNMENT - FORCE_DESCENDANT_SIDE_FULL_ALIGNMENT
+  )))
+  const smoothProgress = progress * progress * (3 - 2 * progress)
+  return Math.min(FORCE_MAX_DESCENDANT_SIDE_MAGNITUDE, strength) * smoothProgress
 }
 
 export function bloodNetworkParentHingeMagnitude(
@@ -428,7 +381,7 @@ export function createBloodNetworkSimulation(
       degree.get(node.id) ?? 0,
     )
   }
-  const parentTriangles: ParentTriangle[] = network.nodes.flatMap((node) => {
+  const parentHinges: ParentHinge[] = network.nodes.flatMap((node) => {
     if (node.type !== 'bloodFamily') {
       return []
     }
@@ -440,11 +393,21 @@ export function createBloodNetworkSimulation(
       }))
     ))
   })
-  const parentPairSprings: ForceEdge[] = parentTriangles.map((triangle) => ({
+  const descendantSideFamilies: DescendantSideFamily[] = network.nodes.flatMap((node) => {
+    if (node.type !== 'bloodFamily' || node.data.parentIds.length === 0) {
+      return []
+    }
+    return [{
+      childIds: node.data.childIds,
+      parentIds: node.data.parentIds,
+      sharedParentNodeId: node.id,
+    }]
+  })
+  const parentPairSprings: ForceEdge[] = parentHinges.map((hinge) => ({
     length: FORCE_PARENT_PAIR_SPRING_LENGTH,
-    source: triangle.firstParentId,
+    source: hinge.firstParentId,
     strength: settings.parentPairSpringStrength,
-    target: triangle.secondParentId,
+    target: hinge.secondParentId,
   }))
   const springs = [...relationshipEdges, ...parentPairSprings]
   let alpha = FORCE_INITIAL_ALPHA
@@ -502,68 +465,63 @@ export function createBloodNetworkSimulation(
       }
     }
 
-    for (const triangle of parentTriangles) {
-      const firstParent = byId.get(triangle.firstParentId)
-      const secondParent = byId.get(triangle.secondParentId)
-      const sharedParentNode = byId.get(triangle.sharedParentNodeId)
-      if (!firstParent || !secondParent || !sharedParentNode) {
+    for (const family of descendantSideFamilies) {
+      const sharedParentNode = byId.get(family.sharedParentNodeId)
+      const parents = family.parentIds.flatMap((parentId) => {
+        const parent = byId.get(parentId)
+        return parent ? [parent] : []
+      })
+      if (!sharedParentNode || parents.length === 0) {
         continue
       }
-      const centroid = {
-        x: (firstParent.x + secondParent.x + sharedParentNode.x) / 3,
-        y: (firstParent.y + secondParent.y + sharedParentNode.y) / 3,
-      }
-      for (const node of nodes) {
-        if (
-          node.id === triangle.firstParentId
-          || node.id === triangle.secondParentId
-          || node.id === triangle.sharedParentNodeId
-        ) {
-          continue
-        }
-        const influence = bloodNetworkTriangleInfluence(
-          node,
-          firstParent,
-          secondParent,
-          sharedParentNode,
-        )
-        if (influence === 0) {
-          continue
-        }
-        const nodeForce = force.get(node.id)
-        const firstParentForce = force.get(firstParent.id)
-        const secondParentForce = force.get(secondParent.id)
+      const parentMidpoint = parents.reduce((midpoint, parent) => ({
+        x: midpoint.x + parent.x / parents.length,
+        y: midpoint.y + parent.y / parents.length,
+      }), { x: 0, y: 0 })
+      const descendantDirection = directionFromPoint(parentMidpoint, sharedParentNode)
+      for (const childId of family.childIds) {
+        const child = byId.get(childId)
+        const childForce = force.get(childId)
         const sharedParentForce = force.get(sharedParentNode.id)
-        if (!nodeForce || !firstParentForce || !secondParentForce || !sharedParentForce) {
+        if (!child || !childForce || !sharedParentForce) {
           continue
         }
-        const direction = parentTriangleEscapeDirection(
-          centroid,
-          firstParent,
-          secondParent,
-          sharedParentNode,
-          node,
+        const childDirection = directionBetween(sharedParentNode, child)
+        const alignment = childDirection.x * descendantDirection.x
+          + childDirection.y * descendantDirection.y
+        const magnitude = bloodNetworkDescendantSideMagnitude(
+          alignment,
+          settings.descendantSideForce,
+        ) * alpha
+        if (magnitude === 0) {
+          continue
+        }
+        const direction = descendantSideDirection(
+          childDirection,
+          descendantDirection,
+          child.id,
         )
-        const magnitude = FORCE_PARENT_TRIANGLE_REPULSION * influence
         const forceX = direction.x * magnitude
         const forceY = direction.y * magnitude
-        // This internal force has an equal reaction distributed to all three
-        // triangle vertices, so their combined force sums to zero.
-        nodeForce.x += forceX
-        nodeForce.y += forceY
-        firstParentForce.x -= forceX / 3
-        firstParentForce.y -= forceY / 3
-        secondParentForce.x -= forceX / 3
-        secondParentForce.y -= forceY / 3
-        sharedParentForce.x -= forceX / 3
-        sharedParentForce.y -= forceY / 3
+        childForce.x += forceX
+        childForce.y += forceY
+        sharedParentForce.x -= forceX / 2
+        sharedParentForce.y -= forceY / 2
+        for (const parent of parents) {
+          const parentForce = force.get(parent.id)
+          if (!parentForce) {
+            continue
+          }
+          parentForce.x -= forceX / (parents.length * 2)
+          parentForce.y -= forceY / (parents.length * 2)
+        }
       }
     }
 
-    for (const triangle of parentTriangles) {
-      const firstParent = byId.get(triangle.firstParentId)
-      const secondParent = byId.get(triangle.secondParentId)
-      const sharedParentNode = byId.get(triangle.sharedParentNodeId)
+    for (const hinge of parentHinges) {
+      const firstParent = byId.get(hinge.firstParentId)
+      const secondParent = byId.get(hinge.secondParentId)
+      const sharedParentNode = byId.get(hinge.sharedParentNodeId)
       if (!firstParent || !secondParent || !sharedParentNode) {
         continue
       }
@@ -584,7 +542,7 @@ export function createBloodNetworkSimulation(
       const crossProduct = firstDirection.x * secondDirection.y
         - firstDirection.y * secondDirection.x
       const orientation = crossProduct === 0
-        ? (hashId(triangle.sharedParentNodeId) % 2 === 0 ? 1 : -1)
+        ? (hashId(hinge.sharedParentNodeId) % 2 === 0 ? 1 : -1)
         : Math.sign(crossProduct)
       const firstTangent = orientation > 0
         ? { x: firstDirection.y, y: -firstDirection.x }

@@ -352,6 +352,15 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           step={0.1}
         />
         <BloodNetworkForceControl
+          forceKey="descendantSideForce"
+          forces={forces}
+          label={t('editor.bloodNetworkDescendantSideForce')}
+          max={24}
+          min={0}
+          onForceChange={onForceChange}
+          step={0.1}
+        />
+        <BloodNetworkForceControl
           forceKey="sharedParentSpringStrength"
           forces={forces}
           label={t('editor.bloodNetworkSharedParentSpring')}

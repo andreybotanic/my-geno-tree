@@ -2,10 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
+  bloodNetworkDescendantSideMagnitude,
   bloodNetworkNodeMass,
   bloodNetworkParentHingeMagnitude,
-  bloodNetworkPointInTriangle,
-  bloodNetworkTriangleInfluence,
   bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
@@ -60,51 +59,10 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkParentHingeMagnitude(Math.PI * 2 / 3, 60, 4)).toBeLessThan(0)
   })
 
-  it('recognizes only points inside a parent triangle', () => {
-    const firstParent = { x: 0, y: 0 }
-    const secondParent = { x: 10, y: 0 }
-    const sharedParentNode = { x: 5, y: 10 }
-
-    expect(bloodNetworkPointInTriangle(
-      { x: 5, y: 4 },
-      firstParent,
-      secondParent,
-      sharedParentNode,
-    )).toBe(true)
-    expect(bloodNetworkPointInTriangle(
-      { x: 11, y: 4 },
-      firstParent,
-      secondParent,
-      sharedParentNode,
-    )).toBe(false)
-  })
-
-  it('smoothly fades the parent-triangle force across its boundary', () => {
-    const firstParent = { x: 0, y: 0 }
-    const secondParent = { x: 200, y: 0 }
-    const sharedParentNode = { x: 100, y: 200 }
-    const justOutside = bloodNetworkTriangleInfluence(
-      { x: 100, y: -1 },
-      firstParent,
-      secondParent,
-      sharedParentNode,
-    )
-    const justInside = bloodNetworkTriangleInfluence(
-      { x: 100, y: 1 },
-      firstParent,
-      secondParent,
-      sharedParentNode,
-    )
-
-    expect(bloodNetworkTriangleInfluence(
-      { x: 100, y: -31 },
-      firstParent,
-      secondParent,
-      sharedParentNode,
-    )).toBe(0)
-    expect(justOutside).toBeGreaterThan(0)
-    expect(justInside).toBeGreaterThan(justOutside)
-    expect(justInside - justOutside).toBeLessThan(0.03)
+  it('turns children toward the descendant side without a sharp boundary', () => {
+    expect(bloodNetworkDescendantSideMagnitude(1, 12)).toBe(0)
+    expect(bloodNetworkDescendantSideMagnitude(0.1, 12)).toBeGreaterThan(0)
+    expect(bloodNetworkDescendantSideMagnitude(-1, 12)).toBe(12)
   })
 
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
@@ -298,26 +256,23 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkAverageNodeMovement(network.nodes, shiftedNodes)).toBe(5)
   })
 
-  it('expels a non-family node from inside a parent triangle', () => {
+  it('moves a child from the parent side toward the descendant side', () => {
     const firstParent = person('first-parent')
     const secondParent = person('second-parent')
     const child = person('child')
-    const intruder = person('intruder')
     const network = buildBloodNetwork({
-      people: [firstParent, secondParent, child, intruder],
+      people: [firstParent, secondParent, child],
       parentLinks: [
         parentLink(firstParent.id, child.id, 'first-child'),
         parentLink(secondParent.id, child.id, 'second-child'),
       ],
     })
-    const sharedParentNode = network.nodes.find((node) => (
-      node.type === 'bloodFamily'
-    ))!
+    const sharedParentNode = network.nodes.find((node) => node.type === 'bloodFamily')!
     const positions = new Map([
       [firstParent.id, { x: -36, y: -36 }],
-      [secondParent.id, { x: 164, y: -36 }],
-      [sharedParentNode.id, { x: 91, y: 191 }],
-      [intruder.id, { x: 64, y: -31 }],
+      [secondParent.id, { x: -36, y: 164 }],
+      [sharedParentNode.id, { x: 191, y: 91 }],
+      [child.id, { x: 44, y: 64 }],
     ])
     const positionedNetwork = {
       ...network,
@@ -326,47 +281,38 @@ describe('buildBloodNetwork', () => {
         return position ? { ...node, position } : node
       }),
     }
-    expect(bloodNetworkPointInTriangle(
-      { x: 100, y: 5 },
-      { x: 0, y: 0 },
-      { x: 200, y: 0 },
-      { x: 100, y: 200 },
-    )).toBe(true)
     const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      averageMovementPerSecondThreshold: 1,
       baseRepulsion: 0,
+      descendantSideForce: 12,
       kinshipRepulsionStep: 0,
       parentHingeSpringStrength: 0,
       parentHingeTargetAngle: 45,
       parentPairSpringStrength: 0,
       sharedParentSpringStrength: 0,
       unrelatedParentNodeRepulsion: 0,
-      averageMovementPerSecondThreshold: 1,
     })
+    const descendantAlignment = (nodes: ReturnType<typeof simulation.getNodes>) => {
+      const center = (id: string, size: number) => {
+        const node = nodes.find((candidate) => candidate.id === id)!
+        return { x: node.position.x + size / 2, y: node.position.y + size / 2 }
+      }
+      const first = center(firstParent.id, 72)
+      const second = center(secondParent.id, 72)
+      const shared = center(sharedParentNode.id, 18)
+      const childCenter = center(child.id, 72)
+      const descendant = { x: shared.x - (first.x + second.x) / 2, y: shared.y - (first.y + second.y) / 2 }
+      const childVector = { x: childCenter.x - shared.x, y: childCenter.y - shared.y }
+      return (descendant.x * childVector.x + descendant.y * childVector.y)
+        / (Math.hypot(descendant.x, descendant.y) * Math.hypot(childVector.x, childVector.y))
+    }
+    const initialAlignment = descendantAlignment(simulation.getNodes())
 
-    simulation.tick()
-    const pushedIntruder = simulation.getNodes().find((node) => node.id === intruder.id)!
-    expect(pushedIntruder.position.y + 36).toBeGreaterThan(5)
-
-    for (let tick = 0; tick < 19; tick += 1) {
+    for (let tick = 0; tick < 25; tick += 1) {
       simulation.tick()
     }
 
-    const finalNodes = simulation.getNodes()
-    const expelledIntruder = finalNodes.find((node) => node.id === intruder.id)!
-    const finalCenter = (id: string, size: number) => {
-      const node = finalNodes.find((candidate) => candidate.id === id)!
-      return { x: node.position.x + size / 2, y: node.position.y + size / 2 }
-    }
-    const intruderCenter = {
-      x: expelledIntruder.position.x + 36,
-      y: expelledIntruder.position.y + 36,
-    }
-    expect(bloodNetworkPointInTriangle(
-      intruderCenter,
-      finalCenter(firstParent.id, 72),
-      finalCenter(secondParent.id, 72),
-      finalCenter(sharedParentNode.id, 18),
-    )).toBe(false)
+    expect(descendantAlignment(simulation.getNodes())).toBeGreaterThan(initialAlignment)
   })
 
   it('repels only people not directly connected to a parent node', () => {
@@ -393,6 +339,7 @@ describe('buildBloodNetwork', () => {
     }
     const simulation = createBloodNetworkSimulation(positionedNetwork, {
       baseRepulsion: 0,
+      descendantSideForce: 0,
       kinshipRepulsionStep: 0,
       parentHingeSpringStrength: 0,
       parentHingeTargetAngle: 45,
@@ -450,6 +397,7 @@ describe('buildBloodNetwork', () => {
     }
     const simulation = createBloodNetworkSimulation(positionedNetwork, {
       baseRepulsion: 0,
+      descendantSideForce: 0,
       kinshipRepulsionStep: 0,
       parentHingeSpringStrength: 4,
       parentHingeTargetAngle: 60,
