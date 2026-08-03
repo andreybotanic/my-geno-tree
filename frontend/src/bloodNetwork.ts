@@ -52,7 +52,7 @@ type ForceEdge = {
 
 const FORCE_REPULSION = 14
 const FORCE_SPRING_LENGTH = 155
-const FORCE_SPRING_STRENGTH = 0.03
+const FORCE_SPRING_STRENGTH = 0.05
 const FORCE_DAMPING = 0.84
 const FORCE_GRAVITY = 0.75
 const FORCE_MAX_STEP = 3.2
@@ -61,7 +61,8 @@ const FORCE_INITIAL_ALPHA = 0.9
 const FORCE_MINIMUM_ALPHA = 0.006
 const FORCE_ALPHA_DECAY = 0.994
 const FORCE_MAX_TICKS = 1_000
-const FORCE_MAX_MAGNITUDE = 2.5
+const FORCE_MAX_REPULSION_MAGNITUDE = 2.5
+const FORCE_MAX_SPRING_MAGNITUDE = 4.5
 const FORCE_MAX_RADIUS = 1_200
 
 function networkHandles(size: number) {
@@ -176,7 +177,7 @@ export function createBloodNetworkSimulation(
         const collisionForce = direction.distance < minimumDistance
           ? (minimumDistance - direction.distance) * 0.15
           : 0
-        const magnitude = Math.min(FORCE_MAX_MAGNITUDE, (
+        const magnitude = Math.min(FORCE_MAX_REPULSION_MAGNITUDE, (
           FORCE_REPULSION * first.mass * second.mass / direction.distance
           + collisionForce
         )) * alpha
@@ -203,9 +204,9 @@ export function createBloodNetworkSimulation(
         ? FORCE_SPRING_LENGTH * 1.1
         : FORCE_SPRING_LENGTH * 0.8
       const magnitude = Math.max(
-        -FORCE_MAX_MAGNITUDE,
+        -FORCE_MAX_SPRING_MAGNITUDE,
         Math.min(
-          FORCE_MAX_MAGNITUDE,
+          FORCE_MAX_SPRING_MAGNITUDE,
           (direction.distance - idealLength)
             * FORCE_SPRING_STRENGTH,
         ),
