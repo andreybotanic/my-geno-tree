@@ -80,16 +80,18 @@ export type BloodNetworkForceSettings = {
   baseRepulsion: number
   descendantSideForce: number
   personFlowHingeStrength: number
+  parentChildPathLength: number
   unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
   parentHingeSpringStrength: number
   parentHingeTargetAngle: number
   parentPairSpringStrength: number
+  parentToFamilyLengthRatio: number
   sharedParentSpringStrength: number
 }
 
-const FORCE_SPRING_LENGTH = 155
 const FORCE_PARENT_PAIR_SPRING_LENGTH = 135
+const FORCE_ANGULAR_REFERENCE_LENGTH = 155
 const FORCE_DAMPING = 0.84
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 28
@@ -116,11 +118,13 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   baseRepulsion: 3,
   descendantSideForce: 12,
   personFlowHingeStrength: 8,
+  parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentHingeSpringStrength: 4,
   parentHingeTargetAngle: 45,
   parentPairSpringStrength: 0.2,
+  parentToFamilyLengthRatio: 0.58,
   sharedParentSpringStrength: 0.12,
 }
 
@@ -129,11 +133,13 @@ const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   baseRepulsion: 8,
   descendantSideForce: 0,
   personFlowHingeStrength: 0,
+  parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 12,
   kinshipRepulsionStep: 0.6,
   parentHingeSpringStrength: 0,
   parentHingeTargetAngle: 10,
   parentPairSpringStrength: 0.04,
+  parentToFamilyLengthRatio: 0.58,
   sharedParentSpringStrength: 0.02,
 }
 
@@ -265,6 +271,16 @@ export function bloodNetworkUnrelatedParentNodeRepulsion(
   return strength * proximity ** 4
 }
 
+export function bloodNetworkRelationshipSpringLengths(
+  parentChildPathLength: number,
+  parentToFamilyLengthRatio: number,
+): { familyToChild: number; parentToFamily: number } {
+  return {
+    familyToChild: parentChildPathLength * (1 - parentToFamilyLengthRatio),
+    parentToFamily: parentChildPathLength * parentToFamilyLengthRatio,
+  }
+}
+
 export function bloodNetworkDescendantSideMagnitude(
   alignment: number,
   strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.descendantSideForce,
@@ -316,7 +332,7 @@ export function bloodNetworkDescendantSideForces(
   const alignment = childDirection.x * descendantDirection.x
     + childDirection.y * descendantDirection.y
   const magnitude = bloodNetworkDescendantSideMagnitude(alignment, strength)
-    * FORCE_SPRING_LENGTH
+    * FORCE_ANGULAR_REFERENCE_LENGTH
   const childGradient = {
     x: (descendantDirection.x - childDirection.x * alignment) / childDistance,
     y: (descendantDirection.y - childDirection.y * alignment) / childDistance,
@@ -408,7 +424,7 @@ export function bloodNetworkPersonFlowHingeForces(
   const alignment = incomingDirection.x * outgoingDirection.x
     + incomingDirection.y * outgoingDirection.y
   const magnitude = bloodNetworkPersonFlowHingeMagnitude(alignment, strength)
-    * FORCE_SPRING_LENGTH
+    * FORCE_ANGULAR_REFERENCE_LENGTH
   const incomingGradient = {
     x: (outgoingDirection.x - incomingDirection.x * alignment) / incomingDistance,
     y: (outgoingDirection.y - incomingDirection.y * alignment) / incomingDistance,
@@ -530,8 +546,12 @@ export function createBloodNetworkSimulation(
     edges: BloodNetworkFlowEdge[]
     nodes: BloodNetworkFlowNode[]
   },
-  settings: BloodNetworkForceSettings = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+  settings: Partial<BloodNetworkForceSettings> = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
 ): BloodNetworkSimulation {
+  const forceSettings: BloodNetworkForceSettings = {
+    ...DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+    ...settings,
+  }
   const nodes = network.nodes.map((node) => {
     const size = node.type === 'bloodPerson'
       ? BLOOD_NETWORK_PERSON_SIZE
@@ -545,11 +565,12 @@ export function createBloodNetworkSimulation(
     }
   })
   const relationshipEdges: ForceEdge[] = network.edges.map((edge) => ({
-    length: (edge.data?.relation ?? 'familyToChild') === 'parentToFamily'
-      ? FORCE_SPRING_LENGTH * 1.1
-      : FORCE_SPRING_LENGTH * 0.8,
+    length: bloodNetworkRelationshipSpringLengths(
+      forceSettings.parentChildPathLength,
+      forceSettings.parentToFamilyLengthRatio,
+    )[edge.data?.relation ?? 'familyToChild'],
     source: edge.source,
-    strength: settings.sharedParentSpringStrength,
+    strength: forceSettings.sharedParentSpringStrength,
     target: edge.target,
   }))
   const distances = bloodGraphDistances(
@@ -642,7 +663,7 @@ export function createBloodNetworkSimulation(
   const parentPairSprings: ForceEdge[] = parentHinges.map((hinge) => ({
     length: FORCE_PARENT_PAIR_SPRING_LENGTH,
     source: hinge.firstParentId,
-    strength: settings.parentPairSpringStrength,
+    strength: forceSettings.parentPairSpringStrength,
     target: hinge.secondParentId,
   }))
   const springs = [...relationshipEdges, ...parentPairSprings]
@@ -668,10 +689,10 @@ export function createBloodNetworkSimulation(
           : 0
         const chargeForce = Math.min(
           FORCE_MAX_REPULSION_MAGNITUDE,
-          settings.baseRepulsion * first.mass * second.mass / direction.distance,
+          forceSettings.baseRepulsion * first.mass * second.mass / direction.distance,
         ) * bloodNetworkRepulsionMultiplier(
           distances.get(first.id)?.get(second.id),
-          settings.kinshipRepulsionStep,
+          forceSettings.kinshipRepulsionStep,
         )
         const person = nodeTypes.get(first.id) === 'bloodPerson' ? first : (
           nodeTypes.get(second.id) === 'bloodPerson' ? second : null
@@ -683,7 +704,7 @@ export function createBloodNetworkSimulation(
           && !directlyLinkedParentNodesByPerson.get(person.id)?.has(parentNode.id)
           ? bloodNetworkUnrelatedParentNodeRepulsion(
             direction.distance,
-            settings.unrelatedParentNodeRepulsion,
+            forceSettings.unrelatedParentNodeRepulsion,
           )
           : 0
         const magnitude = chargeForce + collisionForce + unrelatedParentNodeForce
@@ -723,7 +744,7 @@ export function createBloodNetworkSimulation(
           child,
           sharedParentNode,
           parentMidpoint,
-          settings.descendantSideForce,
+          forceSettings.descendantSideForce,
         )
         childForce.x += descendantForces.child.x
         childForce.y += descendantForces.child.y
@@ -760,7 +781,7 @@ export function createBloodNetworkSimulation(
         incomingParent,
         person,
         outgoingParents,
-        settings.personFlowHingeStrength,
+        forceSettings.personFlowHingeStrength,
       )
       incomingParentForce.x += hingeForces.incomingParent.x
       incomingParentForce.y += hingeForces.incomingParent.y
@@ -792,8 +813,8 @@ export function createBloodNetworkSimulation(
       const currentAngle = Math.acos(dotProduct)
       const magnitude = bloodNetworkParentHingeMagnitude(
         currentAngle,
-        settings.parentHingeTargetAngle,
-        settings.parentHingeSpringStrength,
+        forceSettings.parentHingeTargetAngle,
+        forceSettings.parentHingeSpringStrength,
       )
       if (magnitude === 0) {
         continue

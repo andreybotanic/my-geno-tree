@@ -378,6 +378,8 @@ describe('TreeEditorPage', () => {
 
     expect(screen.getByRole('combobox', { name: 'Force preset' })).toHaveValue('weak')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
+    expect(screen.getByRole('slider', { name: 'Parent-to-child path length (px)' })).toHaveValue('300')
+    expect(screen.getByRole('slider', { name: 'Parent-to-node length ratio' })).toHaveValue('0.58')
     expect(screen.getByRole('checkbox', { name: 'Default' })).toBeChecked()
     const savePreset = screen.getByRole('button', { name: 'Save preset' })
     expect(savePreset).toBeDisabled()

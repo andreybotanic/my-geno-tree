@@ -103,9 +103,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /** @return list<array<string, mixed>> */
     public function getBloodNetworkPresets(): array
     {
-        return [] === $this->bloodNetworkPresets
-            ? self::defaultBloodNetworkPresets()
-            : $this->bloodNetworkPresets;
+        $defaultPresets = self::defaultBloodNetworkPresets();
+        if ([] === $this->bloodNetworkPresets) {
+            return $defaultPresets;
+        }
+
+        return array_map(static function (array $preset): array {
+            $presetId = $preset['id'] ?? null;
+            $defaults = is_string($presetId)
+                ? self::defaultBloodNetworkForces($presetId)
+                : [];
+            $storedForces = $preset['forces'] ?? [];
+            $forces = is_array($storedForces) ? $storedForces : [];
+
+            return [
+                ...$preset,
+                'forces' => [...$defaults, ...$forces],
+            ];
+        }, $this->bloodNetworkPresets);
     }
 
     public function getEmailVerifiedAt(): ?\DateTimeImmutable
@@ -172,11 +187,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                     'baseRepulsion'                     => 8,
                     'descendantSideForce'               => 0,
                     'personFlowHingeStrength'           => 0,
+                    'parentChildPathLength'             => 300,
                     'unrelatedParentNodeRepulsion'      => 12,
                     'kinshipRepulsionStep'              => 0.6,
                     'parentHingeSpringStrength'         => 0,
                     'parentHingeTargetAngle'            => 10,
                     'parentPairSpringStrength'          => 0.04,
+                    'parentToFamilyLengthRatio'         => 0.58,
                     'sharedParentSpringStrength'        => 0.02,
                 ],
             ],
@@ -189,14 +206,30 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                     'baseRepulsion'                     => 3,
                     'descendantSideForce'               => 12,
                     'personFlowHingeStrength'           => 8,
+                    'parentChildPathLength'             => 300,
                     'unrelatedParentNodeRepulsion'      => 6,
                     'kinshipRepulsionStep'              => 0.3,
                     'parentHingeSpringStrength'         => 4,
                     'parentHingeTargetAngle'            => 45,
                     'parentPairSpringStrength'          => 0.2,
+                    'parentToFamilyLengthRatio'         => 0.58,
                     'sharedParentSpringStrength'        => 0.12,
                 ],
             ],
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function defaultBloodNetworkForces(string $presetId): array
+    {
+        foreach (self::defaultBloodNetworkPresets() as $preset) {
+            if ($presetId === $preset['id']) {
+                $forces = $preset['forces'];
+
+                return is_array($forces) ? $forces : [];
+            }
+        }
+
+        return [];
     }
 }

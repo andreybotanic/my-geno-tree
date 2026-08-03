@@ -466,6 +466,24 @@ function BloodNetworkLegend({
           step={0.1}
         />
         <BloodNetworkForceControl
+          forceKey="parentChildPathLength"
+          forces={forces}
+          label={t('editor.bloodNetworkParentChildPathLength')}
+          max={500}
+          min={100}
+          onForceChange={onForceChange}
+          step={1}
+        />
+        <BloodNetworkForceControl
+          forceKey="parentToFamilyLengthRatio"
+          forces={forces}
+          label={t('editor.bloodNetworkParentToFamilyLengthRatio')}
+          max={1}
+          min={0}
+          onForceChange={onForceChange}
+          step={0.01}
+        />
+        <BloodNetworkForceControl
           forceKey="parentPairSpringStrength"
           forces={forces}
           label={t('editor.bloodNetworkParentPairSpring')}
@@ -732,7 +750,9 @@ function TreeCanvas({
     kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
     parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
     parentHingeTargetAngle: bloodNetworkForces.parentHingeTargetAngle,
+    parentChildPathLength: bloodNetworkForces.parentChildPathLength,
     parentPairSpringStrength: bloodNetworkForces.parentPairSpringStrength,
+    parentToFamilyLengthRatio: bloodNetworkForces.parentToFamilyLengthRatio,
     personFlowHingeStrength: bloodNetworkForces.personFlowHingeStrength,
     sharedParentSpringStrength: bloodNetworkForces.sharedParentSpringStrength,
     unrelatedParentNodeRepulsion: bloodNetworkForces.unrelatedParentNodeRepulsion,
@@ -742,7 +762,9 @@ function TreeCanvas({
     bloodNetworkForces.kinshipRepulsionStep,
     bloodNetworkForces.parentHingeSpringStrength,
     bloodNetworkForces.parentHingeTargetAngle,
+    bloodNetworkForces.parentChildPathLength,
     bloodNetworkForces.parentPairSpringStrength,
+    bloodNetworkForces.parentToFamilyLengthRatio,
     bloodNetworkForces.personFlowHingeStrength,
     bloodNetworkForces.sharedParentSpringStrength,
     bloodNetworkForces.unrelatedParentNodeRepulsion,

@@ -8,6 +8,7 @@ import {
   bloodNetworkParentHingeMagnitude,
   bloodNetworkPersonFlowHingeForces,
   bloodNetworkPersonFlowHingeMagnitude,
+  bloodNetworkRelationshipSpringLengths,
   bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
@@ -48,6 +49,16 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkNodeMass('bloodFamily', 20)).toBe(1)
     expect(bloodNetworkNodeMass('bloodPerson', 1)).toBe(2)
     expect(bloodNetworkNodeMass('bloodPerson', 4)).toBe(5)
+  })
+
+  it('splits the parent-to-child path length by the configured ratio', () => {
+    expect(bloodNetworkRelationshipSpringLengths(300, 0.5)).toEqual({
+      familyToChild: 150,
+      parentToFamily: 150,
+    })
+    const unequalLengths = bloodNetworkRelationshipSpringLengths(300, 0.58)
+    expect(unequalLengths.familyToChild).toBeCloseTo(126)
+    expect(unequalLengths.parentToFamily).toBeCloseTo(174)
   })
 
   it('limits unrelated parent-node repulsion to a local range', () => {
