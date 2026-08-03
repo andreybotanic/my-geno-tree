@@ -261,11 +261,13 @@ function LayoutToolbar({
 
 type BloodNetworkLegendProps = {
   activePresetId: BloodNetworkPreset['id']
+  canSavePreset: boolean
   forces: BloodNetworkForceSettings
   onForceChange: (key: keyof BloodNetworkForceSettings, value: number) => void
   onPresetChange: (presetId: BloodNetworkPreset['id']) => void
   onPresetDefaultChange: (presetId: BloodNetworkPreset['id']) => void
   onPresetNameChange: (presetId: BloodNetworkPreset['id'], name: string) => void
+  onSavePreset: () => void
   presets: BloodNetworkPreset[]
 }
 
@@ -310,11 +312,13 @@ function BloodNetworkForceControl({
 
 function BloodNetworkLegend({
   activePresetId,
+  canSavePreset,
   forces,
   onForceChange,
   onPresetChange,
   onPresetDefaultChange,
   onPresetNameChange,
+  onSavePreset,
   presets,
 }: BloodNetworkLegendProps) {
   const { t } = useTranslation()
@@ -359,18 +363,10 @@ function BloodNetworkLegend({
               <span>{t('editor.bloodNetworkPresetName')}</span>
               <input
                 aria-label={t('editor.bloodNetworkPresetName')}
-                defaultValue={activePreset.name}
-                key={`${activePreset.id}:${activePreset.name}`}
                 maxLength={80}
-                onBlur={(event) => {
-                  const name = event.target.value.trim()
-                  if (name) {
-                    onPresetNameChange(activePreset.id, name)
-                  } else {
-                    event.target.value = activePreset.name
-                  }
-                }}
+                onChange={(event) => onPresetNameChange(activePreset.id, event.target.value)}
                 type="text"
+                value={activePreset.name}
               />
             </label>
             <label className="blood-network-preset-default">
@@ -382,6 +378,14 @@ function BloodNetworkLegend({
               />
               <span>{t('editor.bloodNetworkPresetDefault')}</span>
             </label>
+            <button
+              className="compact-button blood-network-preset-save"
+              disabled={!canSavePreset}
+              onClick={onSavePreset}
+              type="button"
+            >
+              {t('editor.saveBloodNetworkPreset')}
+            </button>
           </div>
           <fieldset className="blood-network-force-controls">
             <legend>{t('editor.bloodNetworkForceControls')}</legend>
@@ -680,28 +684,6 @@ function TreeCanvas({
     setBloodNetworkPresetsDirty(false)
   }, [user?.bloodNetworkPresets])
 
-  useEffect(() => {
-    if (!bloodNetworkPresetsDirty || !user) {
-      return
-    }
-    const timer = window.setTimeout(() => {
-      void request<User>('/me/blood-network-presets', {
-        method: 'PATCH',
-        body: JSON.stringify({ presets: bloodNetworkPresets }),
-      }).then((updatedUser) => {
-        onUpdateUser(updatedUser)
-      }).catch(() => undefined)
-    }, 300)
-
-    return () => window.clearTimeout(timer)
-  }, [
-    bloodNetworkPresets,
-    bloodNetworkPresetsDirty,
-    onUpdateUser,
-    request,
-    user,
-  ])
-
   const centerFirstPerson = useCallback((
     flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
   ) => {
@@ -872,6 +854,10 @@ function TreeCanvas({
       {view === 'network' && (
         <BloodNetworkLegend
           activePresetId={activeBloodNetworkPresetId}
+          canSavePreset={
+            bloodNetworkPresetsDirty
+            && bloodNetworkPresets.every((preset) => preset.name.trim().length > 0)
+          }
           forces={bloodNetworkForces}
           onForceChange={(key, value) => {
             const forces = { ...bloodNetworkForces, [key]: value }
@@ -903,6 +889,28 @@ function TreeCanvas({
               preset.id === presetId ? { ...preset, name } : preset
             )))
             setBloodNetworkPresetsDirty(true)
+          }}
+          onSavePreset={() => {
+            if (!user || !bloodNetworkPresetsDirty) {
+              return
+            }
+            const presets = bloodNetworkPresets.map((preset) => ({
+              ...preset,
+              name: preset.name.trim(),
+            }))
+            if (presets.some((preset) => !preset.name)) {
+              return
+            }
+            setBloodNetworkPresets(presets)
+            setBloodNetworkPresetsDirty(false)
+            void request<User>('/me/blood-network-presets', {
+              method: 'PATCH',
+              body: JSON.stringify({ presets }),
+            }).then((updatedUser) => {
+              onUpdateUser(updatedUser)
+            }).catch(() => {
+              setBloodNetworkPresetsDirty(true)
+            })
           }}
           presets={bloodNetworkPresets}
         />

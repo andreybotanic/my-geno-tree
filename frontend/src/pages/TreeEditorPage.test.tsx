@@ -304,7 +304,7 @@ describe('TreeEditorPage', () => {
     })
   })
 
-  it('applies the user default force preset and saves preset changes', async () => {
+  it('applies the user default force preset and saves changes only on request', async () => {
     const presets = defaultBloodNetworkPresets()
     const user: User = {
       id: '019861c4-6a93-7a2e-8ca8-51813740d4f0',
@@ -342,7 +342,17 @@ describe('TreeEditorPage', () => {
     const presetName = screen.getByRole('textbox', { name: 'Preset name' })
     await userEvent.clear(presetName)
     await userEvent.type(presetName, 'Open')
-    await userEvent.tab()
+    fireEvent.change(screen.getByRole('slider', { name: 'Base repulsion' }), {
+      target: { value: '7' },
+    })
+
+    expect(request).not.toHaveBeenCalledWith(
+      '/me/blood-network-presets',
+      expect.anything(),
+    )
+    const savePreset = screen.getByRole('button', { name: 'Save preset' })
+    expect(savePreset).toBeEnabled()
+    await userEvent.click(savePreset)
 
     await waitFor(() => expect(request).toHaveBeenCalledWith(
       '/me/blood-network-presets',
