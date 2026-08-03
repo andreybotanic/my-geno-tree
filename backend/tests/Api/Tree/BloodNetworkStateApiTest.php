@@ -16,9 +16,8 @@ final class BloodNetworkStateApiTest extends ApiWebTestCase
             'forces' => [
                 'averageMovementPerSecondThreshold' => 1.5,
                 'baseRepulsion'                     => 4,
-                'crossBranchRepulsion'              => 0.75,
                 'descendantSideForce'               => 13,
-                'personFlowHingeStrength'           => 25,
+                'personFlowHingeStrength'           => 7,
                 'parentChildPathLength'             => 280,
                 'unrelatedParentNodeRepulsion'      => 5,
                 'kinshipRepulsionStep'              => 0.35,
@@ -26,7 +25,7 @@ final class BloodNetworkStateApiTest extends ApiWebTestCase
                 'parentHingeTargetAngle'            => 55,
                 'parentPairSpringStrength'          => 0.18,
                 'parentToFamilyLengthRatio'         => 0.6,
-                'sharedParentSpringStrength'        => 0.8,
+                'sharedParentSpringStrength'        => 0.2,
             ],
             'nodes' => [[
                 'id'          => $personId,

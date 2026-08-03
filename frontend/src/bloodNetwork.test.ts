@@ -2,14 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
-  bloodNetworkCrossBranchRepulsionMultiplier,
   bloodNetworkDescendantSideForces,
   bloodNetworkDescendantSideMagnitude,
   bloodNetworkNodeMass,
   bloodNetworkParentHingeMagnitude,
   bloodNetworkPersonFlowHingeForces,
   bloodNetworkPersonFlowHingeMagnitude,
-  bloodNetworkPathProfiles,
   bloodNetworkRelationshipSpringLengths,
   bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
@@ -46,41 +44,6 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkRepulsionMultiplier(6)).toBe(1.95)
     expect(bloodNetworkRepulsionMultiplier(20)).toBe(2.25)
     expect(bloodNetworkRepulsionMultiplier(undefined)).toBe(2.5)
-  })
-
-  it('adds branch repulsion only when a shortest path follows and opposes arrows', () => {
-    const profiles = bloodNetworkPathProfiles(
-      [
-        'great-grandparent',
-        'grandparent-a',
-        'grandparent-b',
-        'parent-a',
-        'parent-b',
-        'person',
-        'shared-parent-a',
-        'shared-parent-b',
-      ],
-      [
-        { source: 'great-grandparent', target: 'parent-a' },
-        { source: 'parent-a', target: 'person' },
-        { source: 'grandparent-a', target: 'shared-parent-a' },
-        { source: 'shared-parent-a', target: 'parent-a' },
-        { source: 'grandparent-b', target: 'shared-parent-b' },
-        { source: 'shared-parent-b', target: 'parent-b' },
-        { source: 'parent-b', target: 'person' },
-      ],
-    )
-
-    expect(profiles.get('great-grandparent')?.get('person')).toEqual({
-      crossness: 0,
-      distance: 2,
-    })
-    expect(profiles.get('grandparent-a')?.get('grandparent-b')).toEqual({
-      crossness: 1,
-      distance: 6,
-    })
-    expect(bloodNetworkCrossBranchRepulsionMultiplier(0, 2)).toBe(1)
-    expect(bloodNetworkCrossBranchRepulsionMultiplier(1, 0.5)).toBe(1.5)
   })
 
   it('keeps family routing nodes lighter than connected people', () => {

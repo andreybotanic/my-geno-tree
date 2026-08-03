@@ -58,16 +58,6 @@ type ForceEdge = {
   target: string
 }
 
-type DirectedBloodGraphEdge = {
-  source: string
-  target: string
-}
-
-export type BloodNetworkPathProfile = {
-  crossness: number
-  distance: number
-}
-
 type ParentHinge = {
   firstParentId: string
   secondParentId: string
@@ -89,7 +79,6 @@ type PersonFlowHinge = {
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
-  crossBranchRepulsion: number
   descendantSideForce: number
   personFlowHingeStrength: number
   parentChildPathLength: number
@@ -128,7 +117,6 @@ const INITIAL_ASPECT_RATIO = 5 / 4
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
-  crossBranchRepulsion: 0.5,
   descendantSideForce: 12,
   personFlowHingeStrength: 8,
   parentChildPathLength: 300,
@@ -144,7 +132,6 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
 const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 8,
-  crossBranchRepulsion: 2,
   descendantSideForce: 0,
   personFlowHingeStrength: 0,
   parentChildPathLength: 300,
@@ -202,66 +189,33 @@ function directionBetween(
   return { distance: 0.001, x: Math.cos(angle), y: Math.sin(angle) }
 }
 
-export function bloodNetworkPathProfiles(
+function bloodGraphDistances(
   nodeIds: string[],
-  edges: DirectedBloodGraphEdge[],
-): Map<string, Map<string, BloodNetworkPathProfile>> {
-  const neighbors = new Map<string, Array<{
-    followsArrow: boolean
-    id: string
-  }>>(nodeIds.map((id) => [id, []]))
+  edges: ForceEdge[],
+): Map<string, Map<string, number>> {
+  const neighbors = new Map(nodeIds.map((id) => [id, new Set<string>()]))
   for (const edge of edges) {
-    neighbors.get(edge.source)?.push({ followsArrow: true, id: edge.target })
-    neighbors.get(edge.target)?.push({ followsArrow: false, id: edge.source })
+    neighbors.get(edge.source)?.add(edge.target)
+    neighbors.get(edge.target)?.add(edge.source)
   }
 
   return new Map(nodeIds.map((source) => {
     const distances = new Map<string, number>([[source, 0]])
-    const forwardStepsByNode = new Map<string, Set<number>>([[source, new Set([0])]])
-    const queue = [{ forwardSteps: 0, nodeId: source }]
+    const queue = [source]
     for (let index = 0; index < queue.length; index += 1) {
       const current = queue[index]
       if (!current) {
         continue
       }
-      const distance = distances.get(current.nodeId) ?? 0
-      for (const neighbor of neighbors.get(current.nodeId) ?? []) {
-        const nextDistance = distance + 1
-        const nextForwardSteps = current.forwardSteps + (neighbor.followsArrow ? 1 : 0)
-        const knownDistance = distances.get(neighbor.id)
-        if (knownDistance === undefined || nextDistance < knownDistance) {
-          distances.set(neighbor.id, nextDistance)
-          forwardStepsByNode.set(neighbor.id, new Set([nextForwardSteps]))
-          queue.push({ forwardSteps: nextForwardSteps, nodeId: neighbor.id })
-          continue
-        }
-        if (nextDistance === knownDistance) {
-          const forwardSteps = forwardStepsByNode.get(neighbor.id) ?? new Set<number>()
-          if (!forwardSteps.has(nextForwardSteps)) {
-            forwardSteps.add(nextForwardSteps)
-            forwardStepsByNode.set(neighbor.id, forwardSteps)
-            queue.push({ forwardSteps: nextForwardSteps, nodeId: neighbor.id })
-          }
+      const distance = distances.get(current) ?? 0
+      for (const neighbor of neighbors.get(current) ?? []) {
+        if (!distances.has(neighbor)) {
+          distances.set(neighbor, distance + 1)
+          queue.push(neighbor)
         }
       }
     }
-    const profiles = new Map<string, BloodNetworkPathProfile>()
-    for (const [nodeId, distance] of distances) {
-      const forwardSteps = [...(forwardStepsByNode.get(nodeId) ?? new Set([0]))]
-      const selectedForwardSteps = forwardSteps.slice(1).reduce((best, candidate) => (
-        Math.min(candidate, distance - candidate) < Math.min(best, distance - best)
-          ? candidate
-          : best
-      ), forwardSteps[0] ?? 0)
-      const backwardSteps = distance - selectedForwardSteps
-      profiles.set(nodeId, {
-        crossness: distance === 0
-          ? 0
-          : 4 * selectedForwardSteps * backwardSteps / distance ** 2,
-        distance,
-      })
-    }
-    return [source, profiles]
+    return [source, distances]
   }))
 }
 
@@ -278,13 +232,6 @@ export function bloodNetworkRepulsionMultiplier(
     FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER
       + Math.max(pathLength - 1, 0) * kinshipRepulsionStep,
   )
-}
-
-export function bloodNetworkCrossBranchRepulsionMultiplier(
-  crossness: number,
-  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.crossBranchRepulsion,
-): number {
-  return 1 + Math.max(0, Math.min(1, crossness)) * Math.max(0, Math.min(2, strength))
 }
 
 export function bloodNetworkNodeMass(
@@ -604,7 +551,7 @@ export function createBloodNetworkSimulation(
     strength: forceSettings.sharedParentSpringStrength,
     target: edge.target,
   }))
-  const pathProfiles = bloodNetworkPathProfiles(
+  const distances = bloodGraphDistances(
     nodes.map((node) => node.id),
     relationshipEdges,
   )
@@ -722,11 +669,8 @@ export function createBloodNetworkSimulation(
           FORCE_MAX_REPULSION_MAGNITUDE,
           forceSettings.baseRepulsion * first.mass * second.mass / direction.distance,
         ) * bloodNetworkRepulsionMultiplier(
-          pathProfiles.get(first.id)?.get(second.id)?.distance,
+          distances.get(first.id)?.get(second.id),
           forceSettings.kinshipRepulsionStep,
-        ) * bloodNetworkCrossBranchRepulsionMultiplier(
-          pathProfiles.get(first.id)?.get(second.id)?.crossness ?? 0,
-          forceSettings.crossBranchRepulsion,
         )
         const person = nodeTypes.get(first.id) === 'bloodPerson' ? first : (
           nodeTypes.get(second.id) === 'bloodPerson' ? second : null
