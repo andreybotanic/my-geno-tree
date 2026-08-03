@@ -3,6 +3,7 @@ import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
   bloodNetworkNodeMass,
+  bloodNetworkPointInTriangle,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
@@ -41,6 +42,25 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkNodeMass('bloodFamily', 20)).toBe(1)
     expect(bloodNetworkNodeMass('bloodPerson', 1)).toBe(2)
     expect(bloodNetworkNodeMass('bloodPerson', 4)).toBe(5)
+  })
+
+  it('recognizes only points inside a parent triangle', () => {
+    const firstParent = { x: 0, y: 0 }
+    const secondParent = { x: 10, y: 0 }
+    const sharedParentNode = { x: 5, y: 10 }
+
+    expect(bloodNetworkPointInTriangle(
+      { x: 5, y: 4 },
+      firstParent,
+      secondParent,
+      sharedParentNode,
+    )).toBe(true)
+    expect(bloodNetworkPointInTriangle(
+      { x: 11, y: 4 },
+      firstParent,
+      secondParent,
+      sharedParentNode,
+    )).toBe(false)
   })
 
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
@@ -232,6 +252,65 @@ describe('buildBloodNetwork', () => {
     }))
 
     expect(bloodNetworkAverageNodeMovement(network.nodes, shiftedNodes)).toBe(5)
+  })
+
+  it('expels a non-family node from inside a parent triangle', () => {
+    const firstParent = person('first-parent')
+    const secondParent = person('second-parent')
+    const child = person('child')
+    const intruder = person('intruder')
+    const network = buildBloodNetwork({
+      people: [firstParent, secondParent, child, intruder],
+      parentLinks: [
+        parentLink(firstParent.id, child.id, 'first-child'),
+        parentLink(secondParent.id, child.id, 'second-child'),
+      ],
+    })
+    const sharedParentNode = network.nodes.find((node) => (
+      node.type === 'bloodFamily'
+    ))!
+    const positions = new Map([
+      [firstParent.id, { x: -36, y: -36 }],
+      [secondParent.id, { x: 164, y: -36 }],
+      [sharedParentNode.id, { x: 91, y: 191 }],
+      [intruder.id, { x: 64, y: 31 }],
+    ])
+    const positionedNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      }),
+    }
+    expect(bloodNetworkPointInTriangle(
+      { x: 100, y: 67 },
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 100, y: 200 },
+    )).toBe(true)
+    const simulation = createBloodNetworkSimulation(positionedNetwork, {
+      baseRepulsion: 0,
+      kinshipRepulsionStep: 0,
+      parentPairSpringStrength: 0,
+      sharedParentSpringStrength: 0,
+      averageMovementPerSecondThreshold: 1,
+    })
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      simulation.tick()
+    }
+
+    const expelledIntruder = simulation.getNodes().find((node) => node.id === intruder.id)!
+    const intruderCenter = {
+      x: expelledIntruder.position.x + 36,
+      y: expelledIntruder.position.y + 36,
+    }
+    expect(bloodNetworkPointInTriangle(
+      intruderCenter,
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 100, y: 200 },
+    )).toBe(false)
   })
 
   it('keeps a 101-person graph bounded during force simulation', () => {

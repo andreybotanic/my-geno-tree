@@ -319,10 +319,10 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
           forceKey="averageMovementPerSecondThreshold"
           forces={forces}
           label={t('editor.bloodNetworkSettlementThreshold')}
-          max={10}
-          min={1}
+          max={5}
+          min={0.1}
           onForceChange={onForceChange}
-          step={1}
+          step={0.1}
         />
         <BloodNetworkForceControl
           forceKey="parentPairSpringStrength"

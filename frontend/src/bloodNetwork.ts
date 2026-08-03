@@ -53,6 +53,12 @@ type ForceEdge = {
   target: string
 }
 
+type ParentTriangle = {
+  firstParentId: string
+  secondParentId: string
+  sharedParentNodeId: string
+}
+
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
@@ -73,6 +79,7 @@ const FORCE_STEPS_PER_TICK = 4
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
+const FORCE_PARENT_TRIANGLE_REPULSION = 12
 const FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER = 0.45
 const FORCE_KINSHIP_REPULSION_STEP = 0.3
 const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 2.25
@@ -134,6 +141,38 @@ function directionBetween(
 
   const angle = (hashId(`${first.id}:${second.id}`) / 0xffff_ffff) * Math.PI * 2
   return { distance: 0.001, x: Math.cos(angle), y: Math.sin(angle) }
+}
+
+function directionFromPoint(
+  point: { x: number; y: number },
+  node: ForceNode,
+): { x: number; y: number } {
+  const dx = node.x - point.x
+  const dy = node.y - point.y
+  const distance = Math.hypot(dx, dy)
+  if (distance > 0.001) {
+    return { x: dx / distance, y: dy / distance }
+  }
+
+  const angle = (hashId(node.id) / 0xffff_ffff) * Math.PI * 2
+  return { x: Math.cos(angle), y: Math.sin(angle) }
+}
+
+export function bloodNetworkPointInTriangle(
+  point: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  third: { x: number; y: number },
+): boolean {
+  const side = (from: { x: number; y: number }, to: { x: number; y: number }) => (
+    (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x)
+  )
+  const firstSide = side(first, second)
+  const secondSide = side(second, third)
+  const thirdSide = side(third, first)
+
+  return (firstSide > 0 && secondSide > 0 && thirdSide > 0)
+    || (firstSide < 0 && secondSide < 0 && thirdSide < 0)
 }
 
 function bloodGraphDistances(
@@ -264,19 +303,24 @@ export function createBloodNetworkSimulation(
       degree.get(node.id) ?? 0,
     )
   }
-  const parentPairSprings: ForceEdge[] = network.nodes.flatMap((node) => {
+  const parentTriangles: ParentTriangle[] = network.nodes.flatMap((node) => {
     if (node.type !== 'bloodFamily') {
       return []
     }
     return node.data.parentIds.flatMap((parentId, index) => (
       node.data.parentIds.slice(index + 1).map((partnerId) => ({
-        length: FORCE_PARENT_PAIR_SPRING_LENGTH,
-        source: parentId,
-        strength: settings.parentPairSpringStrength,
-        target: partnerId,
+        firstParentId: parentId,
+        secondParentId: partnerId,
+        sharedParentNodeId: node.id,
       }))
     ))
   })
+  const parentPairSprings: ForceEdge[] = parentTriangles.map((triangle) => ({
+    length: FORCE_PARENT_PAIR_SPRING_LENGTH,
+    source: triangle.firstParentId,
+    strength: settings.parentPairSpringStrength,
+    target: triangle.secondParentId,
+  }))
   const springs = [...relationshipEdges, ...parentPairSprings]
   let alpha = FORCE_INITIAL_ALPHA
 
@@ -317,6 +361,38 @@ export function createBloodNetworkSimulation(
         firstForce.y -= direction.y * magnitude
         secondForce.x += direction.x * magnitude
         secondForce.y += direction.y * magnitude
+      }
+    }
+
+    for (const triangle of parentTriangles) {
+      const firstParent = byId.get(triangle.firstParentId)
+      const secondParent = byId.get(triangle.secondParentId)
+      const sharedParentNode = byId.get(triangle.sharedParentNodeId)
+      if (!firstParent || !secondParent || !sharedParentNode) {
+        continue
+      }
+      const centroid = {
+        x: (firstParent.x + secondParent.x + sharedParentNode.x) / 3,
+        y: (firstParent.y + secondParent.y + sharedParentNode.y) / 3,
+      }
+      for (const node of nodes) {
+        if (
+          node.id === triangle.firstParentId
+          || node.id === triangle.secondParentId
+          || node.id === triangle.sharedParentNodeId
+          || !bloodNetworkPointInTriangle(node, firstParent, secondParent, sharedParentNode)
+        ) {
+          continue
+        }
+        const nodeForce = force.get(node.id)
+        if (!nodeForce) {
+          continue
+        }
+        const direction = directionFromPoint(centroid, node)
+        // This is a local exclusion zone, not a global layout force: it must
+        // remain strong even after the rest of the map has cooled down.
+        nodeForce.x += direction.x * FORCE_PARENT_TRIANGLE_REPULSION
+        nodeForce.y += direction.y * FORCE_PARENT_TRIANGLE_REPULSION
       }
     }
 
