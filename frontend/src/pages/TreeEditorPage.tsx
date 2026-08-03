@@ -625,7 +625,7 @@ function TreeCanvas({
       edgeTypes={edgeTypes}
       elementsSelectable={view === 'tree'}
       maxZoom={2}
-      minZoom={0.35}
+      minZoom={0.1}
       nodeTypes={nodeTypes}
       nodes={nodes}
       nodesConnectable={false}
