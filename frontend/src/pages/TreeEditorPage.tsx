@@ -110,6 +110,7 @@ const edgeTypes = {
 }
 const PREVIEW_PERSON_ID = '__new_person__'
 const LAYOUT_PROGRESS_DELAY_MS = 2_500
+const BLOOD_NETWORK_TICKS_PER_FRAME = 4
 
 function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   const initialBounds = {
@@ -314,6 +315,15 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
       <small>{t('editor.bloodNetworkForces')}</small>
       <fieldset className="blood-network-force-controls">
         <legend>{t('editor.bloodNetworkForceControls')}</legend>
+        <BloodNetworkForceControl
+          forceKey="averageMovementThreshold"
+          forces={forces}
+          label={t('editor.bloodNetworkSettlementThreshold')}
+          max={10}
+          min={1}
+          onForceChange={onForceChange}
+          step={1}
+        />
         <BloodNetworkForceControl
           forceKey="parentPairSpringStrength"
           forces={forces}
@@ -571,15 +581,18 @@ function TreeCanvas({
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
       // simulation into one visible jump on a dense map.
-      const running = simulation.tick()
+      let running = true
+      for (let tick = 0; tick < BLOOD_NETWORK_TICKS_PER_FRAME && running; tick += 1) {
+        running = simulation.tick()
+      }
       const nextNodes = simulation.getNodes()
       latestBloodNodes.current = nextNodes
       setSimulatedBloodNodes(nextNodes)
       if (active && running) {
-        animationTimer = window.setTimeout(animate, 32)
+        animationTimer = window.setTimeout(animate, 16)
       }
     }
-    animationTimer = window.setTimeout(animate, 32)
+    animationTimer = window.setTimeout(animate, 16)
 
     return () => {
       active = false

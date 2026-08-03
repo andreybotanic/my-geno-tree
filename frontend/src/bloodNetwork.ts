@@ -54,6 +54,7 @@ type ForceEdge = {
 }
 
 export type BloodNetworkForceSettings = {
+  averageMovementThreshold: number
   baseRepulsion: number
   kinshipRepulsionStep: number
   parentPairSpringStrength: number
@@ -67,9 +68,8 @@ const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 28
 const FORCE_COLLISION_STRENGTH = 0.85
 const FORCE_INITIAL_ALPHA = 0.9
-const FORCE_MINIMUM_ALPHA = 0.006
 const FORCE_ALPHA_DECAY = 0.994
-const FORCE_MAX_TICKS = 1_000
+const FORCE_SETTLEMENT_STREAK_LENGTH = 12
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
@@ -81,6 +81,7 @@ const INITIAL_AREA_PER_NODE = 200_000
 const INITIAL_ASPECT_RATIO = 5 / 4
 
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
+  averageMovementThreshold: 1,
   baseRepulsion: 3,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentPairSpringStrength: 0.2,
@@ -255,12 +256,9 @@ export function createBloodNetworkSimulation(
   })
   const springs = [...relationshipEdges, ...parentPairSprings]
   let alpha = FORCE_INITIAL_ALPHA
-  let tickCount = 0
+  let lowMovementTickCount = 0
 
   const tick = () => {
-    if (alpha < FORCE_MINIMUM_ALPHA || tickCount >= FORCE_MAX_TICKS) {
-      return false
-    }
     const force = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
       const first = nodes[firstIndex]
@@ -325,6 +323,7 @@ export function createBloodNetworkSimulation(
       targetForce.y -= direction.y * magnitude
     }
 
+    let totalMovement = 0
     for (const node of nodes) {
       const nodeForce = force.get(node.id)
       const nodeVelocity = velocity.get(node.id)
@@ -345,10 +344,15 @@ export function createBloodNetworkSimulation(
       }
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
+      totalMovement += Math.hypot(nodeVelocity.x, nodeVelocity.y)
     }
     alpha *= FORCE_ALPHA_DECAY
-    tickCount += 1
-    return alpha >= FORCE_MINIMUM_ALPHA && tickCount < FORCE_MAX_TICKS
+    const averageMovement = totalMovement / Math.max(nodes.length, 1)
+    lowMovementTickCount = averageMovement > settings.averageMovementThreshold
+      ? 0
+      : lowMovementTickCount + 1
+
+    return lowMovementTickCount < FORCE_SETTLEMENT_STREAK_LENGTH
   }
 
   const getNodes = () => network.nodes.map((node) => {

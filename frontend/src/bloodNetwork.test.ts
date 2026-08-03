@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
+  DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
   bloodNetworkNodeMass,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
@@ -194,7 +195,7 @@ describe('buildBloodNetwork', () => {
     expect(spreadAreaPerNode(larger)).toBeCloseTo(spreadAreaPerNode(first))
   })
 
-  it('moves the temporary nodes on every force tick and eventually settles', () => {
+  it('moves the temporary nodes on every force tick and settles below the average movement threshold', () => {
     const parent = person('parent')
     const child = person('child')
     const network = buildBloodNetwork({
@@ -220,6 +221,23 @@ describe('buildBloodNetwork', () => {
     expect(simulation.getNodes().every((node) => (
       Math.abs(node.position.x) < 1_000 && Math.abs(node.position.y) < 1_000
     ))).toBe(true)
+  })
+
+  it('requires sustained low average movement before stopping', () => {
+    const parent = person('parent')
+    const child = person('child')
+    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
+      people: [parent, child],
+      parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
+    }), {
+      ...DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+      averageMovementThreshold: 10,
+    })
+
+    for (let tick = 0; tick < 11; tick += 1) {
+      expect(simulation.tick()).toBe(true)
+    }
+    expect(simulation.tick()).toBe(false)
   })
 
   it('settles a 101-person graph without letting the layout escape', () => {

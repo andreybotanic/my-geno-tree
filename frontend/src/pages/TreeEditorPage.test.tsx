@@ -265,8 +265,15 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
     expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')
+    const settlementThreshold = screen.getByRole(
+      'slider',
+      { name: 'Settlement threshold (px/node)' },
+    )
+    expect(settlementThreshold).toHaveValue('1')
     fireEvent.change(parentPairSpring, { target: { value: '0.3' } })
     expect(parentPairSpring).toHaveValue('0.3')
+    fireEvent.change(settlementThreshold, { target: { value: '2' } })
+    expect(settlementThreshold).toHaveValue('2')
 
     await userEvent.hover(anna)
     const tooltip = within(anna).getByRole('tooltip')
