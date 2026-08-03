@@ -139,6 +139,13 @@ describe('buildBloodNetwork', () => {
     })
     const simulation = createBloodNetworkSimulation(network)
     const initialPositions = simulation.getNodes().map((node) => node.position)
+    const initialById = new Map(simulation.getNodes().map((node) => [node.id, node]))
+    const family = initialById.get('blood-family:parent')
+    const childNode = initialById.get(child.id)
+    const parentNode = initialById.get(parent.id)
+
+    expect(parentNode?.position.y).toBeLessThan(family?.position.y ?? 0)
+    expect(family?.position.y).toBeLessThan(childNode?.position.y ?? 0)
 
     expect(simulation.tick()).toBe(true)
     expect(simulation.getNodes().map((node) => node.position)).not.toEqual(

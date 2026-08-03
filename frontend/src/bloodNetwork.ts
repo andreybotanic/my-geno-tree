@@ -34,6 +34,7 @@ type ForceNode = {
   id: string
   mass: number
   radius: number
+  rank: number
   x: number
   y: number
 }
@@ -50,20 +51,23 @@ type ForceEdge = {
   target: string
 }
 
-const FORCE_REPULSION = 14
+const FORCE_REPULSION = 1.25
 const FORCE_SPRING_LENGTH = 155
-const FORCE_SPRING_STRENGTH = 0.05
+const FORCE_SPRING_STRENGTH = 0.12
 const FORCE_DAMPING = 0.84
-const FORCE_GRAVITY = 0.75
+const FORCE_HORIZONTAL_GRAVITY = 0.45
+const FORCE_LAYER_GAP = 140
+const FORCE_LAYER_STRENGTH = 0.08
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 18
+const FORCE_COLLISION_STRENGTH = 0.65
 const FORCE_INITIAL_ALPHA = 0.9
 const FORCE_MINIMUM_ALPHA = 0.006
 const FORCE_ALPHA_DECAY = 0.994
 const FORCE_MAX_TICKS = 1_000
-const FORCE_MAX_REPULSION_MAGNITUDE = 2.5
-const FORCE_MAX_SPRING_MAGNITUDE = 4.5
-const FORCE_MAX_RADIUS = 1_200
+const FORCE_MAX_REPULSION_MAGNITUDE = 0.8
+const FORCE_MAX_COLLISION_MAGNITUDE = 8
+const FORCE_MAX_SPRING_MAGNITUDE = 10
 
 function networkHandles(size: number) {
   return [
@@ -132,6 +136,7 @@ export function createBloodNetworkSimulation(
       id: node.id,
       mass: 1,
       radius: size / 2,
+      rank: 0,
       x: node.position.x + size / 2,
       y: node.position.y + size / 2,
     }
@@ -144,15 +149,49 @@ export function createBloodNetworkSimulation(
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const degree = new Map(nodes.map((node) => [node.id, 0]))
+  const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]))
+  const remainingIncoming = new Map(nodes.map((node) => [node.id, 0]))
   for (const edge of edges) {
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
+    outgoing.get(edge.source)?.push(edge.target)
+    remainingIncoming.set(edge.target, (remainingIncoming.get(edge.target) ?? 0) + 1)
   }
   for (const node of nodes) {
     // ForceAtlas2 weighs the charge of a node by its degree plus one. This
     // makes busy family hubs claim enough space without changing the strength
     // of the genealogical links that hold a sibling group together.
     node.mass = (degree.get(node.id) ?? 0) + 1
+  }
+  const rankedNodeIds = nodes
+    .filter((node) => (remainingIncoming.get(node.id) ?? 0) === 0)
+    .map((node) => node.id)
+  for (let index = 0; index < rankedNodeIds.length; index += 1) {
+    const nodeId = rankedNodeIds[index]
+    if (!nodeId) {
+      continue
+    }
+    const source = byId.get(nodeId)
+    if (!source) {
+      continue
+    }
+    for (const targetId of outgoing.get(nodeId) ?? []) {
+      const target = byId.get(targetId)
+      if (!target) {
+        continue
+      }
+      target.rank = Math.max(target.rank, source.rank + 1)
+      const pendingIncoming = (remainingIncoming.get(targetId) ?? 1) - 1
+      remainingIncoming.set(targetId, pendingIncoming)
+      if (pendingIncoming === 0) {
+        rankedNodeIds.push(targetId)
+      }
+    }
+  }
+  const averageRank = nodes.reduce((sum, node) => sum + node.rank, 0) / nodes.length
+  for (const node of nodes) {
+    const jitter = (hashId(node.id) % 101 - 50) * 0.35
+    node.y = (node.rank - averageRank) * FORCE_LAYER_GAP + jitter
   }
   let alpha = FORCE_INITIAL_ALPHA
   let tickCount = 0
@@ -175,12 +214,16 @@ export function createBloodNetworkSimulation(
         const direction = directionBetween(first, second)
         const minimumDistance = first.radius + second.radius + FORCE_COLLISION_PADDING
         const collisionForce = direction.distance < minimumDistance
-          ? (minimumDistance - direction.distance) * 0.15
+          ? Math.min(
+            FORCE_MAX_COLLISION_MAGNITUDE,
+            (minimumDistance - direction.distance) * FORCE_COLLISION_STRENGTH,
+          )
           : 0
-        const magnitude = Math.min(FORCE_MAX_REPULSION_MAGNITUDE, (
-          FORCE_REPULSION * first.mass * second.mass / direction.distance
-          + collisionForce
-        )) * alpha
+        const chargeForce = Math.min(
+          FORCE_MAX_REPULSION_MAGNITUDE,
+          FORCE_REPULSION * first.mass * second.mass / direction.distance,
+        )
+        const magnitude = (chargeForce + collisionForce) * alpha
         const firstForce = force.get(first.id)
         const secondForce = force.get(second.id)
         if (!firstForce || !secondForce) {
@@ -228,11 +271,10 @@ export function createBloodNetworkSimulation(
       if (!nodeForce || !nodeVelocity) {
         continue
       }
-      const distanceToCenter = Math.hypot(node.x, node.y)
-      if (distanceToCenter > 0.001) {
-        nodeForce.x -= node.x / distanceToCenter * node.mass * FORCE_GRAVITY * alpha
-        nodeForce.y -= node.y / distanceToCenter * node.mass * FORCE_GRAVITY * alpha
-      }
+      nodeForce.x -= node.x / (Math.abs(node.x) + FORCE_LAYER_GAP)
+        * node.mass * FORCE_HORIZONTAL_GRAVITY * alpha
+      const desiredY = (node.rank - averageRank) * FORCE_LAYER_GAP
+      nodeForce.y += (desiredY - node.y) * FORCE_LAYER_STRENGTH * alpha
       nodeVelocity.x = (nodeVelocity.x + nodeForce.x) * FORCE_DAMPING
       nodeVelocity.y = (nodeVelocity.y + nodeForce.y) * FORCE_DAMPING
       const speed = Math.hypot(nodeVelocity.x, nodeVelocity.y)
@@ -247,15 +289,6 @@ export function createBloodNetworkSimulation(
       }
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
-      const radius = Math.hypot(node.x, node.y)
-      if (radius > FORCE_MAX_RADIUS) {
-        // A bounded field prevents one temporarily unbalanced branch from
-        // throwing the whole temporary map outside the viewport.
-        node.x = node.x / radius * FORCE_MAX_RADIUS
-        node.y = node.y / radius * FORCE_MAX_RADIUS
-        nodeVelocity.x *= 0.2
-        nodeVelocity.y *= 0.2
-      }
     }
     alpha *= FORCE_ALPHA_DECAY
     tickCount += 1
@@ -333,6 +366,7 @@ export function buildBloodNetwork(
       id,
       mass: 1,
       radius,
+      rank: 0,
       x: Math.cos(angle) * distance,
       y: Math.sin(angle) * distance,
     })
