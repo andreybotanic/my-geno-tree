@@ -1012,7 +1012,7 @@ components:
         averageMovementPerSecondThreshold: { type: number, minimum: 0.1, maximum: 5 }
         baseRepulsion: { type: number, minimum: 0.5, maximum: 8 }
         descendantSideForce: { type: number, minimum: 0, maximum: 24 }
-        personFlowHingeStrength: { type: number, minimum: 0, maximum: 16 }
+        personFlowHingeStrength: { type: number, minimum: 0, maximum: 25 }
         parentChildPathLength: { type: number, minimum: 100, maximum: 500 }
         unrelatedParentNodeRepulsion: { type: number, minimum: 0, maximum: 12 }
         kinshipRepulsionStep: { type: number, minimum: 0.05, maximum: 0.6 }
@@ -1020,7 +1020,7 @@ components:
         parentHingeTargetAngle: { type: number, minimum: 10, maximum: 120 }
         parentPairSpringStrength: { type: number, minimum: 0.04, maximum: 0.5 }
         parentToFamilyLengthRatio: { type: number, minimum: 0, maximum: 1 }
-        sharedParentSpringStrength: { type: number, minimum: 0.02, maximum: 0.4 }
+        sharedParentSpringStrength: { type: number, minimum: 0.02, maximum: 0.8 }
     BloodNetworkPreset:
       type: object
       additionalProperties: false
