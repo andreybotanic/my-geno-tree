@@ -180,6 +180,13 @@ export function bloodNetworkRepulsionMultiplier(
   )
 }
 
+export function bloodNetworkNodeMass(
+  nodeType: BloodNetworkFlowNode['type'],
+  relationshipDegree: number,
+): number {
+  return nodeType === 'bloodFamily' ? 1 : relationshipDegree + 1
+}
+
 export type BloodNetworkSimulation = {
   getNodes: () => BloodNetworkFlowNode[]
   tick: () => boolean
@@ -218,16 +225,20 @@ export function createBloodNetworkSimulation(
   )
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
+  const nodeTypes = new Map(network.nodes.map((node) => [node.id, node.type]))
   const degree = new Map(nodes.map((node) => [node.id, 0]))
   for (const edge of relationshipEdges) {
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
   }
   for (const node of nodes) {
-    // ForceAtlas2 weighs the charge of a node by its degree plus one. This
-    // makes busy family hubs claim enough space without changing the strength
-    // of the genealogical links that hold a sibling group together.
-    node.mass = (degree.get(node.id) ?? 0) + 1
+    // Persons need more room as their blood-link degree grows. A family node
+    // is only a routing point, so even a large sibling group must not turn it
+    // into a heavyweight repelling centre.
+    node.mass = bloodNetworkNodeMass(
+      nodeTypes.get(node.id) ?? 'bloodPerson',
+      degree.get(node.id) ?? 0,
+    )
   }
   const parentPairSprings: ForceEdge[] = network.nodes.flatMap((node) => {
     if (node.type !== 'bloodFamily') {

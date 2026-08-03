@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
+  bloodNetworkNodeMass,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
@@ -33,6 +34,12 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkRepulsionMultiplier(6)).toBe(1.95)
     expect(bloodNetworkRepulsionMultiplier(20)).toBe(2.25)
     expect(bloodNetworkRepulsionMultiplier(undefined)).toBe(2.5)
+  })
+
+  it('keeps family routing nodes lighter than connected people', () => {
+    expect(bloodNetworkNodeMass('bloodFamily', 20)).toBe(1)
+    expect(bloodNetworkNodeMass('bloodPerson', 1)).toBe(2)
+    expect(bloodNetworkNodeMass('bloodPerson', 4)).toBe(5)
   })
 
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
