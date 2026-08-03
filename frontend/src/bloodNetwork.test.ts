@@ -54,12 +54,21 @@ describe('buildBloodNetwork', () => {
 
     expect(fullSiblingFamily).toMatchObject({
       data: { childIds: ['first-child', 'second-child'] },
+      height: 18,
       type: 'bloodFamily',
+      width: 18,
     })
     expect(halfSiblingFamily).toMatchObject({
       data: { childIds: ['half-sibling'] },
+      height: 18,
       type: 'bloodFamily',
+      width: 18,
     })
+    expect(network.nodes.filter((node) => node.type === 'bloodPerson')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ height: 72, width: 72 }),
+      ]),
+    )
     expect(network.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'blood-family:father:mother', target: 'first-child' }),
       expect.objectContaining({ source: 'blood-family:father:mother', target: 'second-child' }),

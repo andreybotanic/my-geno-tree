@@ -300,18 +300,22 @@ export function buildBloodNetwork(
     nodes: [
       ...people.map((person) => ({
         data: { person },
+        height: BLOOD_NETWORK_PERSON_SIZE,
         id: person.id,
         position: positionFor(person.id, BLOOD_NETWORK_PERSON_SIZE),
         type: 'bloodPerson' as const,
+        width: BLOOD_NETWORK_PERSON_SIZE,
       })),
       ...families.map((family) => ({
         data: {
           childIds: family.childIds,
           parentIds: family.parentIds,
         },
+        height: BLOOD_NETWORK_FAMILY_SIZE,
         id: family.id,
         position: positionFor(family.id, BLOOD_NETWORK_FAMILY_SIZE),
         type: 'bloodFamily' as const,
+        width: BLOOD_NETWORK_FAMILY_SIZE,
       })),
     ],
     edges: forceEdges.map((edge) => ({
