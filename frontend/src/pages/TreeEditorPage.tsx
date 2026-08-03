@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -405,13 +406,13 @@ function TreeCanvas({
     }
   }, [centerFirstPerson, view])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (view !== 'network') {
       setSimulatedBloodNodes([])
       return
     }
     const simulation = createBloodNetworkSimulation(bloodNetwork)
-    let animationFrame: number | null = null
+    let animationTimer: number | null = null
     let active = true
     const initialNodes = simulation.getNodes()
     setSimulatedBloodNodes(initialNodes)
@@ -425,25 +426,21 @@ function TreeCanvas({
     })
 
     const animate = () => {
-      // Two small physics steps per browser frame keep the map visibly alive
-      // while finishing in a few seconds even for a hundred-person tree.
-      // Updating React Flow once per frame avoids a second full node render
-      // for every simulation step.
-      let running = simulation.tick()
-      if (running) {
-        running = simulation.tick()
-      }
+      // A timer separates each state update into a browser task. React Flow
+      // can therefore paint every force step instead of batching a whole
+      // simulation into one visible jump on a dense map.
+      const running = simulation.tick()
       setSimulatedBloodNodes(simulation.getNodes())
       if (active && running) {
-        animationFrame = window.requestAnimationFrame(animate)
+        animationTimer = window.setTimeout(animate, 32)
       }
     }
-    animationFrame = window.requestAnimationFrame(animate)
+    animationTimer = window.setTimeout(animate, 32)
 
     return () => {
       active = false
-      if (animationFrame !== null) {
-        window.cancelAnimationFrame(animationFrame)
+      if (animationTimer !== null) {
+        window.clearTimeout(animationTimer)
       }
     }
   }, [bloodNetwork, view])
