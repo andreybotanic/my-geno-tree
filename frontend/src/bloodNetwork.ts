@@ -1,4 +1,4 @@
-import { MarkerType, Position, type Edge, type Node } from '@xyflow/react'
+import { MarkerType, type Edge, type Node } from '@xyflow/react'
 import type {
   BloodNetworkMapState,
   BloodNetworkPreset,
@@ -160,29 +160,6 @@ export function defaultBloodNetworkPresets(): [
       id: 'normal',
       isDefault: true,
       name: 'Нормальный',
-    },
-  ]
-}
-
-function networkHandles(size: number) {
-  return [
-    {
-      height: 0,
-      id: 'network-target',
-      position: Position.Left,
-      type: 'target' as const,
-      width: 0,
-      x: size / 2,
-      y: size / 2,
-    },
-    {
-      height: 0,
-      id: 'network-source',
-      position: Position.Left,
-      type: 'source' as const,
-      width: 0,
-      x: size / 2,
-      y: size / 2,
     },
   ]
 }
@@ -1055,7 +1032,6 @@ export function buildBloodNetwork(
       ...people.map((person) => ({
         data: { person },
         height: BLOOD_NETWORK_PERSON_SIZE,
-        handles: networkHandles(BLOOD_NETWORK_PERSON_SIZE),
         id: person.id,
         position: positionFor(person.id, BLOOD_NETWORK_PERSON_SIZE),
         type: 'bloodPerson' as const,
@@ -1067,7 +1043,6 @@ export function buildBloodNetwork(
           parentIds: family.parentIds,
         },
         height: BLOOD_NETWORK_FAMILY_SIZE,
-        handles: networkHandles(BLOOD_NETWORK_FAMILY_SIZE),
         id: family.id,
         position: positionFor(family.id, BLOOD_NETWORK_FAMILY_SIZE),
         type: 'bloodFamily' as const,

@@ -203,10 +203,6 @@ describe('buildBloodNetwork', () => {
     expect(network.nodes.filter((node) => node.type === 'bloodPerson')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          handles: expect.arrayContaining([
-            expect.objectContaining({ id: 'network-source', type: 'source', x: 36, y: 36 }),
-            expect.objectContaining({ id: 'network-target', type: 'target', x: 36, y: 36 }),
-          ]),
           height: 72,
           width: 72,
         }),
@@ -280,7 +276,6 @@ describe('buildBloodNetwork', () => {
 
     expect(first.nodes.map((node) => ({
       data: node.data,
-      handles: node.handles,
       height: node.height,
       id: node.id,
       type: node.type,
@@ -288,7 +283,6 @@ describe('buildBloodNetwork', () => {
     }))).toEqual(
       second.nodes.map((node) => ({
         data: node.data,
-        handles: node.handles,
         height: node.height,
         id: node.id,
         type: node.type,

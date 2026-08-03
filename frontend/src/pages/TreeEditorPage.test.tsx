@@ -262,6 +262,7 @@ describe('TreeEditorPage', () => {
     expect(anna).toHaveClass('blood-network-person')
     expect(anna.closest('.react-flow__node')).toHaveClass('draggable')
     expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
+    expect(document.querySelectorAll('.react-flow__handle')).toHaveLength(8)
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()

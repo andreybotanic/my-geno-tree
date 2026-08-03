@@ -1,5 +1,7 @@
 import {
   BaseEdge,
+  Handle,
+  Position,
   type EdgeProps,
   type NodeProps,
 } from '@xyflow/react'
@@ -14,6 +16,37 @@ import {
   formatPersonName,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
+
+const centeredNetworkHandleStyle = {
+  height: 0,
+  left: '50%',
+  opacity: 0,
+  pointerEvents: 'none' as const,
+  top: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 0,
+}
+
+function BloodNetworkHandles() {
+  return (
+    <>
+      <Handle
+        id="network-target"
+        isConnectable={false}
+        position={Position.Left}
+        style={centeredNetworkHandleStyle}
+        type="target"
+      />
+      <Handle
+        id="network-source"
+        isConnectable={false}
+        position={Position.Left}
+        style={centeredNetworkHandleStyle}
+        type="source"
+      />
+    </>
+  )
+}
 
 export function BloodNetworkPersonNode({
   data,
@@ -42,6 +75,7 @@ export function BloodNetworkPersonNode({
         <strong>{name}</strong>
         <span>{lifePeriod}</span>
       </span>
+      <BloodNetworkHandles />
     </article>
   )
 }
@@ -55,6 +89,7 @@ export function BloodNetworkFamilyNode({
       aria-label={`Shared parents of ${data.childIds.length} children`}
       className={`blood-network-family${selected ? ' blood-network-rotation-pivot' : ''}`}
     >
+      <BloodNetworkHandles />
     </span>
   )
 }
