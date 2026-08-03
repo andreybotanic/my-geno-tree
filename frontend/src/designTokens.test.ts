@@ -173,4 +173,16 @@ describe('semantic design contracts', () => {
     )
     expect(appStyles).toMatch(/\.blood-network-rotation-pivot\s*\{[^}]*box-shadow:/s)
   })
+
+  it('styles blood-map preset controls like the rest of the interface', () => {
+    expect(appStyles).toMatch(
+      /\.blood-network-preset-field select,[^}]*background:\s*var\(--color-surface\);[^}]*border-radius:\s*8px;[^}]*min-height:\s*36px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.blood-network-preset-field select:focus-visible,[^}]*outline:\s*3px solid var\(--focus-ring\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.blood-network-preset-action\s*\{[^}]*height:\s*34px;[^}]*width:\s*34px;/s,
+    )
+  })
 })

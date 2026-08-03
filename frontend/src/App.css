@@ -1258,30 +1258,79 @@
   gap: 6px;
 }
 
-.blood-network-preset-controls > label:not(.blood-network-preset-default) {
+.blood-network-preset-field {
   color: var(--color-text-muted);
   display: grid;
   font-size: 0.71rem;
   gap: 3px;
 }
 
-.blood-network-preset-controls select,
-.blood-network-preset-controls input[type='text'] {
-  background: var(--color-surface-elevated);
+.blood-network-preset-field select,
+.blood-network-preset-field input[type='text'] {
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--color-text-strong);
   font: inherit;
-  min-height: 28px;
-  padding: 3px 6px;
+  min-height: 36px;
+  padding: 0 9px;
+  width: 100%;
+}
+
+.blood-network-preset-field select:focus-visible,
+.blood-network-preset-field input[type='text']:focus-visible {
+  border-color: var(--color-accent);
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .blood-network-preset-default {
-  align-items: center;
   color: var(--color-text-muted);
-  display: flex;
   font-size: 0.71rem;
-  gap: 5px;
+}
+
+.blood-network-preset-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.blood-network-preset-action {
+  align-items: center;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-accent);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  width: 34px;
+}
+
+.blood-network-preset-action:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.blood-network-preset-action:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.blood-network-preset-action:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.blood-network-preset-action svg {
+  fill: none;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 17px;
 }
 
 .blood-network-force-controls {

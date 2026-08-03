@@ -291,6 +291,7 @@ type BloodNetworkLegendProps = {
   onPresetChange: (presetId: BloodNetworkPreset['id']) => void
   onPresetDefaultChange: (presetId: BloodNetworkPreset['id']) => void
   onPresetNameChange: (presetId: BloodNetworkPreset['id'], name: string) => void
+  onPresetReload: () => void
   onSavePreset: () => void
   presets: BloodNetworkPreset[]
 }
@@ -342,6 +343,7 @@ function BloodNetworkLegend({
   onPresetChange,
   onPresetDefaultChange,
   onPresetNameChange,
+  onPresetReload,
   onSavePreset,
   presets,
 }: BloodNetworkLegendProps) {
@@ -369,7 +371,7 @@ function BloodNetworkLegend({
         <summary>{t('editor.bloodNetworkForceControls')}</summary>
         <div className="blood-network-force-settings-content">
           <div className="blood-network-preset-controls">
-            <label>
+            <label className="blood-network-preset-field">
               <span>{t('editor.bloodNetworkPreset')}</span>
               <select
                 aria-label={t('editor.bloodNetworkPreset')}
@@ -383,7 +385,7 @@ function BloodNetworkLegend({
                 ))}
               </select>
             </label>
-            <label>
+            <label className="blood-network-preset-field">
               <span>{t('editor.bloodNetworkPresetName')}</span>
               <input
                 aria-label={t('editor.bloodNetworkPresetName')}
@@ -393,7 +395,7 @@ function BloodNetworkLegend({
                 value={activePreset.name}
               />
             </label>
-            <label className="blood-network-preset-default">
+            <label className="blood-network-preset-default choice-control">
               <input
                 aria-label={t('editor.bloodNetworkPresetDefault')}
                 checked={activePreset.isDefault}
@@ -402,14 +404,33 @@ function BloodNetworkLegend({
               />
               <span>{t('editor.bloodNetworkPresetDefault')}</span>
             </label>
-            <button
-              className="compact-button blood-network-preset-save"
-              disabled={!canSavePreset}
-              onClick={onSavePreset}
-              type="button"
-            >
-              {t('editor.saveBloodNetworkPreset')}
-            </button>
+            <div className="blood-network-preset-actions">
+              <button
+                aria-label={t('editor.saveBloodNetworkPreset')}
+                className="blood-network-preset-action"
+                disabled={!canSavePreset}
+                onClick={onSavePreset}
+                title={t('editor.saveBloodNetworkPreset')}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M5 3h12l3 3v15H5z" />
+                  <path d="M8 3v6h8V3M8 21v-7h8v7" />
+                </svg>
+              </button>
+              <button
+                aria-label={t('editor.reloadBloodNetworkPreset')}
+                className="blood-network-preset-action"
+                onClick={onPresetReload}
+                title={t('editor.reloadBloodNetworkPreset')}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M20 11a8 8 0 1 1-2.3-5.7" />
+                  <path d="M20 4v7h-7" />
+                </svg>
+              </button>
+            </div>
           </div>
           <fieldset className="blood-network-force-controls">
             <legend>{t('editor.bloodNetworkForceControls')}</legend>
@@ -1043,6 +1064,20 @@ function TreeCanvas({
               preset.id === presetId ? { ...preset, name } : preset
             )))
             setBloodNetworkPresetsDirty(true)
+          }}
+          onPresetReload={() => {
+            const savedPresets = user?.bloodNetworkPresets ?? defaultBloodNetworkPresets()
+            const savedPreset = savedPresets.find((preset) => (
+              preset.id === activeBloodNetworkPresetId
+            ))
+            if (!savedPreset) {
+              return
+            }
+            const forces = { ...savedPreset.forces }
+            setBloodNetworkForces(forces)
+            setBloodNetworkPresets((presets) => presets.map((preset) => (
+              preset.id === savedPreset.id ? { ...preset, forces } : preset
+            )))
           }}
           onSavePreset={() => {
             if (!user || !bloodNetworkPresetsDirty) {

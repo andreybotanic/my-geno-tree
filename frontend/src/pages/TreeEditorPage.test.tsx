@@ -387,10 +387,16 @@ describe('TreeEditorPage', () => {
       target: { value: '7' },
     })
 
+    await userEvent.click(screen.getByRole('button', { name: 'Reload preset' }))
+    expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
+
     expect(request).not.toHaveBeenCalledWith(
       '/me/blood-network-presets',
       expect.anything(),
     )
+    fireEvent.change(screen.getByRole('slider', { name: 'Base repulsion' }), {
+      target: { value: '7' },
+    })
     const savePreset = screen.getByRole('button', { name: 'Save preset' })
     expect(savePreset).toBeEnabled()
     await userEvent.click(savePreset)
