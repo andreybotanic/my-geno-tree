@@ -69,6 +69,8 @@ const FORCE_MAX_TICKS = 1_000
 const FORCE_MAX_REPULSION_MAGNITUDE = 1.25
 const FORCE_MAX_COLLISION_MAGNITUDE = 10
 const FORCE_MAX_SPRING_MAGNITUDE = 10
+const INITIAL_AREA_PER_NODE = 200_000
+const INITIAL_ASPECT_RATIO = 5 / 4
 
 function networkHandles(size: number) {
   return [
@@ -332,8 +334,9 @@ export function buildBloodNetwork(
   const families = buildBloodFamilies({ people, parentLinks: snapshot.parentLinks })
   const forceNodes: ForceNode[] = []
   const nodeCount = people.length + families.length
-  const horizontalSpread = Math.max(1_000, Math.sqrt(nodeCount) * 200)
-  const verticalSpread = Math.max(800, Math.sqrt(nodeCount) * 170)
+  const initialArea = Math.max(nodeCount, 1) * INITIAL_AREA_PER_NODE
+  const horizontalSpread = Math.sqrt(initialArea * INITIAL_ASPECT_RATIO)
+  const verticalSpread = initialArea / horizontalSpread
   const randomPosition = () => (
     (Math.random() + generation * 0.618_033_988_749_895) % 1
   )

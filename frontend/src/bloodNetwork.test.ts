@@ -133,9 +133,13 @@ describe('buildBloodNetwork', () => {
       parentLinks: [parentLink(parent.id, child.id, 'parent-child')],
     }
 
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.25)
     const first = buildBloodNetwork(snapshot, 0)
     const second = buildBloodNetwork(snapshot, 1)
+    const larger = buildBloodNetwork({
+      people: Array.from({ length: 8 }, (_, index) => person(`person-${index}`)),
+      parentLinks: [],
+    })
     random.mockRestore()
 
     expect(first.nodes.map((node) => ({
@@ -165,6 +169,13 @@ describe('buildBloodNetwork', () => {
     expect(first.nodes.map((node) => node.position)).not.toEqual(
       second.nodes.map((node) => node.position),
     )
+    const spreadAreaPerNode = (network: typeof first) => {
+      const node = network.nodes[0]!
+      const centerX = node.position.x + (node.width ?? 0) / 2
+      const centerY = node.position.y + (node.height ?? 0) / 2
+      return (Math.abs(centerX) * 2) * (Math.abs(centerY) * 2) / network.nodes.length
+    }
+    expect(spreadAreaPerNode(larger)).toBeCloseTo(spreadAreaPerNode(first))
   })
 
   it('moves the temporary nodes on every force tick and eventually settles', () => {
@@ -216,12 +227,12 @@ describe('buildBloodNetwork', () => {
       Math.abs(node.position.x),
       Math.abs(node.position.y),
     ]))
-    expect(greatestCoordinate).toBeLessThan(1_500)
+    expect(greatestCoordinate).toBeLessThan(5_000)
     expect(simulation.getNodes().every((node) => (
       Number.isFinite(node.position.x)
       && Number.isFinite(node.position.y)
-      && Math.abs(node.position.x) < 1_500
-      && Math.abs(node.position.y) < 1_500
+      && Math.abs(node.position.x) < 5_000
+      && Math.abs(node.position.y) < 5_000
     ))).toBe(true)
   })
 })
