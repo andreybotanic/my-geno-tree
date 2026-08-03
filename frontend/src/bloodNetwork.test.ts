@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
+  bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
 } from './bloodNetwork'
@@ -26,6 +27,14 @@ function parentLink(parentId: string, childId: string, id: string): ParentLink {
 }
 
 describe('buildBloodNetwork', () => {
+  it('gives distant and unrelated branches more space than close relatives', () => {
+    expect(bloodNetworkRepulsionMultiplier(1)).toBe(0.45)
+    expect(bloodNetworkRepulsionMultiplier(2)).toBe(0.75)
+    expect(bloodNetworkRepulsionMultiplier(6)).toBe(1.95)
+    expect(bloodNetworkRepulsionMultiplier(20)).toBe(2.25)
+    expect(bloodNetworkRepulsionMultiplier(undefined)).toBe(2.5)
+  })
+
   it('groups full siblings at a neutral shared-parent node and separates half siblings', () => {
     const father = person('father')
     const mother = person('mother')
