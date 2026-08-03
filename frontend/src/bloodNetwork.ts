@@ -54,7 +54,7 @@ type ForceEdge = {
 }
 
 export type BloodNetworkForceSettings = {
-  averageMovementThreshold: number
+  averageMovementPerSecondThreshold: number
   baseRepulsion: number
   kinshipRepulsionStep: number
   parentPairSpringStrength: number
@@ -81,7 +81,7 @@ const INITIAL_AREA_PER_NODE = 200_000
 const INITIAL_ASPECT_RATIO = 5 / 4
 
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
-  averageMovementThreshold: 1,
+  averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
   parentPairSpringStrength: 0.2,
@@ -190,7 +190,30 @@ export function bloodNetworkNodeMass(
 
 export type BloodNetworkSimulation = {
   getNodes: () => BloodNetworkFlowNode[]
-  tick: () => boolean
+  tick: () => void
+}
+
+export function bloodNetworkAverageNodeMovement(
+  previousNodes: BloodNetworkFlowNode[],
+  nextNodes: BloodNetworkFlowNode[],
+): number {
+  const previousPositions = new Map(previousNodes.map((node) => [
+    node.id,
+    node.position,
+  ]))
+  const totalMovement = nextNodes.reduce((total, node) => {
+    const previousPosition = previousPositions.get(node.id)
+    if (!previousPosition) {
+      return total
+    }
+
+    return total + Math.hypot(
+      node.position.x - previousPosition.x,
+      node.position.y - previousPosition.y,
+    )
+  }, 0)
+
+  return totalMovement / Math.max(nextNodes.length, 1)
 }
 
 export function createBloodNetworkSimulation(
@@ -322,7 +345,6 @@ export function createBloodNetworkSimulation(
       targetForce.y -= direction.y * magnitude
     }
 
-    let totalMovement = 0
     for (const node of nodes) {
       const nodeForce = force.get(node.id)
       const nodeVelocity = velocity.get(node.id)
@@ -343,19 +365,14 @@ export function createBloodNetworkSimulation(
       }
       node.x += nodeVelocity.x
       node.y += nodeVelocity.y
-      totalMovement += Math.hypot(nodeVelocity.x, nodeVelocity.y)
     }
     alpha *= FORCE_ALPHA_DECAY
-    return totalMovement / Math.max(nodes.length, 1)
   }
 
   const tick = () => {
-    let averageMovement = 0
     for (let step = 0; step < FORCE_STEPS_PER_TICK; step += 1) {
-      averageMovement += advance()
+      advance()
     }
-
-    return averageMovement > settings.averageMovementThreshold
   }
 
   const getNodes = () => network.nodes.map((node) => {

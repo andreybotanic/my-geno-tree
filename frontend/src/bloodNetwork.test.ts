@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
-  DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+  bloodNetworkAverageNodeMovement,
   bloodNetworkNodeMass,
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
@@ -195,7 +195,7 @@ describe('buildBloodNetwork', () => {
     expect(spreadAreaPerNode(larger)).toBeCloseTo(spreadAreaPerNode(first))
   })
 
-  it('moves the temporary nodes on every force tick and settles below the average movement threshold', () => {
+  it('moves the temporary nodes on every force tick', () => {
     const parent = person('parent')
     const child = person('child')
     const network = buildBloodNetwork({
@@ -204,17 +204,15 @@ describe('buildBloodNetwork', () => {
     })
     const simulation = createBloodNetworkSimulation(network)
     const initialPositions = simulation.getNodes().map((node) => node.position)
-    expect(simulation.tick()).toBe(true)
+    simulation.tick()
     expect(simulation.getNodes().map((node) => node.position)).not.toEqual(
       initialPositions,
     )
 
-    let running = true
-    for (let tick = 0; tick < 1_100 && running; tick += 1) {
-      running = simulation.tick()
+    for (let tick = 0; tick < 1_100; tick += 1) {
+      simulation.tick()
     }
 
-    expect(running).toBe(false)
     expect(simulation.getNodes().every((node) => (
       Number.isFinite(node.position.x) && Number.isFinite(node.position.y)
     ))).toBe(true)
@@ -223,16 +221,20 @@ describe('buildBloodNetwork', () => {
     ))).toBe(true)
   })
 
-  it('stops after one complete tick when every node stays still', () => {
-    const simulation = createBloodNetworkSimulation(buildBloodNetwork({
-      people: [person('isolated')],
-      parentLinks: [],
-    }), DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS)
+  it('measures the movement of every temporary node between rendered frames', () => {
+    const network = buildBloodNetwork({
+      people: [person('parent'), person('child')],
+      parentLinks: [parentLink('parent', 'child', 'parent-child')],
+    })
+    const shiftedNodes = network.nodes.map((node) => ({
+      ...node,
+      position: { x: node.position.x + 3, y: node.position.y + 4 },
+    }))
 
-    expect(simulation.tick()).toBe(false)
+    expect(bloodNetworkAverageNodeMovement(network.nodes, shiftedNodes)).toBe(5)
   })
 
-  it('settles a 101-person graph without letting the layout escape', () => {
+  it('keeps a 101-person graph bounded during force simulation', () => {
     const people = Array.from({ length: 101 }, (_, index) => person(`person-${index}`))
     const parentLinks = people.slice(24).flatMap((child, index) => [
       parentLink(people[index % 12]!.id, child.id, `first-parent-${index}`),
@@ -243,12 +245,10 @@ describe('buildBloodNetwork', () => {
       parentLinks,
     }))
 
-    let running = true
-    for (let tick = 0; tick < 1_100 && running; tick += 1) {
-      running = simulation.tick()
+    for (let tick = 0; tick < 300; tick += 1) {
+      simulation.tick()
     }
 
-    expect(running).toBe(false)
     const greatestCoordinate = Math.max(...simulation.getNodes().flatMap((node) => [
       Math.abs(node.position.x),
       Math.abs(node.position.y),

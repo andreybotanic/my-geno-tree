@@ -267,7 +267,7 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')
     const settlementThreshold = screen.getByRole(
       'slider',
-      { name: 'Settlement threshold (px/node)' },
+      { name: 'Settlement threshold (px/node/s)' },
     )
     expect(settlementThreshold).toHaveValue('1')
     fireEvent.change(parentPairSpring, { target: { value: '0.3' } })

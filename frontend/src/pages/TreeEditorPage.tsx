@@ -80,6 +80,7 @@ import {
 import {
   BLOOD_NETWORK_FAMILY_SIZE,
   BLOOD_NETWORK_PERSON_SIZE,
+  bloodNetworkAverageNodeMovement,
   buildBloodNetwork,
   createBloodNetworkSimulation,
   DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
@@ -315,7 +316,7 @@ function BloodNetworkLegend({ forces, onForceChange }: BloodNetworkLegendProps) 
       <fieldset className="blood-network-force-controls">
         <legend>{t('editor.bloodNetworkForceControls')}</legend>
         <BloodNetworkForceControl
-          forceKey="averageMovementThreshold"
+          forceKey="averageMovementPerSecondThreshold"
           forces={forces}
           label={t('editor.bloodNetworkSettlementThreshold')}
           max={10}
@@ -562,6 +563,7 @@ function TreeCanvas({
     activeBloodNetwork.current = bloodNetwork
     let animationTimer: number | null = null
     let active = true
+    let previousFrameTimestamp = performance.now()
     const initialNodes = simulation.getNodes()
     latestBloodNodes.current = initialNodes
     setSimulatedBloodNodes(initialNodes)
@@ -580,11 +582,20 @@ function TreeCanvas({
       // A timer separates each state update into a browser task. React Flow
       // can therefore paint every force step instead of batching a whole
       // simulation into one visible jump on a dense map.
-      const running = simulation.tick()
+      const frameTimestamp = performance.now()
+      simulation.tick()
       const nextNodes = simulation.getNodes()
+      const averageMovementPerSecond = bloodNetworkAverageNodeMovement(
+        latestBloodNodes.current,
+        nextNodes,
+      ) * 1_000 / Math.max(frameTimestamp - previousFrameTimestamp, 1)
+      previousFrameTimestamp = frameTimestamp
       latestBloodNodes.current = nextNodes
       setSimulatedBloodNodes(nextNodes)
-      if (active && running) {
+      if (
+        active
+        && averageMovementPerSecond > bloodNetworkForces.averageMovementPerSecondThreshold
+      ) {
         animationTimer = window.setTimeout(animate, 16)
       }
     }
