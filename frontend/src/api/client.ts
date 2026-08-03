@@ -164,6 +164,21 @@ export const treeApi = {
       `/trees/${treeId}/snapshot`,
     )
   },
+  saveBloodNetworkState(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    etag: string,
+    state: import('./generated').BloodNetworkMapState,
+  ) {
+    return request<import('./generated').TreeSnapshot>(
+      `/trees/${treeId}/blood-network-state`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(state),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
   createFirstPerson(
     request: AuthorizedJsonRequest,
     treeId: string,

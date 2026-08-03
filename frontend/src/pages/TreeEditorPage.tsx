@@ -19,6 +19,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useTranslation } from 'react-i18next'
 import type {
+  BloodNetworkMapState,
   BloodNetworkPreset,
   GenealogicalEvent,
   GraphMutation,
@@ -88,6 +89,7 @@ import {
   createBloodNetworkSimulation,
   DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
   defaultBloodNetworkPresets,
+  restoreBloodNetworkNodePositions,
   rotateBloodNetworkNodes,
   type BloodNetworkFlowEdge,
   type BloodNetworkForceSettings,
@@ -238,6 +240,7 @@ type LayoutToolbarProps = {
   isNetworkView: boolean
   onOptimize: () => void
   onRegenerateNetwork: () => void
+  onSaveNetworkState: () => void
   onToggleNetworkView: () => void
   unavailable: boolean
 }
@@ -246,6 +249,7 @@ function LayoutToolbar({
   isNetworkView,
   onOptimize,
   onRegenerateNetwork,
+  onSaveNetworkState,
   onToggleNetworkView,
   unavailable,
 }: LayoutToolbarProps) {
@@ -276,18 +280,32 @@ function LayoutToolbar({
         </svg>
       </button>
       {isNetworkView && (
-        <button
-          aria-label={t('editor.regenerateBloodNetwork')}
-          className="editor-tool-button"
-          onClick={onRegenerateNetwork}
-          title={t('editor.regenerateBloodNetwork')}
-          type="button"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M19 8a7.5 7.5 0 1 0 1 7" />
-            <path d="M19 4v4h-4" />
-          </svg>
-        </button>
+        <>
+          <button
+            aria-label={t('editor.saveBloodNetworkState')}
+            className="editor-tool-button"
+            onClick={onSaveNetworkState}
+            title={t('editor.saveBloodNetworkState')}
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M5 4h12l2 2v14H5z" />
+              <path d="M8 4v6h8V4M8 18h8v-5H8z" />
+            </svg>
+          </button>
+          <button
+            aria-label={t('editor.regenerateBloodNetwork')}
+            className="editor-tool-button"
+            onClick={onRegenerateNetwork}
+            title={t('editor.regenerateBloodNetwork')}
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M19 8a7.5 7.5 0 1 0 1 7" />
+              <path d="M19 4v4h-4" />
+            </svg>
+          </button>
+        </>
       )}
       {!isNetworkView && (
         <button
@@ -661,6 +679,7 @@ type TreeCanvasProps = {
   onCancelLayout: () => void
   onChangeLayoutPreviewView: (view: 'optimized' | 'original') => void
   onOptimizeLayout: () => void
+  onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
   request: AuthorizedJsonRequest
   onSelectPerson: (personId: string) => void
   onToggleNetworkView: () => void
@@ -681,6 +700,7 @@ function TreeCanvas({
   onCancelLayout,
   onChangeLayoutPreviewView,
   onOptimizeLayout,
+  onSaveBloodNetworkState,
   request,
   onSelectPerson,
   onToggleNetworkView,
@@ -718,6 +738,7 @@ function TreeCanvas({
   const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
     string | null
   >(null)
+  const [bloodNetworkSaveConfirmation, setBloodNetworkSaveConfirmation] = useState(false)
   const savedBloodNetworkPresets = useMemo(() => (
     user?.bloodNetworkPresets.map((preset) => ({
       ...preset,
@@ -782,12 +803,26 @@ function TreeCanvas({
     () => buildTreeEdges(snapshot),
     [snapshot],
   )
-  const bloodNetwork = useMemo(
+  const generatedBloodNetwork = useMemo(
     () => view === 'network'
       ? buildBloodNetwork(snapshot, networkGeneration)
       : { edges: [], nodes: [] },
     [networkGeneration, snapshot, view],
   )
+  const isSavedBloodNetworkStateCompatible = useMemo(() => {
+    const state = snapshot.bloodNetworkState
+    if (!state || networkGeneration !== 0) {
+      return false
+    }
+    const savedIds = new Set(state.nodes.map((node) => node.id))
+    return savedIds.size === generatedBloodNetwork.nodes.length
+      && generatedBloodNetwork.nodes.every((node) => savedIds.has(node.id))
+  }, [generatedBloodNetwork.nodes, networkGeneration, snapshot.bloodNetworkState])
+  const bloodNetwork = useMemo(() => (
+    isSavedBloodNetworkStateCompatible
+      ? restoreBloodNetworkNodePositions(generatedBloodNetwork, snapshot.bloodNetworkState)
+      : generatedBloodNetwork
+  ), [generatedBloodNetwork, isSavedBloodNetworkStateCompatible, snapshot.bloodNetworkState])
   const nodes: EditorFlowNode[] = view === 'network'
     ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
       ? simulatedBloodNodes
@@ -813,6 +848,13 @@ function TreeCanvas({
     setActiveBloodNetworkPresetId(defaultPreset.id)
     setBloodNetworkForces({ ...defaultPreset.forces })
   }, [savedBloodNetworkPresets])
+
+  useEffect(() => {
+    if (view !== 'network' || !snapshot.bloodNetworkState) {
+      return
+    }
+    setBloodNetworkForces({ ...snapshot.bloodNetworkState.forces })
+  }, [snapshot.bloodNetworkState, view])
 
   useEffect(() => {
     bloodNetworkStopThresholdRef.current = bloodNetworkForces.averageMovementPerSecondThreshold
@@ -900,10 +942,16 @@ function TreeCanvas({
     // The temporary nodes have known sizes, so their initial bounds can place
     // the viewport immediately and the camera remains under the user's control.
     if (!continueSimulation) {
-      void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
-        duration: 0,
-        padding: 0.2,
-      })
+      if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
+        void instance.current?.setViewport(snapshot.bloodNetworkState.viewport, {
+          duration: 0,
+        })
+      } else {
+        void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
+          duration: 0,
+          padding: 0.2,
+        })
+      }
     }
 
     if (bloodNetworkRotationPivotNodeId) {
@@ -967,8 +1015,33 @@ function TreeCanvas({
     bloodNetworkSimulationForces,
     bloodNetworkMotionRevision,
     bloodNetworkRotationPivotNodeId,
+    isSavedBloodNetworkStateCompatible,
+    snapshot.bloodNetworkState,
     view,
   ])
+
+  const saveBloodNetworkState = async () => {
+    const viewport = instance.current?.getViewport()
+    if (!viewport || latestBloodNodes.current.length === 0) {
+      throw new Error('Blood network state is unavailable')
+    }
+    await onSaveBloodNetworkState({
+      forces: { ...bloodNetworkForces },
+      nodes: latestBloodNodes.current.map((node) => ({
+        coordinates: { ...node.position },
+        id: node.id,
+      })),
+      viewport,
+    })
+  }
+
+  const requestBloodNetworkSave = () => {
+    if (snapshot.bloodNetworkState) {
+      setBloodNetworkSaveConfirmation(true)
+      return
+    }
+    void saveBloodNetworkState()
+  }
 
   return (
     <>
@@ -1049,6 +1122,8 @@ function TreeCanvas({
         instance.current = flow
         if (view === 'tree') {
           centerFirstPerson(flow)
+        } else if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
+          void flow.setViewport(snapshot.bloodNetworkState.viewport, { duration: 0 })
         }
       }}
       onNodeClick={(_event, node) => {
@@ -1123,6 +1198,7 @@ function TreeCanvas({
         isNetworkView={view === 'network'}
         onOptimize={onOptimizeLayout}
         onRegenerateNetwork={() => setNetworkGeneration((generation) => generation + 1)}
+        onSaveNetworkState={requestBloodNetworkSave}
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />
@@ -1234,6 +1310,20 @@ function TreeCanvas({
         </li>
       </menu>,
       document.body,
+    )}
+    {bloodNetworkSaveConfirmation && (
+      <ConfirmRelationshipDialog
+        confirmClassName="primary-button"
+        confirmLabel={t('common.save')}
+        description={t('editor.bloodNetworkSaveChangesDescription')}
+        errorMessage={t('editor.bloodNetworkSaveFailed')}
+        onCancel={() => setBloodNetworkSaveConfirmation(false)}
+        onConfirm={async () => {
+          await saveBloodNetworkState()
+          setBloodNetworkSaveConfirmation(false)
+        }}
+        title={t('editor.bloodNetworkSaveChangesTitle')}
+      />
     )}
     </>
   )
@@ -1618,6 +1708,29 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       }
 
       return updated
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const saveBloodNetworkState = async (state: BloodNetworkMapState) => {
+    if (!snapshot || conflict) {
+      throw new Error('Blood network state is unavailable')
+    }
+    try {
+      const updated = await treeApi.saveBloodNetworkState(
+        request,
+        treeId,
+        snapshot.etag,
+        state,
+      )
+      setSnapshot(updated)
     } catch (error) {
       if (
         error instanceof ApiRequestError
@@ -2085,6 +2198,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                   onCancelLayout={layoutSearch ? stopLayoutSearch : rejectLayoutPreview}
                   onChangeLayoutPreviewView={setLayoutPreviewView}
                   onOptimizeLayout={showLayoutOptimizer}
+                  onSaveBloodNetworkState={saveBloodNetworkState}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   layoutProgressVisible={layoutProgressVisible}
                   layoutPreview={layoutPreview}

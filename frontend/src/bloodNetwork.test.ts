@@ -13,6 +13,7 @@ import {
   bloodNetworkRepulsionMultiplier,
   buildBloodNetwork,
   createBloodNetworkSimulation,
+  restoreBloodNetworkNodePositions,
   rotateBloodNetworkNodes,
 } from './bloodNetwork'
 
@@ -49,6 +50,30 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkNodeMass('bloodFamily', 20)).toBe(1)
     expect(bloodNetworkNodeMass('bloodPerson', 1)).toBe(2)
     expect(bloodNetworkNodeMass('bloodPerson', 4)).toBe(5)
+  })
+
+  it('restores saved positions only for an identical temporary graph', () => {
+    const network = buildBloodNetwork({
+      people: [person('parent'), person('child')],
+      parentLinks: [parentLink('parent', 'child', 'parent-child')],
+    })
+    const state = {
+      forces: {},
+      nodes: network.nodes.map((node, index) => ({
+        id: node.id,
+        coordinates: { x: index * 100, y: -index * 100 },
+      })),
+      viewport: { x: 0, y: 0, zoom: 1 },
+    } as unknown as import('./api/generated').BloodNetworkMapState
+
+    const restored = restoreBloodNetworkNodePositions(network, state)
+    expect(restored.nodes.map((node) => node.position)).toEqual(
+      state.nodes.map((node) => node.coordinates),
+    )
+    expect(restoreBloodNetworkNodePositions(network, {
+      ...state,
+      nodes: state.nodes.slice(1),
+    })).toBe(network)
   })
 
   it('splits the parent-to-child path length by the configured ratio', () => {

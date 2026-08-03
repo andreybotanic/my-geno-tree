@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type ConfirmRelationshipDialogProps = {
+  confirmClassName?: string
+  confirmLabel?: string
   description: string
   errorMessage?: string
   onCancel: () => void
@@ -10,6 +12,8 @@ type ConfirmRelationshipDialogProps = {
 }
 
 export function ConfirmRelationshipDialog({
+  confirmClassName,
+  confirmLabel,
   description,
   errorMessage,
   onCancel,
@@ -51,12 +55,12 @@ export function ConfirmRelationshipDialog({
             {t('common.cancel')}
           </button>
           <button
-            className="danger-button"
+            className={confirmClassName ?? 'danger-button'}
             disabled={saving}
             onClick={() => void confirm()}
             type="button"
           >
-            {saving ? t('common.saving') : t('common.remove')}
+            {saving ? t('common.saving') : (confirmLabel ?? t('common.remove'))}
           </button>
         </div>
       </section>

@@ -33,8 +33,9 @@ final readonly class TreeSnapshotViewFactory
                 'createdAt' => $tree->getCreatedAt()->format(DATE_ATOM),
                 'updatedAt' => $tree->getUpdatedAt()->format(DATE_ATOM),
             ],
-            'etag'   => $this->versions->etag($tree),
-            'people' => array_map(
+            'etag'              => $this->versions->etag($tree),
+            'bloodNetworkState' => $tree->getBloodNetworkState(),
+            'people'            => array_map(
                 $this->personViews->create(...),
                 $this->people->findAllForTree($tree),
             ),

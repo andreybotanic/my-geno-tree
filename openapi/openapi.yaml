@@ -418,6 +418,42 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/blood-network-state:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    put:
+      operationId: saveBloodNetworkState
+      summary: Save the temporary blood-network map state for a tree
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BloodNetworkMapState"
+      responses:
+        "200":
+          description: Saved tree snapshot with the current blood-network map state
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees/{treeId}/marriages/{marriageId}:
     parameters:
       - $ref: "#/components/parameters/TreeId"
@@ -1331,6 +1367,10 @@ components:
           $ref: "#/components/schemas/TreeMetadata"
         etag:
           type: string
+        bloodNetworkState:
+          oneOf:
+            - $ref: "#/components/schemas/BloodNetworkMapState"
+            - type: "null"
         people:
           type: array
           items:
@@ -1343,6 +1383,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MarriagePeriod"
+    BloodNetworkMapNode:
+      type: object
+      additionalProperties: false
+      required: [id, coordinates]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 200
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+    BloodNetworkViewport:
+      type: object
+      additionalProperties: false
+      required: [x, y, zoom]
+      properties:
+        x: { type: number, minimum: -1000000, maximum: 1000000 }
+        y: { type: number, minimum: -1000000, maximum: 1000000 }
+        zoom: { type: number, minimum: 0.1, maximum: 2 }
+    BloodNetworkMapState:
+      type: object
+      additionalProperties: false
+      required: [forces, nodes, viewport]
+      properties:
+        forces:
+          $ref: "#/components/schemas/BloodNetworkForceSettings"
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items:
+            $ref: "#/components/schemas/BloodNetworkMapNode"
+        viewport:
+          $ref: "#/components/schemas/BloodNetworkViewport"
     ParentRole:
       type: string
       enum:

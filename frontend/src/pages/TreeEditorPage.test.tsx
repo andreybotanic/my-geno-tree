@@ -265,6 +265,7 @@ describe('TreeEditorPage', () => {
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save blood network map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
     await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
@@ -289,6 +290,31 @@ describe('TreeEditorPage', () => {
     expect(parentPairSpring).toHaveValue('0.3')
     fireEvent.change(settlementThreshold, { target: { value: '2' } })
     expect(settlementThreshold).toHaveValue('2')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save blood network map' }))
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith(
+        `/trees/${treeId}/blood-network-state`,
+        expect.objectContaining({
+          method: 'PUT',
+          headers: { 'If-Match': '"tree-current"' },
+          body: expect.any(String),
+        }),
+      )
+    })
+    const saveCall = (request as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([path]) => path === `/trees/${treeId}/blood-network-state`,
+    )
+    if (!saveCall) {
+      throw new Error('The blood network save request was not sent.')
+    }
+    expect(JSON.parse((saveCall[1] as RequestInit).body as string)).toEqual(
+      expect.objectContaining({
+        forces: expect.objectContaining({ averageMovementPerSecondThreshold: 2 }),
+        nodes: expect.any(Array),
+        viewport: expect.objectContaining({ zoom: expect.any(Number) }),
+      }),
+    )
 
     await userEvent.hover(anna)
     const tooltip = within(anna).getByRole('tooltip')
@@ -343,6 +369,47 @@ describe('TreeEditorPage', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(anna).not.toHaveClass('blood-network-rotation-pivot')
     expect(document.querySelector('.blood-network-rotation-mode')).not.toBeInTheDocument()
+  })
+
+  it('asks before replacing an already saved blood network map', async () => {
+    const tree = {
+      ...graphSnapshot([person]),
+      bloodNetworkState: {
+        forces: {
+          ...defaultBloodNetworkPresets()[1].forces,
+          baseRepulsion: 5,
+        },
+        nodes: [{
+          id: person.id,
+          coordinates: { x: 240, y: -180 },
+        }],
+        viewport: { x: 40, y: -20, zoom: 0.7 },
+      },
+    }
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await waitFor(() => {
+      expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('5')
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Save blood network map' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Save map changes?' })
+    expect(within(dialog).getByText(/saved map, viewport, and force settings/i))
+      .toBeInTheDocument()
+    expect(request).not.toHaveBeenCalledWith(
+      `/trees/${treeId}/blood-network-state`,
+      expect.anything(),
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith(
+        `/trees/${treeId}/blood-network-state`,
+        expect.objectContaining({ method: 'PUT' }),
+      )
+    })
   })
 
   it('applies the user default force preset and saves changes only on request', async () => {

@@ -29,6 +29,10 @@ class FamilyTree
     #[ORM\Column]
     private int $version = 1;
 
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $bloodNetworkState = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -67,6 +71,12 @@ class FamilyTree
         return $this->version;
     }
 
+    /** @return array<string, mixed>|null */
+    public function getBloodNetworkState(): ?array
+    {
+        return $this->bloodNetworkState;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -87,6 +97,13 @@ class FamilyTree
         $this->touch($changedAt);
 
         return true;
+    }
+
+    /** @param array<string, mixed> $state */
+    public function saveBloodNetworkState(array $state, \DateTimeImmutable $changedAt): void
+    {
+        $this->bloodNetworkState = $state;
+        $this->touch($changedAt);
     }
 
     public function touch(\DateTimeImmutable $changedAt): void

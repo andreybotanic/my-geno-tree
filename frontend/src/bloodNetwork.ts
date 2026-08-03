@@ -1,5 +1,6 @@
 import { MarkerType, Position, type Edge, type Node } from '@xyflow/react'
 import type {
+  BloodNetworkMapState,
   BloodNetworkPreset,
   Person,
   TreeSnapshot,
@@ -1092,6 +1093,42 @@ export function buildBloodNetwork(
       target: edge.target,
       targetHandle: 'network-target',
       type: 'bloodNetwork' as const,
+    })),
+  }
+}
+
+/**
+ * Applies a saved force-map layout only when it belongs to precisely the same
+ * temporary graph. A relationship change creates or removes routing nodes, so
+ * partially restoring positions would put a different graph in a misleading
+ * state.
+ */
+export function restoreBloodNetworkNodePositions(
+  network: {
+    edges: BloodNetworkFlowEdge[]
+    nodes: BloodNetworkFlowNode[]
+  },
+  state: BloodNetworkMapState | null | undefined,
+): {
+  edges: BloodNetworkFlowEdge[]
+  nodes: BloodNetworkFlowNode[]
+} {
+  const positions = new Map(state?.nodes.map((node) => [
+    node.id,
+    node.coordinates,
+  ]) ?? [])
+  if (
+    positions.size !== network.nodes.length
+    || network.nodes.some((node) => !positions.has(node.id))
+  ) {
+    return network
+  }
+
+  return {
+    ...network,
+    nodes: network.nodes.map((node) => ({
+      ...node,
+      position: { ...positions.get(node.id)! },
     })),
   }
 }

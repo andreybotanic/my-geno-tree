@@ -170,9 +170,27 @@ export type TreeMetadata = {
 export type TreeSnapshot = {
     tree: TreeMetadata;
     etag: string;
+    bloodNetworkState?: BloodNetworkMapState | null;
     people: Array<Person>;
     parentLinks: Array<ParentLink>;
     marriages: Array<MarriagePeriod>;
+};
+
+export type BloodNetworkMapNode = {
+    id: string;
+    coordinates: Coordinates;
+};
+
+export type BloodNetworkViewport = {
+    x: number;
+    y: number;
+    zoom: number;
+};
+
+export type BloodNetworkMapState = {
+    forces: BloodNetworkForceSettings;
+    nodes: Array<BloodNetworkMapNode>;
+    viewport: BloodNetworkViewport;
 };
 
 export type ParentRole = 'father' | 'mother';
@@ -977,6 +995,55 @@ export type MutateTreeGraphResponses = {
 };
 
 export type MutateTreeGraphResponse = MutateTreeGraphResponses[keyof MutateTreeGraphResponses];
+
+export type SaveBloodNetworkStateData = {
+    body: BloodNetworkMapState;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/blood-network-state';
+};
+
+export type SaveBloodNetworkStateErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type SaveBloodNetworkStateError = SaveBloodNetworkStateErrors[keyof SaveBloodNetworkStateErrors];
+
+export type SaveBloodNetworkStateResponses = {
+    /**
+     * Saved tree snapshot with the current blood-network map state
+     */
+    200: TreeSnapshot;
+};
+
+export type SaveBloodNetworkStateResponse = SaveBloodNetworkStateResponses[keyof SaveBloodNetworkStateResponses];
 
 export type UpdateMarriagePeriodData = {
     body: MarriagePeriodPatchRequest;
