@@ -34,7 +34,6 @@ type ForceNode = {
   id: string
   mass: number
   radius: number
-  rank: number
   x: number
   y: number
 }
@@ -55,9 +54,6 @@ const FORCE_REPULSION = 1.25
 const FORCE_SPRING_LENGTH = 155
 const FORCE_SPRING_STRENGTH = 0.12
 const FORCE_DAMPING = 0.84
-const FORCE_HORIZONTAL_GRAVITY = 0.45
-const FORCE_LAYER_GAP = 140
-const FORCE_LAYER_STRENGTH = 0.08
 const FORCE_MAX_STEP = 3.2
 const FORCE_COLLISION_PADDING = 18
 const FORCE_COLLISION_STRENGTH = 0.65
@@ -136,7 +132,6 @@ export function createBloodNetworkSimulation(
       id: node.id,
       mass: 1,
       radius: size / 2,
-      rank: 0,
       x: node.position.x + size / 2,
       y: node.position.y + size / 2,
     }
@@ -149,49 +144,15 @@ export function createBloodNetworkSimulation(
   const velocity = new Map(nodes.map((node) => [node.id, { x: 0, y: 0 }]))
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const degree = new Map(nodes.map((node) => [node.id, 0]))
-  const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]))
-  const remainingIncoming = new Map(nodes.map((node) => [node.id, 0]))
   for (const edge of edges) {
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
-    outgoing.get(edge.source)?.push(edge.target)
-    remainingIncoming.set(edge.target, (remainingIncoming.get(edge.target) ?? 0) + 1)
   }
   for (const node of nodes) {
     // ForceAtlas2 weighs the charge of a node by its degree plus one. This
     // makes busy family hubs claim enough space without changing the strength
     // of the genealogical links that hold a sibling group together.
     node.mass = (degree.get(node.id) ?? 0) + 1
-  }
-  const rankedNodeIds = nodes
-    .filter((node) => (remainingIncoming.get(node.id) ?? 0) === 0)
-    .map((node) => node.id)
-  for (let index = 0; index < rankedNodeIds.length; index += 1) {
-    const nodeId = rankedNodeIds[index]
-    if (!nodeId) {
-      continue
-    }
-    const source = byId.get(nodeId)
-    if (!source) {
-      continue
-    }
-    for (const targetId of outgoing.get(nodeId) ?? []) {
-      const target = byId.get(targetId)
-      if (!target) {
-        continue
-      }
-      target.rank = Math.max(target.rank, source.rank + 1)
-      const pendingIncoming = (remainingIncoming.get(targetId) ?? 1) - 1
-      remainingIncoming.set(targetId, pendingIncoming)
-      if (pendingIncoming === 0) {
-        rankedNodeIds.push(targetId)
-      }
-    }
-  }
-  const averageRank = nodes.reduce((sum, node) => sum + node.rank, 0) / nodes.length
-  for (const node of nodes) {
-    const jitter = (hashId(node.id) % 101 - 50) * 0.35
-    node.y = (node.rank - averageRank) * FORCE_LAYER_GAP + jitter
   }
   let alpha = FORCE_INITIAL_ALPHA
   let tickCount = 0
@@ -271,10 +232,6 @@ export function createBloodNetworkSimulation(
       if (!nodeForce || !nodeVelocity) {
         continue
       }
-      nodeForce.x -= node.x / (Math.abs(node.x) + FORCE_LAYER_GAP)
-        * node.mass * FORCE_HORIZONTAL_GRAVITY * alpha
-      const desiredY = (node.rank - averageRank) * FORCE_LAYER_GAP
-      nodeForce.y += (desiredY - node.y) * FORCE_LAYER_STRENGTH * alpha
       nodeVelocity.x = (nodeVelocity.x + nodeForce.x) * FORCE_DAMPING
       nodeVelocity.y = (nodeVelocity.y + nodeForce.y) * FORCE_DAMPING
       const speed = Math.hypot(nodeVelocity.x, nodeVelocity.y)
@@ -355,31 +312,25 @@ export function buildBloodNetwork(
   ))
   const families = buildBloodFamilies({ people, parentLinks: snapshot.parentLinks })
   const forceNodes: ForceNode[] = []
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  const initializeNode = (id: string, radius: number, index: number) => {
-    const angle = goldenAngle * index + (hashId(id) % 360) * Math.PI / 1_800
-    // Keep the whole graph visible when the force view opens. The simulation
-    // then has room to make a visible, controlled adjustment instead of
-    // spending many seconds pulling nodes back from a very wide initial spiral.
-    const distance = 56 * Math.sqrt(index + 1)
+  const nodeCount = people.length + families.length
+  const horizontalSpread = Math.max(360, Math.sqrt(nodeCount) * 95)
+  const verticalSpread = Math.max(280, Math.sqrt(nodeCount) * 75)
+  const initializeNode = (id: string, radius: number) => {
     forceNodes.push({
       id,
       mass: 1,
       radius,
-      rank: 0,
-      x: Math.cos(angle) * distance,
-      y: Math.sin(angle) * distance,
+      x: (Math.random() - 0.5) * horizontalSpread,
+      y: (Math.random() - 0.5) * verticalSpread,
     })
   }
-  people.forEach((person, index) => initializeNode(
+  people.forEach((person) => initializeNode(
     person.id,
     BLOOD_NETWORK_PERSON_SIZE / 2,
-    index,
   ))
-  families.forEach((family, index) => initializeNode(
+  families.forEach((family) => initializeNode(
     family.id,
     BLOOD_NETWORK_FAMILY_SIZE / 2,
-    people.length + index,
   ))
 
   const forceEdges: ForceEdge[] = families.flatMap((family) => [

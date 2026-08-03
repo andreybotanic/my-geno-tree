@@ -108,7 +108,7 @@ describe('buildBloodNetwork', () => {
     ]))
   })
 
-  it('uses only parent links and produces the same temporary layout every time', () => {
+  it('uses only parent links and starts each temporary layout from random positions', () => {
     const parent = person('parent')
     const child = person('child')
     const spouse = person('spouse')
@@ -120,7 +120,23 @@ describe('buildBloodNetwork', () => {
     const first = buildBloodNetwork(snapshot)
     const second = buildBloodNetwork(snapshot)
 
-    expect(first).toEqual(second)
+    expect(first.nodes.map((node) => ({
+      data: node.data,
+      handles: node.handles,
+      height: node.height,
+      id: node.id,
+      type: node.type,
+      width: node.width,
+    }))).toEqual(
+      second.nodes.map((node) => ({
+        data: node.data,
+        handles: node.handles,
+        height: node.height,
+        id: node.id,
+        type: node.type,
+        width: node.width,
+      })),
+    )
     expect(first.edges).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ source: spouse.id }),
       expect.objectContaining({ target: spouse.id }),
@@ -139,14 +155,6 @@ describe('buildBloodNetwork', () => {
     })
     const simulation = createBloodNetworkSimulation(network)
     const initialPositions = simulation.getNodes().map((node) => node.position)
-    const initialById = new Map(simulation.getNodes().map((node) => [node.id, node]))
-    const family = initialById.get('blood-family:parent')
-    const childNode = initialById.get(child.id)
-    const parentNode = initialById.get(parent.id)
-
-    expect(parentNode?.position.y).toBeLessThan(family?.position.y ?? 0)
-    expect(family?.position.y).toBeLessThan(childNode?.position.y ?? 0)
-
     expect(simulation.tick()).toBe(true)
     expect(simulation.getNodes().map((node) => node.position)).not.toEqual(
       initialPositions,
