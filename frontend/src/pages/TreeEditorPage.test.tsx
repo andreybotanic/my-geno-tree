@@ -265,11 +265,11 @@ describe('TreeEditorPage', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
-    expect(screen.getByText('Blood links')).toBeInTheDocument()
-    expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
+    expect(screen.queryByText('Blood links')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connected points attract. All points repel.')).not.toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
     expect(document.querySelector('.blood-network-sidebar')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Forces' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Forces' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save blood network map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Regenerate blood network' }))
@@ -503,6 +503,8 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
     expect(savePreset).toBeDisabled()
 
+    expect(screen.queryByRole('textbox', { name: 'Preset name' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Preset name' }))
     const presetName = screen.getByRole('textbox', { name: 'Preset name' })
     await userEvent.clear(presetName)
     await userEvent.type(presetName, 'Open')

@@ -396,6 +396,7 @@ function BloodNetworkSidebar({
   presets,
 }: BloodNetworkSidebarProps) {
   const { t } = useTranslation()
+  const [presetNameEditing, setPresetNameEditing] = useState(false)
   const activePreset = presets.find((preset) => preset.id === activePresetId)
     ?? presets[0]
 
@@ -404,56 +405,24 @@ function BloodNetworkSidebar({
   }
 
   return (
-    <aside aria-label={t('editor.bloodNetworkLegendTitle')} className="blood-network-sidebar">
-      <header className="blood-network-sidebar-heading">
-        <p className="eyebrow">{t('editor.bloodNetworkLegendTitle')}</p>
-        <h2>{t('editor.bloodNetworkForceControls')}</h2>
-      </header>
-      <section className="blood-network-sidebar-legend">
-        <span>
-          <i aria-hidden="true" className="blood-network-legend-parent" />
-          {t('editor.bloodNetworkParentArrow')}
-        </span>
-        <span>
-          <i aria-hidden="true" className="blood-network-legend-child" />
-          {t('editor.bloodNetworkChildArrow')}
-        </span>
-        <small>{t('editor.bloodNetworkForces')}</small>
-      </section>
+    <aside aria-label={t('editor.bloodNetworkForceControls')} className="blood-network-sidebar">
       <div className="blood-network-force-settings-content">
-          <div className="blood-network-preset-controls">
+        <div className="blood-network-preset-controls">
+          <div className="blood-network-preset-row">
             <label className="blood-network-preset-field">
               <span>{t('editor.bloodNetworkPreset')}</span>
               <select
                 aria-label={t('editor.bloodNetworkPreset')}
-                onChange={(event) => onPresetChange(
-                  event.target.value as BloodNetworkPreset['id'],
-                )}
+                onChange={(event) => {
+                  setPresetNameEditing(false)
+                  onPresetChange(event.target.value as BloodNetworkPreset['id'])
+                }}
                 value={activePreset.id}
               >
                 {presets.map((preset) => (
                   <option key={preset.id} value={preset.id}>{preset.name}</option>
                 ))}
               </select>
-            </label>
-            <label className="blood-network-preset-field">
-              <span>{t('editor.bloodNetworkPresetName')}</span>
-              <input
-                aria-label={t('editor.bloodNetworkPresetName')}
-                maxLength={80}
-                onChange={(event) => onPresetNameChange(activePreset.id, event.target.value)}
-                type="text"
-                value={activePreset.name}
-              />
-            </label>
-            <label className="blood-network-preset-default choice-control">
-              <input
-                aria-label={t('editor.bloodNetworkPresetDefault')}
-                checked={activePreset.isDefault}
-                onChange={() => onPresetDefaultChange(activePreset.id)}
-                type="checkbox"
-              />
-              <span>{t('editor.bloodNetworkPresetDefault')}</span>
             </label>
             <div className="blood-network-preset-actions">
               <button
@@ -481,13 +450,52 @@ function BloodNetworkSidebar({
                   <path d="M19 4v4h-4" />
                 </svg>
               </button>
+              <button
+                aria-label={t('person.editField', {
+                  field: t('editor.bloodNetworkPresetName'),
+                })}
+                aria-pressed={presetNameEditing}
+                className="blood-network-preset-action"
+                onClick={() => setPresetNameEditing((isEditing) => !isEditing)}
+                title={t('person.editField', {
+                  field: t('editor.bloodNetworkPresetName'),
+                })}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5z" />
+                  <path d="m13.8 6.7 3.5 3.5" />
+                </svg>
+              </button>
             </div>
           </div>
-          <fieldset
-            aria-label={t('editor.bloodNetworkForceControls')}
-            className="blood-network-force-controls"
-          >
-        <BloodNetworkForceControl
+          {presetNameEditing && (
+            <label className="blood-network-preset-field">
+              <span>{t('editor.bloodNetworkPresetName')}</span>
+              <input
+                aria-label={t('editor.bloodNetworkPresetName')}
+                maxLength={80}
+                onChange={(event) => onPresetNameChange(activePreset.id, event.target.value)}
+                type="text"
+                value={activePreset.name}
+              />
+            </label>
+          )}
+          <label className="blood-network-preset-default choice-control">
+            <input
+              aria-label={t('editor.bloodNetworkPresetDefault')}
+              checked={activePreset.isDefault}
+              onChange={() => onPresetDefaultChange(activePreset.id)}
+              type="checkbox"
+            />
+            <span>{t('editor.bloodNetworkPresetDefault')}</span>
+          </label>
+        </div>
+        <fieldset
+          aria-label={t('editor.bloodNetworkForceControls')}
+          className="blood-network-force-controls"
+        >
+          <BloodNetworkForceControl
           forceKey="averageMovementPerSecondThreshold"
           forces={forces}
           label={t('editor.bloodNetworkSettlementThreshold')}
@@ -630,8 +638,8 @@ function BloodNetworkSidebar({
           min={0}
           onForceChange={onForceChange}
           step={0.1}
-        />
-          </fieldset>
+          />
+        </fieldset>
       </div>
     </aside>
   )

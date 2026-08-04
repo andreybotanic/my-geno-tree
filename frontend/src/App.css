@@ -786,7 +786,7 @@
 }
 
 .editor-workspace-network-sidebar-open {
-  grid-template-columns: 390px minmax(0, 1fr);
+  grid-template-columns: 340px minmax(0, 1fr);
 }
 
 .editor-workspace-panel-open .tree-canvas,
@@ -1218,65 +1218,21 @@
   stroke-width: 2;
 }
 
-.blood-network-sidebar-heading {
-  margin-bottom: 22px;
-}
-
-.blood-network-sidebar-heading .eyebrow {
-  margin-bottom: 8px;
-}
-
-.blood-network-sidebar-heading h2 {
-  color: var(--color-text-strong);
-  font-family: var(--font-heading);
-  font-size: 1.65rem;
-  line-height: 1.15;
-  margin: 0;
-}
-
-.blood-network-sidebar-legend {
-  border-top: 1px solid var(--color-border);
-  display: grid;
-  gap: 8px;
-  padding-top: 18px;
-}
-
-.blood-network-sidebar-legend span {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-}
-
-.blood-network-sidebar-legend i {
-  border-radius: 2px;
-  display: block;
-  height: 3px;
-  width: 22px;
-}
-
-.blood-network-legend-parent {
-  background: var(--color-state-warning-strong);
-}
-
-.blood-network-legend-child {
-  background: color-mix(in srgb, var(--color-graph-line) 84%, var(--color-text-strong));
-}
-
-.blood-network-sidebar-legend small {
-  color: var(--color-text-muted);
-  line-height: 1.3;
-  margin-top: 8px;
-}
-
 .blood-network-force-settings-content {
   display: grid;
   gap: 20px;
-  margin-top: 22px;
 }
 
 .blood-network-preset-controls {
   display: grid;
+  gap: 10px;
+}
+
+.blood-network-preset-row {
+  align-items: end;
+  display: grid;
   gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .blood-network-preset-field {
@@ -1311,6 +1267,7 @@
 }
 
 .blood-network-preset-actions {
+  align-self: end;
   display: flex;
   gap: 6px;
 }
@@ -1369,14 +1326,19 @@
 }
 
 .blood-network-sidebar .blood-network-force-control > span {
+  align-items: baseline;
   color: var(--color-text-muted);
+  display: flex;
   font-size: 0.71rem;
+  gap: 12px;
   justify-content: space-between;
 }
 
 .blood-network-force-control output {
   color: var(--color-text-strong);
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .blood-network-force-control input {
