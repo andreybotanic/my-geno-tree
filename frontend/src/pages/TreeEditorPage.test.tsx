@@ -17,6 +17,7 @@ import type { AuthContextValue } from '../auth/AuthContext'
 import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
+import { loadEditorCamera, saveEditorCamera } from '../editorCamera'
 import { TreeEditorPage } from './TreeEditorPage'
 
 vi.mock('../components/ImageCropDialog', () => ({
@@ -152,7 +153,7 @@ function renderEditor(
     updateUser: vi.fn(),
   }
 
-  render(
+  return render(
     <AuthContext value={value}>
       <div id="header-breadcrumbs" />
       <TreeEditorPage treeId={treeId} />
@@ -198,6 +199,7 @@ class OptimizerWorkerMock {
 describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
+    window.localStorage.clear()
     await i18n.changeLanguage('en')
     OptimizerWorkerMock.instances = []
     vi.unstubAllGlobals()
@@ -251,10 +253,12 @@ describe('TreeEditorPage', () => {
     renderEditor(request)
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
+    expect(window.location.pathname).toBe(`/trees/${treeId}/tree`)
     await userEvent.click(
       screen.getByRole('button', { name: 'Show blood network' }),
     )
 
+    expect(window.location.pathname).toBe(`/trees/${treeId}/network`)
     expect(
       screen.getByRole('button', { name: 'Show family tree' }),
     ).toHaveAttribute('aria-pressed', 'true')
@@ -372,6 +376,86 @@ describe('TreeEditorPage', () => {
       )
     })
 
+    await userEvent.click(screen.getByRole('button', { name: 'Show family tree' }))
+    expect(window.location.pathname).toBe(`/trees/${treeId}/tree`)
+
+  })
+
+  it('restores a separate browser camera for each editor mode', async () => {
+    saveEditorCamera(treeId, 'tree', { x: 120, y: -80, zoom: 0.75 })
+    saveEditorCamera(treeId, 'network', { x: -40, y: 60, zoom: 1.4 })
+    const tree = graphSnapshot([father, person], [parentLink])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('75%')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('140%')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show family tree' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('75%')
+    })
+  })
+
+  it('persists the current camera across an editor refresh', async () => {
+    const tree = graphSnapshot([person])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    const rendered = renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('100%')
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).not.toHaveTextContent('100%')
+    })
+    const zoomBeforeRefresh = screen.getByLabelText('Current zoom').textContent
+    fireEvent(window, new Event('pagehide'))
+    expect(loadEditorCamera(treeId, 'tree')?.zoom).toBeGreaterThan(1)
+
+    rendered.unmount()
+    renderEditor(request)
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent(zoomBeforeRefresh ?? '')
+    })
+  })
+
+  it('resets a saved map camera to the viewport stored with the map', async () => {
+    window.history.replaceState({}, '', `/trees/${treeId}/network`)
+    saveEditorCamera(treeId, 'network', { x: -40, y: 60, zoom: 1.4 })
+    const tree = {
+      ...graphSnapshot([person]),
+      bloodNetworkState: {
+        forces: defaultBloodNetworkPresets()[0].forces,
+        nodes: [{
+          id: person.id,
+          coordinates: { x: 240, y: -180 },
+        }],
+        viewport: { x: 40, y: -20, zoom: 0.7 },
+      },
+    }
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('140%')
+    })
+    const reset = screen.getByRole('button', { name: 'Reset camera' })
+    expect(reset.querySelector('svg')).not.toBeNull()
+    await userEvent.click(reset)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('70%')
+    })
   })
 
   it('activates rotation around a node from its context menu until Escape', async () => {

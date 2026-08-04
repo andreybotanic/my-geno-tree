@@ -15,6 +15,7 @@ import {
   useReactFlow,
   useViewport,
   type ReactFlowInstance,
+  type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useTranslation } from 'react-i18next'
@@ -72,7 +73,18 @@ import { EventDialog } from '../components/EventDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
 import { ToastNotice } from '../components/ToastNotice'
-import { navigate } from '../routing'
+import {
+  matchTreeEditorPath,
+  navigate,
+  treeEditorPath,
+  usePath,
+  type TreeEditorView,
+} from '../routing'
+import {
+  clearEditorCamera,
+  loadEditorCamera,
+  saveEditorCamera,
+} from '../editorCamera'
 import {
   buildTreeEdges,
   newRelativeCoordinates,
@@ -190,7 +202,7 @@ function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   }
 }
 
-function ZoomControls() {
+function ZoomControls({ onReset }: { onReset: () => void }) {
   const { t } = useTranslation()
   const { zoomIn, zoomOut } = useReactFlow()
   const { zoom } = useViewport()
@@ -213,6 +225,18 @@ function ZoomControls() {
         type="button"
       >
         +
+      </button>
+      <button
+        aria-label={t('editor.resetCamera')}
+        className="reset-camera-button"
+        onClick={onReset}
+        title={t('editor.resetCamera')}
+        type="button"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="5" />
+          <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
+        </svg>
       </button>
     </Panel>
   )
@@ -747,6 +771,7 @@ type TreeCanvasProps = {
   layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
+  treeId: string
   user: User | null
   view: 'network' | 'tree'
 }
@@ -769,6 +794,7 @@ function TreeCanvas({
   layoutSearch,
   selectedPersonId,
   snapshot,
+  treeId,
   user,
   view,
 }: TreeCanvasProps) {
@@ -778,7 +804,12 @@ function TreeCanvas({
   const instance = useRef<
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
-  const centered = useRef(false)
+  const [initialCameras] = useState<Record<TreeEditorView, Viewport | null>>(() => ({
+    network: loadEditorCamera(treeId, 'network'),
+    tree: loadEditorCamera(treeId, 'tree'),
+  }))
+  const cameras = useRef(initialCameras)
+  const activeCameraView = useRef<TreeEditorView>(view)
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
     BloodNetworkFlowNode[]
   >([])
@@ -959,26 +990,85 @@ function TreeCanvas({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [bloodNetworkRotationPivotNodeId])
 
-  const centerFirstPerson = useCallback((
-    flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
+  const rememberCamera = useCallback((
+    cameraView: TreeEditorView,
+    viewport: Viewport,
+    persist = false,
   ) => {
-    const first = snapshot.people[0]
-    if (!first || centered.current) {
+    cameras.current[cameraView] = { ...viewport }
+    if (persist) {
+      saveEditorCamera(treeId, cameraView, viewport)
+    }
+  }, [cameras, treeId])
+
+  const resetCamera = useCallback(async (
+    cameraView: TreeEditorView = view,
+    flow = instance.current,
+  ) => {
+    if (!flow) {
       return
     }
-    centered.current = true
-    void flow.setCenter(
-      first.coordinates.x + PERSON_CARD_WIDTH / 2,
-      first.coordinates.y + PERSON_CARD_HEIGHT / 2,
-      { duration: 0, zoom: 1 },
-    )
-  }, [snapshot.people])
+    if (cameraView === 'tree') {
+      const first = snapshot.people[0]
+      if (!first) {
+        return
+      }
+      await flow.setCenter(
+        first.coordinates.x + PERSON_CARD_WIDTH / 2,
+        first.coordinates.y + PERSON_CARD_HEIGHT / 2,
+        { duration: 150, zoom: 1 },
+      )
+    } else if (snapshot.bloodNetworkState) {
+      await flow.setViewport(snapshot.bloodNetworkState.viewport, { duration: 150 })
+    } else if (bloodNetwork.nodes.length > 0) {
+      await flow.fitBounds(bloodNetworkBounds(bloodNetwork.nodes), {
+        duration: 150,
+        padding: 0.2,
+      })
+    } else {
+      await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 150 })
+    }
+    rememberCamera(cameraView, flow.getViewport(), true)
+  }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, snapshot.people, view])
+
+  const restoreCamera = useCallback((
+    flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
+    cameraView: TreeEditorView,
+  ) => {
+    const remembered = cameras.current[cameraView]
+    if (remembered) {
+      void flow.setViewport(remembered, { duration: 0 })
+      return
+    }
+    void resetCamera(cameraView, flow)
+  }, [cameras, resetCamera])
+
+  useLayoutEffect(() => {
+    const previousView = activeCameraView.current
+    if (previousView === view) {
+      return
+    }
+    const flow = instance.current
+    if (flow) {
+      rememberCamera(previousView, flow.getViewport(), true)
+    }
+    activeCameraView.current = view
+    if (flow) {
+      restoreCamera(flow, view)
+    }
+  }, [rememberCamera, restoreCamera, view])
 
   useEffect(() => {
-    if (view === 'tree' && instance.current) {
-      centerFirstPerson(instance.current)
+    const persistCurrentCamera = () => {
+      const flow = instance.current
+      if (flow) {
+        rememberCamera(activeCameraView.current, flow.getViewport(), true)
+      }
     }
-  }, [centerFirstPerson, view])
+    window.addEventListener('pagehide', persistCurrentCamera)
+
+    return () => window.removeEventListener('pagehide', persistCurrentCamera)
+  }, [rememberCamera])
 
   useLayoutEffect(() => {
     if (view !== 'network') {
@@ -1009,7 +1099,9 @@ function TreeCanvas({
     // The temporary nodes have known sizes, so their initial bounds can place
     // the viewport immediately and the camera remains under the user's control.
     if (!continueSimulation) {
-      if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
+      if (cameras.current.network) {
+        void instance.current?.setViewport(cameras.current.network, { duration: 0 })
+      } else if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
         void instance.current?.setViewport(snapshot.bloodNetworkState.viewport, {
           duration: 0,
         })
@@ -1082,6 +1174,7 @@ function TreeCanvas({
     bloodNetworkSimulationForces,
     bloodNetworkMotionRevision,
     bloodNetworkRotationPivotNodeId,
+    cameras,
     isSavedBloodNetworkStateCompatible,
     snapshot.bloodNetworkState,
     view,
@@ -1187,12 +1280,14 @@ function TreeCanvas({
       nodesDraggable={view === 'network' && bloodNetworkRotationPivotNodeId === null}
       onInit={(flow) => {
         instance.current = flow
-        if (view === 'tree') {
-          centerFirstPerson(flow)
-        } else if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
-          void flow.setViewport(snapshot.bloodNetworkState.viewport, { duration: 0 })
-        }
+        activeCameraView.current = view
+        restoreCamera(flow, view)
       }}
+      onMoveEnd={(_event, viewport) => rememberCamera(
+        activeCameraView.current,
+        viewport,
+        true,
+      )}
       onNodeClick={(_event, node) => {
         if (view === 'tree' && !layoutSearch) {
           onSelectPerson(node.id)
@@ -1270,7 +1365,11 @@ function TreeCanvas({
       <LayoutToolbar
         isNetworkView={view === 'network'}
         onOptimize={onOptimizeLayout}
-        onRegenerateNetwork={() => setNetworkGeneration((generation) => generation + 1)}
+        onRegenerateNetwork={() => {
+          cameras.current.network = null
+          clearEditorCamera(treeId, 'network')
+          setNetworkGeneration((generation) => generation + 1)
+        }}
         onSaveNetworkState={requestBloodNetworkSave}
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
@@ -1359,7 +1458,7 @@ function TreeCanvas({
           view={layoutPreviewView}
         />
       )}
-      <ZoomControls />
+      <ZoomControls onReset={() => void resetCamera()} />
     </ReactFlow>
     </div>
     {bloodNetworkContextMenu && createPortal(
@@ -1449,6 +1548,11 @@ type PendingRemoval =
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
   const { request, updateUser, user } = useAuth()
+  const path = usePath()
+  const treeRoute = matchTreeEditorPath(path)
+  const isCurrentTreeRoute = treeRoute?.treeId === treeId
+  const routeView = isCurrentTreeRoute ? treeRoute.view : null
+  const view: TreeEditorView = routeView ?? 'tree'
   const [snapshot, setSnapshot] = useState<TreeSnapshot | null>(null)
   const [status, setStatus] = useState<'error' | 'loading' | 'missing' | 'ready'>(
     'loading',
@@ -1486,12 +1590,17 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [layoutSearch, setLayoutSearch] = useState<LayoutSearch | null>(null)
   const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
   const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
-  const [view, setView] = useState<'network' | 'tree'>('tree')
   const [bloodNetworkSidebarContainer, setBloodNetworkSidebarContainer] = useState<
     HTMLElement | null
   >(null)
   const layoutWorker = useRef<Worker | null>(null)
   const layoutProgressTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (isCurrentTreeRoute && treeRoute.view === null) {
+      navigate(treeEditorPath(treeId, 'tree'), { replace: true })
+    }
+  }, [isCurrentTreeRoute, treeId, treeRoute?.view])
 
   const hideLayoutProgress = useCallback(() => {
     if (layoutProgressTimer.current !== null) {
@@ -1527,14 +1636,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
   const toggleNetworkView = () => {
     if (view === 'network') {
-      setView('tree')
+      navigate(treeEditorPath(treeId, 'tree'))
       return
     }
     stopLayoutSearch()
     rejectLayoutPreview()
     setLayoutWarning(null)
     closePersonDetails()
-    setView('network')
+    navigate(treeEditorPath(treeId, 'network'))
   }
 
   const loadSnapshot = useCallback(async () => {
@@ -2288,6 +2397,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                   snapshot={layoutPreview?.snapshot && layoutPreviewView === 'optimized'
                     ? layoutPreview.snapshot
                     : snapshot}
+                  treeId={treeId}
                   view={view}
                   onToggleNetworkView={toggleNetworkView}
                   onUpdateUser={updateUser}

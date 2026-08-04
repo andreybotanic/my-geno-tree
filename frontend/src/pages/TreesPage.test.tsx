@@ -64,7 +64,7 @@ describe('TreesPage', () => {
     expect(await screen.findByText('Family history')).toBeInTheDocument()
     expect(screen.getByText(/3 people/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Open' }))
-    expect(window.location.pathname).toBe(`/trees/${tree.id}`)
+    expect(window.location.pathname).toBe(`/trees/${tree.id}/tree`)
   })
 
   it('creates a tree from the modal and opens its editor', async () => {
@@ -89,7 +89,7 @@ describe('TreesPage', () => {
     )
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe(`/trees/${created.id}`)
+      expect(window.location.pathname).toBe(`/trees/${created.id}/tree`)
     })
     expect(request).toHaveBeenCalledWith('/trees', expect.objectContaining({
       method: 'POST',

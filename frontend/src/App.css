@@ -981,6 +981,21 @@
   background: var(--color-background);
 }
 
+.zoom-controls button + .reset-camera-button {
+  border-left: 1px solid var(--color-border);
+}
+
+.zoom-controls .reset-camera-button svg {
+  fill: none;
+  height: 19px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  vertical-align: middle;
+  width: 19px;
+}
+
 .zoom-controls output {
   border-left: 1px solid var(--color-border);
   border-right: 1px solid var(--color-border);

@@ -7,7 +7,7 @@ import {
   DeleteTreeDialog,
   TreeNameDialog,
 } from '../components/TreeDialogs'
-import { navigate } from '../routing'
+import { navigate, treeEditorPath } from '../routing'
 
 type DialogState =
   | { type: 'create' }
@@ -39,7 +39,7 @@ export function TreesPage() {
   const create = async (name: string) => {
     const tree = await treeApi.create(request, name)
     setDialog(null)
-    navigate(`/trees/${tree.id}`)
+    navigate(treeEditorPath(tree.id, 'tree'))
   }
 
   const rename = async (tree: FamilyTree, name: string) => {
@@ -107,7 +107,7 @@ export function TreesPage() {
               <div className="tree-actions">
                 <button
                   className="primary-button"
-                  onClick={() => navigate(`/trees/${tree.id}`)}
+                  onClick={() => navigate(treeEditorPath(tree.id, 'tree'))}
                   type="button"
                 >
                   {t('trees.open')}

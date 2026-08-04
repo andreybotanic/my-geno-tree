@@ -6,7 +6,7 @@ import { HomePage } from './pages/HomePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { TreesPage } from './pages/TreesPage'
 import { TreeEditorPage } from './pages/TreeEditorPage'
-import { usePath } from './routing'
+import { matchTreeEditorPath, usePath } from './routing'
 
 function isProtectedPath(path: string): boolean {
   return path === '/profile'
@@ -17,7 +17,7 @@ function isProtectedPath(path: string): boolean {
 export default function App() {
   const path = usePath()
   const { isBooting, user } = useAuth()
-  const treeId = path.match(/^\/trees\/([^/]+)$/)?.[1]
+  const treeRoute = matchTreeEditorPath(path)
 
   let page = <HomePage />
   if (!isBooting && isProtectedPath(path) && !user) {
@@ -26,8 +26,8 @@ export default function App() {
     page = <ProfilePage />
   } else if (path === '/trees' && user) {
     page = <TreesPage />
-  } else if (treeId && user) {
-    page = <TreeEditorPage treeId={treeId} />
+  } else if (treeRoute && user) {
+    page = <TreeEditorPage treeId={treeRoute.treeId} />
   }
 
   return (
