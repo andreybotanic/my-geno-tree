@@ -81,9 +81,9 @@ import {
   type TreeEditorView,
 } from '../routing'
 import {
-  clearEditorCamera,
-  loadEditorCamera,
-  saveEditorCamera,
+  clearEditorCameras,
+  loadEditorCamerasForReload,
+  saveEditorCamerasForReload,
 } from '../editorCamera'
 import {
   buildTreeEdges,
@@ -804,10 +804,9 @@ function TreeCanvas({
   const instance = useRef<
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
-  const [initialCameras] = useState<Record<TreeEditorView, Viewport | null>>(() => ({
-    network: loadEditorCamera(treeId, 'network'),
-    tree: loadEditorCamera(treeId, 'tree'),
-  }))
+  const [initialCameras] = useState<Record<TreeEditorView, Viewport | null>>(
+    () => loadEditorCamerasForReload(treeId, window.location.pathname),
+  )
   const cameras = useRef(initialCameras)
   const activeCameraView = useRef<TreeEditorView>(view)
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
@@ -993,13 +992,9 @@ function TreeCanvas({
   const rememberCamera = useCallback((
     cameraView: TreeEditorView,
     viewport: Viewport,
-    persist = false,
   ) => {
     cameras.current[cameraView] = { ...viewport }
-    if (persist) {
-      saveEditorCamera(treeId, cameraView, viewport)
-    }
-  }, [cameras, treeId])
+  }, [cameras])
 
   const resetCamera = useCallback(async (
     cameraView: TreeEditorView = view,
@@ -1028,7 +1023,7 @@ function TreeCanvas({
     } else {
       await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 150 })
     }
-    rememberCamera(cameraView, flow.getViewport(), true)
+    rememberCamera(cameraView, flow.getViewport())
   }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, snapshot.people, view])
 
   const restoreCamera = useCallback((
@@ -1050,7 +1045,7 @@ function TreeCanvas({
     }
     const flow = instance.current
     if (flow) {
-      rememberCamera(previousView, flow.getViewport(), true)
+      rememberCamera(previousView, flow.getViewport())
     }
     activeCameraView.current = view
     if (flow) {
@@ -1059,16 +1054,47 @@ function TreeCanvas({
   }, [rememberCamera, restoreCamera, view])
 
   useEffect(() => {
-    const persistCurrentCamera = () => {
+    let pageIsUnloading = false
+    const persistCurrentCameras = () => {
+      pageIsUnloading = true
       const flow = instance.current
       if (flow) {
-        rememberCamera(activeCameraView.current, flow.getViewport(), true)
+        cameras.current[activeCameraView.current] = { ...flow.getViewport() }
+      }
+      saveEditorCamerasForReload(
+        treeId,
+        window.location.pathname,
+        cameras.current,
+      )
+    }
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        clearEditorCameras(treeId)
+        return
+      }
+      persistCurrentCameras()
+    }
+    const resetAfterHistoryReturn = (event: PageTransitionEvent) => {
+      if (!event.persisted) {
+        return
+      }
+      clearEditorCameras(treeId)
+      cameras.current = { network: null, tree: null }
+      void resetCamera(activeCameraView.current)
+    }
+    window.addEventListener('beforeunload', persistCurrentCameras)
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', resetAfterHistoryReturn)
+
+    return () => {
+      window.removeEventListener('beforeunload', persistCurrentCameras)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', resetAfterHistoryReturn)
+      if (!pageIsUnloading) {
+        clearEditorCameras(treeId)
       }
     }
-    window.addEventListener('pagehide', persistCurrentCamera)
-
-    return () => window.removeEventListener('pagehide', persistCurrentCamera)
-  }, [rememberCamera])
+  }, [cameras, resetCamera, treeId])
 
   useLayoutEffect(() => {
     if (view !== 'network') {
@@ -1286,7 +1312,6 @@ function TreeCanvas({
       onMoveEnd={(_event, viewport) => rememberCamera(
         activeCameraView.current,
         viewport,
-        true,
       )}
       onNodeClick={(_event, node) => {
         if (view === 'tree' && !layoutSearch) {
@@ -1367,7 +1392,6 @@ function TreeCanvas({
         onOptimize={onOptimizeLayout}
         onRegenerateNetwork={() => {
           cameras.current.network = null
-          clearEditorCamera(treeId, 'network')
           setNetworkGeneration((generation) => generation + 1)
         }}
         onSaveNetworkState={requestBloodNetworkSave}

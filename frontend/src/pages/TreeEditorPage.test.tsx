@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
@@ -17,7 +17,7 @@ import type { AuthContextValue } from '../auth/AuthContext'
 import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
-import { loadEditorCamera, saveEditorCamera } from '../editorCamera'
+import { saveEditorCamerasForReload } from '../editorCamera'
 import { TreeEditorPage } from './TreeEditorPage'
 
 vi.mock('../components/ImageCropDialog', () => ({
@@ -161,6 +161,17 @@ function renderEditor(
   )
 }
 
+function mockEditorReload(path: string): void {
+  vi.spyOn(window.performance, 'getEntriesByType').mockImplementation((entryType) => (
+    entryType === 'navigation'
+      ? [{
+          name: new URL(path, window.location.origin).href,
+          type: 'reload',
+        } as PerformanceNavigationTiming]
+      : []
+  ))
+}
+
 async function activateUnpressedUnknownButtons(container: HTMLElement) {
   for (const button of within(container).getAllByRole('button', {
     name: 'Unknown',
@@ -200,10 +211,13 @@ describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
     window.localStorage.clear()
+    window.sessionStorage.clear()
     await i18n.changeLanguage('en')
     OptimizerWorkerMock.instances = []
     vi.unstubAllGlobals()
   })
+
+  afterEach(() => vi.restoreAllMocks())
 
   it('creates the first fully unknown person from the empty editor', async () => {
     const created = snapshot([{
@@ -382,8 +396,13 @@ describe('TreeEditorPage', () => {
   })
 
   it('restores a separate browser camera for each editor mode', async () => {
-    saveEditorCamera(treeId, 'tree', { x: 120, y: -80, zoom: 0.75 })
-    saveEditorCamera(treeId, 'network', { x: -40, y: 60, zoom: 1.4 })
+    const path = `/trees/${treeId}/tree`
+    window.history.replaceState({}, '', path)
+    mockEditorReload(path)
+    saveEditorCamerasForReload(treeId, path, {
+      network: { x: -40, y: 60, zoom: 1.4 },
+      tree: { x: 120, y: -80, zoom: 0.75 },
+    })
     const tree = graphSnapshot([father, person], [parentLink])
     const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
     renderEditor(request)
@@ -405,6 +424,7 @@ describe('TreeEditorPage', () => {
   })
 
   it('persists the current camera across an editor refresh', async () => {
+    mockEditorReload(`/trees/${treeId}/tree`)
     const tree = graphSnapshot([person])
     const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
     const rendered = renderEditor(request)
@@ -418,8 +438,8 @@ describe('TreeEditorPage', () => {
       expect(screen.getByLabelText('Current zoom')).not.toHaveTextContent('100%')
     })
     const zoomBeforeRefresh = screen.getByLabelText('Current zoom').textContent
-    fireEvent(window, new Event('pagehide'))
-    expect(loadEditorCamera(treeId, 'tree')?.zoom).toBeGreaterThan(1)
+    fireEvent(window, new Event('beforeunload'))
+    expect(window.sessionStorage.length).toBe(1)
 
     rendered.unmount()
     renderEditor(request)
@@ -429,9 +449,46 @@ describe('TreeEditorPage', () => {
     })
   })
 
+  it('resets both cameras after leaving the editor and opening it again', async () => {
+    const path = `/trees/${treeId}/tree`
+    window.history.replaceState({}, '', path)
+    mockEditorReload(path)
+    saveEditorCamerasForReload(treeId, path, {
+      network: { x: -40, y: 60, zoom: 1.4 },
+      tree: { x: 120, y: -80, zoom: 0.75 },
+    })
+    const tree = graphSnapshot([father, person], [parentLink])
+    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
+    const rendered = renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('75%')
+    })
+
+    window.history.pushState({}, '', '/trees')
+    rendered.unmount()
+    window.history.pushState({}, '', path)
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('100%')
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).not.toHaveTextContent('140%')
+    })
+  })
+
   it('resets a saved map camera to the viewport stored with the map', async () => {
-    window.history.replaceState({}, '', `/trees/${treeId}/network`)
-    saveEditorCamera(treeId, 'network', { x: -40, y: 60, zoom: 1.4 })
+    const path = `/trees/${treeId}/network`
+    window.history.replaceState({}, '', path)
+    mockEditorReload(path)
+    saveEditorCamerasForReload(treeId, path, {
+      network: { x: -40, y: 60, zoom: 1.4 },
+      tree: null,
+    })
     const tree = {
       ...graphSnapshot([person]),
       bloodNetworkState: {

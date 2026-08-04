@@ -1,32 +1,84 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearEditorCamera,
-  loadEditorCamera,
-  saveEditorCamera,
+  clearEditorCameras,
+  loadEditorCamerasForReload,
+  saveEditorCamerasForReload,
 } from './editorCamera'
 
-describe('editor camera storage', () => {
-  beforeEach(() => window.localStorage.clear())
+function mockNavigation(type: PerformanceNavigationTiming['type'], path: string): void {
+  vi.spyOn(window.performance, 'getEntriesByType').mockImplementation((entryType) => (
+    entryType === 'navigation'
+      ? [{
+          name: new URL(path, window.location.origin).href,
+          type,
+        } as PerformanceNavigationTiming]
+      : []
+  ))
+}
 
-  it('persists independent tree and network cameras for each tree', () => {
-    saveEditorCamera('tree-a', 'tree', { x: 10, y: 20, zoom: 0.8 })
-    saveEditorCamera('tree-a', 'network', { x: -30, y: 40, zoom: 1.3 })
-    saveEditorCamera('tree-b', 'tree', { x: 50, y: -60, zoom: 1.1 })
-
-    expect(loadEditorCamera('tree-a', 'tree')).toEqual({ x: 10, y: 20, zoom: 0.8 })
-    expect(loadEditorCamera('tree-a', 'network')).toEqual({ x: -30, y: 40, zoom: 1.3 })
-    expect(loadEditorCamera('tree-b', 'tree')).toEqual({ x: 50, y: -60, zoom: 1.1 })
+describe('editor camera reload storage', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/trees/tree-a/tree')
+    window.sessionStorage.clear()
   })
 
-  it('ignores malformed data and clears one mode without touching the other', () => {
-    window.localStorage.setItem(
-      'my-geno-tree:editor-camera:v1:tree-a:tree',
-      JSON.stringify({ x: 0, y: 0, zoom: 0 }),
-    )
-    saveEditorCamera('tree-a', 'network', { x: 1, y: 2, zoom: 1 })
+  afterEach(() => vi.restoreAllMocks())
 
-    expect(loadEditorCamera('tree-a', 'tree')).toBeNull()
-    clearEditorCamera('tree-a', 'tree')
-    expect(loadEditorCamera('tree-a', 'network')).toEqual({ x: 1, y: 2, zoom: 1 })
+  it('restores both mode cameras during StrictMode initialization after reload', () => {
+    mockNavigation('reload', '/trees/tree-a/tree')
+    saveEditorCamerasForReload('tree-a', '/trees/tree-a/tree', {
+      network: { x: -30, y: 40, zoom: 1.3 },
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: { x: -30, y: 40, zoom: 1.3 },
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: { x: -30, y: 40, zoom: 1.3 },
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+    clearEditorCameras('tree-a')
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: null,
+      tree: null,
+    })
+  })
+
+  it('discards cameras when the editor is opened by regular navigation', () => {
+    mockNavigation('navigate', '/trees/tree-a/tree')
+    saveEditorCamerasForReload('tree-a', '/trees/tree-a/tree', {
+      network: null,
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: null,
+      tree: null,
+    })
+  })
+
+  it('discards cameras for another URL and when explicitly cleared', () => {
+    mockNavigation('reload', '/trees/tree-a/network')
+    saveEditorCamerasForReload('tree-a', '/trees/tree-a/tree', {
+      network: { x: -30, y: 40, zoom: 1.3 },
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: null,
+      tree: null,
+    })
+
+    saveEditorCamerasForReload('tree-a', '/trees/tree-a/tree', {
+      network: null,
+      tree: { x: 10, y: 20, zoom: 0.8 },
+    })
+    clearEditorCameras('tree-a')
+    expect(loadEditorCamerasForReload('tree-a', '/trees/tree-a/tree')).toEqual({
+      network: null,
+      tree: null,
+    })
   })
 })
