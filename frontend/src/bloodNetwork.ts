@@ -155,7 +155,7 @@ const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   personFlowHingeStrength: 0,
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 12,
-  kinshipRepulsionStep: 0.6,
+  kinshipRepulsionStep: 1,
   kinshipRepulsionDistanceExponent: 1,
   parentHingeSpringStrength: 0,
   parentHingeTargetAngle: 10,

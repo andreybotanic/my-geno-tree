@@ -1022,7 +1022,7 @@ components:
         personFlowHingeStrength: { type: number, minimum: 0, maximum: 50 }
         parentChildPathLength: { type: number, minimum: 100, maximum: 500 }
         unrelatedParentNodeRepulsion: { type: number, minimum: 0, maximum: 12 }
-        kinshipRepulsionStep: { type: number, minimum: 0, maximum: 0.6 }
+        kinshipRepulsionStep: { type: number, minimum: 0, maximum: 1 }
         kinshipRepulsionDistanceExponent: { type: number, minimum: 1, maximum: 3 }
         parentHingeSpringStrength: { type: number, minimum: 0, maximum: 10 }
         parentHingeTargetAngle: { type: number, minimum: 10, maximum: 120 }

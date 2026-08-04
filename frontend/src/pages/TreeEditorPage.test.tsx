@@ -307,6 +307,7 @@ describe('TreeEditorPage', () => {
       .toHaveValue('12')
     const distantKinRepulsion = screen.getByRole('slider', { name: 'Distant-kin repulsion' })
     expect(distantKinRepulsion).toHaveAttribute('min', '0')
+    expect(distantKinRepulsion).toHaveAttribute('max', '1')
     expect(distantKinRepulsion).toHaveValue('0.3')
     expect(screen.getByRole(
       'slider',
