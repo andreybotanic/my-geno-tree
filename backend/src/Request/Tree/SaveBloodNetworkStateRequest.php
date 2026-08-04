@@ -33,15 +33,15 @@ final readonly class SaveBloodNetworkStateRequest
             'averageMovementPerSecondThreshold' => [new Assert\Range(min: 0.1, max: 5)],
             'baseRepulsion'                     => [new Assert\Range(min: 0.5, max: 8)],
             'descendantSideForce'               => [new Assert\Range(min: 0, max: 24)],
-            'personFlowHingeStrength'           => [new Assert\Range(min: 0, max: 25)],
+            'personFlowHingeStrength'           => [new Assert\Range(min: 0, max: 50)],
             'parentChildPathLength'             => [new Assert\Range(min: 100, max: 500)],
             'unrelatedParentNodeRepulsion'      => [new Assert\Range(min: 0, max: 12)],
-            'kinshipRepulsionStep'              => [new Assert\Range(min: 0.05, max: 0.6)],
+            'kinshipRepulsionStep'              => [new Assert\Range(min: 0, max: 0.6)],
             'parentHingeSpringStrength'         => [new Assert\Range(min: 0, max: 10)],
             'parentHingeTargetAngle'            => [new Assert\Range(min: 10, max: 120)],
             'parentPairSpringStrength'          => [new Assert\Range(min: 0.04, max: 0.5)],
             'parentToFamilyLengthRatio'         => [new Assert\Range(min: 0, max: 1)],
-            'sharedParentSpringStrength'        => [new Assert\Range(min: 0.02, max: 0.8)],
+            'sharedParentSpringStrength'        => [new Assert\Range(min: 0.02, max: 2)],
         ])]
         public array $forces,
     ) {

@@ -540,7 +540,7 @@ function BloodNetworkLegend({
           forceKey="personFlowHingeStrength"
           forces={forces}
           label={t('editor.bloodNetworkPersonFlowHinge')}
-          max={25}
+          max={50}
           min={0}
           onForceChange={onForceChange}
           step={0.1}
@@ -549,7 +549,7 @@ function BloodNetworkLegend({
           forceKey="sharedParentSpringStrength"
           forces={forces}
           label={t('editor.bloodNetworkSharedParentSpring')}
-          max={0.8}
+          max={2}
           min={0.02}
           onForceChange={onForceChange}
           step={0.01}
@@ -568,7 +568,7 @@ function BloodNetworkLegend({
           forces={forces}
           label={t('editor.bloodNetworkKinshipRepulsion')}
           max={0.6}
-          min={0.05}
+          min={0}
           onForceChange={onForceChange}
           step={0.05}
         />

@@ -145,6 +145,7 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkPersonFlowHingeMagnitude(1, 8)).toBe(0)
     expect(bloodNetworkPersonFlowHingeMagnitude(0, 8)).toBe(4)
     expect(bloodNetworkPersonFlowHingeMagnitude(-1, 8)).toBe(8)
+    expect(bloodNetworkPersonFlowHingeMagnitude(-1, 50)).toBe(50)
     expect(
       forces.incomingParent.x + forces.person.x
       + forces.outgoingParents.reduce((sum, force) => sum + force.x, 0),

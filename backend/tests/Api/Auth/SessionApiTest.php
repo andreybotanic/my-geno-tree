@@ -299,15 +299,15 @@ final class SessionApiTest extends ApiWebTestCase
             'averageMovementPerSecondThreshold' => 1,
             'baseRepulsion'                     => $baseRepulsion,
             'descendantSideForce'               => $descendantSideForce,
-            'personFlowHingeStrength'           => 25,
+            'personFlowHingeStrength'           => 50,
             'parentChildPathLength'             => 300,
             'unrelatedParentNodeRepulsion'      => 6,
-            'kinshipRepulsionStep'              => 0.3,
+            'kinshipRepulsionStep'              => 0,
             'parentHingeSpringStrength'         => 4,
             'parentHingeTargetAngle'            => 45,
             'parentPairSpringStrength'          => 0.2,
             'parentToFamilyLengthRatio'         => 0.58,
-            'sharedParentSpringStrength'        => 0.8,
+            'sharedParentSpringStrength'        => 2,
         ];
     }
 }

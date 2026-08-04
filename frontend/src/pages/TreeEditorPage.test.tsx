@@ -285,12 +285,14 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Parent hinge target angle (°)' })).toHaveValue('45')
     expect(screen.getByRole('slider', { name: 'Parent hinge spring' })).toHaveValue('4')
     expect(screen.getByRole('slider', { name: 'Descendant-side force' })).toHaveValue('12')
-    expect(screen.getByRole('slider', { name: 'Person flow hinge' })).toHaveAttribute('max', '25')
+    expect(screen.getByRole('slider', { name: 'Person flow hinge' })).toHaveAttribute('max', '50')
     expect(screen.getByRole('slider', { name: 'Person flow hinge' })).toHaveValue('8')
-    expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveAttribute('max', '0.8')
+    expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveAttribute('max', '2')
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
-    expect(screen.getByRole('slider', { name: 'Distant-kin repulsion' })).toHaveValue('0.3')
+    const distantKinRepulsion = screen.getByRole('slider', { name: 'Distant-kin repulsion' })
+    expect(distantKinRepulsion).toHaveAttribute('min', '0')
+    expect(distantKinRepulsion).toHaveValue('0.3')
     expect(screen.getByRole(
       'slider',
       { name: 'Unrelated parent-node repulsion' },
