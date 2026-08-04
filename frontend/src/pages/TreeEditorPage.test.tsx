@@ -310,6 +310,10 @@ describe('TreeEditorPage', () => {
     expect(distantKinRepulsion).toHaveValue('0.3')
     expect(screen.getByRole(
       'slider',
+      { name: 'Distant-kin repulsion distance exponent' },
+    )).toHaveValue('1')
+    expect(screen.getByRole(
+      'slider',
       { name: 'Unrelated parent-node repulsion' },
     )).toHaveValue('6')
     const settlementThreshold = screen.getByRole(
@@ -344,6 +348,7 @@ describe('TreeEditorPage', () => {
         forces: expect.objectContaining({
           averageMovementPerSecondThreshold: 2,
           baseRepulsionDistanceExponent: 1,
+          kinshipRepulsionDistanceExponent: 1,
           edgeNodeCapsuleThickness: 24,
           edgeNodeRepulsionStrength: 12,
         }),

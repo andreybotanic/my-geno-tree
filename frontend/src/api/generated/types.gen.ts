@@ -42,6 +42,7 @@ export type BloodNetworkForceSettings = {
     parentChildPathLength: number;
     unrelatedParentNodeRepulsion: number;
     kinshipRepulsionStep: number;
+    kinshipRepulsionDistanceExponent: number;
     parentHingeSpringStrength: number;
     parentHingeTargetAngle: number;
     parentPairSpringStrength: number;

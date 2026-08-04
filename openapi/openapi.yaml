@@ -1006,6 +1006,7 @@ components:
         - parentChildPathLength
         - unrelatedParentNodeRepulsion
         - kinshipRepulsionStep
+        - kinshipRepulsionDistanceExponent
         - parentHingeSpringStrength
         - parentHingeTargetAngle
         - parentPairSpringStrength
@@ -1022,6 +1023,7 @@ components:
         parentChildPathLength: { type: number, minimum: 100, maximum: 500 }
         unrelatedParentNodeRepulsion: { type: number, minimum: 0, maximum: 12 }
         kinshipRepulsionStep: { type: number, minimum: 0, maximum: 0.6 }
+        kinshipRepulsionDistanceExponent: { type: number, minimum: 1, maximum: 3 }
         parentHingeSpringStrength: { type: number, minimum: 0, maximum: 10 }
         parentHingeTargetAngle: { type: number, minimum: 10, maximum: 120 }
         parentPairSpringStrength: { type: number, minimum: 0.04, maximum: 0.5 }

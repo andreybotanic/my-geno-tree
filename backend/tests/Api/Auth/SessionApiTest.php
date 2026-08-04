@@ -306,6 +306,7 @@ final class SessionApiTest extends ApiWebTestCase
             'parentChildPathLength'             => 300,
             'unrelatedParentNodeRepulsion'      => 6,
             'kinshipRepulsionStep'              => 0,
+            'kinshipRepulsionDistanceExponent'  => 3,
             'parentHingeSpringStrength'         => 4,
             'parentHingeTargetAngle'            => 45,
             'parentPairSpringStrength'          => 0.2,

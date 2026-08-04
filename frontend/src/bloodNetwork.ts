@@ -95,6 +95,7 @@ export type BloodNetworkForceSettings = {
   parentChildPathLength: number
   unrelatedParentNodeRepulsion: number
   kinshipRepulsionStep: number
+  kinshipRepulsionDistanceExponent: number
   parentHingeSpringStrength: number
   parentHingeTargetAngle: number
   parentPairSpringStrength: number
@@ -136,6 +137,7 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 6,
   kinshipRepulsionStep: FORCE_KINSHIP_REPULSION_STEP,
+  kinshipRepulsionDistanceExponent: 1,
   parentHingeSpringStrength: 4,
   parentHingeTargetAngle: 45,
   parentPairSpringStrength: 0.2,
@@ -154,6 +156,7 @@ const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 12,
   kinshipRepulsionStep: 0.6,
+  kinshipRepulsionDistanceExponent: 1,
   parentHingeSpringStrength: 0,
   parentHingeTargetAngle: 10,
   parentPairSpringStrength: 0.04,
@@ -261,6 +264,26 @@ export function bloodNetworkChargeRepulsionMagnitude(
   return Math.min(
     FORCE_MAX_REPULSION_MAGNITUDE,
     baseRepulsion * firstMass * secondMass / Math.pow(distance, distanceExponent),
+  )
+}
+
+export function bloodNetworkBaseRepulsionMultiplier(pathLength: number | undefined): number {
+  return pathLength === undefined
+    ? FORCE_UNRELATED_REPULSION_MULTIPLIER
+    : FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER
+}
+
+export function bloodNetworkKinshipRepulsionMultiplier(
+  pathLength: number | undefined,
+  kinshipRepulsionStep = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.kinshipRepulsionStep,
+): number {
+  if (pathLength === undefined) {
+    return 0
+  }
+
+  return Math.min(
+    FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER - FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER,
+    Math.max(pathLength - 1, 0) * kinshipRepulsionStep,
   )
 }
 
@@ -799,16 +822,25 @@ export function createBloodNetworkSimulation(
             (minimumDistance - direction.distance) * FORCE_COLLISION_STRENGTH,
           )
           : 0
-        const chargeForce = bloodNetworkChargeRepulsionMagnitude(
+        const pathLength = distances.get(first.id)?.get(second.id)
+        const baseChargeForce = bloodNetworkChargeRepulsionMagnitude(
           direction.distance,
           forceSettings.baseRepulsion,
           first.mass,
           second.mass,
           forceSettings.baseRepulsionDistanceExponent,
-        ) * bloodNetworkRepulsionMultiplier(
-          distances.get(first.id)?.get(second.id),
+        ) * bloodNetworkBaseRepulsionMultiplier(pathLength)
+        const kinshipChargeForce = bloodNetworkChargeRepulsionMagnitude(
+          direction.distance,
+          forceSettings.baseRepulsion,
+          first.mass,
+          second.mass,
+          forceSettings.kinshipRepulsionDistanceExponent,
+        ) * bloodNetworkKinshipRepulsionMultiplier(
+          pathLength,
           forceSettings.kinshipRepulsionStep,
         )
+        const chargeForce = baseChargeForce + kinshipChargeForce
         const person = nodeTypes.get(first.id) === 'bloodPerson' ? first : (
           nodeTypes.get(second.id) === 'bloodPerson' ? second : null
         )

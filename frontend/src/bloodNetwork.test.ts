@@ -11,6 +11,8 @@ import {
   bloodNetworkParentHingeMagnitude,
   bloodNetworkPersonFlowHingeForces,
   bloodNetworkPersonFlowHingeMagnitude,
+  bloodNetworkBaseRepulsionMultiplier,
+  bloodNetworkKinshipRepulsionMultiplier,
   bloodNetworkRelationshipSpringLengths,
   bloodNetworkUnrelatedParentNodeRepulsion,
   bloodNetworkRepulsionMultiplier,
@@ -53,6 +55,22 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)).toBeCloseTo(0.24)
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 2)).toBeCloseTo(0.0024)
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 3)).toBeCloseTo(0.000024)
+  })
+
+  it('uses a separate distance exponent for the distant-kin repulsion component', () => {
+    const baseForce = bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)
+      * bloodNetworkBaseRepulsionMultiplier(6)
+    const kinshipForceWithMatchingExponent = bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)
+      * bloodNetworkKinshipRepulsionMultiplier(6, 0.3)
+    const kinshipForceWithSteeperExponent = bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 2)
+      * bloodNetworkKinshipRepulsionMultiplier(6, 0.3)
+
+    expect(baseForce + kinshipForceWithMatchingExponent).toBeCloseTo(
+      bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)
+        * bloodNetworkRepulsionMultiplier(6, 0.3),
+    )
+    expect(kinshipForceWithSteeperExponent).toBeLessThan(kinshipForceWithMatchingExponent)
+    expect(baseForce).toBeCloseTo(0.108)
   })
 
   it('smoothly repels a person from the edge collision capsule', () => {

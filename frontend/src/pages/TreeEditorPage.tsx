@@ -609,6 +609,15 @@ function BloodNetworkLegend({
           step={0.05}
         />
         <BloodNetworkForceControl
+          forceKey="kinshipRepulsionDistanceExponent"
+          forces={forces}
+          label={t('editor.bloodNetworkKinshipRepulsionDistanceExponent')}
+          max={3}
+          min={1}
+          onForceChange={onForceChange}
+          step={0.05}
+        />
+        <BloodNetworkForceControl
           forceKey="unrelatedParentNodeRepulsion"
           forces={forces}
           label={t('editor.bloodNetworkUnrelatedParentNodeRepulsion')}
@@ -807,6 +816,7 @@ function TreeCanvas({
     edgeNodeCapsuleThickness: bloodNetworkForces.edgeNodeCapsuleThickness,
     edgeNodeRepulsionStrength: bloodNetworkForces.edgeNodeRepulsionStrength,
     kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
+    kinshipRepulsionDistanceExponent: bloodNetworkForces.kinshipRepulsionDistanceExponent,
     parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
     parentHingeTargetAngle: bloodNetworkForces.parentHingeTargetAngle,
     parentChildPathLength: bloodNetworkForces.parentChildPathLength,
@@ -822,6 +832,7 @@ function TreeCanvas({
     bloodNetworkForces.edgeNodeCapsuleThickness,
     bloodNetworkForces.edgeNodeRepulsionStrength,
     bloodNetworkForces.kinshipRepulsionStep,
+    bloodNetworkForces.kinshipRepulsionDistanceExponent,
     bloodNetworkForces.parentHingeSpringStrength,
     bloodNetworkForces.parentHingeTargetAngle,
     bloodNetworkForces.parentChildPathLength,

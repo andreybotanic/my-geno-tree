@@ -24,6 +24,7 @@ final class BloodNetworkStateApiTest extends ApiWebTestCase
                 'parentChildPathLength'             => 280,
                 'unrelatedParentNodeRepulsion'      => 5,
                 'kinshipRepulsionStep'              => 0,
+                'kinshipRepulsionDistanceExponent'  => 3,
                 'parentHingeSpringStrength'         => 3,
                 'parentHingeTargetAngle'            => 55,
                 'parentPairSpringStrength'          => 0.18,
