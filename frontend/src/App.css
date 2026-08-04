@@ -1213,11 +1213,18 @@
   border: 1px solid var(--color-border);
   border-radius: 10px;
   box-shadow: 0 8px 24px var(--color-shadow);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   font-size: 0.76rem;
   gap: 6px;
+  max-height: calc(100dvh - 32px);
   max-width: 280px;
+  overflow: hidden;
   padding: 10px 12px;
+}
+
+.blood-network-legend:has(.blood-network-force-settings.is-open) {
+  height: calc(100dvh - 32px);
 }
 
 .blood-network-legend strong {
@@ -1254,21 +1261,42 @@
 
 .blood-network-force-settings {
   border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   margin-top: 3px;
+  min-height: 0;
   padding-top: 8px;
 }
 
-.blood-network-force-settings summary {
+.blood-network-force-settings.is-open {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.blood-network-force-settings-toggle {
+  background: transparent;
+  border: 0;
   color: var(--color-text-strong);
   cursor: pointer;
   font-family: var(--font-heading);
   font-size: 0.76rem;
+  padding: 0;
+  text-align: left;
+}
+
+.blood-network-force-settings-toggle:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .blood-network-force-settings-content {
-  display: grid;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 9px;
   margin-top: 9px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .blood-network-preset-controls {
@@ -1354,9 +1382,12 @@
 .blood-network-force-controls {
   border: 0;
   display: grid;
+  flex: 1 1 auto;
   gap: 7px;
   margin: 0;
-  padding: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 4px 0 0;
 }
 
 .blood-network-force-controls legend {

@@ -396,6 +396,7 @@ function BloodNetworkLegend({
   presets,
 }: BloodNetworkLegendProps) {
   const { t } = useTranslation()
+  const [forceSettingsOpen, setForceSettingsOpen] = useState(false)
   const activePreset = presets.find((preset) => preset.id === activePresetId)
     ?? presets[0]
 
@@ -415,9 +416,21 @@ function BloodNetworkLegend({
         {t('editor.bloodNetworkChildArrow')}
       </span>
       <small>{t('editor.bloodNetworkForces')}</small>
-      <details className="blood-network-force-settings">
-        <summary>{t('editor.bloodNetworkForceControls')}</summary>
-        <div className="blood-network-force-settings-content">
+      <section className={`blood-network-force-settings${forceSettingsOpen ? ' is-open' : ''}`}>
+        <button
+          aria-controls="blood-network-force-settings-content"
+          aria-expanded={forceSettingsOpen}
+          className="blood-network-force-settings-toggle"
+          onClick={() => setForceSettingsOpen((isOpen) => !isOpen)}
+          type="button"
+        >
+          {t('editor.bloodNetworkForceControls')}
+        </button>
+        <div
+          className="blood-network-force-settings-content"
+          hidden={!forceSettingsOpen}
+          id="blood-network-force-settings-content"
+        >
           <div className="blood-network-preset-controls">
             <label className="blood-network-preset-field">
               <span>{t('editor.bloodNetworkPreset')}</span>
@@ -628,7 +641,7 @@ function BloodNetworkLegend({
         />
           </fieldset>
         </div>
-      </details>
+      </section>
     </Panel>
   )
 }

@@ -274,7 +274,7 @@ describe('TreeEditorPage', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
-    await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
+    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
     await userEvent.click(parentPairSpring)
@@ -433,6 +433,7 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
     await waitFor(() => {
       expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('5')
     })
@@ -483,7 +484,7 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
-    await userEvent.click(document.querySelector('.blood-network-force-settings summary')!)
+    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
 
     expect(screen.getByRole('combobox', { name: 'Force preset' })).toHaveValue('weak')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
