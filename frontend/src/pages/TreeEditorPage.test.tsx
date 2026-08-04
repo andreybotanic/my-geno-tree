@@ -274,7 +274,16 @@ describe('TreeEditorPage', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
-    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
+    const forcesToggle = screen.getByRole('button', { name: 'Forces' })
+    const forceSettingsContent = document.querySelector(
+      '#blood-network-force-settings-content',
+    )
+    expect(forceSettingsContent).toHaveAttribute('hidden')
+    expect(forcesToggle).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(forcesToggle)
+    expect(forceSettingsContent).not.toHaveAttribute('hidden')
+    expect(forcesToggle).toHaveAttribute('aria-expanded', 'true')
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
     await userEvent.click(parentPairSpring)
@@ -370,6 +379,10 @@ describe('TreeEditorPage', () => {
         expect.anything(),
       )
     })
+
+    await userEvent.click(forcesToggle)
+    expect(forceSettingsContent).toHaveAttribute('hidden')
+    expect(forcesToggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('activates rotation around a node from its context menu until Escape', async () => {

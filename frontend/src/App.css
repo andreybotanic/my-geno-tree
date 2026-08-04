@@ -1299,6 +1299,10 @@
   overflow: hidden;
 }
 
+.blood-network-force-settings-content[hidden] {
+  display: none;
+}
+
 .blood-network-preset-controls {
   display: grid;
   gap: 6px;
