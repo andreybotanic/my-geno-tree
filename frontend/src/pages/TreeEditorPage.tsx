@@ -322,7 +322,7 @@ function LayoutToolbar({
   )
 }
 
-type BloodNetworkLegendProps = {
+type BloodNetworkSidebarProps = {
   activePresetId: BloodNetworkPreset['id']
   canSavePreset: boolean
   forces: BloodNetworkForceSettings
@@ -341,7 +341,7 @@ type BloodNetworkForceControlProps = {
   label: string
   max: number
   min: number
-  onForceChange: BloodNetworkLegendProps['onForceChange']
+  onForceChange: BloodNetworkSidebarProps['onForceChange']
   step: number
 }
 
@@ -383,7 +383,7 @@ function BloodNetworkForceControl({
   )
 }
 
-function BloodNetworkLegend({
+function BloodNetworkSidebar({
   activePresetId,
   canSavePreset,
   forces,
@@ -394,9 +394,8 @@ function BloodNetworkLegend({
   onPresetReload,
   onSavePreset,
   presets,
-}: BloodNetworkLegendProps) {
+}: BloodNetworkSidebarProps) {
   const { t } = useTranslation()
-  const [forceSettingsOpen, setForceSettingsOpen] = useState(false)
   const activePreset = presets.find((preset) => preset.id === activePresetId)
     ?? presets[0]
 
@@ -405,32 +404,23 @@ function BloodNetworkLegend({
   }
 
   return (
-    <Panel className="blood-network-legend" position="bottom-left">
-      <strong>{t('editor.bloodNetworkLegendTitle')}</strong>
-      <span>
-        <i aria-hidden="true" className="blood-network-legend-parent" />
-        {t('editor.bloodNetworkParentArrow')}
-      </span>
-      <span>
-        <i aria-hidden="true" className="blood-network-legend-child" />
-        {t('editor.bloodNetworkChildArrow')}
-      </span>
-      <small>{t('editor.bloodNetworkForces')}</small>
-      <section className={`blood-network-force-settings${forceSettingsOpen ? ' is-open' : ''}`}>
-        <button
-          aria-controls="blood-network-force-settings-content"
-          aria-expanded={forceSettingsOpen}
-          className="blood-network-force-settings-toggle"
-          onClick={() => setForceSettingsOpen((isOpen) => !isOpen)}
-          type="button"
-        >
-          {t('editor.bloodNetworkForceControls')}
-        </button>
-        <div
-          className="blood-network-force-settings-content"
-          hidden={!forceSettingsOpen}
-          id="blood-network-force-settings-content"
-        >
+    <aside aria-label={t('editor.bloodNetworkLegendTitle')} className="blood-network-sidebar">
+      <header className="blood-network-sidebar-heading">
+        <p className="eyebrow">{t('editor.bloodNetworkLegendTitle')}</p>
+        <h2>{t('editor.bloodNetworkForceControls')}</h2>
+      </header>
+      <section className="blood-network-sidebar-legend">
+        <span>
+          <i aria-hidden="true" className="blood-network-legend-parent" />
+          {t('editor.bloodNetworkParentArrow')}
+        </span>
+        <span>
+          <i aria-hidden="true" className="blood-network-legend-child" />
+          {t('editor.bloodNetworkChildArrow')}
+        </span>
+        <small>{t('editor.bloodNetworkForces')}</small>
+      </section>
+      <div className="blood-network-force-settings-content">
           <div className="blood-network-preset-controls">
             <label className="blood-network-preset-field">
               <span>{t('editor.bloodNetworkPreset')}</span>
@@ -493,8 +483,10 @@ function BloodNetworkLegend({
               </button>
             </div>
           </div>
-          <fieldset className="blood-network-force-controls">
-            <legend>{t('editor.bloodNetworkForceControls')}</legend>
+          <fieldset
+            aria-label={t('editor.bloodNetworkForceControls')}
+            className="blood-network-force-controls"
+          >
         <BloodNetworkForceControl
           forceKey="averageMovementPerSecondThreshold"
           forces={forces}
@@ -640,9 +632,8 @@ function BloodNetworkLegend({
           step={0.1}
         />
           </fieldset>
-        </div>
-      </section>
-    </Panel>
+      </div>
+    </aside>
   )
 }
 
@@ -731,6 +722,7 @@ function LayoutPreviewControls({
 }
 
 type TreeCanvasProps = {
+  bloodNetworkSidebarContainer: HTMLElement | null
   onClearSelection: () => void
   onApplyLayout: () => void
   onCancelLayout: () => void
@@ -752,6 +744,7 @@ type TreeCanvasProps = {
 }
 
 function TreeCanvas({
+  bloodNetworkSidebarContainer,
   onClearSelection,
   onApplyLayout,
   onCancelLayout,
@@ -1274,8 +1267,8 @@ function TreeCanvas({
         onToggleNetworkView={onToggleNetworkView}
         unavailable={layoutSearch !== null || layoutPreview !== null}
       />
-      {view === 'network' && (
-        <BloodNetworkLegend
+      {view === 'network' && bloodNetworkSidebarContainer && createPortal(
+        <BloodNetworkSidebar
           activePresetId={activeBloodNetworkPresetId}
           canSavePreset={
             bloodNetworkPresetsChanged
@@ -1343,7 +1336,8 @@ function TreeCanvas({
             }).catch(() => undefined)
           }}
           presets={bloodNetworkPresets}
-        />
+        />,
+        bloodNetworkSidebarContainer,
       )}
       {view === 'tree' && layoutSearch && layoutProgressVisible && (
         <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
@@ -1485,6 +1479,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
   const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
   const [view, setView] = useState<'network' | 'tree'>('tree')
+  const [bloodNetworkSidebarContainer, setBloodNetworkSidebarContainer] = useState<
+    HTMLElement | null
+  >(null)
   const layoutWorker = useRef<Worker | null>(null)
   const layoutProgressTimer = useRef<number | null>(null)
 
@@ -2226,7 +2223,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       )}
 
       <section className={`editor-workspace${
-        view === 'tree' && selectedPerson ? ' editor-workspace-panel-open' : ''
+        view === 'network'
+          ? ' editor-workspace-network-sidebar-open'
+          : selectedPerson ? ' editor-workspace-panel-open' : ''
       }`}>
         {status === 'loading' && (
           <div className="editor-state">{t('editor.loading')}</div>
@@ -2265,6 +2264,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             ) : (
               <ReactFlowProvider>
                 <TreeCanvas
+                  bloodNetworkSidebarContainer={bloodNetworkSidebarContainer}
                   onClearSelection={closePersonDetails}
                   onApplyLayout={() => void applyLayoutPreview()}
                   onCancelLayout={layoutSearch ? stopLayoutSearch : rejectLayoutPreview}
@@ -2323,6 +2323,12 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
             snapshot={snapshot}
+          />
+        )}
+        {view === 'network' && snapshot && (
+          <div
+            className="blood-network-sidebar-slot"
+            ref={setBloodNetworkSidebarContainer}
           />
         )}
       </section>

@@ -268,22 +268,14 @@ describe('TreeEditorPage', () => {
     expect(screen.getByText('Blood links')).toBeInTheDocument()
     expect(screen.getByText('Connected points attract. All points repel.')).toBeInTheDocument()
     expect(document.querySelector('.person-details-panel')).not.toBeInTheDocument()
+    expect(document.querySelector('.blood-network-sidebar')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Forces' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save blood network map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Regenerate blood network' }))
     await waitFor(() => {
       expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
     })
-    const forcesToggle = screen.getByRole('button', { name: 'Forces' })
-    const forceSettingsContent = document.querySelector(
-      '#blood-network-force-settings-content',
-    )
-    expect(forceSettingsContent).toHaveAttribute('hidden')
-    expect(forcesToggle).toHaveAttribute('aria-expanded', 'false')
-
-    await userEvent.click(forcesToggle)
-    expect(forceSettingsContent).not.toHaveAttribute('hidden')
-    expect(forcesToggle).toHaveAttribute('aria-expanded', 'true')
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
     await userEvent.click(parentPairSpring)
@@ -380,9 +372,6 @@ describe('TreeEditorPage', () => {
       )
     })
 
-    await userEvent.click(forcesToggle)
-    expect(forceSettingsContent).toHaveAttribute('hidden')
-    expect(forcesToggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('activates rotation around a node from its context menu until Escape', async () => {
@@ -446,7 +435,6 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
     await waitFor(() => {
       expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('5')
     })
@@ -497,7 +485,6 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Forces' }))
 
     expect(screen.getByRole('combobox', { name: 'Force preset' })).toHaveValue('weak')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('8')
