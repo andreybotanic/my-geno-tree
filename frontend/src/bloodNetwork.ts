@@ -121,7 +121,7 @@ const FORCE_DESCENDANT_SIDE_FULL_ALIGNMENT = Math.cos(Math.PI * 105 / 180)
 const FORCE_UNRELATED_PARENT_NODE_REPULSION_RANGE = 180
 const FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER = 0.45
 const FORCE_KINSHIP_REPULSION_STEP = 0.3
-const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 2.25
+const FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER = 16
 const FORCE_UNRELATED_REPULSION_MULTIPLIER = 2.5
 const INITIAL_AREA_PER_NODE = 200_000
 const INITIAL_ASPECT_RATIO = 5 / 4
@@ -155,7 +155,7 @@ const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   personFlowHingeStrength: 0,
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 12,
-  kinshipRepulsionStep: 1,
+  kinshipRepulsionStep: 3,
   kinshipRepulsionDistanceExponent: 1,
   parentHingeSpringStrength: 0,
   parentHingeTargetAngle: 10,

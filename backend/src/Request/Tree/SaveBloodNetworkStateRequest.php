@@ -39,7 +39,7 @@ final readonly class SaveBloodNetworkStateRequest
             'personFlowHingeStrength'           => [new Assert\Range(min: 0, max: 50)],
             'parentChildPathLength'             => [new Assert\Range(min: 100, max: 500)],
             'unrelatedParentNodeRepulsion'      => [new Assert\Range(min: 0, max: 12)],
-            'kinshipRepulsionStep'              => [new Assert\Range(min: 0, max: 1)],
+            'kinshipRepulsionStep'              => [new Assert\Range(min: 0, max: 3)],
             'kinshipRepulsionDistanceExponent'  => [new Assert\Range(min: 1, max: 3)],
             'parentHingeSpringStrength'         => [new Assert\Range(min: 0, max: 10)],
             'parentHingeTargetAngle'            => [new Assert\Range(min: 10, max: 120)],

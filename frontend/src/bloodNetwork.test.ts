@@ -47,7 +47,8 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkRepulsionMultiplier(1)).toBe(0.45)
     expect(bloodNetworkRepulsionMultiplier(2)).toBe(0.75)
     expect(bloodNetworkRepulsionMultiplier(6)).toBe(1.95)
-    expect(bloodNetworkRepulsionMultiplier(20)).toBe(2.25)
+    expect(bloodNetworkRepulsionMultiplier(6, 1)).toBe(5.45)
+    expect(bloodNetworkRepulsionMultiplier(20)).toBe(6.15)
     expect(bloodNetworkRepulsionMultiplier(undefined)).toBe(2.5)
   })
 

@@ -603,7 +603,7 @@ function BloodNetworkLegend({
           forceKey="kinshipRepulsionStep"
           forces={forces}
           label={t('editor.bloodNetworkKinshipRepulsion')}
-          max={1}
+          max={3}
           min={0}
           onForceChange={onForceChange}
           step={0.05}
