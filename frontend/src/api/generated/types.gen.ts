@@ -34,6 +34,7 @@ export type ChangeLanguageRequest = {
 export type BloodNetworkForceSettings = {
     averageMovementPerSecondThreshold: number;
     baseRepulsion: number;
+    baseRepulsionDistanceExponent: number;
     descendantSideForce: number;
     personFlowHingeStrength: number;
     parentChildPathLength: number;

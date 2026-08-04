@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
+  bloodNetworkChargeRepulsionMagnitude,
   bloodNetworkDescendantSideForces,
   bloodNetworkDescendantSideMagnitude,
   bloodNetworkNodeMass,
@@ -44,6 +45,12 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkRepulsionMultiplier(6)).toBe(1.95)
     expect(bloodNetworkRepulsionMultiplier(20)).toBe(2.25)
     expect(bloodNetworkRepulsionMultiplier(undefined)).toBe(2.5)
+  })
+
+  it('uses the configured distance exponent for charge repulsion', () => {
+    expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)).toBeCloseTo(0.24)
+    expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 2)).toBeCloseTo(0.0024)
+    expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 3)).toBeCloseTo(0.000024)
   })
 
   it('keeps family routing nodes lighter than connected people', () => {

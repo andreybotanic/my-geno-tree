@@ -79,6 +79,7 @@ type PersonFlowHinge = {
 export type BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: number
   baseRepulsion: number
+  baseRepulsionDistanceExponent: number
   descendantSideForce: number
   personFlowHingeStrength: number
   parentChildPathLength: number
@@ -117,6 +118,7 @@ const INITIAL_ASPECT_RATIO = 5 / 4
 export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 3,
+  baseRepulsionDistanceExponent: 1,
   descendantSideForce: 12,
   personFlowHingeStrength: 8,
   parentChildPathLength: 300,
@@ -132,6 +134,7 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
 const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   averageMovementPerSecondThreshold: 1,
   baseRepulsion: 8,
+  baseRepulsionDistanceExponent: 1,
   descendantSideForce: 0,
   personFlowHingeStrength: 0,
   parentChildPathLength: 300,
@@ -231,6 +234,19 @@ export function bloodNetworkRepulsionMultiplier(
     FORCE_MAX_KINSHIP_REPULSION_MULTIPLIER,
     FORCE_CLOSE_KINSHIP_REPULSION_MULTIPLIER
       + Math.max(pathLength - 1, 0) * kinshipRepulsionStep,
+  )
+}
+
+export function bloodNetworkChargeRepulsionMagnitude(
+  distance: number,
+  baseRepulsion: number,
+  firstMass: number,
+  secondMass: number,
+  distanceExponent = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.baseRepulsionDistanceExponent,
+): number {
+  return Math.min(
+    FORCE_MAX_REPULSION_MAGNITUDE,
+    baseRepulsion * firstMass * secondMass / Math.pow(distance, distanceExponent),
   )
 }
 
@@ -665,9 +681,12 @@ export function createBloodNetworkSimulation(
             (minimumDistance - direction.distance) * FORCE_COLLISION_STRENGTH,
           )
           : 0
-        const chargeForce = Math.min(
-          FORCE_MAX_REPULSION_MAGNITUDE,
-          forceSettings.baseRepulsion * first.mass * second.mass / direction.distance,
+        const chargeForce = bloodNetworkChargeRepulsionMagnitude(
+          direction.distance,
+          forceSettings.baseRepulsion,
+          first.mass,
+          second.mass,
+          forceSettings.baseRepulsionDistanceExponent,
         ) * bloodNetworkRepulsionMultiplier(
           distances.get(first.id)?.get(second.id),
           forceSettings.kinshipRepulsionStep,

@@ -16,6 +16,7 @@ final class BloodNetworkStateApiTest extends ApiWebTestCase
             'forces' => [
                 'averageMovementPerSecondThreshold' => 1.5,
                 'baseRepulsion'                     => 4,
+                'baseRepulsionDistanceExponent'     => 3,
                 'descendantSideForce'               => 13,
                 'personFlowHingeStrength'           => 50,
                 'parentChildPathLength'             => 280,

@@ -345,6 +345,15 @@ type BloodNetworkForceControlProps = {
   step: number
 }
 
+function normalizeBloodNetworkForceSettings(
+  forces: Partial<BloodNetworkForceSettings>,
+): BloodNetworkForceSettings {
+  return {
+    ...DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS,
+    ...forces,
+  }
+}
+
 function BloodNetworkForceControl({
   forceKey,
   forces,
@@ -564,6 +573,15 @@ function BloodNetworkLegend({
           step={0.1}
         />
         <BloodNetworkForceControl
+          forceKey="baseRepulsionDistanceExponent"
+          forces={forces}
+          label={t('editor.bloodNetworkRepulsionDistanceExponent')}
+          max={3}
+          min={1}
+          onForceChange={onForceChange}
+          step={0.05}
+        />
+        <BloodNetworkForceControl
           forceKey="kinshipRepulsionStep"
           forces={forces}
           label={t('editor.bloodNetworkKinshipRepulsion')}
@@ -741,7 +759,7 @@ function TreeCanvas({
   const savedBloodNetworkPresets = useMemo(() => (
     user?.bloodNetworkPresets.map((preset) => ({
       ...preset,
-      forces: { ...preset.forces },
+      forces: normalizeBloodNetworkForceSettings(preset.forces),
     })) ?? defaultBloodNetworkPresets()
   ), [user?.bloodNetworkPresets])
   const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
@@ -766,6 +784,7 @@ function TreeCanvas({
   const bloodNetworkSimulationForces = useMemo(() => ({
     averageMovementPerSecondThreshold: 0,
     baseRepulsion: bloodNetworkForces.baseRepulsion,
+    baseRepulsionDistanceExponent: bloodNetworkForces.baseRepulsionDistanceExponent,
     descendantSideForce: bloodNetworkForces.descendantSideForce,
     kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
     parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
@@ -778,6 +797,7 @@ function TreeCanvas({
     unrelatedParentNodeRepulsion: bloodNetworkForces.unrelatedParentNodeRepulsion,
   }), [
     bloodNetworkForces.baseRepulsion,
+    bloodNetworkForces.baseRepulsionDistanceExponent,
     bloodNetworkForces.descendantSideForce,
     bloodNetworkForces.kinshipRepulsionStep,
     bloodNetworkForces.parentHingeSpringStrength,
@@ -853,7 +873,7 @@ function TreeCanvas({
     if (view !== 'network' || !snapshot.bloodNetworkState) {
       return
     }
-    setBloodNetworkForces({ ...snapshot.bloodNetworkState.forces })
+    setBloodNetworkForces(normalizeBloodNetworkForceSettings(snapshot.bloodNetworkState.forces))
   }, [snapshot.bloodNetworkState, view])
 
   useEffect(() => {

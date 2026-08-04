@@ -290,6 +290,13 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveAttribute('max', '2')
     expect(screen.getByRole('slider', { name: 'Shared-parent spring' })).toHaveValue('0.12')
     expect(screen.getByRole('slider', { name: 'Base repulsion' })).toHaveValue('3')
+    const repulsionDistanceExponent = screen.getByRole(
+      'slider',
+      { name: 'Repulsion distance exponent' },
+    )
+    expect(repulsionDistanceExponent).toHaveAttribute('min', '1')
+    expect(repulsionDistanceExponent).toHaveAttribute('max', '3')
+    expect(repulsionDistanceExponent).toHaveValue('1')
     const distantKinRepulsion = screen.getByRole('slider', { name: 'Distant-kin repulsion' })
     expect(distantKinRepulsion).toHaveAttribute('min', '0')
     expect(distantKinRepulsion).toHaveValue('0.3')
@@ -326,7 +333,10 @@ describe('TreeEditorPage', () => {
     }
     expect(JSON.parse((saveCall[1] as RequestInit).body as string)).toEqual(
       expect.objectContaining({
-        forces: expect.objectContaining({ averageMovementPerSecondThreshold: 2 }),
+        forces: expect.objectContaining({
+          averageMovementPerSecondThreshold: 2,
+          baseRepulsionDistanceExponent: 1,
+        }),
         nodes: expect.any(Array),
         viewport: expect.objectContaining({ zoom: expect.any(Number) }),
       }),

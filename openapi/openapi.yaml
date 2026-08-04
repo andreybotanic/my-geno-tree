@@ -998,6 +998,7 @@ components:
       required:
         - averageMovementPerSecondThreshold
         - baseRepulsion
+        - baseRepulsionDistanceExponent
         - descendantSideForce
         - personFlowHingeStrength
         - parentChildPathLength
@@ -1011,6 +1012,7 @@ components:
       properties:
         averageMovementPerSecondThreshold: { type: number, minimum: 0.1, maximum: 5 }
         baseRepulsion: { type: number, minimum: 0.5, maximum: 8 }
+        baseRepulsionDistanceExponent: { type: number, minimum: 1, maximum: 3 }
         descendantSideForce: { type: number, minimum: 0, maximum: 24 }
         personFlowHingeStrength: { type: number, minimum: 0, maximum: 50 }
         parentChildPathLength: { type: number, minimum: 100, maximum: 500 }

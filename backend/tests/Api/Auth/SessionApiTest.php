@@ -298,6 +298,7 @@ final class SessionApiTest extends ApiWebTestCase
         return [
             'averageMovementPerSecondThreshold' => 1,
             'baseRepulsion'                     => $baseRepulsion,
+            'baseRepulsionDistanceExponent'     => 3,
             'descendantSideForce'               => $descendantSideForce,
             'personFlowHingeStrength'           => 50,
             'parentChildPathLength'             => 300,

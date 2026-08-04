@@ -32,6 +32,7 @@ final readonly class SaveBloodNetworkStateRequest
         #[Assert\Collection(fields: [
             'averageMovementPerSecondThreshold' => [new Assert\Range(min: 0.1, max: 5)],
             'baseRepulsion'                     => [new Assert\Range(min: 0.5, max: 8)],
+            'baseRepulsionDistanceExponent'     => [new Assert\Range(min: 1, max: 3)],
             'descendantSideForce'               => [new Assert\Range(min: 0, max: 24)],
             'personFlowHingeStrength'           => [new Assert\Range(min: 0, max: 50)],
             'parentChildPathLength'             => [new Assert\Range(min: 100, max: 500)],
