@@ -36,6 +36,8 @@ export type BloodNetworkForceSettings = {
     baseRepulsion: number;
     baseRepulsionDistanceExponent: number;
     descendantSideForce: number;
+    edgeNodeCapsuleThickness: number;
+    edgeNodeRepulsionStrength: number;
     personFlowHingeStrength: number;
     parentChildPathLength: number;
     unrelatedParentNodeRepulsion: number;

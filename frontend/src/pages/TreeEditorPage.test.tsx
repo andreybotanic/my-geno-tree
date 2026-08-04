@@ -297,6 +297,14 @@ describe('TreeEditorPage', () => {
     expect(repulsionDistanceExponent).toHaveAttribute('min', '1')
     expect(repulsionDistanceExponent).toHaveAttribute('max', '3')
     expect(repulsionDistanceExponent).toHaveValue('1')
+    const edgeNodeCapsuleThickness = screen.getByRole(
+      'slider',
+      { name: 'Edge-collision capsule thickness (px)' },
+    )
+    expect(edgeNodeCapsuleThickness).toHaveAttribute('max', '100')
+    expect(edgeNodeCapsuleThickness).toHaveValue('24')
+    expect(screen.getByRole('slider', { name: 'Edge-collision repulsion' }))
+      .toHaveValue('12')
     const distantKinRepulsion = screen.getByRole('slider', { name: 'Distant-kin repulsion' })
     expect(distantKinRepulsion).toHaveAttribute('min', '0')
     expect(distantKinRepulsion).toHaveValue('0.3')
@@ -336,6 +344,8 @@ describe('TreeEditorPage', () => {
         forces: expect.objectContaining({
           averageMovementPerSecondThreshold: 2,
           baseRepulsionDistanceExponent: 1,
+          edgeNodeCapsuleThickness: 24,
+          edgeNodeRepulsionStrength: 12,
         }),
         nodes: expect.any(Array),
         viewport: expect.objectContaining({ zoom: expect.any(Number) }),

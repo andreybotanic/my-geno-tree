@@ -5,6 +5,8 @@ import {
   bloodNetworkChargeRepulsionMagnitude,
   bloodNetworkDescendantSideForces,
   bloodNetworkDescendantSideMagnitude,
+  bloodNetworkEdgeNodeRepulsionMagnitude,
+  bloodNetworkEdgeNodeRepulsionForces,
   bloodNetworkNodeMass,
   bloodNetworkParentHingeMagnitude,
   bloodNetworkPersonFlowHingeForces,
@@ -51,6 +53,39 @@ describe('buildBloodNetwork', () => {
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 1)).toBeCloseTo(0.24)
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 2)).toBeCloseTo(0.0024)
     expect(bloodNetworkChargeRepulsionMagnitude(100, 3, 2, 4, 3)).toBeCloseTo(0.000024)
+  })
+
+  it('smoothly repels a person from the edge collision capsule', () => {
+    expect(bloodNetworkEdgeNodeRepulsionMagnitude(60, 36, 24, 12)).toBe(0)
+    expect(bloodNetworkEdgeNodeRepulsionMagnitude(48, 36, 24, 12)).toBe(0)
+    expect(bloodNetworkEdgeNodeRepulsionMagnitude(36, 36, 24, 12)).toBeCloseTo(1.875)
+    expect(bloodNetworkEdgeNodeRepulsionMagnitude(0, 36, 24, 12)).toBe(12)
+    expect(bloodNetworkEdgeNodeRepulsionMagnitude(0, 36, 24, 0)).toBe(0)
+  })
+
+  it('balances edge-collision repulsion force and torque', () => {
+    const source = { id: 'source', x: 0, y: 0 }
+    const target = { id: 'target', x: 200, y: 0 }
+    const personPosition = { id: 'person', radius: 36, x: 100, y: 30 }
+    const forces = bloodNetworkEdgeNodeRepulsionForces(
+      personPosition,
+      source,
+      target,
+      24,
+      12,
+    )
+    const torque = (point: { x: number; y: number }, force: { x: number; y: number }) => (
+      point.x * force.y - point.y * force.x
+    )
+
+    expect(forces.person.y).toBeGreaterThan(0)
+    expect(forces.person.x + forces.source.x + forces.target.x).toBeCloseTo(0)
+    expect(forces.person.y + forces.source.y + forces.target.y).toBeCloseTo(0)
+    expect(
+      torque(personPosition, forces.person)
+      + torque(source, forces.source)
+      + torque(target, forces.target),
+    ).toBeCloseTo(0)
   })
 
   it('keeps family routing nodes lighter than connected people', () => {

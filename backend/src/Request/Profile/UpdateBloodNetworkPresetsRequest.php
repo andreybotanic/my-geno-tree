@@ -29,6 +29,8 @@ final readonly class UpdateBloodNetworkPresetsRequest
                         'baseRepulsion'                     => [new Assert\Range(min: 0.5, max: 8)],
                         'baseRepulsionDistanceExponent'     => [new Assert\Range(min: 1, max: 3)],
                         'descendantSideForce'               => [new Assert\Range(min: 0, max: 24)],
+                        'edgeNodeCapsuleThickness'          => [new Assert\Range(min: 0, max: 100)],
+                        'edgeNodeRepulsionStrength'         => [new Assert\Range(min: 0, max: 30)],
                         'personFlowHingeStrength'           => [new Assert\Range(min: 0, max: 50)],
                         'parentChildPathLength'             => [new Assert\Range(min: 100, max: 500)],
                         'unrelatedParentNodeRepulsion'      => [new Assert\Range(min: 0, max: 12)],

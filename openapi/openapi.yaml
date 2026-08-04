@@ -1000,6 +1000,8 @@ components:
         - baseRepulsion
         - baseRepulsionDistanceExponent
         - descendantSideForce
+        - edgeNodeCapsuleThickness
+        - edgeNodeRepulsionStrength
         - personFlowHingeStrength
         - parentChildPathLength
         - unrelatedParentNodeRepulsion
@@ -1014,6 +1016,8 @@ components:
         baseRepulsion: { type: number, minimum: 0.5, maximum: 8 }
         baseRepulsionDistanceExponent: { type: number, minimum: 1, maximum: 3 }
         descendantSideForce: { type: number, minimum: 0, maximum: 24 }
+        edgeNodeCapsuleThickness: { type: number, minimum: 0, maximum: 100 }
+        edgeNodeRepulsionStrength: { type: number, minimum: 0, maximum: 30 }
         personFlowHingeStrength: { type: number, minimum: 0, maximum: 50 }
         parentChildPathLength: { type: number, minimum: 100, maximum: 500 }
         unrelatedParentNodeRepulsion: { type: number, minimum: 0, maximum: 12 }

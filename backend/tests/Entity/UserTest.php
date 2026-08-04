@@ -34,6 +34,8 @@ final class UserTest extends TestCase
         self::assertIsArray($normalPreset['forces']);
         self::assertSame(300, $normalPreset['forces']['parentChildPathLength']);
         self::assertSame(1, $normalPreset['forces']['baseRepulsionDistanceExponent']);
+        self::assertSame(24, $normalPreset['forces']['edgeNodeCapsuleThickness']);
+        self::assertSame(12, $normalPreset['forces']['edgeNodeRepulsionStrength']);
         self::assertSame(0.58, $normalPreset['forces']['parentToFamilyLengthRatio']);
     }
 }

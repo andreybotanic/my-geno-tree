@@ -45,6 +45,14 @@ type ForceNode = {
   y: number
 }
 
+export type BloodNetworkForcePoint = Pick<ForceNode, 'id' | 'x' | 'y'>
+
+export type BloodNetworkEdgeNodeRepulsionForces = {
+  person: { x: number; y: number }
+  source: { x: number; y: number }
+  target: { x: number; y: number }
+}
+
 type BloodFamily = {
   childIds: string[]
   id: string
@@ -81,6 +89,8 @@ export type BloodNetworkForceSettings = {
   baseRepulsion: number
   baseRepulsionDistanceExponent: number
   descendantSideForce: number
+  edgeNodeCapsuleThickness: number
+  edgeNodeRepulsionStrength: number
   personFlowHingeStrength: number
   parentChildPathLength: number
   unrelatedParentNodeRepulsion: number
@@ -120,6 +130,8 @@ export const DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   baseRepulsion: 3,
   baseRepulsionDistanceExponent: 1,
   descendantSideForce: 12,
+  edgeNodeCapsuleThickness: 24,
+  edgeNodeRepulsionStrength: 12,
   personFlowHingeStrength: 8,
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 6,
@@ -136,6 +148,8 @@ const WEAK_BLOOD_NETWORK_FORCE_SETTINGS: BloodNetworkForceSettings = {
   baseRepulsion: 8,
   baseRepulsionDistanceExponent: 1,
   descendantSideForce: 0,
+  edgeNodeCapsuleThickness: 100,
+  edgeNodeRepulsionStrength: 30,
   personFlowHingeStrength: 0,
   parentChildPathLength: 300,
   unrelatedParentNodeRepulsion: 12,
@@ -248,6 +262,110 @@ export function bloodNetworkChargeRepulsionMagnitude(
     FORCE_MAX_REPULSION_MAGNITUDE,
     baseRepulsion * firstMass * secondMass / Math.pow(distance, distanceExponent),
   )
+}
+
+export function bloodNetworkEdgeNodeRepulsionMagnitude(
+  distanceToEdge: number,
+  nodeRadius: number,
+  capsuleThickness = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.edgeNodeCapsuleThickness,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.edgeNodeRepulsionStrength,
+): number {
+  const collisionDistance = nodeRadius + capsuleThickness / 2
+  if (collisionDistance <= 0 || distanceToEdge >= collisionDistance || strength <= 0) {
+    return 0
+  }
+  const penetration = (collisionDistance - distanceToEdge) / collisionDistance
+  const normalizedPenetration = Math.max(0, Math.min(1, penetration))
+
+  return strength * normalizedPenetration ** 2 * (3 - 2 * normalizedPenetration)
+}
+
+function closestPointOnSegment(
+  point: BloodNetworkForcePoint,
+  source: BloodNetworkForcePoint,
+  target: BloodNetworkForcePoint,
+): {
+  distance: number
+  normalX: number
+  normalY: number
+  sourceWeight: number
+  targetWeight: number
+} {
+  const edgeX = target.x - source.x
+  const edgeY = target.y - source.y
+  const edgeLengthSquared = edgeX ** 2 + edgeY ** 2
+  const targetWeight = edgeLengthSquared > 0
+    ? Math.max(0, Math.min(1, (
+      (point.x - source.x) * edgeX + (point.y - source.y) * edgeY
+    ) / edgeLengthSquared))
+    : 0.5
+  const sourceWeight = 1 - targetWeight
+  const closestX = source.x + edgeX * targetWeight
+  const closestY = source.y + edgeY * targetWeight
+  const offsetX = point.x - closestX
+  const offsetY = point.y - closestY
+  const distance = Math.hypot(offsetX, offsetY)
+  if (distance > 0.001) {
+    return {
+      distance,
+      normalX: offsetX / distance,
+      normalY: offsetY / distance,
+      sourceWeight,
+      targetWeight,
+    }
+  }
+
+  const edgeLength = Math.sqrt(edgeLengthSquared)
+  if (edgeLength > 0.001) {
+    const side = hashId(`${point.id}:${source.id}:${target.id}`) % 2 === 0 ? 1 : -1
+    return {
+      distance: 0,
+      normalX: -edgeY / edgeLength * side,
+      normalY: edgeX / edgeLength * side,
+      sourceWeight,
+      targetWeight,
+    }
+  }
+
+  const angle = (hashId(`${point.id}:${source.id}:${target.id}`) / 0xffff_ffff) * Math.PI * 2
+
+  return {
+    distance: 0,
+    normalX: Math.cos(angle),
+    normalY: Math.sin(angle),
+    sourceWeight,
+    targetWeight,
+  }
+}
+
+export function bloodNetworkEdgeNodeRepulsionForces(
+  person: BloodNetworkForcePoint & { radius: number },
+  source: BloodNetworkForcePoint,
+  target: BloodNetworkForcePoint,
+  capsuleThickness = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.edgeNodeCapsuleThickness,
+  strength = DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS.edgeNodeRepulsionStrength,
+): BloodNetworkEdgeNodeRepulsionForces {
+  const closestPoint = closestPointOnSegment(person, source, target)
+  const magnitude = bloodNetworkEdgeNodeRepulsionMagnitude(
+    closestPoint.distance,
+    person.radius,
+    capsuleThickness,
+    strength,
+  )
+  const x = closestPoint.normalX * magnitude
+  const y = closestPoint.normalY * magnitude
+
+  return {
+    person: { x, y },
+    source: {
+      x: -x * closestPoint.sourceWeight,
+      y: -y * closestPoint.sourceWeight,
+    },
+    target: {
+      x: -x * closestPoint.targetWeight,
+      y: -y * closestPoint.targetWeight,
+    },
+  }
 }
 
 export function bloodNetworkNodeMass(
@@ -714,6 +832,45 @@ export function createBloodNetworkSimulation(
         firstForce.y -= direction.y * magnitude
         secondForce.x += direction.x * magnitude
         secondForce.y += direction.y * magnitude
+      }
+    }
+
+    for (const edge of relationshipEdges) {
+      const source = byId.get(edge.source)
+      const target = byId.get(edge.target)
+      const sourceForce = force.get(edge.source)
+      const targetForce = force.get(edge.target)
+      if (!source || !target || !sourceForce || !targetForce) {
+        continue
+      }
+      for (const person of nodes) {
+        if (
+          person.id === source.id
+          || person.id === target.id
+          || nodeTypes.get(person.id) !== 'bloodPerson'
+        ) {
+          continue
+        }
+        const personForce = force.get(person.id)
+        if (!personForce) {
+          continue
+        }
+        const edgeNodeForces = bloodNetworkEdgeNodeRepulsionForces(
+          person,
+          source,
+          target,
+          forceSettings.edgeNodeCapsuleThickness,
+          forceSettings.edgeNodeRepulsionStrength,
+        )
+        if (edgeNodeForces.person.x === 0 && edgeNodeForces.person.y === 0) {
+          continue
+        }
+        personForce.x += edgeNodeForces.person.x
+        personForce.y += edgeNodeForces.person.y
+        sourceForce.x += edgeNodeForces.source.x
+        sourceForce.y += edgeNodeForces.source.y
+        targetForce.x += edgeNodeForces.target.x
+        targetForce.y += edgeNodeForces.target.y
       }
     }
 
