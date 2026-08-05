@@ -211,24 +211,32 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
     <Panel className="zoom-controls" position="bottom-right">
       <button
         aria-label={t('editor.zoomOut')}
+        className="editor-tool-button"
         onClick={() => void zoomOut({ duration: 150 })}
+        title={t('editor.zoomOut')}
         type="button"
       >
-        −
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+        </svg>
       </button>
       <output aria-label={t('editor.zoomLevel')}>
         {Math.round(zoom * 100)}%
       </output>
       <button
         aria-label={t('editor.zoomIn')}
+        className="editor-tool-button"
         onClick={() => void zoomIn({ duration: 150 })}
+        title={t('editor.zoomIn')}
         type="button"
       >
-        +
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M5 12h14M12 5v14" />
+        </svg>
       </button>
       <button
         aria-label={t('editor.resetCamera')}
-        className="reset-camera-button"
+        className="editor-tool-button"
         onClick={onReset}
         title={t('editor.resetCamera')}
         type="button"
@@ -338,9 +346,11 @@ function LayoutToolbar({
           onClick={onOptimize}
           title={t('editor.layoutOptimize')}
           type="button"
-        >
-          <span aria-hidden="true">↔</span>
-        </button>
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" />
+        </svg>
+      </button>
       )}
     </Panel>
   )

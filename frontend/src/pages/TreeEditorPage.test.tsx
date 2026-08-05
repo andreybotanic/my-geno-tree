@@ -251,7 +251,11 @@ describe('TreeEditorPage', () => {
     expect(
       await screen.findByRole('article', { name: 'Unknown person' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Optimize layout' })).toBeInTheDocument()
+    const optimizeLayout = screen.getByRole('button', { name: 'Optimize layout' })
+    expect(optimizeLayout.querySelector('svg')).not.toBeNull()
+    for (const name of ['Zoom out', 'Zoom in', 'Reset camera']) {
+      expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
+    }
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
       expect.objectContaining({
