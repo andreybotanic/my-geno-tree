@@ -109,6 +109,114 @@ describe('deterministic tree layout', () => {
     ]))
   })
 
+  it('keeps the reported reference-marriage ancestry compact and collision-free', () => {
+    const ids = {
+      paternalGrandfather: '019fbcbd-0086-7a1e-ac6c-761f03d002bb',
+      paternalGrandmother: '019fbcbd-0088-78de-9d33-6797dcd07f0e',
+      father: '019fbcbd-008b-7698-9334-db2d3ed4f395',
+      paternalAunt: '019fbcbd-008d-75d0-86ba-3de949acfdef',
+      mother: '019fbcbd-008e-787c-8d4b-cf46060f9964',
+      maternalGrandfather: '019fbcbd-0090-73c4-b107-0f99c36d3ab0',
+      maternalGrandmother: '019fbcbd-0091-742c-8a5e-6163baa799a6',
+      referenceHusband: '019fbcbd-0093-703a-9c21-1b22f16454fc',
+      paternalAuntChild: '019fbcbd-0093-7d22-9c21-1b22f51c73fc',
+      referenceWife: '019fbcbd-0094-7d86-805a-725c60f7bb58',
+      wifeFather: '019fbcbd-0096-76f6-8b4b-b2fc4d0aa6b6',
+      wifeMother: '019fbcbd-0097-7216-a613-74c37a9e81e6',
+      wifePaternalGrandfather: '019fbcbd-0099-7369-ad52-047dab68da83',
+      wifePaternalGrandmother: '019fbcbd-0099-7e25-ad52-047daed4de21',
+      wifeMaternalGrandfather: '019fbcbd-009c-7068-af73-5f96d2a36697',
+      wifeMaternalGrandmother: '019fbcbd-009c-7e7c-af73-5f96d6a44da4',
+      wifeSibling: '019fbcbd-009f-7996-9bcb-585dff2ddcb1',
+      paternalAuntPartner: '019fbcbd-00a0-79a9-866f-65eb99513505',
+      wifeSiblingPartner: '019fbcbd-00a2-74d2-b404-d602361697d5',
+      childOne: '019fbcbd-00a4-73d6-8e03-93ac0255c10e',
+      childTwo: '019fbcbd-00a5-7787-8c1a-906c7ea735fd',
+      childThree: '019fbcbd-00a6-7660-a311-7178f9da7585',
+      cousinOne: '019fbcbd-00a7-7b80-afe1-44ec31f5e6bc',
+      cousinTwo: '019fbcbd-00a8-7ea4-89b3-a9850b387fb9',
+      niece: '019fbcbd-00aa-71c6-89bd-3a9ff33ab6b0',
+    } as const
+    const people = Object.values(ids).map(person)
+    const parentLinks: ParentLink[] = []
+    const addParents = (childId: string, fatherId: string, motherId: string) => {
+      parentLinks.push(
+        link(`${childId}-father`, fatherId, childId, 'father'),
+        link(`${childId}-mother`, motherId, childId, 'mother'),
+      )
+    }
+    addParents(ids.father, ids.paternalGrandfather, ids.paternalGrandmother)
+    addParents(ids.paternalAunt, ids.paternalGrandfather, ids.paternalGrandmother)
+    addParents(ids.mother, ids.maternalGrandfather, ids.maternalGrandmother)
+    addParents(ids.referenceHusband, ids.father, ids.mother)
+    addParents(ids.paternalAuntChild, ids.father, ids.mother)
+    addParents(ids.referenceWife, ids.wifeFather, ids.wifeMother)
+    addParents(ids.wifeFather, ids.wifePaternalGrandfather, ids.wifePaternalGrandmother)
+    addParents(ids.wifeMother, ids.wifeMaternalGrandfather, ids.wifeMaternalGrandmother)
+    addParents(ids.wifeSibling, ids.wifeFather, ids.wifeMother)
+    for (const childId of [ids.childOne, ids.childTwo, ids.childThree]) {
+      addParents(childId, ids.referenceHusband, ids.referenceWife)
+    }
+    for (const childId of [ids.cousinOne, ids.cousinTwo]) {
+      addParents(childId, ids.paternalAuntPartner, ids.paternalAuntChild)
+    }
+    addParents(ids.niece, ids.wifeSiblingPartner, ids.wifeSibling)
+    const marriages = [
+      marriage('paternal-grandparents', ids.paternalGrandfather, ids.paternalGrandmother),
+      marriage('parents', ids.father, ids.mother),
+      marriage('maternal-grandparents', ids.maternalGrandfather, ids.maternalGrandmother),
+      marriage('reference', ids.referenceHusband, ids.referenceWife),
+      marriage('wife-parents', ids.wifeFather, ids.wifeMother),
+      marriage(
+        'wife-paternal-grandparents',
+        ids.wifePaternalGrandfather,
+        ids.wifePaternalGrandmother,
+      ),
+      marriage(
+        'wife-maternal-grandparents',
+        ids.wifeMaternalGrandfather,
+        ids.wifeMaternalGrandmother,
+      ),
+      marriage('paternal-aunt', ids.paternalAuntPartner, ids.paternalAuntChild),
+      marriage('wife-sibling', ids.wifeSiblingPartner, ids.wifeSibling),
+    ]
+    const tree = snapshot(people, parentLinks, marriages, {
+      type: 'marriage',
+      personIds: [ids.referenceHusband, ids.referenceWife],
+    })
+    const positions = layoutTree(tree)
+    const maternalParentCenter = (
+      positions.get(ids.maternalGrandfather)!.x
+      + positions.get(ids.maternalGrandmother)!.x
+    ) / 2
+
+    expect(maternalParentCenter).toBe(positions.get(ids.mother)!.x)
+    expect(Math.abs(
+      positions.get(ids.paternalGrandfather)!.x - positions.get(ids.father)!.x,
+    )).toBeLessThanOrEqual(480)
+    for (const [firstId, first] of positions) {
+      for (const [secondId, second] of positions) {
+        if (firstId >= secondId) continue
+        const overlaps = first.x < second.x + PERSON_CARD_WIDTH
+          && first.x + PERSON_CARD_WIDTH > second.x
+          && first.y < second.y + PERSON_CARD_HEIGHT
+          && first.y + PERSON_CARD_HEIGHT > second.y
+        expect(overlaps, `${firstId} overlaps ${secondId}`).toBe(false)
+        if (first.y === second.y) {
+          expect(Math.abs(first.x - second.x)).toBeGreaterThanOrEqual(
+            PERSON_CARD_WIDTH + 40,
+          )
+        }
+      }
+    }
+    expect([...layoutTree(snapshot(
+      [...people].reverse(),
+      [...parentLinks].reverse(),
+      [...marriages].reverse(),
+      tree.tree.reference,
+    ))]).toEqual([...positions])
+  })
+
   it('centers every sibling block below its parents', () => {
     const family = snapshot(
       ['father', 'mother', 'first', 'second', 'third'].map(person),

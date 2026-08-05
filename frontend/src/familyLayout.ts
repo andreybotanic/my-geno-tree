@@ -22,6 +22,7 @@ type ReflowSnapshot = {
   parentLinks: ParentLink[]
   marriages?: MarriagePeriod[]
   partnerPairs?: Array<[string, string]>
+  referenceIds?: string[]
 }
 
 /**
@@ -53,8 +54,16 @@ export function refineFamilyLayout(
     person.id,
     { ...person.coordinates },
   ]))
+  const reference = snapshot.tree.reference
   for (const update of reflowTree(
-    { people, parentLinks, marriages },
+    {
+      people,
+      parentLinks,
+      marriages,
+      referenceIds: reference?.type === 'person'
+        ? [reference.personId]
+        : reference?.personIds ?? [],
+    },
     { compact: true },
   )) {
     positions.set(update.personId, update.coordinates)
@@ -345,6 +354,9 @@ function reflowTree(
     visit(personId, 0)
     return result
   }
+  const referenceAncestorIds = new Set(
+    (snapshot.referenceIds ?? []).flatMap((personId) => [...ancestors(personId).keys()]),
+  )
   const childrenByParent = new Map<string, Set<string>>()
   const parentRolesByChild = new Map<string, Map<string, ParentLink['role']>>()
   for (const link of snapshot.parentLinks) {
@@ -487,30 +499,33 @@ function reflowTree(
       }
     }
   }
+  const coParentsByPerson = new Map<string, Set<string>>()
+  for (const roles of parentRolesByChild.values()) {
+    const parentIds = [...roles.keys()]
+    if (parentIds.length !== 2) {
+      continue
+    }
+    for (const [personId, coParentId] of [parentIds, [...parentIds].reverse()] as [string, string][]) {
+      const coParents = coParentsByPerson.get(personId) ?? new Set<string>()
+      coParents.add(coParentId)
+      coParentsByPerson.set(personId, coParents)
+    }
+  }
+  const isUnambiguousCoParentPair = (firstId: string, secondId: string) => (
+    coParentsByPerson.get(firstId)?.size === 1
+    && coParentsByPerson.get(firstId)?.has(secondId) === true
+    && coParentsByPerson.get(secondId)?.size === 1
+    && coParentsByPerson.get(secondId)?.has(firstId) === true
+  )
   const orientParentPairs = () => {
     const orientedPairs = new Set<string>()
-    const coParentsByPerson = new Map<string, Set<string>>()
-    for (const roles of parentRolesByChild.values()) {
-      const parentIds = [...roles.keys()]
-      if (parentIds.length !== 2) {
-        continue
-      }
-      for (const [personId, coParentId] of [parentIds, [...parentIds].reverse()] as [string, string][]) {
-        const coParents = coParentsByPerson.get(personId) ?? new Set<string>()
-        coParents.add(coParentId)
-        coParentsByPerson.set(personId, coParents)
-      }
-    }
     for (const roles of parentRolesByChild.values()) {
       const fatherId = [...roles].find(([, role]) => role === 'father')?.[0]
       const motherId = [...roles].find(([, role]) => role === 'mother')?.[0]
       if (!fatherId || !motherId) {
         continue
       }
-      if (
-        coParentsByPerson.get(fatherId)?.size !== 1
-        || coParentsByPerson.get(motherId)?.size !== 1
-      ) {
+      if (!isUnambiguousCoParentPair(fatherId, motherId)) {
         continue
       }
       const key = [fatherId, motherId].sort().join(':')
@@ -528,6 +543,131 @@ function reflowTree(
       const center = (father.x + mother.x) / 2
       positions.set(fatherId, { ...father, x: center - HORIZONTAL_STEP / 2 })
       positions.set(motherId, { ...mother, x: center + HORIZONTAL_STEP / 2 })
+    }
+  }
+  // Pull each unambiguous parent pair towards the child that continues to the
+  // reference. A single-child pair is aligned exactly; for a wide sibling branch
+  // the movement stops at the nearest occupied card to avoid a new collision.
+  const alignParentPairsToReference = () => {
+    for (const family of [...orderedFamilies].reverse()) {
+      if (
+        family.parentIds.length !== 2
+        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
+      ) {
+        continue
+      }
+      const referenceChildren = family.childIds
+        .filter((childId) => referenceAncestorIds.has(childId))
+      const targetChildId = referenceChildren.length === 1
+        ? referenceChildren[0]
+        : family.childIds.length === 1
+          ? family.childIds[0]
+          : undefined
+      const target = targetChildId ? positions.get(targetChildId) : undefined
+      const parentPositions = family.parentIds
+        .map((parentId) => positions.get(parentId))
+        .filter((position): position is Coordinates => position !== undefined)
+      if (
+        !target
+        || parentPositions.length !== family.parentIds.length
+        || parentPositions.some((parent) => parent.y !== parentPositions[0]!.y)
+      ) {
+        continue
+      }
+      const parentCenter = parentPositions.reduce((sum, parent) => sum + parent.x, 0)
+        / parentPositions.length
+      const desiredShift = target.x - parentCenter
+      let allowedShift = desiredShift
+      if (family.childIds.length > 1) {
+        const parentIds = new Set(family.parentIds)
+        for (const parentId of family.parentIds) {
+          const parent = positions.get(parentId)!
+          for (const [otherId, other] of positions) {
+            if (parentIds.has(otherId) || other.y !== parent.y) {
+              continue
+            }
+            if (desiredShift > 0 && other.x > parent.x) {
+              allowedShift = Math.min(
+                allowedShift,
+                other.x - minimumHorizontalDistance(parentId, otherId) - parent.x,
+              )
+            } else if (desiredShift < 0 && other.x < parent.x) {
+              allowedShift = Math.max(
+                allowedShift,
+                other.x + minimumHorizontalDistance(otherId, parentId) - parent.x,
+              )
+            }
+          }
+        }
+      }
+      if (Math.abs(allowedShift) <= COORDINATE_TOLERANCE) {
+        continue
+      }
+      family.parentIds.forEach((parentId) => {
+        const parent = positions.get(parentId)!
+        positions.set(parentId, { ...parent, x: parent.x + allowedShift })
+      })
+    }
+  }
+  // Final row sweep treats every connected partner group as an atomic block.
+  // It is a safety net for orientation changes made after the main collision pass.
+  const separateFinalPartnerBlocks = () => {
+    const rows = new Map<number, string[]>()
+    for (const [personId, position] of positions) {
+      const row = rows.get(position.y) ?? []
+      row.push(personId)
+      rows.set(position.y, row)
+    }
+    for (const rowIds of rows.values()) {
+      const rowSet = new Set(rowIds)
+      const seen = new Set<string>()
+      const blocks = rowIds.flatMap((personId) => {
+        if (seen.has(personId)) {
+          return []
+        }
+        const members = new Set<string>()
+        const pending = [personId]
+        while (pending.length > 0) {
+          const currentId = pending.shift()!
+          if (members.has(currentId)) {
+            continue
+          }
+          members.add(currentId)
+          seen.add(currentId)
+          for (const partnerId of partnersByPerson.get(currentId) ?? []) {
+            if (rowSet.has(partnerId) && !members.has(partnerId)) {
+              pending.push(partnerId)
+            }
+          }
+        }
+
+        return [{ members: [...members].sort() }]
+      }).sort((first, second) => {
+        const firstLeft = Math.min(...first.members.map((id) => positions.get(id)!.x))
+        const secondLeft = Math.min(...second.members.map((id) => positions.get(id)!.x))
+        return firstLeft - secondLeft || first.members.join(':').localeCompare(second.members.join(':'))
+      })
+      let previousRightId: string | undefined
+      for (const block of blocks) {
+        const orderedMembers = [...block.members].sort((first, second) => (
+          positions.get(first)!.x - positions.get(second)!.x || first.localeCompare(second)
+        ))
+        const leftId = orderedMembers[0]!
+        const rightId = orderedMembers.at(-1)!
+        const left = positions.get(leftId)!.x
+        const requiredLeft = previousRightId === undefined
+          ? left
+          : positions.get(previousRightId)!.x
+            + minimumHorizontalDistance(previousRightId, leftId)
+        const shift = Math.max(0, requiredLeft - left)
+        if (shift > COORDINATE_TOLERANCE) {
+          block.members.forEach((memberId) => {
+            const position = positions.get(memberId)!
+            positions.set(memberId, { ...position, x: position.x + shift })
+          })
+        }
+        previousRightId = rightId
+      }
     }
   }
   const belongsToDirectFamily = (personId: string, childId: string) => (
@@ -926,6 +1066,9 @@ function reflowTree(
   separateSiblingSubtrees()
   reconcileFamilyCentres()
   orientParentPairs()
+  separateFinalPartnerBlocks()
+  alignParentPairsToReference()
+  separateFinalPartnerBlocks()
 
   return snapshot.people.flatMap((person) => {
     const coordinates = positions.get(person.id)
