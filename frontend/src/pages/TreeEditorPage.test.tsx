@@ -272,14 +272,17 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     expect(window.location.pathname).toBe(`/trees/${treeId}/tree`)
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Show blood network' }),
-    )
+    const showBloodNetwork = screen.getByRole('button', { name: 'Show blood network' })
+    expect(showBloodNetwork.querySelector('svg')).toHaveAttribute('viewBox', '0 0 24 24')
+    await userEvent.click(showBloodNetwork)
 
     expect(window.location.pathname).toBe(`/trees/${treeId}/network`)
-    expect(
-      screen.getByRole('button', { name: 'Show family tree' }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    const showFamilyTree = screen.getByRole('button', { name: 'Show family tree' })
+    expect(showFamilyTree.querySelector('svg')).toHaveAttribute('viewBox', '0 0 16 16')
+    expect(showFamilyTree.querySelector('path')).toHaveAttribute(
+      'd',
+      'M8 2v4M4 14v-3h8v3M4 11V8h8v3',
+    )
     const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
     expect(anna).toHaveClass('blood-network-person')
     expect(anna.closest('.react-flow__node')).toHaveClass('draggable')

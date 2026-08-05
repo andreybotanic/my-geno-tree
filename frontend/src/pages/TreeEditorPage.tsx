@@ -292,7 +292,6 @@ function LayoutToolbar({
         aria-label={isNetworkView
           ? t('editor.showTreeView')
           : t('editor.showBloodNetwork')}
-        aria-pressed={isNetworkView}
         className="editor-tool-button"
         onClick={onToggleNetworkView}
         title={isNetworkView
@@ -300,15 +299,26 @@ function LayoutToolbar({
           : t('editor.showBloodNetwork')}
         type="button"
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M6 7 12 4l6 3M6 7l-2 8m8-11v8m6-5 2 8M4 15l8 5 8-5" />
-          <circle cx="6" cy="7" r="2.3" />
-          <circle cx="12" cy="4" r="2.3" />
-          <circle cx="18" cy="7" r="2.3" />
-          <circle cx="4" cy="15" r="2.3" />
-          <circle cx="12" cy="20" r="2.3" />
-          <circle cx="20" cy="15" r="2.3" />
-        </svg>
+        {isNetworkView
+          ? (
+              <svg aria-hidden="true" viewBox="0 0 16 16">
+                <path d="M8 2v4M4 14v-3h8v3M4 11V8h8v3" />
+                <circle cx="8" cy="2" r="1.25" />
+                <circle cx="4" cy="14" r="1.25" />
+                <circle cx="12" cy="14" r="1.25" />
+              </svg>
+            )
+          : (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M6 7 12 4l6 3M6 7l-2 8m8-11v8m6-5 2 8M4 15l8 5 8-5" />
+                <circle cx="6" cy="7" r="2.3" />
+                <circle cx="12" cy="4" r="2.3" />
+                <circle cx="18" cy="7" r="2.3" />
+                <circle cx="4" cy="15" r="2.3" />
+                <circle cx="12" cy="20" r="2.3" />
+                <circle cx="20" cy="15" r="2.3" />
+              </svg>
+            )}
       </button>
       {isNetworkView && (
         <>

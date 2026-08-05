@@ -1012,10 +1012,6 @@
   width: 22px;
 }
 
-.editor-tool-button[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-}
-
 .blood-network-person,
 .blood-network-family {
   cursor: grab;
