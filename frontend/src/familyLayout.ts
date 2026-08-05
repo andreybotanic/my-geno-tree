@@ -611,13 +611,6 @@ function solveCoordinates(
   const maxFamilyDeviation = new Variable('max-family-deviation')
   solver.createConstraint(maxFamilyDeviation, Operator.Ge, 0)
   solver.createConstraint(maxFamilyDeviation, Operator.Eq, 0, Strength.strong)
-  const referenceVariables = [...context.referenceIds]
-    .filter((id) => variables.has(id))
-    .map((id) => variables.get(id)!)
-  const referenceCenter = referenceVariables.length > 0
-    ? averageExpression(referenceVariables)
-    : new Expression(0)
-  const anchorRow = selectAnchorRow(context)
   const ancestorFan = isPureAncestorFan(context)
 
   for (const row of context.rows) {
@@ -639,20 +632,6 @@ function solveCoordinates(
       solver.createConstraint(variable, Operator.Eq, desired, Strength.weak)
       if (index + 1 < order.length) desired += minimumDistance(context, id, order[index + 1]!)
     })
-    if (order.length > 0) {
-      const rowCenter = order.length === 1
-        ? new Expression(variables.get(order[0]!)!)
-        : averageExpression([
-            variables.get(order[0]!)!,
-            variables.get(order.at(-1)!)!,
-          ])
-      solver.createConstraint(
-        rowCenter,
-        Operator.Eq,
-        referenceCenter,
-        ancestorFan || row === anchorRow ? Strength.strong : Strength.weak,
-      )
-    }
   }
 
   for (const [personId, partners] of [...context.partnersByPerson].sort(([a], [b]) => (

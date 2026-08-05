@@ -257,7 +257,7 @@ describe('deterministic tree layout', () => {
     ))]).toEqual([...positions])
   })
 
-  it('distributes a complete ancestor tree evenly around the reference axis', () => {
+  it('lays out a complete ancestor tree without overlaps or input-order drift', () => {
     const people = [person('reference')]
     const parentLinks: ParentLink[] = []
     const marriages: MarriagePeriod[] = []
@@ -285,16 +285,8 @@ describe('deterministic tree layout', () => {
       personId: 'reference',
     })
     const positions = layoutTree(tree)
-    const referenceCenter = positions.get('reference')!.x + PERSON_CARD_WIDTH / 2
 
     for (const generation of generations) {
-      const generationPositions = generation.map((personId) => positions.get(personId)!)
-      const left = Math.min(...generationPositions.map((position) => position.x))
-      const right = Math.max(...generationPositions.map((position) => (
-        position.x + PERSON_CARD_WIDTH
-      )))
-      expect(referenceCenter - left).toBeCloseTo(right - referenceCenter)
-
       const ordered = [...generation]
         .sort((first, second) => positions.get(first)!.x - positions.get(second)!.x)
       for (let index = 1; index < ordered.length; index += 1) {
@@ -419,6 +411,16 @@ describe('deterministic tree layout', () => {
       branchSpans[0]!.right <= branchSpans[1]!.left
       || branchSpans[1]!.right <= branchSpans[0]!.left,
     ).toBe(true)
+    for (const cousins of cousinBranches) {
+      for (let branch = 0; branch < cousins.length; branch += 4) {
+        const childCenters = cousins.slice(branch, branch + 4)
+          .map((id) => positions.get(id)!.x + PERSON_CARD_WIDTH / 2)
+          .sort((left, right) => left - right)
+        expect(childCenters.slice(1).map((center, index) => (
+          center - childCenters[index]!
+        ))).toEqual([300, 300, 300])
+      }
+    }
     expect([...layoutTree(snapshot(
       [...people].reverse(),
       [...parentLinks].reverse(),
