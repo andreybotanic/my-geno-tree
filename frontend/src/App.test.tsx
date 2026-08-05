@@ -210,6 +210,34 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/trees')
   })
 
+  it('does not flash the home page while restoring a protected route', async () => {
+    window.history.replaceState({}, '', '/trees')
+    let resolveRefresh!: (response: Response) => void
+    const refreshResponse = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve
+    })
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) return refreshResponse
+      if (url.endsWith('/trees')) {
+        return Promise.resolve(Response.json({ items: [] }))
+      }
+      return Promise.resolve(Response.json({ status: 'ok' }))
+    })
+
+    renderApp()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+    expect(screen.queryByRole('heading', {
+      name: 'Keep every family story connected.',
+    })).not.toBeInTheDocument()
+
+    resolveRefresh(Response.json(authenticated))
+    expect(
+      await screen.findByRole('heading', { name: 'My trees' }),
+    ).toBeInTheDocument()
+  })
+
   it('refreshes an expired access token and retries an authorized request', async () => {
     window.history.replaceState({}, '', '/trees')
     const renewed = {
