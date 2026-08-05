@@ -189,11 +189,32 @@ describe('deterministic tree layout', () => {
       positions.get(ids.maternalGrandfather)!.x
       + positions.get(ids.maternalGrandmother)!.x
     ) / 2
-
-    expect(maternalParentCenter).toBe(positions.get(ids.mother)!.x)
+    const wifePaternalParentCenter = (
+      positions.get(ids.wifePaternalGrandfather)!.x
+      + positions.get(ids.wifePaternalGrandmother)!.x
+    ) / 2
+    const paternalParentCenter = (
+      positions.get(ids.paternalGrandfather)!.x
+      + positions.get(ids.paternalGrandmother)!.x
+    ) / 2
+    const wifeMaternalParentCenter = (
+      positions.get(ids.wifeMaternalGrandfather)!.x
+      + positions.get(ids.wifeMaternalGrandmother)!.x
+    ) / 2
+    const parentRowShift = (
+      paternalParentCenter
+      - (positions.get(ids.father)!.x + positions.get(ids.paternalAunt)!.x) / 2
+      + maternalParentCenter
+      - positions.get(ids.mother)!.x
+      + wifePaternalParentCenter
+      - positions.get(ids.wifeFather)!.x
+      + wifeMaternalParentCenter
+      - positions.get(ids.wifeMother)!.x
+    )
+    expect(parentRowShift).toBeCloseTo(0)
     expect(Math.abs(
       positions.get(ids.paternalGrandfather)!.x - positions.get(ids.father)!.x,
-    )).toBeLessThanOrEqual(480)
+    )).toBeLessThanOrEqual(640)
     expect(Math.abs(
       positions.get(ids.paternalAunt)!.x - positions.get(ids.paternalGrandfather)!.x,
     )).toBeLessThanOrEqual(400)
@@ -228,6 +249,61 @@ describe('deterministic tree layout', () => {
         }
       }
     }
+    expect([...layoutTree(snapshot(
+      [...people].reverse(),
+      [...parentLinks].reverse(),
+      [...marriages].reverse(),
+      tree.tree.reference,
+    ))]).toEqual([...positions])
+  })
+
+  it('distributes a complete ancestor tree evenly around the reference axis', () => {
+    const people = [person('reference')]
+    const parentLinks: ParentLink[] = []
+    const marriages: MarriagePeriod[] = []
+    let children = ['reference']
+    const generations = [children]
+
+    for (let generation = 1; generation < 6; generation += 1) {
+      const parents = children.flatMap((childId, childIndex) => {
+        const fatherId = `generation-${generation}-${childIndex * 2}`
+        const motherId = `generation-${generation}-${childIndex * 2 + 1}`
+        people.push(person(fatherId), person(motherId))
+        parentLinks.push(
+          link(`${childId}-father`, fatherId, childId, 'father'),
+          link(`${childId}-mother`, motherId, childId, 'mother'),
+        )
+        marriages.push(marriage(`${childId}-parents`, fatherId, motherId))
+        return [fatherId, motherId]
+      })
+      generations.push(parents)
+      children = parents
+    }
+
+    const tree = snapshot(people, parentLinks, marriages, {
+      type: 'person',
+      personId: 'reference',
+    })
+    const positions = layoutTree(tree)
+    const referenceCenter = positions.get('reference')!.x + PERSON_CARD_WIDTH / 2
+
+    for (const generation of generations) {
+      const generationPositions = generation.map((personId) => positions.get(personId)!)
+      const left = Math.min(...generationPositions.map((position) => position.x))
+      const right = Math.max(...generationPositions.map((position) => (
+        position.x + PERSON_CARD_WIDTH
+      )))
+      expect(referenceCenter - left).toBeCloseTo(right - referenceCenter)
+
+      const ordered = [...generation]
+        .sort((first, second) => positions.get(first)!.x - positions.get(second)!.x)
+      for (let index = 1; index < ordered.length; index += 1) {
+        expect(
+          positions.get(ordered[index]!)!.x - positions.get(ordered[index - 1]!)!.x,
+        ).toBeGreaterThanOrEqual(PERSON_CARD_WIDTH + 40)
+      }
+    }
+
     expect([...layoutTree(snapshot(
       [...people].reverse(),
       [...parentLinks].reverse(),

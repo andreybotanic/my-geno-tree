@@ -500,6 +500,15 @@ function reflowTree(
         (snapshot.referenceIds ?? []).some((personId) => branch.members.has(personId))
       ))
       if (referenceBranchIndex === -1) {
+        const originalBounds = branches
+          .map(branchBounds)
+          .filter((bounds): bounds is NonNullable<typeof bounds> => bounds !== undefined)
+        const originalCenter = originalBounds.length === 0
+          ? 0
+          : (
+              Math.min(...originalBounds.map((bounds) => bounds.left))
+              + Math.max(...originalBounds.map((bounds) => bounds.right))
+            ) / 2
         let previousRight: number | undefined
         for (const branch of branches) {
           const bounds = branchBounds(branch)
@@ -514,6 +523,17 @@ function reflowTree(
             previousRight ?? Number.NEGATIVE_INFINITY,
             bounds.right + shift,
           )
+        }
+        const packedBounds = branches
+          .map(branchBounds)
+          .filter((bounds): bounds is NonNullable<typeof bounds> => bounds !== undefined)
+        if (packedBounds.length > 0) {
+          const packedCenter = (
+            Math.min(...packedBounds.map((bounds) => bounds.left))
+            + Math.max(...packedBounds.map((bounds) => bounds.right))
+          ) / 2
+          const centeringShift = originalCenter - packedCenter
+          branches.forEach((branch) => shiftBranch(branch, centeringShift))
         }
         continue
       }
@@ -735,6 +755,117 @@ function reflowTree(
       })
     }
   }
+  // Place complete ancestral parent pairs as close as possible to the children
+  // below them. Isotonic projection shares every required separation between
+  // the blocks on both sides instead of accumulating it in the right-hand tail.
+  const compactReferenceAncestorParentRows = () => {
+    const rows = new Map<number, Array<{
+      leftId: string
+      leftOffset: number
+      parentIds: string[]
+      childIds: string[]
+      rightId: string
+      rightOffset: number
+    }>>()
+    for (const family of orderedFamilies) {
+      if (
+        family.parentIds.length !== 2
+        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
+        || !family.parentIds.every((parentId) => (
+          referenceAncestorIds.has(parentId)
+          && partnersByPerson.get(parentId)?.size === 1
+        ))
+      ) {
+        continue
+      }
+      const referenceChildIds = family.childIds
+        .filter((childId) => referenceAncestorIds.has(childId))
+      const orderedParents = [...family.parentIds]
+        .sort((first, second) => (
+          positions.get(first)!.x - positions.get(second)!.x
+          || first.localeCompare(second)
+        ))
+      const left = positions.get(orderedParents[0]!)
+      const right = positions.get(orderedParents[1]!)
+      if (!left || !right || left.y !== right.y || referenceChildIds.length === 0) {
+        continue
+      }
+      const center = (left.x + right.x) / 2
+      const row = rows.get(left.y) ?? []
+      row.push({
+        leftId: orderedParents[0]!,
+        leftOffset: center - left.x,
+        parentIds: family.parentIds,
+        childIds: family.childIds,
+        rightId: orderedParents[1]!,
+        rightOffset: right.x - center,
+      })
+      rows.set(left.y, row)
+    }
+
+    for (const [, row] of [...rows.entries()].sort((
+      [firstY],
+      [secondY],
+    ) => secondY - firstY)) {
+      if (row.length < 2) {
+        continue
+      }
+      const idealCenter = (block: (typeof row)[number]) => block.childIds
+        .reduce((sum, childId) => sum + positions.get(childId)!.x, 0)
+        / block.childIds.length
+      row.sort((first, second) => (
+        idealCenter(first) - idealCenter(second)
+        || first.parentIds.join(':').localeCompare(second.parentIds.join(':'))
+      ))
+      const offsets = [0]
+      for (let index = 1; index < row.length; index += 1) {
+        const previous = row[index - 1]!
+        const current = row[index]!
+        offsets.push(
+          offsets[index - 1]!
+          + previous.rightOffset
+          + minimumHorizontalDistance(previous.rightId, current.leftId)
+          + current.leftOffset,
+        )
+      }
+      const pools = row.map((block, index) => ({
+        end: index,
+        start: index,
+        sum: idealCenter(block) - offsets[index]!,
+        weight: 1,
+      }))
+      for (let index = 1; index < pools.length;) {
+        const previous = pools[index - 1]!
+        const current = pools[index]!
+        if (previous.sum / previous.weight <= current.sum / current.weight) {
+          index += 1
+          continue
+        }
+        previous.end = current.end
+        previous.sum += current.sum
+        previous.weight += current.weight
+        pools.splice(index, 1)
+        if (index > 1) {
+          index -= 1
+        }
+      }
+      for (const pool of pools) {
+        const projected = pool.sum / pool.weight
+        for (let index = pool.start; index <= pool.end; index += 1) {
+          const block = row[index]!
+          const targetCenter = projected + offsets[index]!
+          const currentCenter = (
+            positions.get(block.leftId)!.x + positions.get(block.rightId)!.x
+          ) / 2
+          const shift = targetCenter - currentCenter
+          block.parentIds.forEach((parentId) => {
+            const position = positions.get(parentId)!
+            positions.set(parentId, { ...position, x: position.x + shift })
+          })
+        }
+      }
+    }
+  }
   // Final row sweep treats every connected partner group as an atomic block.
   // It is a safety net for orientation changes made after the main collision pass.
   const separateFinalPartnerBlocks = () => {
@@ -745,6 +876,9 @@ function reflowTree(
       rows.set(position.y, row)
     }
     for (const rowIds of rows.values()) {
+      const originalLeft = Math.min(...rowIds.map((personId) => positions.get(personId)!.x))
+      const originalRight = Math.max(...rowIds.map((personId) => positions.get(personId)!.x))
+      const originalCenter = (originalLeft + originalRight) / 2
       const rowSet = new Set(rowIds)
       const seen = new Set<string>()
       const blocks = rowIds.flatMap((personId) => {
@@ -793,6 +927,15 @@ function reflowTree(
           })
         }
         previousRightId = rightId
+      }
+      const packedLeft = Math.min(...rowIds.map((personId) => positions.get(personId)!.x))
+      const packedRight = Math.max(...rowIds.map((personId) => positions.get(personId)!.x))
+      const centeringShift = originalCenter - (packedLeft + packedRight) / 2
+      if (Math.abs(centeringShift) > COORDINATE_TOLERANCE) {
+        rowIds.forEach((personId) => {
+          const position = positions.get(personId)!
+          positions.set(personId, { ...position, x: position.x + centeringShift })
+        })
       }
     }
   }
@@ -844,7 +987,7 @@ function reflowTree(
     }
     return undefined
   }
-  const shiftRootSuffix = (rootId: string, shift: number) => {
+  const shiftRootSides = (rootId: string, shift: number) => {
     const root = positions.get(rootId)
     if (!root) {
       return false
@@ -856,10 +999,16 @@ function reflowTree(
     if (rootIndex === -1) {
       return false
     }
+    orderedRoots.slice(0, rootIndex).forEach((personId) => {
+      const position = positions.get(personId)
+      if (position) {
+        positions.set(personId, { ...position, x: position.x - shift / 2 })
+      }
+    })
     orderedRoots.slice(rootIndex).forEach((personId) => {
       const position = positions.get(personId)
       if (position) {
-        positions.set(personId, { ...position, x: position.x + shift })
+        positions.set(personId, { ...position, x: position.x + shift / 2 })
       }
     })
 
@@ -982,6 +1131,12 @@ function reflowTree(
       .sort(([firstId, first], [secondId, second]) => (
         first.x - second.x || firstId.localeCompare(secondId)
       ))
+    const originalCenter = peopleInGeneration.length === 0
+      ? 0
+      : (
+          peopleInGeneration[0]![1].x
+          + peopleInGeneration.at(-1)![1].x
+        ) / 2
     let previousId: string | undefined
     let previousX: number | undefined
     peopleInGeneration.forEach(([personId, position]) => {
@@ -998,6 +1153,19 @@ function reflowTree(
       previousId = personId
       previousX = x
     })
+    if (peopleInGeneration.length > 0) {
+      const packedCenter = (
+        positions.get(peopleInGeneration[0]![0])!.x
+        + positions.get(peopleInGeneration.at(-1)![0])!.x
+      ) / 2
+      const centeringShift = originalCenter - packedCenter
+      if (Math.abs(centeringShift) > COORDINATE_TOLERANCE) {
+        peopleInGeneration.forEach(([personId]) => {
+          const position = positions.get(personId)!
+          positions.set(personId, { ...position, x: position.x + centeringShift })
+        })
+      }
+    }
   }
   const reconcileFamilyCentres = () => {
     for (const family of [...orderedFamilies].reverse()) {
@@ -1064,7 +1232,7 @@ function reflowTree(
       if (candidate === undefined) {
         return changed
       }
-      if (!candidate || !shiftRootSuffix(
+      if (!candidate || !shiftRootSides(
         candidate.rootId,
         candidate.shift,
       )) {
@@ -1133,7 +1301,7 @@ function reflowTree(
         candidate.rootId,
         Math.sign(candidate.shift),
       ].join(':')
-      if (!shiftRootSuffix(candidate.rootId, candidate.shift)) {
+      if (!shiftRootSides(candidate.rootId, candidate.shift)) {
         break
       }
       appliedSeparations.add(separationKey)
@@ -1196,6 +1364,7 @@ function reflowTree(
   alignParentPairsToReference()
   separateFinalPartnerBlocks()
   balanceParentPairsBetweenGenerations()
+  compactReferenceAncestorParentRows()
 
   return snapshot.people.flatMap((person) => {
     const coordinates = positions.get(person.id)
