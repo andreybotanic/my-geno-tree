@@ -850,6 +850,10 @@
   width: 100%;
 }
 
+.editor-camera-pending .react-flow {
+  visibility: hidden;
+}
+
 .tree-canvas .react-flow__pane.draggable:not(.dragging) {
   cursor: default;
 }
