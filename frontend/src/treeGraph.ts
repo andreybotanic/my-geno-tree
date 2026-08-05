@@ -1,5 +1,6 @@
 import type { Edge, XYPosition } from '@xyflow/react'
 import type { MarriagePeriod, ParentLink, TreeSnapshot } from './api/generated'
+import { refineFamilyLayout } from './familyLayout'
 import { effectiveReference } from './focusedTree'
 
 export const PERSON_CARD_WIDTH = 260
@@ -38,7 +39,7 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
 
   const parent = new Map(ids.map((id) => [id, id]))
   const find = (id: string): string => {
-    const current = parent.get(id) ?? id
+    const current = parent.get(id)!
     if (current === id) return id
     const root = find(current)
     parent.set(id, root)
@@ -76,8 +77,8 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
   for (let pass = 0; pass < members.size; pass += 1) {
     let changed = false
     for (const [source, target] of componentLinks) {
-      const next = (ranks.get(source) ?? 0) + 1
-      if (next > (ranks.get(target) ?? 0)) {
+      const next = ranks.get(source)! + 1
+      if (next > ranks.get(target)!) {
         ranks.set(target, next)
         changed = true
       }
@@ -85,21 +86,21 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
     if (!changed) break
   }
 
-  const reference = effectiveReference(snapshot)
-  const referenceIds = reference?.type === 'person'
+  const reference = effectiveReference(snapshot)!
+  const referenceIds = reference.type === 'person'
     ? [reference.personId]
-    : reference?.personIds ?? []
+    : reference.personIds
   const referenceRoots = new Set(referenceIds.map(find))
   const distances = componentDistances([...members.keys()], componentLinks, referenceRoots)
   const rows = new Map<number, string[]>()
   for (const componentId of members.keys()) {
-    const rank = ranks.get(componentId) ?? 0
+    const rank = ranks.get(componentId)!
     const row = rows.get(rank) ?? []
     row.push(componentId)
     rows.set(rank, row)
   }
 
-  const positions = new Map<string, XYPosition>()
+  const seedPositions = new Map<string, XYPosition>()
   for (const [rank, components] of [...rows].sort(([a], [b]) => a - b)) {
     components.sort((left, right) => (
       (distances.get(left) ?? Number.MAX_SAFE_INTEGER)
@@ -107,7 +108,7 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
       || left.localeCompare(right)
     ))
     const orderedPeople = components.flatMap((componentId) => {
-      const group = [...(members.get(componentId) ?? [])]
+      const group = [...members.get(componentId)!]
       return group.sort((left, right) => (
         Number(!referenceIds.includes(left)) - Number(!referenceIds.includes(right))
         || left.localeCompare(right)
@@ -115,28 +116,26 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
     })
     const rowWidth = (orderedPeople.length - 1) * HORIZONTAL_STEP
     orderedPeople.forEach((id, index) => {
-      positions.set(id, {
+      seedPositions.set(id, {
         x: index * HORIZONTAL_STEP - rowWidth / 2,
         y: rank * VERTICAL_STEP,
       })
     })
   }
 
+  const positions = refineFamilyLayout(snapshot, seedPositions)
   const referencePositions = referenceIds
-    .map((id) => positions.get(id))
-    .filter((position): position is XYPosition => position !== undefined)
-  if (referencePositions.length > 0) {
-    const centerX = referencePositions.reduce(
-      (sum, position) => sum + position.x + PERSON_CARD_WIDTH / 2,
-      0,
-    ) / referencePositions.length
-    const centerY = referencePositions.reduce(
-      (sum, position) => sum + position.y + PERSON_CARD_HEIGHT / 2,
-      0,
-    ) / referencePositions.length
-    for (const [id, position] of positions) {
-      positions.set(id, { x: position.x - centerX, y: position.y - centerY })
-    }
+    .map((id) => positions.get(id)!)
+  const centerX = referencePositions.reduce(
+    (sum, position) => sum + position.x + PERSON_CARD_WIDTH / 2,
+    0,
+  ) / referencePositions.length
+  const centerY = referencePositions.reduce(
+    (sum, position) => sum + position.y + PERSON_CARD_HEIGHT / 2,
+    0,
+  ) / referencePositions.length
+  for (const [id, position] of positions) {
+    positions.set(id, { x: position.x - centerX, y: position.y - centerY })
   }
 
   return positions
@@ -180,23 +179,70 @@ export function buildTreeEdges(
     families.set(key, family)
   }
 
-  const outlets = new Map<string, Array<{ key: string; partnerX: number }>>()
+  type PartnerOutlet = {
+    key: string
+    partnerId: string
+    partnerX: number
+    personId: string
+  }
+  const outlets = new Map<string, PartnerOutlet[]>()
   for (const [key, family] of families) {
     for (const [personId, partnerId] of [family.people, [...family.people].reverse()] as [string, string][]) {
       const values = outlets.get(personId) ?? []
-      values.push({ key, partnerX: positions.get(partnerId)?.x ?? 0 })
+      values.push({
+        key,
+        partnerId,
+        partnerX: positions.get(partnerId)?.x ?? 0,
+        personId,
+      })
       outlets.set(personId, values)
     }
   }
-  const offsets = new Map<string, number>()
-  for (const [personId, values] of outlets) {
-    const ownX = positions.get(personId)?.x ?? 0
-    values.sort((a, b) => a.partnerX - b.partnerX || a.key.localeCompare(b.key))
-    values.forEach((value, index) => offsets.set(
-      `${value.key}:${personId}`,
-      (index - (values.length - 1) / 2) * PARTNER_OUTLET_SPACING
-        + Math.sign(value.partnerX - ownX) * Math.min(index, 1) * 4,
-    ))
+  const outletLayout = new Map<string, { bracketDepth: number; offset: number }>()
+  const partnerSide = (outlet: PartnerOutlet) => (
+    outlet.partnerX < (positions.get(outlet.personId)?.x ?? 0) ? 'left' : 'right'
+  )
+  for (const values of outlets.values()) {
+    values
+      .sort((left, right) => (
+        (partnerSide(left) === 'left' ? -1 : 1)
+        - (partnerSide(right) === 'left' ? -1 : 1)
+        || right.partnerX - left.partnerX
+        || left.key.localeCompare(right.key)
+      ))
+      .forEach((outlet, index) => outletLayout.set(
+        `${outlet.key}:${outlet.personId}`,
+        {
+          bracketDepth: 24,
+          offset: (index - (values.length - 1) / 2) * PARTNER_OUTLET_SPACING,
+        },
+      ))
+  }
+  const bracketLength = (outlet: PartnerOutlet) => {
+    const person = positions.get(outlet.personId)
+    const partner = positions.get(outlet.partnerId)
+    if (!person || !partner) return 0
+    const ownOffset = outletLayout.get(`${outlet.key}:${outlet.personId}`)?.offset ?? 0
+    const partnerOffset = outletLayout.get(`${outlet.key}:${outlet.partnerId}`)?.offset ?? 0
+    return Math.abs(person.x + ownOffset - partner.x - partnerOffset)
+  }
+  for (const values of outlets.values()) {
+    for (const side of ['left', 'right'] as const) {
+      values
+        .filter((outlet) => partnerSide(outlet) === side)
+        .sort((left, right) => (
+          bracketLength(left) - bracketLength(right)
+          || left.key.localeCompare(right.key)
+        ))
+        .forEach((outlet, index) => {
+          const outletKey = `${outlet.key}:${outlet.personId}`
+          const current = outletLayout.get(outletKey)!
+          outletLayout.set(outletKey, {
+            ...current,
+            bracketDepth: 24 + index * 18,
+          })
+        })
+    }
   }
 
   const reference = snapshot.tree.reference
@@ -209,6 +255,8 @@ export function buildTreeEdges(
       || left.localeCompare(right)
     )) as [string, string]
     if (!positions.has(first) || !positions.has(second)) continue
+    const sourceLayout = outletLayout.get(`${key}:${first}`)!
+    const targetLayout = outletLayout.get(`${key}:${second}`)!
     const childPoints = [...family.children]
       .filter((id) => positions.has(id))
       .map((id) => ({
@@ -225,13 +273,13 @@ export function buildTreeEdges(
       targetHandle: 'bottom-target',
       type: 'family',
       data: {
-        bracketDepth: 24,
+        bracketDepth: Math.max(sourceLayout.bracketDepth, targetLayout.bracketDepth),
         childPoints,
         married: family.married,
         personIds: family.people,
         reference: family.married && referencePair === key,
-        sourceOffset: offsets.get(`${key}:${first}`) ?? 0,
-        targetOffset: offsets.get(`${key}:${second}`) ?? 0,
+        sourceOffset: sourceLayout.offset,
+        targetOffset: targetLayout.offset,
       },
     })
   }
@@ -282,9 +330,9 @@ function componentDistances(
   pending.forEach((id) => distances.set(id, 0))
   while (pending.length > 0) {
     const current = pending.shift()!
-    for (const next of [...(neighbors.get(current) ?? [])].sort((a, b) => a.localeCompare(b))) {
+    for (const next of [...neighbors.get(current)!].sort((a, b) => a.localeCompare(b))) {
       if (distances.has(next)) continue
-      distances.set(next, (distances.get(current) ?? 0) + 1)
+      distances.set(next, distances.get(current)! + 1)
       pending.push(next)
     }
   }
