@@ -275,6 +275,143 @@ describe('deterministic tree layout', () => {
     ).toBe(true)
   })
 
+  it('keeps wide descendant blocks of siblings from interleaving', () => {
+    const ids = [
+      'grandfather', 'grandmother',
+      'sibling-a', 'spouse-a', 'sibling-b', 'spouse-b',
+      'a-child-1', 'a-child-2', 'b-child-1', 'b-child-2',
+      'a-inlaw-1', 'a-inlaw-2', 'b-inlaw-1', 'b-inlaw-2',
+      'a-grandchild-1', 'a-grandchild-2', 'a-grandchild-3', 'a-grandchild-4',
+      'b-grandchild-1', 'b-grandchild-2', 'b-grandchild-3', 'b-grandchild-4',
+    ]
+    const parentLinks = [
+      ...['sibling-a', 'sibling-b'].flatMap((childId) => [
+        link(`grandfather-${childId}`, 'grandfather', childId, 'father'),
+        link(`grandmother-${childId}`, 'grandmother', childId, 'mother'),
+      ]),
+      ...['a-child-1', 'a-child-2'].flatMap((childId) => [
+        link(`sibling-a-${childId}`, 'sibling-a', childId, 'father'),
+        link(`spouse-a-${childId}`, 'spouse-a', childId, 'mother'),
+      ]),
+      ...['b-child-1', 'b-child-2'].flatMap((childId) => [
+        link(`sibling-b-${childId}`, 'sibling-b', childId, 'father'),
+        link(`spouse-b-${childId}`, 'spouse-b', childId, 'mother'),
+      ]),
+      ...[1, 2].flatMap((familyIndex) => [1, 2].flatMap((childIndex) => [
+        link(
+          `a-child-${familyIndex}-grandchild-${childIndex}`,
+          `a-child-${familyIndex}`,
+          `a-grandchild-${(familyIndex - 1) * 2 + childIndex}`,
+          'father',
+        ),
+        link(
+          `a-inlaw-${familyIndex}-grandchild-${childIndex}`,
+          `a-inlaw-${familyIndex}`,
+          `a-grandchild-${(familyIndex - 1) * 2 + childIndex}`,
+          'mother',
+        ),
+        link(
+          `b-child-${familyIndex}-grandchild-${childIndex}`,
+          `b-child-${familyIndex}`,
+          `b-grandchild-${(familyIndex - 1) * 2 + childIndex}`,
+          'father',
+        ),
+        link(
+          `b-inlaw-${familyIndex}-grandchild-${childIndex}`,
+          `b-inlaw-${familyIndex}`,
+          `b-grandchild-${(familyIndex - 1) * 2 + childIndex}`,
+          'mother',
+        ),
+      ])),
+    ]
+    const marriages = [
+      marriage('grandparents', 'grandfather', 'grandmother'),
+      marriage('sibling-a-marriage', 'sibling-a', 'spouse-a'),
+      marriage('sibling-b-marriage', 'sibling-b', 'spouse-b'),
+      marriage('a-child-1-marriage', 'a-child-1', 'a-inlaw-1'),
+      marriage('a-child-2-marriage', 'a-child-2', 'a-inlaw-2'),
+      marriage('b-child-1-marriage', 'b-child-1', 'b-inlaw-1'),
+      marriage('b-child-2-marriage', 'b-child-2', 'b-inlaw-2'),
+    ]
+    const tree = snapshot(
+      ids.map(person),
+      parentLinks,
+      marriages,
+      { type: 'marriage', personIds: ['grandfather', 'grandmother'] },
+    )
+    const positions = layoutTree(tree)
+    const branch = (prefix: 'a' | 'b') => ids.filter((id) => (
+      id === `sibling-${prefix}`
+      || id === `spouse-${prefix}`
+      || id.startsWith(`${prefix}-`)
+    ))
+    const range = (personIds: string[]) => ({
+      left: Math.min(...personIds.map((id) => positions.get(id)!.x)),
+      right: Math.max(...personIds.map((id) => positions.get(id)!.x)),
+    })
+    const first = range(branch('a'))
+    const second = range(branch('b'))
+    const separated = first.right + 300 <= second.left
+      || second.right + 300 <= first.left
+    const cousinOrder = [...ids]
+      .filter((id) => id.includes('grandchild'))
+      .sort((left, right) => positions.get(left)!.x - positions.get(right)!.x)
+      .map((id) => id[0])
+    const transitions = cousinOrder.slice(1).filter((value, index) => (
+      value !== cousinOrder[index]
+    ))
+
+    expect(separated).toBe(true)
+    expect(transitions).toHaveLength(1)
+    expect([...layoutTree(tree)]).toEqual([...positions])
+  })
+
+  it('keeps descendant blocks of half-siblings separate', () => {
+    const family = snapshot(
+      [
+        'shared-parent', 'first-parent', 'second-parent',
+        'first-sibling', 'second-sibling',
+        'first-partner', 'second-partner',
+        'first-child-1', 'first-child-2',
+        'second-child-1', 'second-child-2',
+      ].map(person),
+      [
+        link('shared-first', 'shared-parent', 'first-sibling', 'father'),
+        link('first-first', 'first-parent', 'first-sibling', 'mother'),
+        link('shared-second', 'shared-parent', 'second-sibling', 'father'),
+        link('second-second', 'second-parent', 'second-sibling', 'mother'),
+        ...['first-child-1', 'first-child-2'].flatMap((childId) => [
+          link(`first-sibling-${childId}`, 'first-sibling', childId, 'father'),
+          link(`first-partner-${childId}`, 'first-partner', childId, 'mother'),
+        ]),
+        ...['second-child-1', 'second-child-2'].flatMap((childId) => [
+          link(`second-sibling-${childId}`, 'second-sibling', childId, 'father'),
+          link(`second-partner-${childId}`, 'second-partner', childId, 'mother'),
+        ]),
+      ],
+      [
+        marriage('first-family', 'first-sibling', 'first-partner'),
+        marriage('second-family', 'second-sibling', 'second-partner'),
+      ],
+      { type: 'person', personId: 'shared-parent' },
+    )
+    const positions = layoutTree(family)
+    const firstRight = Math.max(...[
+      'first-sibling', 'first-partner', 'first-child-1', 'first-child-2',
+    ].map((id) => positions.get(id)!.x))
+    const secondLeft = Math.min(...[
+      'second-sibling', 'second-partner', 'second-child-1', 'second-child-2',
+    ].map((id) => positions.get(id)!.x))
+
+    expect(secondLeft - firstRight).toBeGreaterThanOrEqual(300)
+    expect([...layoutTree(snapshot(
+      [...family.people].reverse(),
+      [...family.parentLinks].reverse(),
+      [...family.marriages].reverse(),
+      family.tree.reference,
+    ))]).toEqual([...positions])
+  })
+
   it('balances one parent between several spouse families', () => {
     const family = snapshot(
       [

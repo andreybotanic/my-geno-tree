@@ -351,6 +351,95 @@ function reflowTree(
     children.add(link.childId)
     childrenByParent.set(link.parentId, children)
   }
+  const descendantFamilyBlockCache = new Map<string, Set<string>>()
+  const descendantFamilyBlock = (personId: string): Set<string> => {
+    const cached = descendantFamilyBlockCache.get(personId)
+    if (cached) {
+      return cached
+    }
+    const block = new Set<string>()
+    const pending = [personId]
+    while (pending.length > 0) {
+      const currentId = pending.shift()!
+      if (block.has(currentId) || !people.has(currentId)) {
+        continue
+      }
+      block.add(currentId)
+      for (const partnerId of partnersByPerson.get(currentId) ?? []) {
+        if (!block.has(partnerId)) {
+          pending.push(partnerId)
+        }
+      }
+      for (const childId of childrenByParent.get(currentId) ?? []) {
+        if (!block.has(childId)) {
+          pending.push(childId)
+        }
+      }
+    }
+    descendantFamilyBlockCache.set(personId, block)
+
+    return block
+  }
+  const siblingGroups = [...childrenByParent.entries()]
+    .filter(([, childIds]) => childIds.size > 1)
+    .map(([parentId, childIds]) => ({
+      childIds: [...childIds].sort(),
+      parentDepth: depth(parentId),
+    }))
+    .filter((group, index, groups) => (
+      groups.findIndex((candidate) => (
+        candidate.childIds.join(':') === group.childIds.join(':')
+      )) === index
+    ))
+    .sort((first, second) => (
+      second.parentDepth - first.parentDepth
+      || first.childIds.join(':').localeCompare(second.childIds.join(':'))
+    ))
+  // Keep every sibling's partners and descendants in one horizontal band so
+  // cousin branches cannot alternate. Deep groups are fixed before ancestors.
+  const separateSiblingSubtrees = () => {
+    for (const siblingGroup of siblingGroups) {
+      const branches = siblingGroup.childIds.map((personId) => ({
+        members: descendantFamilyBlock(personId),
+        personId,
+      }))
+      const branchesOverlap = branches.some((branch, index) => (
+        branches.slice(index + 1).some((candidate) => (
+          [...branch.members].some((personId) => candidate.members.has(personId))
+        ))
+      ))
+      if (branchesOverlap) {
+        continue
+      }
+      branches.sort((first, second) => (
+        (positions.get(first.personId)?.x ?? 0) - (positions.get(second.personId)?.x ?? 0)
+        || first.personId.localeCompare(second.personId)
+      ))
+      let previousRight: number | undefined
+      for (const branch of branches) {
+        const branchPositions = [...branch.members]
+          .map((personId) => positions.get(personId))
+          .filter((position): position is Coordinates => position !== undefined)
+        if (branchPositions.length === 0) {
+          continue
+        }
+        const left = Math.min(...branchPositions.map((position) => position.x))
+        const right = Math.max(...branchPositions.map((position) => position.x))
+        const shift = previousRight === undefined
+          ? 0
+          : Math.max(0, previousRight + PERSON_CARD_WIDTH + 40 - left)
+        if (shift > COORDINATE_TOLERANCE) {
+          branch.members.forEach((personId) => {
+            const position = positions.get(personId)
+            if (position) {
+              positions.set(personId, { ...position, x: position.x + shift })
+            }
+          })
+        }
+        previousRight = Math.max(previousRight ?? Number.NEGATIVE_INFINITY, right + shift)
+      }
+    }
+  }
   const belongsToDirectFamily = (personId: string, childId: string) => (
     (parentsByChild.get(childId) ?? []).some((parentId) => (
       parentId === personId || partnersByPerson.get(parentId)?.has(personId)
@@ -733,6 +822,7 @@ function reflowTree(
 
   compactRootRows()
   alignFamilies()
+  separateSiblingSubtrees()
   fixWidestGeneration()
   reconcileFamilyCentres()
   arrangeGenerationsFromWidest()
@@ -742,6 +832,8 @@ function reflowTree(
   arrangeGenerationsFromWidest()
   resolveCollisions()
   arrangeGenerationsFromWidest()
+  reconcileFamilyCentres()
+  separateSiblingSubtrees()
   reconcileFamilyCentres()
 
   return snapshot.people.flatMap((person) => {
