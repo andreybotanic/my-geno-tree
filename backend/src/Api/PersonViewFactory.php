@@ -40,10 +40,6 @@ final readonly class PersonViewFactory
                         ->getId()
                         ->toRfc4122(),
                 ),
-            'coordinates' => [
-                'x' => $person->getX(),
-                'y' => $person->getY(),
-            ],
             'createdAt' => $person->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $person->getUpdatedAt()->format(DATE_ATOM),
         ];

@@ -152,10 +152,7 @@ export function RelativeDialog({
     return (
       <PersonFormDialog
         onCancel={onCancel}
-        onSave={(person) => save({
-          person,
-          coordinates: { x: 0, y: 0 },
-        })}
+        onSave={(person) => save({ person })}
         title={title}
       >
         <ModeSelector

@@ -61,4 +61,18 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
 
         return $marriages;
     }
+
+    public function countForPair(Person $first, Person $second): int
+    {
+        return (int)$this->createQueryBuilder('marriage')
+            ->select('COUNT(marriage.id)')
+            ->andWhere(
+                '(marriage.malePerson = :first AND marriage.femalePerson = :second)'
+                . ' OR (marriage.malePerson = :second AND marriage.femalePerson = :first)',
+            )
+            ->setParameter('first', $first)
+            ->setParameter('second', $second)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

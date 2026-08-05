@@ -35,6 +35,7 @@ import type {
   PersonPatchRequest,
   RelativePerson,
   TreeSnapshot,
+  TreeReference,
   User,
 } from '../api/generated'
 import {
@@ -72,7 +73,6 @@ import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { EventDialog } from '../components/EventDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
-import { ToastNotice } from '../components/ToastNotice'
 import {
   matchTreeEditorPath,
   navigate,
@@ -87,12 +87,11 @@ import {
 } from '../editorCamera'
 import {
   buildTreeEdges,
-  newRelativeCoordinates,
-  PERSON_CARD_HEIGHT,
-  PERSON_CARD_WIDTH,
-  reflowTree,
+  layoutTree,
   type TreeFlowEdge,
 } from '../treeGraph'
+import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
+import { formatPersonName } from '../personFormatting'
 import {
   BLOOD_NETWORK_FAMILY_SIZE,
   BLOOD_NETWORK_PERSON_SIZE,
@@ -108,12 +107,6 @@ import {
   type BloodNetworkFlowNode,
   type BloodNetworkSimulation,
 } from '../bloodNetwork'
-import {
-  LAYOUT_WARNING_THRESHOLD,
-  LIMITED_LAYOUT_SEARCH,
-  estimateLayoutCandidates,
-  type LayoutOptimizationResult,
-} from '../layoutOptimizer'
 
 type TreeEditorPageProps = {
   treeId: string
@@ -128,11 +121,17 @@ const edgeTypes = {
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
-const PREVIEW_PERSON_ID = '__new_person__'
-const LAYOUT_PROGRESS_DELAY_MS = 2_500
 
 type BloodNetworkNodeContextMenu = {
   nodeId: string
+  x: number
+  y: number
+}
+
+type TreeContextMenu = {
+  kind: 'marriage' | 'person'
+  personId?: string
+  personIds?: [string, string]
   x: number
   y: number
 }
@@ -254,39 +253,18 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
   )
 }
 
-type LayoutPreview = {
-  coordinateUpdates: Array<{
-    coordinates: { x: number; y: number }
-    personId: string
-  }>
-  currentWidth: number
-  limited: boolean
-  optimizedWidth: number
-  snapshot: TreeSnapshot
-}
-
-type LayoutSearch = {
-  checked: bigint
-  limited: boolean
-  total: bigint
-}
-
 type LayoutToolbarProps = {
   isNetworkView: boolean
-  onOptimize: () => void
   onRegenerateNetwork: () => void
   onSaveNetworkState: () => void
   onToggleNetworkView: () => void
-  unavailable: boolean
 }
 
 function LayoutToolbar({
   isNetworkView,
-  onOptimize,
   onRegenerateNetwork,
   onSaveNetworkState,
   onToggleNetworkView,
-  unavailable,
 }: LayoutToolbarProps) {
   const { t } = useTranslation()
 
@@ -351,20 +329,6 @@ function LayoutToolbar({
             </svg>
           </button>
         </>
-      )}
-      {!isNetworkView && (
-        <button
-          aria-label={t('editor.layoutOptimize')}
-          className="editor-tool-button"
-          disabled={unavailable}
-          onClick={onOptimize}
-          title={t('editor.layoutOptimize')}
-          type="button"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" />
-        </svg>
-      </button>
       )}
     </Panel>
   )
@@ -693,106 +657,15 @@ function BloodNetworkSidebar({
   )
 }
 
-type LayoutProgressProps = {
-  onCancel: () => void
-  search: LayoutSearch
-}
-
-function LayoutProgress({ onCancel, search }: LayoutProgressProps) {
-  const { t } = useTranslation()
-  const progress = search.total > 0n
-    ? Number(search.checked * 100n / search.total)
-    : 0
-
-  return (
-    <Panel className="layout-progress" position="bottom-center">
-      <div role="status">
-        <strong>{t('editor.layoutOptimizing')}</strong>
-        <span>{progress}% · {t('editor.layoutChecked', {
-          checked: search.checked.toString(),
-          total: search.total.toString(),
-        })}</span>
-      </div>
-      <button className="secondary-button compact-button" onClick={onCancel} type="button">
-        {t('editor.layoutCancel')}
-      </button>
-    </Panel>
-  )
-}
-
-type LayoutPreviewControlsProps = {
-  onApply: () => void
-  onReject: () => void
-  onViewChange: (view: 'optimized' | 'original') => void
-  preview: LayoutPreview
-  view: 'optimized' | 'original'
-}
-
-function LayoutPreviewControls({
-  onApply,
-  onReject,
-  onViewChange,
-  preview,
-  view,
-}: LayoutPreviewControlsProps) {
-  const { t } = useTranslation()
-
-  return (
-    <Panel className="layout-preview-controls" position="top-center">
-      <strong>{t('editor.layoutPreview')}</strong>
-      <span>{t('editor.layoutSavings', {
-        current: preview.currentWidth,
-        optimized: preview.optimizedWidth,
-        saved: preview.currentWidth - preview.optimizedWidth,
-      })}</span>
-      <div className="layout-preview-view-switch" role="group" aria-label={t('editor.layoutPreview')}
-      >
-        <button
-          aria-pressed={view === 'original'}
-          className="secondary-button compact-button"
-          onClick={() => onViewChange('original')}
-          type="button"
-        >
-          {t('editor.layoutViewOriginal')}
-        </button>
-        <button
-          aria-pressed={view === 'optimized'}
-          className="secondary-button compact-button"
-          onClick={() => onViewChange('optimized')}
-          type="button"
-        >
-          {t('editor.layoutViewOptimized')}
-        </button>
-      </div>
-      {preview.limited && <small>{t('editor.layoutIncomplete')}</small>}
-      <div className="layout-preview-actions">
-        <button className="secondary-button compact-button" onClick={onReject} type="button">
-          {t('editor.layoutReject')}
-        </button>
-        <button className="primary-button compact-button" onClick={onApply} type="button">
-          {t('editor.layoutApply')}
-        </button>
-      </div>
-    </Panel>
-  )
-}
-
 type TreeCanvasProps = {
   bloodNetworkSidebarContainer: HTMLElement | null
   onClearSelection: () => void
-  onApplyLayout: () => void
-  onCancelLayout: () => void
-  onChangeLayoutPreviewView: (view: 'optimized' | 'original') => void
-  onOptimizeLayout: () => void
+  onChangeReference: (reference: TreeReference) => Promise<void>
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
   request: AuthorizedJsonRequest
   onSelectPerson: (personId: string) => void
   onToggleNetworkView: () => void
   onUpdateUser: (user: User) => void
-  layoutProgressVisible: boolean
-  layoutPreview: LayoutPreview | null
-  layoutPreviewView: 'optimized' | 'original'
-  layoutSearch: LayoutSearch | null
   selectedPersonId: string | null
   snapshot: TreeSnapshot
   treeId: string
@@ -803,19 +676,12 @@ type TreeCanvasProps = {
 function TreeCanvas({
   bloodNetworkSidebarContainer,
   onClearSelection,
-  onApplyLayout,
-  onCancelLayout,
-  onChangeLayoutPreviewView,
-  onOptimizeLayout,
+  onChangeReference,
   onSaveBloodNetworkState,
   request,
   onSelectPerson,
   onToggleNetworkView,
   onUpdateUser,
-  layoutProgressVisible,
-  layoutPreview,
-  layoutPreviewView,
-  layoutSearch,
   selectedPersonId,
   snapshot,
   treeId,
@@ -847,6 +713,7 @@ function TreeCanvas({
   const [bloodNetworkContextMenu, setBloodNetworkContextMenu] = useState<
     BloodNetworkNodeContextMenu | null
   >(null)
+  const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null)
   const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
     string | null
   >(null)
@@ -912,16 +779,24 @@ function TreeCanvas({
   ])
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
-  const treeNodes = useMemo<PersonFlowNode[]>(() => snapshot.people.map((person) => ({
+  const focusedSnapshot = useMemo(() => focusedTreeSnapshot(snapshot), [snapshot])
+  const treePositions = useMemo(() => layoutTree(focusedSnapshot), [focusedSnapshot])
+  const referencePersonIds = useMemo(() => {
+    const reference = effectiveReference(snapshot)
+    return new Set(reference?.type === 'person'
+      ? [reference.personId]
+      : reference?.personIds ?? [])
+  }, [snapshot])
+  const treeNodes = useMemo<PersonFlowNode[]>(() => focusedSnapshot.people.map((person) => ({
     id: person.id,
     type: 'person',
-    position: person.coordinates,
-    data: { person },
+    position: treePositions.get(person.id) ?? { x: 0, y: 0 },
+    data: { isReference: referencePersonIds.has(person.id), person },
     selected: person.id === selectedPersonId,
-  })), [selectedPersonId, snapshot.people])
+  })), [focusedSnapshot.people, referencePersonIds, selectedPersonId, treePositions])
   const edges = useMemo<TreeFlowEdge[]>(
-    () => buildTreeEdges(snapshot),
-    [snapshot],
+    () => buildTreeEdges(focusedSnapshot, treePositions),
+    [focusedSnapshot, treePositions],
   )
   const generatedBloodNetwork = useMemo(
     () => view === 'network'
@@ -955,6 +830,20 @@ function TreeCanvas({
       }))
     : treeNodes
   const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : edges
+  const treeMenuSpouses = useMemo(() => {
+    if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
+    const spouseIds = new Set<string>()
+    for (const marriage of snapshot.marriages) {
+      if (marriage.malePersonId === treeContextMenu.personId) {
+        spouseIds.add(marriage.femalePersonId)
+      } else if (marriage.femalePersonId === treeContextMenu.personId) {
+        spouseIds.add(marriage.malePersonId)
+      }
+    }
+    return snapshot.people
+      .filter((person) => spouseIds.has(person.id))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  }, [snapshot.marriages, snapshot.people, treeContextMenu])
 
   useEffect(() => {
     const presets = savedBloodNetworkPresets.map((preset) => ({
@@ -989,6 +878,7 @@ function TreeCanvas({
 
   useEffect(() => {
     if (view === 'network') {
+      setTreeContextMenu(null)
       return
     }
     bloodNetworkRotationSession.current = null
@@ -1002,6 +892,7 @@ function TreeCanvas({
         return
       }
       setBloodNetworkContextMenu(null)
+      setTreeContextMenu(null)
       if (!bloodNetworkRotationPivotNodeId) {
         return
       }
@@ -1028,15 +919,7 @@ function TreeCanvas({
       return
     }
     if (cameraView === 'tree') {
-      const first = snapshot.people[0]
-      if (!first) {
-        return
-      }
-      await flow.setCenter(
-        first.coordinates.x + PERSON_CARD_WIDTH / 2,
-        first.coordinates.y + PERSON_CARD_HEIGHT / 2,
-        { duration: 150, zoom: 1 },
-      )
+      await flow.setCenter(0, 0, { duration: 150, zoom: 1 })
     } else if (snapshot.bloodNetworkState) {
       await flow.setViewport(snapshot.bloodNetworkState.viewport, { duration: 150 })
     } else if (bloodNetwork.nodes.length > 0) {
@@ -1048,7 +931,15 @@ function TreeCanvas({
       await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 150 })
     }
     rememberCamera(cameraView, flow.getViewport())
-  }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, snapshot.people, view])
+  }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, view])
+  const referenceKey = JSON.stringify(snapshot.tree.reference)
+  const previousReferenceKey = useRef(referenceKey)
+
+  useEffect(() => {
+    if (previousReferenceKey.current === referenceKey) return
+    previousReferenceKey.current = referenceKey
+    if (view === 'tree') void resetCamera('tree')
+  }, [referenceKey, resetCamera, view])
 
   const restoreCamera = useCallback((
     flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
@@ -1338,17 +1229,38 @@ function TreeCanvas({
         viewport,
       )}
       onNodeClick={(_event, node) => {
-        if (view === 'tree' && !layoutSearch) {
+        if (view === 'tree') {
           onSelectPerson(node.id)
         }
       }}
       onNodeContextMenu={(event, node) => {
-        if (view !== 'network') {
+        event.preventDefault()
+        if (view === 'tree') {
+          setTreeContextMenu({
+            kind: 'person',
+            personId: node.id,
+            x: event.clientX,
+            y: event.clientY,
+          })
           return
         }
-        event.preventDefault()
         setBloodNetworkContextMenu({
           nodeId: node.id,
+          x: event.clientX,
+          y: event.clientY,
+        })
+      }}
+      onEdgeContextMenu={(event, edge) => {
+        if (
+          view !== 'tree'
+          || edge.type !== 'family'
+          || !edge.data?.married
+          || !edge.data.personIds
+        ) return
+        event.preventDefault()
+        setTreeContextMenu({
+          kind: 'marriage',
+          personIds: edge.data.personIds,
           x: event.clientX,
           y: event.clientY,
         })
@@ -1390,7 +1302,8 @@ function TreeCanvas({
       }}
       onPaneClick={() => {
         setBloodNetworkContextMenu(null)
-        if (view === 'tree' && !layoutSearch) {
+        setTreeContextMenu(null)
+        if (view === 'tree') {
           onClearSelection()
         }
       }}
@@ -1398,11 +1311,11 @@ function TreeCanvas({
         event.preventDefault()
         setBloodNetworkContextMenu(null)
       }}
-      panOnDrag={bloodNetworkRotationPivotNodeId ? [1] : !layoutSearch}
+      panOnDrag={bloodNetworkRotationPivotNodeId ? [1] : true}
       proOptions={{ hideAttribution: true }}
       zoomOnDoubleClick={false}
-      zoomOnPinch={!layoutSearch}
-      zoomOnScroll={!layoutSearch}
+      zoomOnPinch
+      zoomOnScroll
     >
       {view === 'network' && (
         <BloodNetworkEdgesOverlay
@@ -1413,14 +1326,12 @@ function TreeCanvas({
       <Background color="var(--color-border)" gap={22} size={1} />
       <LayoutToolbar
         isNetworkView={view === 'network'}
-        onOptimize={onOptimizeLayout}
         onRegenerateNetwork={() => {
           cameras.current.network = null
           setNetworkGeneration((generation) => generation + 1)
         }}
         onSaveNetworkState={requestBloodNetworkSave}
         onToggleNetworkView={onToggleNetworkView}
-        unavailable={layoutSearch !== null || layoutPreview !== null}
       />
       {view === 'network' && bloodNetworkSidebarContainer && createPortal(
         <BloodNetworkSidebar
@@ -1494,21 +1405,74 @@ function TreeCanvas({
         />,
         bloodNetworkSidebarContainer,
       )}
-      {view === 'tree' && layoutSearch && layoutProgressVisible && (
-        <LayoutProgress onCancel={onCancelLayout} search={layoutSearch} />
-      )}
-      {view === 'tree' && layoutPreview && (
-        <LayoutPreviewControls
-          onApply={onApplyLayout}
-          onReject={onCancelLayout}
-          onViewChange={onChangeLayoutPreviewView}
-          preview={layoutPreview}
-          view={layoutPreviewView}
-        />
-      )}
       <ZoomControls onReset={() => void resetCamera()} />
     </ReactFlow>
     </div>
+    {treeContextMenu && createPortal(
+      <menu
+        aria-label={t('editor.personContextMenu')}
+        className="blood-network-node-menu tree-context-menu"
+        role="menu"
+        style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
+      >
+        {treeContextMenu.kind === 'person' && treeContextMenu.personId && (
+          <>
+            <li>
+              <button
+                onClick={() => {
+                  void onChangeReference({
+                    type: 'person',
+                    personId: treeContextMenu.personId!,
+                  }).catch(() => undefined)
+                  setTreeContextMenu(null)
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {t('editor.setReferencePerson')}
+              </button>
+            </li>
+            {treeMenuSpouses.map((spouse) => (
+              <li key={spouse.id}>
+                <button
+                  onClick={() => {
+                    void onChangeReference({
+                      type: 'marriage',
+                      personIds: [treeContextMenu.personId!, spouse.id],
+                    }).catch(() => undefined)
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('editor.setReferenceMarriage', {
+                    name: formatPersonName(spouse, t),
+                  })}
+                </button>
+              </li>
+            ))}
+          </>
+        )}
+        {treeContextMenu.kind === 'marriage' && treeContextMenu.personIds && (
+          <li>
+            <button
+              onClick={() => {
+                void onChangeReference({
+                  type: 'marriage',
+                  personIds: treeContextMenu.personIds!,
+                }).catch(() => undefined)
+                setTreeContextMenu(null)
+              }}
+              role="menuitem"
+              type="button"
+            >
+              {t('editor.setReferenceMarriageFromBracket')}
+            </button>
+          </li>
+        )}
+      </menu>,
+      document.body,
+    )}
     {bloodNetworkContextMenu && createPortal(
       <menu
         aria-label={t('editor.bloodNetworkNodeMenu')}
@@ -1630,47 +1594,15 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [photoEditing, setPhotoEditing] = useState(false)
   const [photoDeleting, setPhotoDeleting] = useState(false)
   const [photoViewing, setPhotoViewing] = useState(false)
-  const [layoutPreview, setLayoutPreview] = useState<LayoutPreview | null>(null)
-  const [layoutPreviewView, setLayoutPreviewView] = useState<'optimized' | 'original'>(
-    'optimized',
-  )
-  const [layoutProgressVisible, setLayoutProgressVisible] = useState(false)
-  const [layoutSearch, setLayoutSearch] = useState<LayoutSearch | null>(null)
-  const [layoutWarning, setLayoutWarning] = useState<bigint | null>(null)
-  const [layoutNotice, setLayoutNotice] = useState<string | null>(null)
   const [bloodNetworkSidebarContainer, setBloodNetworkSidebarContainer] = useState<
     HTMLElement | null
   >(null)
-  const layoutWorker = useRef<Worker | null>(null)
-  const layoutProgressTimer = useRef<number | null>(null)
 
   useEffect(() => {
     if (isCurrentTreeRoute && treeRoute.view === null) {
       navigate(treeEditorPath(treeId, 'tree'), { replace: true })
     }
   }, [isCurrentTreeRoute, treeId, treeRoute?.view])
-
-  const hideLayoutProgress = useCallback(() => {
-    if (layoutProgressTimer.current !== null) {
-      window.clearTimeout(layoutProgressTimer.current)
-      layoutProgressTimer.current = null
-    }
-    setLayoutProgressVisible(false)
-  }, [])
-
-  const stopLayoutSearch = useCallback(() => {
-    layoutWorker.current?.terminate()
-    layoutWorker.current = null
-    setLayoutSearch(null)
-    hideLayoutProgress()
-  }, [hideLayoutProgress])
-
-  useEffect(() => () => {
-    layoutWorker.current?.terminate()
-    if (layoutProgressTimer.current !== null) {
-      window.clearTimeout(layoutProgressTimer.current)
-    }
-  }, [])
 
   const closePersonDetails = useCallback(() => {
     setSelectedPerson(null)
@@ -1687,9 +1619,6 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       navigate(treeEditorPath(treeId, 'tree'))
       return
     }
-    stopLayoutSearch()
-    rejectLayoutPreview()
-    setLayoutWarning(null)
     closePersonDetails()
     navigate(treeEditorPath(treeId, 'network'))
   }
@@ -1698,14 +1627,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     setStatus('loading')
     try {
       const loaded = await treeApi.snapshot(request, treeId)
-      const coordinateUpdates = reflowTree(loaded)
-      const normalized = coordinateUpdates.length === 0
-        ? loaded
-        : await treeApi.mutate(request, treeId, loaded.etag, {
-          type: 'reflow_coordinates',
-          coordinateUpdates,
-        })
-      setSnapshot(normalized)
+      setSnapshot(loaded)
       setConflict(false)
       setSelectedPerson(null)
       setEvents([])
@@ -1718,12 +1640,6 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setPhotoEditing(false)
       setPhotoDeleting(false)
       setPhotoViewing(false)
-      setLayoutPreview(null)
-      setLayoutPreviewView('optimized')
-      setLayoutSearch(null)
-      hideLayoutProgress()
-      setLayoutWarning(null)
-      setLayoutNotice(null)
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -1732,102 +1648,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           : 'error',
       )
     }
-  }, [hideLayoutProgress, request, treeId])
-
-  const showLayoutOptimizer = () => {
-    if (!snapshot || layoutSearch || layoutPreview) {
-      return
-    }
-    setLayoutNotice(null)
-    const candidates = estimateLayoutCandidates(snapshot)
-    if (candidates > LAYOUT_WARNING_THRESHOLD) {
-      setLayoutWarning(candidates)
-      return
-    }
-    startLayoutSearch('full')
-  }
-
-  const startLayoutSearch = (mode: 'full' | 'limited') => {
-    if (!snapshot) {
-      return
-    }
-    setLayoutWarning(null)
-    setLayoutNotice(null)
-    hideLayoutProgress()
-    const limit = mode === 'limited' ? LIMITED_LAYOUT_SEARCH : undefined
-    const total = estimateLayoutCandidates(snapshot)
-    setLayoutSearch({
-      checked: 0n,
-      limited: mode === 'limited' && total > LIMITED_LAYOUT_SEARCH,
-      total: limit === undefined || total < limit ? total : limit,
-    })
-    layoutProgressTimer.current = window.setTimeout(() => {
-      setLayoutProgressVisible(true)
-      layoutProgressTimer.current = null
-    }, LAYOUT_PROGRESS_DELAY_MS)
-    const originalSnapshot = snapshot
-    const worker = new Worker(
-      new URL('../layoutOptimizer.worker.ts', import.meta.url),
-      { type: 'module' },
-    )
-    layoutWorker.current = worker
-    worker.onmessage = (event: MessageEvent<
-      | { type: 'progress'; checked: bigint; total: bigint }
-      | { type: 'result'; result: LayoutOptimizationResult | null }
-    >) => {
-      if (event.data.type === 'progress') {
-        const progress = event.data
-        setLayoutSearch((current) => current ? {
-          ...current,
-          checked: progress.checked,
-          total: progress.total,
-        } : current)
-        return
-      }
-      worker.terminate()
-      if (layoutWorker.current === worker) {
-        layoutWorker.current = null
-      }
-      setLayoutSearch(null)
-      hideLayoutProgress()
-      const result = event.data.result
-      if (!result) {
-        return
-      }
-      if (result.coordinateUpdates.length === 0) {
-        setLayoutNotice(t('editor.layoutNoImprovement'))
-        return
-      }
-      const coordinates = new Map(result.coordinateUpdates.map((update) => [
-        update.personId,
-        update.coordinates,
-      ]))
-      setLayoutPreview({
-        coordinateUpdates: result.coordinateUpdates,
-        currentWidth: result.currentWidth,
-        limited: result.limited,
-        optimizedWidth: result.optimizedWidth,
-        snapshot: {
-          ...originalSnapshot,
-          people: originalSnapshot.people.map((person) => ({
-            ...person,
-            coordinates: coordinates.get(person.id) ?? person.coordinates,
-          })),
-        },
-      })
-      setLayoutPreviewView('optimized')
-    }
-    worker.onerror = () => {
-      worker.terminate()
-      if (layoutWorker.current === worker) {
-        layoutWorker.current = null
-      }
-      setLayoutSearch(null)
-      hideLayoutProgress()
-      setLayoutNotice(t('editor.layoutFailed'))
-    }
-    worker.postMessage({ type: 'start', snapshot: originalSnapshot, limit })
-  }
+  }, [request, treeId])
 
   useEffect(() => {
     void loadSnapshot()
@@ -1843,7 +1664,6 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         treeId,
         snapshot.etag,
         person,
-        { x: 0, y: 0 },
       )
       setSnapshot(updated)
       setCreating(false)
@@ -1913,9 +1733,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   }
 
   const applyMutation = async (mutation: GraphMutation) => {
-    if (!snapshot || conflict || layoutSearch || (
-      layoutPreview && mutation.type !== 'reflow_coordinates'
-    )) {
+    if (!snapshot || conflict) {
       throw new Error('Tree mutation is unavailable')
     }
     try {
@@ -1976,183 +1794,75 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     }
   }
 
-  const applyLayoutPreview = async () => {
-    if (!layoutPreview) {
-      return
-    }
+  const changeReference = async (reference: TreeReference) => {
+    if (!snapshot || conflict) return
     try {
-      await applyMutation({
-        type: 'reflow_coordinates',
-        coordinateUpdates: layoutPreview.coordinateUpdates,
-      })
-      setLayoutPreview(null)
-      setLayoutPreviewView('optimized')
-      setLayoutNotice(t('editor.layoutApplied'))
-    } catch (error) {
-      // applyMutation already enters the standard ETag conflict state.
-      if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
-        setLayoutPreview(null)
+      const updated = await treeApi.changeReference(
+        request,
+        treeId,
+        snapshot.etag,
+        reference,
+      )
+      setSnapshot(updated)
+      if (
+        selectedPerson
+        && !focusedTreeSnapshot(updated).people.some((person) => person.id === selectedPerson.id)
+      ) {
+        closePersonDetails()
       }
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
+        setConflict(true)
+      }
+      throw error
     }
-  }
-
-  const rejectLayoutPreview = () => {
-    setLayoutPreview(null)
-    setLayoutPreviewView('optimized')
-    setLayoutNotice(null)
   }
 
   const addRelative = async (
     relative: RelativePerson,
     options: RelativeOptions,
   ) => {
-    if (!snapshot || !selectedPerson || !relativeAction) {
-      return
-    }
-    const initialCoordinates = newRelativeCoordinates(
-      snapshot,
-      selectedPerson.id,
-      relativeAction,
-      options.secondParentId ?? undefined,
-    )
-    const relativeId = 'person' in relative
-      ? PREVIEW_PERSON_ID
-      : relative.personId
-    const people = 'person' in relative
-      ? [...snapshot.people, {
-        ...relative.person,
-        id: PREVIEW_PERSON_ID,
-        photoThumbnailUrl: null,
-        coordinates: initialCoordinates,
-        createdAt: '',
-        updatedAt: '',
-      }]
-      : snapshot.people
+    if (!selectedPerson || !relativeAction) return
     const parents: ParentSpecification[] = relativeAction === 'child'
       ? [{
-        personId: selectedPerson.id,
-        role: options.parentRole,
-      }, ...(options.secondParentId ? [{
-        personId: options.secondParentId,
+          personId: selectedPerson.id,
+          role: options.parentRole,
+        }, ...(options.secondParentId ? [{
+          personId: options.secondParentId,
           role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
-      }] : [])]
+        }] : [])]
       : []
-    const parentLinks = relativeAction === 'child'
-      ? [...snapshot.parentLinks, ...parents.map((parent, index) => ({
-        id: `preview-child-parent-${index}`,
-        parentId: parent.personId,
-        childId: relativeId,
-        role: parent.role,
-      }))]
-      : relativeAction === 'father' || relativeAction === 'mother'
-        ? [...snapshot.parentLinks, {
-          id: 'preview-parent-child',
-          parentId: relativeId,
+    const mutation: GraphMutation = relativeAction === 'father'
+      || relativeAction === 'mother'
+      ? {
+          type: 'add_parent',
           childId: selectedPerson.id,
           role: relativeAction,
-        }]
-        : snapshot.parentLinks
-    const reflowSnapshot = {
-      people,
-      parentLinks,
-      marriages: snapshot.marriages,
-      ...(relativeAction === 'spouse'
-        ? { partnerPairs: [[selectedPerson.id, relativeId] as [string, string]] }
-        : {}),
-    }
-    const coordinateUpdates = reflowTree(reflowSnapshot)
-    const coordinates = coordinateUpdates.find((update) => (
-      update.personId === PREVIEW_PERSON_ID
-    ))?.coordinates ?? initialCoordinates
-    const positionedRelative: RelativePerson = 'person' in relative
-      ? { ...relative, coordinates }
-      : relative
-    const existingCoordinateUpdates = coordinateUpdates.filter((update) => (
-      update.personId !== PREVIEW_PERSON_ID
-    ))
-    let mutation: GraphMutation
-    if (relativeAction === 'father' || relativeAction === 'mother') {
-      mutation = {
-        type: 'add_parent',
-        childId: selectedPerson.id,
-        role: relativeAction,
-        relative: positionedRelative,
-        coordinateUpdates: existingCoordinateUpdates,
-      }
-    } else if (relativeAction === 'child') {
-      mutation = {
-        type: 'add_child',
-        parents,
-        relative: positionedRelative,
-        coordinateUpdates: existingCoordinateUpdates,
-      }
-    } else {
-      mutation = {
-        type: 'add_marriage_period',
-        personId: selectedPerson.id,
-        relative: positionedRelative,
-        marriageDate: options.marriageDate,
-        dissolutionDate: options.dissolutionDate,
-        maleNewSurname: options.maleNewSurname,
-        femaleNewSurname: options.femaleNewSurname,
-        coordinateUpdates: existingCoordinateUpdates,
-      }
-    }
+          relative,
+        }
+      : relativeAction === 'child'
+        ? { type: 'add_child', parents, relative }
+        : {
+            type: 'add_marriage_period',
+            personId: selectedPerson.id,
+            relative,
+            marriageDate: options.marriageDate,
+            dissolutionDate: options.dissolutionDate,
+            maleNewSurname: options.maleNewSurname,
+            femaleNewSurname: options.femaleNewSurname,
+          }
     await applyMutation(mutation)
     setRelativeAction(null)
     setRelativeSecondParentId(null)
   }
 
   const confirmRemoval = async () => {
-    if (!pendingRemoval || !snapshot) {
-      return
-    }
-    const coordinateUpdates = pendingRemoval.kind === 'parent'
-      ? reflowTree({
-          people: snapshot.people,
-          parentLinks: snapshot.parentLinks.filter((link) => (
-            link.id !== pendingRemoval.link.id
-          )),
-          marriages: snapshot.marriages,
-        })
-      : pendingRemoval.kind === 'person'
-        ? reflowTree({
-            people: snapshot.people.filter((person) => (
-              person.id !== pendingRemoval.person.id
-            )),
-            parentLinks: snapshot.parentLinks.filter((link) => (
-              link.parentId !== pendingRemoval.person.id
-              && link.childId !== pendingRemoval.person.id
-            )),
-            marriages: snapshot.marriages.filter((marriage) => (
-              marriage.malePersonId !== pendingRemoval.person.id
-              && marriage.femalePersonId !== pendingRemoval.person.id
-            )),
-          }, { compact: true })
-        : reflowTree({
-            people: snapshot.people,
-            parentLinks: snapshot.parentLinks,
-            marriages: snapshot.marriages.filter((marriage) => (
-              marriage.id !== pendingRemoval.marriage.id
-            )),
-          })
+    if (!pendingRemoval) return
     const mutation: GraphMutation = pendingRemoval.kind === 'parent'
-      ? {
-          type: 'remove_parent_link',
-          parentLinkId: pendingRemoval.link.id,
-          coordinateUpdates,
-        }
+      ? { type: 'remove_parent_link', parentLinkId: pendingRemoval.link.id }
       : pendingRemoval.kind === 'marriage'
-        ? {
-            type: 'remove_marriage_period',
-            marriageId: pendingRemoval.marriage.id,
-            coordinateUpdates,
-          }
-        : {
-            type: 'delete_person',
-            personId: pendingRemoval.person.id,
-            coordinateUpdates,
-          }
+        ? { type: 'remove_marriage_period', marriageId: pendingRemoval.marriage.id }
+        : { type: 'delete_person', personId: pendingRemoval.person.id }
     await applyMutation(mutation)
     setPendingRemoval(null)
   }
@@ -2431,20 +2141,11 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                 <TreeCanvas
                   bloodNetworkSidebarContainer={bloodNetworkSidebarContainer}
                   onClearSelection={closePersonDetails}
-                  onApplyLayout={() => void applyLayoutPreview()}
-                  onCancelLayout={layoutSearch ? stopLayoutSearch : rejectLayoutPreview}
-                  onChangeLayoutPreviewView={setLayoutPreviewView}
-                  onOptimizeLayout={showLayoutOptimizer}
+                  onChangeReference={changeReference}
                   onSaveBloodNetworkState={saveBloodNetworkState}
                   onSelectPerson={(personId) => void selectPerson(personId)}
-                  layoutProgressVisible={layoutProgressVisible}
-                  layoutPreview={layoutPreview}
-                  layoutPreviewView={layoutPreviewView}
-                  layoutSearch={layoutSearch}
                   selectedPersonId={selectedPerson?.id ?? null}
-                  snapshot={layoutPreview?.snapshot && layoutPreviewView === 'optimized'
-                    ? layoutPreview.snapshot
-                    : snapshot}
+                  snapshot={snapshot}
                   treeId={treeId}
                   view={view}
                   onToggleNetworkView={toggleNetworkView}
@@ -2459,7 +2160,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
         {view === 'tree' && selectedPerson && snapshot && (
           <PersonDetailsPanel
-            conflict={conflict || layoutSearch !== null || layoutPreview !== null}
+            conflict={conflict}
             events={events}
             onAddRelative={(action, secondParentId) => {
               setRelativeAction(action)
@@ -2498,41 +2199,6 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           />
         )}
       </section>
-
-      {layoutNotice && (
-        <ToastNotice
-          closeLabel={t('editor.noticeClose')}
-          message={layoutNotice}
-          onClose={() => setLayoutNotice(null)}
-        />
-      )}
-
-      {layoutWarning !== null && (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            aria-labelledby="layout-warning-title"
-            aria-modal="true"
-            className="dialog-card layout-warning-dialog"
-            role="dialog"
-          >
-            <h2 id="layout-warning-title">{t('editor.layoutWarningTitle')}</h2>
-            <p>{t('editor.layoutWarningDescription', {
-              count: layoutWarning.toString(),
-            })}</p>
-            <div className="dialog-actions layout-warning-actions">
-              <button className="secondary-button" onClick={() => setLayoutWarning(null)} type="button">
-                {t('editor.layoutCancel')}
-              </button>
-              <button className="secondary-button" onClick={() => startLayoutSearch('limited')} type="button">
-                {t('editor.layoutFirstTenThousand')}
-              </button>
-              <button className="primary-button" onClick={() => startLayoutSearch('full')} type="button">
-                {t('editor.layoutCheckAll')}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
 
       {creating && (
         <PersonFormDialog

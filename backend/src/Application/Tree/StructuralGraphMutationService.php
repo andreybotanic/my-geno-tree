@@ -92,11 +92,6 @@ final readonly class StructuralGraphMutationService
                     $changedAt,
                     $removedMedia,
                 ),
-                'reflow_coordinates' => $this->reflowCoordinates(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                ),
                 default => $this->invalid(
                     'type',
                     'graph_mutation_type_invalid',
@@ -120,7 +115,6 @@ final readonly class StructuralGraphMutationService
             'childId',
             'role',
             'relative',
-            'coordinateUpdates',
         ]);
         $child = $this->person($tree, $payload['childId'], 'childId');
         $role = $this->parentRole($payload['role']);
@@ -131,11 +125,6 @@ final readonly class StructuralGraphMutationService
             $role->requiredGender(),
         );
         $this->createParentLink($tree, $parent, $child, $role, $changedAt);
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
     /**
@@ -150,7 +139,6 @@ final readonly class StructuralGraphMutationService
             'type',
             'parents',
             'relative',
-            'coordinateUpdates',
         ]);
         $parents = $this->parentSpecifications($tree, $payload['parents']);
         $child = $this->relative(
@@ -168,11 +156,6 @@ final readonly class StructuralGraphMutationService
                 $changedAt,
             );
         }
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
     /**
@@ -188,18 +171,12 @@ final readonly class StructuralGraphMutationService
             'parentId',
             'childId',
             'role',
-            'coordinateUpdates',
         ]);
         $parent = $this->person($tree, $payload['parentId'], 'parentId');
         $child = $this->person($tree, $payload['childId'], 'childId');
         $role = $this->parentRole($payload['role']);
         $this->assignParentGender($parent, $role, $changedAt);
         $this->createParentLink($tree, $parent, $child, $role, $changedAt);
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
     /**
@@ -218,7 +195,6 @@ final readonly class StructuralGraphMutationService
             'dissolutionDate',
             'maleNewSurname',
             'femaleNewSurname',
-            'coordinateUpdates',
         ]);
         $person = $this->person($tree, $payload['personId'], 'personId');
         $partner = $this->relative(
@@ -267,11 +243,6 @@ final readonly class StructuralGraphMutationService
             $femaleSurname,
             $changedAt,
         );
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
     /**
@@ -285,7 +256,6 @@ final readonly class StructuralGraphMutationService
         $this->assertExactKeys($payload, [
             'type',
             'parentLinkId',
-            'coordinateUpdates',
         ]);
         $id = $this->id($payload['parentLinkId'], 'parentLinkId');
         $link = $this->parentLinks->findInTree($tree, $id);
@@ -298,11 +268,6 @@ final readonly class StructuralGraphMutationService
         );
         $this->events->removeForSource($link->getId());
         $this->entityManager->remove($link);
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
     /**
@@ -316,7 +281,6 @@ final readonly class StructuralGraphMutationService
         $this->assertExactKeys($payload, [
             'type',
             'marriageId',
-            'coordinateUpdates',
         ]);
         $id = $this->id($payload['marriageId'], 'marriageId');
         $marriage = $this->marriages->findInTree($tree, $id);
@@ -327,18 +291,11 @@ final readonly class StructuralGraphMutationService
             $tree,
             removedMarriage: $marriage,
         );
+        $this->replaceReferenceAfterMarriageRemoval($tree, $marriage);
         $this->events->removeForSource($marriage->getId());
         $this->entityManager->remove($marriage);
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-        );
     }
 
-    /**
-     * @param array<string, mixed> $payload
-     */
     /**
      * @param array<string, mixed> $payload
      * @param list<MediaObject>    $removedMedia
@@ -352,10 +309,10 @@ final readonly class StructuralGraphMutationService
         $this->assertExactKeys($payload, [
             'type',
             'personId',
-            'coordinateUpdates',
         ]);
         $person = $this->person($tree, $payload['personId'], 'personId');
         $this->invariants->assertPersonDeletionAllowed($tree, $person);
+        $this->replaceReferenceAfterPersonRemoval($tree, $person);
         foreach ($this->parentLinks->findAllForTree($tree) as $link) {
             if ($link->getParent() === $person || $link->getChild() === $person) {
                 $this->events->removeForSource($link->getId());
@@ -371,24 +328,75 @@ final readonly class StructuralGraphMutationService
             $removedMedia[] = $photo;
         }
         $this->entityManager->remove($person);
-        $this->movePeople(
-            $tree,
-            $payload['coordinateUpdates'],
-            $changedAt,
-            $person,
-        );
     }
 
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private function reflowCoordinates(
+    private function replaceReferenceAfterMarriageRemoval(
         FamilyTree $tree,
-        array $payload,
-        \DateTimeImmutable $changedAt,
+        MarriagePeriod $removedMarriage,
     ): void {
-        $this->assertExactKeys($payload, ['type', 'coordinateUpdates']);
-        $this->movePeople($tree, $payload['coordinateUpdates'], $changedAt);
+        $primary = $tree->getReferencePrimaryPerson();
+        $secondary = $tree->getReferenceSecondaryPerson();
+        if (null === $primary || null === $secondary) {
+            return;
+        }
+
+        $removedPeople = [
+            $removedMarriage->getMalePerson(),
+            $removedMarriage->getFemalePerson(),
+        ];
+        if (
+            !in_array($primary, $removedPeople, true)
+            || !in_array($secondary, $removedPeople, true)
+            || 1 < $this->marriages->countForPair($primary, $secondary)
+        ) {
+            return;
+        }
+
+        $tree->referencePerson(0 === random_int(0, 1) ? $primary : $secondary);
+    }
+
+    private function replaceReferenceAfterPersonRemoval(
+        FamilyTree $tree,
+        Person $removedPerson,
+    ): void {
+        if (!$tree->references($removedPerson)) {
+            return;
+        }
+
+        $primary = $tree->getReferencePrimaryPerson();
+        $secondary = $tree->getReferenceSecondaryPerson();
+        if (null !== $primary && null !== $secondary) {
+            $tree->referencePerson($secondary === $removedPerson ? $primary : $secondary);
+
+            return;
+        }
+
+        /** @var array<string, Person> $candidates */
+        $candidates = [];
+        foreach ($this->parentLinks->findAllForTree($tree) as $link) {
+            if ($link->getParent() === $removedPerson) {
+                $candidate = $link->getChild();
+                $candidates[$candidate->getId()->toRfc4122()] = $candidate;
+            } elseif ($link->getChild() === $removedPerson) {
+                $candidate = $link->getParent();
+                $candidates[$candidate->getId()->toRfc4122()] = $candidate;
+            }
+        }
+        foreach ($this->marriages->findForPerson($removedPerson) as $marriage) {
+            $candidate = $marriage->getMalePerson() === $removedPerson
+                ? $marriage->getFemalePerson()
+                : $marriage->getMalePerson();
+            $candidates[$candidate->getId()->toRfc4122()] = $candidate;
+        }
+
+        if ([] === $candidates) {
+            $tree->clearReference();
+
+            return;
+        }
+
+        $choices = array_values($candidates);
+        $tree->referencePerson($choices[random_int(0, count($choices) - 1)]);
     }
 
     private function createParentLink(
@@ -430,11 +438,7 @@ final readonly class StructuralGraphMutationService
             return $person;
         }
 
-        $this->assertExactKeys(
-            $payload,
-            ['person', 'coordinates'],
-            'relative',
-        );
+        $this->assertExactKeys($payload, ['person'], 'relative');
         $data = $this->personData->create($payload['person']);
         if (null !== $assignedGender) {
             if (Gender::UNKNOWN === $data->gender) {
@@ -450,9 +454,6 @@ final readonly class StructuralGraphMutationService
                 $this->invalid('relative.person.gender', 'parent_role_gender_conflict');
             }
         }
-        $coordinates = $this->personData->coordinates(
-            $payload['coordinates'],
-        );
         $person = new Person(
             $tree,
             $data->birthSurname,
@@ -461,8 +462,6 @@ final readonly class StructuralGraphMutationService
             $data->gender,
             $data->birthDate,
             $data->deathDate,
-            $coordinates->x,
-            $coordinates->y,
             $changedAt,
         );
         $this->entityManager->persist($person);
@@ -533,44 +532,6 @@ final readonly class StructuralGraphMutationService
         }
 
         return $result;
-    }
-
-    private function movePeople(
-        FamilyTree $tree,
-        mixed $value,
-        \DateTimeImmutable $changedAt,
-        ?Person $excluded = null,
-    ): void {
-        if (!is_array($value) || !array_is_list($value)) {
-            $this->invalid('coordinateUpdates', 'array_required');
-        }
-        $seen = [];
-        foreach ($value as $index => $update) {
-            $field = 'coordinateUpdates.' . $index;
-            $payload = $this->object($update, $field);
-            $this->assertExactKeys(
-                $payload,
-                ['personId', 'coordinates'],
-                $field,
-            );
-            $person = $this->person(
-                $tree,
-                $payload['personId'],
-                $field . '.personId',
-            );
-            if ($person === $excluded) {
-                $this->invalid($field . '.personId', 'deleted_person_not_allowed');
-            }
-            $id = $person->getId()->toRfc4122();
-            if (isset($seen[$id])) {
-                $this->invalid($field . '.personId', 'duplicate_coordinate_update');
-            }
-            $seen[$id] = true;
-            $coordinates = $this->personData->coordinates(
-                $payload['coordinates'],
-            );
-            $person->moveTo($coordinates->x, $coordinates->y, $changedAt);
-        }
     }
 
     private function person(

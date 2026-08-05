@@ -184,13 +184,26 @@ export const treeApi = {
     treeId: string,
     etag: string,
     person: import('./generated').PersonInput,
-    coordinates: import('./generated').Coordinates,
   ) {
     return treeApi.mutate(request, treeId, etag, {
       type: 'create_first_person',
       person,
-      coordinates,
     })
+  },
+  changeReference(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    etag: string,
+    reference: import('./generated').TreeReference,
+  ) {
+    return request<import('./generated').TreeSnapshot>(
+      `/trees/${treeId}/reference`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(reference),
+        headers: { 'If-Match': etag },
+      },
+    )
   },
   mutate(
     request: AuthorizedJsonRequest,

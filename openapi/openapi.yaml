@@ -369,6 +369,44 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /trees/{treeId}/reference:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    put:
+      operationId: changeTreeReference
+      summary: Select a person or an existing marriage as the ordinary-tree reference
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreeReference"
+      responses:
+        "200":
+          description: Updated tree snapshot
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees/{treeId}/graph-mutations:
     parameters:
       - $ref: "#/components/parameters/TreeId"
@@ -396,7 +434,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/TreeSnapshot"
         "201":
-          description: Graph resources created atomically with coordinates
+          description: Graph resources created atomically
           headers:
             ETag:
               $ref: "#/components/headers/TreeEtag"
@@ -1073,6 +1111,7 @@ components:
         - id
         - name
         - personCount
+        - reference
         - createdAt
         - updatedAt
         - etag
@@ -1085,6 +1124,10 @@ components:
         personCount:
           type: integer
           minimum: 0
+        reference:
+          oneOf:
+            - $ref: "#/components/schemas/TreeReference"
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -1233,6 +1276,37 @@ components:
           type: number
         y:
           type: number
+    TreeReference:
+      oneOf:
+        - $ref: "#/components/schemas/PersonTreeReference"
+        - $ref: "#/components/schemas/MarriageTreeReference"
+    PersonTreeReference:
+      type: object
+      additionalProperties: false
+      required: [type, personId]
+      properties:
+        type:
+          type: string
+          const: person
+        personId:
+          type: string
+          format: uuid
+    MarriageTreeReference:
+      type: object
+      additionalProperties: false
+      required: [type, personIds]
+      properties:
+        type:
+          type: string
+          const: marriage
+        personIds:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
     PersonInput:
       type: object
       additionalProperties: false
@@ -1285,7 +1359,6 @@ components:
           required:
             - id
             - photoThumbnailUrl
-            - coordinates
             - createdAt
             - updatedAt
           properties:
@@ -1297,8 +1370,6 @@ components:
                 - string
                 - "null"
               format: uri-reference
-            coordinates:
-              $ref: "#/components/schemas/Coordinates"
             createdAt:
               type: string
               format: date-time
@@ -1347,6 +1418,7 @@ components:
       required:
         - id
         - name
+        - reference
         - createdAt
         - updatedAt
       properties:
@@ -1355,6 +1427,10 @@ components:
           format: uuid
         name:
           type: string
+        reference:
+          oneOf:
+            - $ref: "#/components/schemas/TreeReference"
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -1505,18 +1581,6 @@ components:
           $ref: "#/components/schemas/MarriagePeriod"
         etag:
           type: string
-    CoordinateUpdate:
-      type: object
-      additionalProperties: false
-      required:
-        - personId
-        - coordinates
-      properties:
-        personId:
-          type: string
-          format: uuid
-        coordinates:
-          $ref: "#/components/schemas/Coordinates"
     ExistingRelative:
       type: object
       additionalProperties: false
@@ -1531,12 +1595,9 @@ components:
       additionalProperties: false
       required:
         - person
-        - coordinates
       properties:
         person:
           $ref: "#/components/schemas/PersonInput"
-        coordinates:
-          $ref: "#/components/schemas/Coordinates"
     RelativePerson:
       oneOf:
         - $ref: "#/components/schemas/ExistingRelative"
@@ -1563,22 +1624,18 @@ components:
         - $ref: "#/components/schemas/RemoveParentLinkMutation"
         - $ref: "#/components/schemas/RemoveMarriagePeriodMutation"
         - $ref: "#/components/schemas/DeletePersonMutation"
-        - $ref: "#/components/schemas/ReflowCoordinatesMutation"
     CreateFirstPersonMutation:
       type: object
       additionalProperties: false
       required:
         - type
         - person
-        - coordinates
       properties:
         type:
           type: string
           const: create_first_person
         person:
           $ref: "#/components/schemas/PersonInput"
-        coordinates:
-          $ref: "#/components/schemas/Coordinates"
     AddParentMutation:
       type: object
       additionalProperties: false
@@ -1587,7 +1644,6 @@ components:
         - childId
         - role
         - relative
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1599,10 +1655,6 @@ components:
           $ref: "#/components/schemas/ParentRole"
         relative:
           $ref: "#/components/schemas/RelativePerson"
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     AddChildMutation:
       type: object
       additionalProperties: false
@@ -1610,7 +1662,6 @@ components:
         - type
         - parents
         - relative
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1623,10 +1674,6 @@ components:
             $ref: "#/components/schemas/ParentSpecification"
         relative:
           $ref: "#/components/schemas/RelativePerson"
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     LinkParentChildMutation:
       type: object
       additionalProperties: false
@@ -1635,7 +1682,6 @@ components:
         - parentId
         - childId
         - role
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1648,10 +1694,6 @@ components:
           format: uuid
         role:
           $ref: "#/components/schemas/ParentRole"
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     AddMarriagePeriodMutation:
       type: object
       additionalProperties: false
@@ -1663,7 +1705,6 @@ components:
         - dissolutionDate
         - maleNewSurname
         - femaleNewSurname
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1691,17 +1732,12 @@ components:
             - "null"
           minLength: 1
           maxLength: 100
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     RemoveParentLinkMutation:
       type: object
       additionalProperties: false
       required:
         - type
         - parentLinkId
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1709,17 +1745,12 @@ components:
         parentLinkId:
           type: string
           format: uuid
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     RemoveMarriagePeriodMutation:
       type: object
       additionalProperties: false
       required:
         - type
         - marriageId
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1727,17 +1758,12 @@ components:
         marriageId:
           type: string
           format: uuid
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     DeletePersonMutation:
       type: object
       additionalProperties: false
       required:
         - type
         - personId
-        - coordinateUpdates
       properties:
         type:
           type: string
@@ -1745,24 +1771,6 @@ components:
         personId:
           type: string
           format: uuid
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
-    ReflowCoordinatesMutation:
-      type: object
-      additionalProperties: false
-      required:
-        - type
-        - coordinateUpdates
-      properties:
-        type:
-          type: string
-          const: reflow_coordinates
-        coordinateUpdates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CoordinateUpdate"
     GenealogicalEvent:
       type: object
       additionalProperties: false

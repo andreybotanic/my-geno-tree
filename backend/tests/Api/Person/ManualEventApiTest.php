@@ -397,7 +397,6 @@ final class ManualEventApiTest extends ApiWebTestCase
                     'birthDate'    => $this->knownDate('year', 1900),
                     'deathDate'    => $this->knownDate('year', 2000),
                 ],
-                'coordinates' => ['x' => 0, 'y' => 0],
             ],
             [
                 ...$this->authorization($accessToken),

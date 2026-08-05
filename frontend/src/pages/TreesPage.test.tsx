@@ -13,6 +13,7 @@ const tree: FamilyTree = {
   id: '019861c4-6a93-7a2e-8ca8-51813740d4a5',
   name: 'Family history',
   personCount: 3,
+  reference: null,
   createdAt: '2026-07-30T00:00:00+00:00',
   updatedAt: '2026-07-31T00:00:00+00:00',
   etag: '"tree-current"',

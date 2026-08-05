@@ -207,9 +207,8 @@ final class MediaApiTest extends ApiWebTestCase
             'POST',
             '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type'              => 'delete_person',
-                'personId'          => $person['id'],
-                'coordinateUpdates' => [],
+                'type'     => 'delete_person',
+                'personId' => $person['id'],
             ],
             [
                 'Authorization' => 'Bearer ' . $token,
@@ -301,7 +300,6 @@ final class MediaApiTest extends ApiWebTestCase
                     'birthDate'    => ['state' => 'unknown'],
                     'deathDate'    => null,
                 ],
-                'coordinates' => ['x' => 0, 'y' => 0],
             ],
             [
                 'Authorization' => 'Bearer ' . $token,

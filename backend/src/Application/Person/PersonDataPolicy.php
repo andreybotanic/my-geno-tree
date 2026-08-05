@@ -68,25 +68,6 @@ final readonly class PersonDataPolicy
         );
     }
 
-    public function coordinates(mixed $value): Coordinates
-    {
-        $payload = $this->object($value, 'coordinates');
-        $this->assertExactKeys($payload, ['x', 'y'], 'coordinates');
-        foreach (['x', 'y'] as $field) {
-            if (!is_int($payload[$field]) && !is_float($payload[$field])) {
-                $this->fail('coordinates.' . $field, 'finite_number_required');
-            }
-            if (!is_finite((float)$payload[$field])) {
-                $this->fail('coordinates.' . $field, 'finite_number_required');
-            }
-        }
-
-        return new Coordinates(
-            (float)$payload['x'],
-            (float)$payload['y'],
-        );
-    }
-
     public function dateValue(
         mixed $value,
         string $field,

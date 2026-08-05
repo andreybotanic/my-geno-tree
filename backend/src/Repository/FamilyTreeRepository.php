@@ -25,7 +25,14 @@ final class FamilyTreeRepository extends ServiceEntityRepository
     {
         /** @var list<array{0: FamilyTree, personCount: int|string}> $trees */
         $trees = $this->createQueryBuilder('tree')
-            ->select('tree', 'COUNT(person.id) AS personCount')
+            ->select(
+                'tree',
+                'referencePrimary',
+                'referenceSecondary',
+                'COUNT(person.id) AS personCount',
+            )
+            ->leftJoin('tree.referencePrimaryPerson', 'referencePrimary')
+            ->leftJoin('tree.referenceSecondaryPerson', 'referenceSecondary')
             ->leftJoin(
                 Person::class,
                 'person',
@@ -34,7 +41,7 @@ final class FamilyTreeRepository extends ServiceEntityRepository
             )
             ->andWhere('tree.owner = :owner')
             ->setParameter('owner', $owner)
-            ->groupBy('tree.id')
+            ->groupBy('tree.id, referencePrimary.id, referenceSecondary.id')
             ->orderBy('tree.updatedAt', 'DESC')
             ->addOrderBy('tree.id', 'DESC')
             ->getQuery()

@@ -32,7 +32,6 @@ function person(id: string): Person {
     birthDate: { state: 'unknown' },
     deathDate: null,
     photoThumbnailUrl: null,
-    coordinates: { x: 0, y: 0 },
     createdAt: '',
     updatedAt: '',
   }

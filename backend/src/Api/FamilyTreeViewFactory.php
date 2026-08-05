@@ -11,6 +11,7 @@ final readonly class FamilyTreeViewFactory
     public function __construct(
         private TreeVersion $versions,
         private PersonRepository $people,
+        private TreeReferenceViewFactory $referenceViews,
     ) {
     }
 
@@ -21,7 +22,8 @@ final readonly class FamilyTreeViewFactory
      *     personCount: int,
      *     createdAt: string,
      *     updatedAt: string,
-     *     etag: string
+     *     etag: string,
+     *     reference: array<string, mixed>|null
      * }
      */
     public function create(
@@ -36,6 +38,7 @@ final readonly class FamilyTreeViewFactory
             'createdAt' => $tree->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $tree->getUpdatedAt()->format(DATE_ATOM),
             'etag'      => $this->versions->etag($tree),
+            'reference' => $this->referenceViews->create($tree),
         ];
     }
 }

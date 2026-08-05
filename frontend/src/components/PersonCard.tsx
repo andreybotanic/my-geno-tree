@@ -8,6 +8,7 @@ import {
 import { AuthenticatedImage } from './AuthenticatedImage'
 
 export type PersonNodeData = {
+  isReference: boolean
   person: Person
 }
 
@@ -23,9 +24,14 @@ export function PersonCard({
   return (
     <article
       aria-label={name}
-      className={`person-card${selected ? ' person-card-selected' : ''}`}
+      className={`person-card${selected ? ' person-card-selected' : ''}${data.isReference ? ' person-card-reference' : ''}`}
       title={name}
     >
+      {data.isReference && (
+        <span aria-label={t('editor.referenceMarker')} className="person-reference-marker">
+          ★
+        </span>
+      )}
       <Handle
         className="person-handle"
         id="top-target"

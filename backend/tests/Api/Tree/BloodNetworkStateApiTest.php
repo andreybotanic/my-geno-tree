@@ -114,7 +114,6 @@ final class BloodNetworkStateApiTest extends ApiWebTestCase
                     'birthDate'    => ['state' => 'unknown'],
                     'deathDate'    => null,
                 ],
-                'coordinates' => ['x' => 0, 'y' => 0],
             ],
             [
                 'Authorization' => 'Bearer ' . $accessToken,

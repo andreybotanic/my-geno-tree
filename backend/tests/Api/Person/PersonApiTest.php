@@ -14,14 +14,14 @@ use Symfony\Component\Uid\UuidV7;
  *     givenName: mixed,
  *     gender: string,
  *     birthDate: mixed,
- *     deathDate: mixed,
- *     coordinates: mixed
+ *     deathDate: mixed
  * }
  * @phpstan-type PersonSnapshot array{
  *     etag: string,
  *     people: list<PersonView>,
  *     parentLinks: list<mixed>,
- *     marriages: list<mixed>
+ *     marriages: list<mixed>,
+ *     tree: array{reference: mixed}
  * }
  * @phpstan-type PersonEvent array{
  *     type: string,
@@ -53,7 +53,6 @@ final class PersonApiTest extends ApiWebTestCase
                 ),
                 'deathDate' => ['state' => 'unknown'],
             ]),
-            ['x' => 1200.5, 'y' => -340],
         );
 
         self::assertResponseStatusCodeSame(201);
@@ -82,8 +81,8 @@ final class PersonApiTest extends ApiWebTestCase
         );
         self::assertSame(['state' => 'unknown'], $person['deathDate']);
         self::assertSame(
-            ['x' => 1200.5, 'y' => -340],
-            $person['coordinates'],
+            ['type' => 'person', 'personId' => $person['id']],
+            $snapshot['tree']['reference'],
         );
 
         $this->jsonRequest(
@@ -262,16 +261,20 @@ final class PersonApiTest extends ApiWebTestCase
             );
         }
 
-        $this->createFirstPerson(
-            $accessToken,
-            $tree,
-            $this->person(),
-            ['x' => 'left', 'y' => 0],
+        $this->jsonRequest(
+            'POST',
+            '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
+            [
+                'type'        => 'create_first_person',
+                'person'      => $this->person(),
+                'coordinates' => ['x' => 0, 'y' => 0],
+            ],
+            [...$this->authorization($accessToken), 'If-Match' => $tree['etag']],
         );
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
-            ['finite_number_required'],
-            $this->responseStringList('fields', 'coordinates.x'),
+            ['field_not_allowed'],
+            $this->responseStringList('fields', 'coordinates'),
         );
     }
 
@@ -413,7 +416,6 @@ final class PersonApiTest extends ApiWebTestCase
     /**
      * @param PersonTree           $tree
      * @param array<string, mixed> $person
-     * @param array<string, mixed> $coordinates
      *
      * @return PersonSnapshot
      */
@@ -421,15 +423,13 @@ final class PersonApiTest extends ApiWebTestCase
         string $accessToken,
         array $tree,
         array $person,
-        array $coordinates = ['x' => 0, 'y' => 0],
     ): array {
         $this->jsonRequest(
             'POST',
             '/api/v1/trees/' . $tree['id'] . '/graph-mutations',
             [
-                'type'        => 'create_first_person',
-                'person'      => $person,
-                'coordinates' => $coordinates,
+                'type'   => 'create_first_person',
+                'person' => $person,
             ],
             [
                 ...$this->authorization($accessToken),

@@ -17,6 +17,7 @@ final readonly class TreeSnapshotViewFactory
         private PersonViewFactory $personViews,
         private ParentLinkViewFactory $parentLinkViews,
         private MarriagePeriodViewFactory $marriageViews,
+        private TreeReferenceViewFactory $referenceViews,
         private TreeVersion $versions,
     ) {
     }
@@ -32,6 +33,7 @@ final readonly class TreeSnapshotViewFactory
                 'name'      => $tree->getName(),
                 'createdAt' => $tree->getCreatedAt()->format(DATE_ATOM),
                 'updatedAt' => $tree->getUpdatedAt()->format(DATE_ATOM),
+                'reference' => $this->referenceViews->create($tree),
             ],
             'etag'              => $this->versions->etag($tree),
             'bloodNetworkState' => $tree->getBloodNetworkState(),

@@ -37,7 +37,7 @@ export function FamilyEdge({
     children,
   )
   const className = data?.married
-    ? 'tree-edge tree-edge-marriage'
+    ? `tree-edge tree-edge-marriage${data.reference ? ' tree-edge-reference' : ''}`
     : 'tree-edge tree-edge-coparent'
 
   return (

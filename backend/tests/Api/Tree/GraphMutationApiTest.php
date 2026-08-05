@@ -11,7 +11,6 @@ use Symfony\Component\Uid\UuidV7;
  * @phpstan-type GraphPerson array{
  *     id: string,
  *     gender: string,
- *     coordinates: array{x: int|float, y: int|float},
  *     birthDate: array<string, bool|int|string>
  * }
  * @phpstan-type GraphParentLink array{id: string, parentId: string, childId: string, role: string}
@@ -34,28 +33,6 @@ use Symfony\Component\Uid\UuidV7;
  */
 final class GraphMutationApiTest extends ApiWebTestCase
 {
-    public function testCoordinateReflowPersistsAllCalculatedPositions(): void
-    {
-        $accessToken = $this->register();
-        $tree = $this->createTree($accessToken);
-        $snapshot = $this->firstPerson($accessToken, $tree, $this->person());
-        $person = $snapshot['people'][0];
-
-        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'reflow_coordinates',
-            'coordinateUpdates' => [[
-                'personId'    => $person['id'],
-                'coordinates' => ['x' => 320, 'y' => 240],
-            ]],
-        ]);
-
-        self::assertResponseStatusCodeSame(200);
-        self::assertSame(
-            ['x' => 320, 'y' => 240],
-            $this->personById($snapshot, $person['id'])['coordinates'],
-        );
-    }
-
     public function testParentsAreCreatedAtomicallyWithRoleAndCycleRules(): void
     {
         $accessToken = $this->register();
@@ -77,12 +54,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 'person' => $this->person([
                     'birthDate' => $this->knownDate('year', 1970),
                 ]),
-                'coordinates' => ['x' => 0, 'y' => -220],
             ],
-            'coordinateUpdates' => [[
-                'personId'    => $child['id'],
-                'coordinates' => ['x' => 30, 'y' => 0],
-            ]],
         ]);
 
         self::assertResponseStatusCodeSame(201);
@@ -98,10 +70,6 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
         self::assertSame('male', $father['gender']);
         self::assertSame('father', $snapshot['parentLinks'][0]['role']);
-        self::assertSame(
-            ['x' => 30, 'y' => 0],
-            $this->personById($snapshot, $child['id'])['coordinates'],
-        );
         $fatherEvents = $this->events(
             $accessToken,
             $tree['id'],
@@ -125,10 +93,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'childId'  => $child['id'],
             'role'     => 'father',
             'relative' => [
-                'person'      => $this->person(['gender' => 'male']),
-                'coordinates' => ['x' => 240, 'y' => -220],
+                'person' => $this->person(['gender' => 'male']),
             ],
-            'coordinateUpdates' => [],
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
@@ -137,11 +103,10 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'link_parent_child',
-            'parentId'          => $child['id'],
-            'childId'           => $father['id'],
-            'role'              => 'mother',
-            'coordinateUpdates' => [],
+            'type'     => 'link_parent_child',
+            'parentId' => $child['id'],
+            'childId'  => $father['id'],
+            'role'     => 'mother',
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame('ANCESTOR_CYCLE', $this->responseString('code'));
@@ -155,9 +120,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
                     'gender'    => 'female',
                     'birthDate' => $this->knownDate('year', 1980),
                 ]),
-                'coordinates' => ['x' => 0, 'y' => -440],
             ],
-            'coordinateUpdates' => [],
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
@@ -190,10 +153,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'childId'  => $child['id'],
             'role'     => 'father',
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => -120, 'y' => -220],
+                'person' => $this->person(),
             ],
-            'coordinateUpdates' => [],
         ]);
         $father = $this->personById(
             $snapshot,
@@ -208,10 +169,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'childId'  => $child['id'],
             'role'     => 'mother',
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => 120, 'y' => -220],
+                'person' => $this->person(),
             ],
-            'coordinateUpdates' => [],
         ]);
         $mother = $this->personById(
             $snapshot,
@@ -227,11 +186,10 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertSame('female', $mother['gender']);
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'link_parent_child',
-            'parentId'          => $mother['id'],
-            'childId'           => $father['id'],
-            'role'              => 'father',
-            'coordinateUpdates' => [],
+            'type'     => 'link_parent_child',
+            'parentId' => $mother['id'],
+            'childId'  => $father['id'],
+            'role'     => 'father',
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
@@ -240,37 +198,33 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'add_marriage_period',
-            'personId'          => $father['id'],
-            'relative'          => ['personId' => $mother['id']],
-            'marriageDate'      => $this->knownDate('year', 1980),
-            'dissolutionDate'   => $this->knownDate('year', 2000),
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => null,
-            'coordinateUpdates' => [],
+            'type'             => 'add_marriage_period',
+            'personId'         => $father['id'],
+            'relative'         => ['personId' => $mother['id']],
+            'marriageDate'     => $this->knownDate('year', 1980),
+            'dissolutionDate'  => $this->knownDate('year', 2000),
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => null,
         ]);
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'add_marriage_period',
-            'personId'          => $father['id'],
-            'relative'          => ['personId' => $mother['id']],
-            'marriageDate'      => $this->knownDate('year', 1990),
-            'dissolutionDate'   => $this->knownDate('year', 2010),
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => null,
-            'coordinateUpdates' => [],
+            'type'             => 'add_marriage_period',
+            'personId'         => $father['id'],
+            'relative'         => ['personId' => $mother['id']],
+            'marriageDate'     => $this->knownDate('year', 1990),
+            'dissolutionDate'  => $this->knownDate('year', 2010),
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => null,
         ]);
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
             'type'     => 'add_marriage_period',
             'personId' => $father['id'],
             'relative' => [
-                'person'      => $this->person(['gender' => 'female']),
-                'coordinates' => ['x' => -360, 'y' => -220],
+                'person' => $this->person(['gender' => 'female']),
             ],
-            'marriageDate'      => $this->knownDate('year', 1995),
-            'dissolutionDate'   => null,
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => null,
-            'coordinateUpdates' => [],
+            'marriageDate'     => $this->knownDate('year', 1995),
+            'dissolutionDate'  => null,
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => null,
         ]);
 
         self::assertCount(3, $snapshot['marriages']);
@@ -307,13 +261,11 @@ final class GraphMutationApiTest extends ApiWebTestCase
                     'gender'    => 'female',
                     'birthDate' => $this->knownDate('year', 1962),
                 ]),
-                'coordinates' => ['x' => 240, 'y' => 0],
             ],
-            'marriageDate'      => $this->knownDate('year', 1985),
-            'dissolutionDate'   => null,
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => 'Petrova',
-            'coordinateUpdates' => [],
+            'marriageDate'     => $this->knownDate('year', 1985),
+            'dissolutionDate'  => null,
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => 'Petrova',
         ]);
         $female = array_values(array_filter(
             $snapshot['people'],
@@ -354,9 +306,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 'person' => $this->person([
                     'birthDate' => $this->knownDate('day', 1990, month: 5, day: 3),
                 ]),
-                'coordinates' => ['x' => 120, 'y' => 240],
             ],
-            'coordinateUpdates' => [],
         ]);
         self::assertCount(3, $snapshot['people']);
         self::assertCount(2, $snapshot['parentLinks']);
@@ -525,16 +475,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 ['personId' => $female['id'], 'role' => 'mother'],
             ],
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => 120, 'y' => 240],
+                'person' => $this->person(),
             ],
-            'coordinateUpdates' => [],
         ]);
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'remove_marriage_period',
-            'marriageId'        => $snapshot['marriages'][0]['id'],
-            'coordinateUpdates' => [],
+            'type'       => 'remove_marriage_period',
+            'marriageId' => $snapshot['marriages'][0]['id'],
         ]);
         self::assertResponseIsSuccessful();
         self::assertSame([], $snapshot['marriages']);
@@ -545,17 +492,15 @@ final class GraphMutationApiTest extends ApiWebTestCase
             static fn (array $link): bool => 'father' === $link['role'],
         ))[0];
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'remove_parent_link',
-            'parentLinkId'      => $fatherLink['id'],
-            'coordinateUpdates' => [],
+            'type'         => 'remove_parent_link',
+            'parentLinkId' => $fatherLink['id'],
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame('TREE_WOULD_DISCONNECT', $this->responseString('code'));
 
         $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'delete_person',
-            'personId'          => $male['id'],
-            'coordinateUpdates' => [],
+            'type'     => 'delete_person',
+            'personId' => $male['id'],
         ]);
         self::assertResponseIsSuccessful();
         self::assertCount(2, $snapshot['people']);
@@ -583,10 +528,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'type'     => 'add_child',
             'parents'  => [['personId' => $root['id'], 'role' => 'father']],
             'relative' => [
-                'person'      => $this->person(['gender' => 'male']),
-                'coordinates' => ['x' => 0, 'y' => 220],
+                'person' => $this->person(['gender' => 'male']),
             ],
-            'coordinateUpdates' => [],
         ]);
         $middle = $this->personById(
             $snapshot,
@@ -596,16 +539,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'type'     => 'add_child',
             'parents'  => [['personId' => $middle['id'], 'role' => 'father']],
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => 0, 'y' => 440],
+                'person' => $this->person(),
             ],
-            'coordinateUpdates' => [],
         ]);
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'delete_person',
-            'personId'          => $middle['id'],
-            'coordinateUpdates' => [],
+            'type'     => 'delete_person',
+            'personId' => $middle['id'],
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
@@ -619,8 +559,7 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 ['personId' => $root['id'], 'role' => 'father'],
                 ['personId' => $middle['id'], 'role' => 'father'],
             ],
-            'relative'          => ['personId' => $root['id']],
-            'coordinateUpdates' => [],
+            'relative' => ['personId' => $root['id']],
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
@@ -629,20 +568,10 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'link_parent_child',
-            'parentId'          => $root['id'],
-            'childId'           => $middle['id'],
-            'role'              => 'father',
-            'coordinateUpdates' => [
-                [
-                    'personId'    => $root['id'],
-                    'coordinates' => ['x' => 1, 'y' => 1],
-                ],
-                [
-                    'personId'    => $root['id'],
-                    'coordinates' => ['x' => 2, 'y' => 2],
-                ],
-            ],
+            'type'     => 'link_parent_child',
+            'parentId' => $root['id'],
+            'childId'  => $middle['id'],
+            'role'     => 'father',
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertSame(
@@ -651,14 +580,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'add_marriage_period',
-            'personId'          => $root['id'],
-            'relative'          => ['personId' => $middle['id']],
-            'marriageDate'      => ['state' => 'unknown'],
-            'dissolutionDate'   => null,
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => null,
-            'coordinateUpdates' => [],
+            'type'             => 'add_marriage_period',
+            'personId'         => $root['id'],
+            'relative'         => ['personId' => $middle['id']],
+            'marriageDate'     => ['state' => 'unknown'],
+            'dissolutionDate'  => null,
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => null,
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
@@ -670,14 +598,12 @@ final class GraphMutationApiTest extends ApiWebTestCase
             'type'     => 'add_marriage_period',
             'personId' => $root['id'],
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => -240, 'y' => 0],
+                'person' => $this->person(),
             ],
-            'marriageDate'      => ['state' => 'unknown'],
-            'dissolutionDate'   => null,
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => null,
-            'coordinateUpdates' => [],
+            'marriageDate'     => ['state' => 'unknown'],
+            'dissolutionDate'  => null,
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => null,
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSame(
@@ -715,16 +641,13 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 ['personId' => $female['id'], 'role' => 'mother'],
             ],
             'relative' => [
-                'person'      => $this->person(),
-                'coordinates' => ['x' => 120, 'y' => 240],
+                'person' => $this->person(),
             ],
-            'coordinateUpdates' => [],
         ]);
 
         $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'              => 'delete_person',
-            'personId'          => $male['id'],
-            'coordinateUpdates' => [],
+            'type'     => 'delete_person',
+            'personId' => $male['id'],
         ]);
 
         self::assertResponseStatusCodeSame(409);
@@ -764,13 +687,11 @@ final class GraphMutationApiTest extends ApiWebTestCase
                     'gender'    => 'female',
                     'birthDate' => $this->knownDate('year', 1962),
                 ]),
-                'coordinates' => ['x' => 240, 'y' => 0],
             ],
-            'marriageDate'      => $this->knownDate('year', 1985),
-            'dissolutionDate'   => null,
-            'maleNewSurname'    => null,
-            'femaleNewSurname'  => 'Petrova',
-            'coordinateUpdates' => [],
+            'marriageDate'     => $this->knownDate('year', 1985),
+            'dissolutionDate'  => null,
+            'maleNewSurname'   => null,
+            'femaleNewSurname' => 'Petrova',
         ]);
         $female = array_values(array_filter(
             $snapshot['people'],
@@ -837,9 +758,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
         array $person,
     ): array {
         return $this->mutate($accessToken, $tree['id'], $tree['etag'], [
-            'type'        => 'create_first_person',
-            'person'      => $person,
-            'coordinates' => ['x' => 0, 'y' => 0],
+            'type'   => 'create_first_person',
+            'person' => $person,
         ]);
     }
 

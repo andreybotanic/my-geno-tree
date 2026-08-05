@@ -29,6 +29,14 @@ class FamilyTree
     #[ORM\Column]
     private int $version = 1;
 
+    #[ORM\ManyToOne(targetEntity: Person::class)]
+    #[ORM\JoinColumn(name: 'reference_primary_person_id', nullable: true, onDelete: 'SET NULL')]
+    private ?Person $referencePrimaryPerson = null;
+
+    #[ORM\ManyToOne(targetEntity: Person::class)]
+    #[ORM\JoinColumn(name: 'reference_secondary_person_id', nullable: true, onDelete: 'SET NULL')]
+    private ?Person $referenceSecondaryPerson = null;
+
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $bloodNetworkState = null;
@@ -71,6 +79,52 @@ class FamilyTree
         return $this->version;
     }
 
+    public function getReferencePrimaryPerson(): ?Person
+    {
+        return $this->referencePrimaryPerson;
+    }
+
+    public function getReferenceSecondaryPerson(): ?Person
+    {
+        return $this->referenceSecondaryPerson;
+    }
+
+    public function referencePerson(Person $person): void
+    {
+        $this->assertPersonBelongsToTree($person);
+        $this->referencePrimaryPerson = $person;
+        $this->referenceSecondaryPerson = null;
+    }
+
+    public function referenceMarriage(Person $first, Person $second): void
+    {
+        $this->assertPersonBelongsToTree($first);
+        $this->assertPersonBelongsToTree($second);
+        if ($first === $second) {
+            throw new \LogicException('A reference marriage requires two people.');
+        }
+
+        if ($first->getId()->toRfc4122() < $second->getId()->toRfc4122()) {
+            $this->referencePrimaryPerson = $first;
+            $this->referenceSecondaryPerson = $second;
+        } else {
+            $this->referencePrimaryPerson = $second;
+            $this->referenceSecondaryPerson = $first;
+        }
+    }
+
+    public function clearReference(): void
+    {
+        $this->referencePrimaryPerson = null;
+        $this->referenceSecondaryPerson = null;
+    }
+
+    public function references(Person $person): bool
+    {
+        return $this->referencePrimaryPerson === $person
+            || $this->referenceSecondaryPerson === $person;
+    }
+
     /** @return array<string, mixed>|null */
     public function getBloodNetworkState(): ?array
     {
@@ -110,5 +164,12 @@ class FamilyTree
     {
         ++$this->version;
         $this->updatedAt = $changedAt;
+    }
+
+    private function assertPersonBelongsToTree(Person $person): void
+    {
+        if ($person->getTree() !== $this) {
+            throw new \LogicException('A reference person must belong to the tree.');
+        }
     }
 }

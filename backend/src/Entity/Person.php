@@ -43,12 +43,6 @@ class Person
     private GenealogicalDate $storedDeathDate;
 
     #[ORM\Column]
-    private float $x;
-
-    #[ORM\Column]
-    private float $y;
-
-    #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
@@ -65,8 +59,6 @@ class Person
         Gender $gender,
         GenealogicalDate $birthDate,
         ?GenealogicalDate $deathDate,
-        float $x,
-        float $y,
         \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
@@ -81,7 +73,6 @@ class Person
             $deathDate,
             $createdAt,
         );
-        $this->moveTo($x, $y, $createdAt);
     }
 
     public function getId(): Uuid
@@ -122,16 +113,6 @@ class Person
     public function getDeathDate(): ?GenealogicalDate
     {
         return $this->deceased ? $this->storedDeathDate : null;
-    }
-
-    public function getX(): float
-    {
-        return $this->x;
-    }
-
-    public function getY(): float
-    {
-        return $this->y;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
@@ -179,16 +160,6 @@ class Person
         $this->birthDate = $birthDate;
         $this->deceased = null !== $deathDate;
         $this->storedDeathDate = $deathDate ?? GenealogicalDate::unknown();
-        $this->updatedAt = $changedAt;
-    }
-
-    public function moveTo(
-        float $x,
-        float $y,
-        \DateTimeImmutable $changedAt,
-    ): void {
-        $this->x = $x;
-        $this->y = $y;
         $this->updatedAt = $changedAt;
     }
 }

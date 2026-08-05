@@ -868,6 +868,7 @@
   grid-template-columns: 96px minmax(0, 1fr);
   height: 160px;
   padding: 12px;
+  position: relative;
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
@@ -879,6 +880,37 @@
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent),
     0 16px 38px var(--color-shadow);
+}
+
+.person-card-reference {
+  border-color: var(--color-state-warning-strong);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--color-state-warning) 38%, transparent),
+    0 16px 38px var(--color-shadow);
+}
+
+.person-card-selected.person-card-reference {
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-accent) 50%, transparent),
+    0 0 0 9px color-mix(in srgb, var(--color-state-warning) 38%, transparent),
+    0 16px 38px var(--color-shadow);
+}
+
+.person-reference-marker {
+  align-items: center;
+  background: var(--color-state-warning);
+  border: 2px solid var(--color-surface-elevated);
+  border-radius: 50%;
+  color: var(--color-state-warning-strong);
+  display: flex;
+  font-size: 0.85rem;
+  height: 28px;
+  justify-content: center;
+  position: absolute;
+  right: -12px;
+  top: -12px;
+  width: 28px;
+  z-index: 2;
 }
 
 .person-photo-placeholder,
@@ -951,6 +983,12 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.4;
+}
+
+.react-flow__edge-path.tree-edge-reference {
+  filter: drop-shadow(0 0 4px var(--color-state-warning));
+  stroke: var(--color-state-warning-strong);
+  stroke-width: 4;
 }
 
 .tree-edge-coparent {
@@ -1325,66 +1363,6 @@
   width: 100%;
 }
 
-.layout-progress,
-.layout-preview-controls {
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 11px;
-  box-shadow: 0 8px 24px var(--color-shadow);
-}
-
-.layout-progress {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-  padding: 11px 13px;
-}
-
-.layout-progress > div,
-.layout-preview-controls {
-  display: grid;
-  gap: 6px;
-}
-
-.layout-progress strong,
-.layout-preview-controls strong {
-  color: var(--color-text-strong);
-  font-size: 0.86rem;
-}
-
-.layout-progress span,
-.layout-preview-controls span,
-.layout-preview-controls small {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-}
-
-.layout-preview-controls {
-  min-width: 280px;
-  padding: 12px 14px;
-}
-
-.layout-preview-view-switch,
-.layout-preview-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.layout-preview-view-switch {
-  justify-content: stretch;
-}
-
-.layout-preview-view-switch button {
-  flex: 1;
-}
-
-.layout-preview-view-switch button[aria-pressed='true'] {
-  background: var(--color-background);
-  border-color: var(--color-accent);
-  color: var(--color-text-strong);
-}
-
 .toast-notice {
   align-items: center;
   background: var(--color-surface-elevated);
@@ -1410,26 +1388,6 @@
   font-size: 1.25rem;
   line-height: 1;
   padding: 0 2px;
-}
-
-.layout-warning-dialog {
-  max-width: 520px;
-}
-
-.layout-warning-dialog h2 {
-  color: var(--color-text-strong);
-  font-family: var(--font-heading);
-  font-size: 1.4rem;
-  margin: 0;
-}
-
-.layout-warning-dialog p {
-  color: var(--color-text-muted);
-  line-height: 1.5;
-}
-
-.layout-warning-actions {
-  flex-wrap: wrap;
 }
 
 .person-details-panel {

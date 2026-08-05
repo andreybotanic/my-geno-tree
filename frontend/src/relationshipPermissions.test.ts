@@ -21,7 +21,6 @@ const person = (id: string): Person => ({
   birthDate: { state: 'unknown' },
   deathDate: null,
   photoThumbnailUrl: null,
-  coordinates: { x: 0, y: 0 },
   createdAt,
   updatedAt: createdAt,
 })
@@ -48,7 +47,7 @@ const snapshot = (
   parentLinks: ParentLink[],
   marriages: MarriagePeriod[],
 ): TreeSnapshot => ({
-  tree: { id: 'tree', name: 'Tree', createdAt, updatedAt: createdAt },
+  tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
   etag: '"tree"',
   people: ['a', 'b', 'c'].map(person),
   parentLinks,

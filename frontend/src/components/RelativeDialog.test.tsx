@@ -22,7 +22,6 @@ function person(
     birthDate: { state: 'unknown' },
     deathDate: null,
     photoThumbnailUrl: null,
-    coordinates: { x: 0, y: 0 },
     createdAt,
     updatedAt: createdAt,
   }
@@ -32,7 +31,7 @@ const anchor = person('anchor', 'Petrov', 'male')
 const candidate = person('candidate', 'Petrova', 'female')
 const second = person('second', 'Second', 'female')
 const snapshot: TreeSnapshot = {
-  tree: { id: 'tree', name: 'Tree', createdAt, updatedAt: createdAt },
+  tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
   etag: '"tree"',
   people: [anchor, candidate, second],
   parentLinks: [],
@@ -110,7 +109,6 @@ describe('RelativeDialog', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         person: expect.objectContaining({ gender: 'female' }),
-        coordinates: { x: 0, y: 0 },
       }),
       {
         marriageDate: { state: 'unknown' },

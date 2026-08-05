@@ -35,12 +35,10 @@ final readonly class CreateFirstPersonService
     ): Person {
         $this->assertShape($payload);
         $personData = $this->dataPolicy->create($payload['person']);
-        $coordinates = $this->dataPolicy->coordinates($payload['coordinates']);
 
         return $this->entityManager->wrapInTransaction(function () use (
             $tree,
             $personData,
-            $coordinates,
             $ifMatch,
         ): Person {
             $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
@@ -59,12 +57,11 @@ final readonly class CreateFirstPersonService
                 $personData->gender,
                 $personData->birthDate,
                 $personData->deathDate,
-                $coordinates->x,
-                $coordinates->y,
                 $changedAt,
             );
             $this->entityManager->persist($person);
             $this->events->synchronizePersonLifecycle($person, $changedAt);
+            $tree->referencePerson($person);
             $tree->touch($changedAt);
 
             return $person;
@@ -76,7 +73,7 @@ final readonly class CreateFirstPersonService
      */
     private function assertShape(array $payload): void
     {
-        $expected = ['type', 'person', 'coordinates'];
+        $expected = ['type', 'person'];
         foreach (array_keys($payload) as $key) {
             if (!in_array($key, $expected, true)) {
                 $this->invalid($key, 'field_not_allowed');

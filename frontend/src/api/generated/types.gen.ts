@@ -72,6 +72,7 @@ export type FamilyTree = {
     id: string;
     name: string;
     personCount: number;
+    reference: TreeReference | null;
     createdAt: string;
     updatedAt: string;
     etag: string;
@@ -125,6 +126,21 @@ export type Coordinates = {
     y: number;
 };
 
+export type TreeReference = PersonTreeReference | MarriageTreeReference;
+
+export type PersonTreeReference = {
+    type: 'person';
+    personId: string;
+};
+
+export type MarriageTreeReference = {
+    type: 'marriage';
+    personIds: [
+        string,
+        string
+    ];
+};
+
 export type PersonInput = {
     birthSurname: KnownText;
     givenName: KnownText;
@@ -146,7 +162,6 @@ export type PersonPatchRequest = {
 export type Person = PersonInput & {
     id: string;
     photoThumbnailUrl: string | null;
-    coordinates: Coordinates;
     createdAt: string;
     updatedAt: string;
 };
@@ -167,6 +182,7 @@ export type ImageCropUpload = {
 export type TreeMetadata = {
     id: string;
     name: string;
+    reference: TreeReference | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -226,18 +242,12 @@ export type MarriagePeriodUpdateResult = {
     etag: string;
 };
 
-export type CoordinateUpdate = {
-    personId: string;
-    coordinates: Coordinates;
-};
-
 export type ExistingRelative = {
     personId: string;
 };
 
 export type NewRelative = {
     person: PersonInput;
-    coordinates: Coordinates;
 };
 
 export type RelativePerson = ExistingRelative | NewRelative;
@@ -247,12 +257,11 @@ export type ParentSpecification = {
     role: ParentRole;
 };
 
-export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation | ReflowCoordinatesMutation;
+export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
 
 export type CreateFirstPersonMutation = {
     type: 'create_first_person';
     person: PersonInput;
-    coordinates: Coordinates;
 };
 
 export type AddParentMutation = {
@@ -260,14 +269,12 @@ export type AddParentMutation = {
     childId: string;
     role: ParentRole;
     relative: RelativePerson;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type AddChildMutation = {
     type: 'add_child';
     parents: Array<ParentSpecification>;
     relative: RelativePerson;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type LinkParentChildMutation = {
@@ -275,7 +282,6 @@ export type LinkParentChildMutation = {
     parentId: string;
     childId: string;
     role: ParentRole;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type AddMarriagePeriodMutation = {
@@ -286,30 +292,21 @@ export type AddMarriagePeriodMutation = {
     dissolutionDate: GenealogicalDate | null;
     maleNewSurname: string | null;
     femaleNewSurname: string | null;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type RemoveParentLinkMutation = {
     type: 'remove_parent_link';
     parentLinkId: string;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type RemoveMarriagePeriodMutation = {
     type: 'remove_marriage_period';
     marriageId: string;
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type DeletePersonMutation = {
     type: 'delete_person';
     personId: string;
-    coordinateUpdates: Array<CoordinateUpdate>;
-};
-
-export type ReflowCoordinatesMutation = {
-    type: 'reflow_coordinates';
-    coordinateUpdates: Array<CoordinateUpdate>;
 };
 
 export type GenealogicalEvent = {
@@ -939,6 +936,59 @@ export type GetTreeSnapshotResponses = {
 
 export type GetTreeSnapshotResponse = GetTreeSnapshotResponses[keyof GetTreeSnapshotResponses];
 
+export type ChangeTreeReferenceData = {
+    body: TreeReference;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/reference';
+};
+
+export type ChangeTreeReferenceErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ChangeTreeReferenceError = ChangeTreeReferenceErrors[keyof ChangeTreeReferenceErrors];
+
+export type ChangeTreeReferenceResponses = {
+    /**
+     * Updated tree snapshot
+     */
+    200: TreeSnapshot;
+};
+
+export type ChangeTreeReferenceResponse = ChangeTreeReferenceResponses[keyof ChangeTreeReferenceResponses];
+
 export type MutateTreeGraphData = {
     body: GraphMutation;
     headers: {
@@ -993,7 +1043,7 @@ export type MutateTreeGraphResponses = {
      */
     200: TreeSnapshot;
     /**
-     * Graph resources created atomically with coordinates
+     * Graph resources created atomically
      */
     201: TreeSnapshot;
 };

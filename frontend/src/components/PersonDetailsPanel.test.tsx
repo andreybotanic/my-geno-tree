@@ -24,7 +24,6 @@ const person: Person = {
   },
   deathDate: null,
   photoThumbnailUrl: null,
-  coordinates: { x: 0, y: 0 },
   createdAt: '2026-07-31T00:00:00+00:00',
   updatedAt: '2026-07-31T00:00:00+00:00',
 }
@@ -94,6 +93,7 @@ const renderPanel = ({
         tree: {
           id: 'tree',
           name: 'Family',
+          reference: null,
           createdAt: person.createdAt,
           updatedAt: person.updatedAt,
         },

@@ -22,7 +22,6 @@ function person(id: string, name: string, gender: Person['gender']): Person {
     birthDate: { state: 'unknown' },
     deathDate: null,
     photoThumbnailUrl: null,
-    coordinates: { x: 0, y: 0 },
     createdAt,
     updatedAt: createdAt,
   }
@@ -86,7 +85,7 @@ function snapshot(
   ],
 ): TreeSnapshot {
   return {
-    tree: { id: 'tree', name: 'Tree', createdAt, updatedAt: createdAt },
+    tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
     etag: '"tree"',
     people,
     parentLinks,

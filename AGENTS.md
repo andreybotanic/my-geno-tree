@@ -38,7 +38,7 @@
 - Use joins, explicit eager loading for the concrete use case, DTO projections, batched loading, or purpose-built repository queries when they avoid N+1 queries.
 - Do not solve N+1 problems by marking broad associations globally eager unless that loading behavior is correct for every use case.
 - Add query-count assertions or inspect the Symfony/Doctrine profiler for data-heavy changes where an N+1 regression is plausible.
-- Keep transactions short and place all parts of a structural tree mutation, coordinate update, automatic-event synchronization, and ETag update in one transaction.
+- Keep transactions short and place all parts of a structural tree mutation, reference update, automatic-event synchronization, and ETag update in one transaction.
 - Preserve tree ownership and connectivity checks on the backend. Frontend restrictions are not authorization or integrity enforcement.
 - Use Symfony voters for subject-specific authorization. Do not scatter owner-ID comparisons across controllers and services when a voter can express the rule.
 - Guard controller actions with `#[IsGranted(...)]` attributes that point to resolved controller subjects when the attribute can express the check.
@@ -48,7 +48,7 @@
 - Prefer event listeners declared with `#[AsEventListener]` over event subscribers when a listener clearly expresses the behavior.
 - Keep public REST contracts under `/api/v1`, use UUIDv7 public identifiers, and keep OpenAPI synchronized with implementation changes.
 - Return machine-readable API errors; localize user-facing messages in the frontend.
-- Keep saved card coordinates separate from genealogical relationships.
+- Do not persist coordinates for ordinary tree cards; derive their deterministic layout from genealogical relationships and the tree reference. Keep saved force-map positions as a separate representation.
 - Model media as media objects and typed attachments, not as an unextendable single file path on a person or event.
 - Keep the domain model independent of React/Vue component state and presentation-specific JSON.
 - Use semantic design tokens or CSS variables for colors, borders, shadows, placeholders, and graph lines. Do not hard-code a light-only color model.
@@ -59,7 +59,7 @@
 
 - Keep TypeScript strict mode enabled; do not weaken compiler options to accommodate a local implementation shortcut.
 - Generate API types from OpenAPI or verify them against OpenAPI in automated checks.
-- Keep server state, transient form state, viewport state, and persisted card coordinates as separate concepts.
+- Keep server state, transient form state, viewport state, and saved force-map positions as separate concepts. Ordinary tree positions are transient derived data.
 - Never treat hidden controls or client-side validation as enforcement of permissions or domain invariants.
 - Escape user-provided plain text. Do not render names or event descriptions as HTML.
 - Use the same structured date and unknown-value semantics as the API; do not replace them with ambiguous empty strings.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   GenealogicalEvent,
@@ -56,7 +56,6 @@ const person: Person = {
   },
   deathDate: null,
   photoThumbnailUrl: null,
-  coordinates: { x: 0, y: 0 },
   createdAt: '2026-07-31T00:00:00+00:00',
   updatedAt: '2026-07-31T00:00:00+00:00',
 }
@@ -81,7 +80,6 @@ const father: Person = {
   birthSurname: { state: 'known', value: 'Petrov' },
   givenName: { state: 'known', value: 'Ivan' },
   gender: 'male',
-  coordinates: { x: -140, y: -240 },
 }
 const spouse: Person = {
   ...person,
@@ -89,7 +87,6 @@ const spouse: Person = {
   birthSurname: { state: 'known', value: 'Ivanov' },
   givenName: { state: 'known', value: 'Petr' },
   gender: 'male',
-  coordinates: { x: 280, y: 0 },
 }
 const parentLink: ParentLink = {
   id: '019861c4-6a93-7a2e-8ca8-51813740d4c0',
@@ -112,6 +109,7 @@ function snapshot(people: Person[] = []): TreeSnapshot {
     tree: {
       id: treeId,
       name: 'Family history',
+      reference: people[0] ? { type: 'person', personId: people[0].id } : null,
       createdAt: '2026-07-31T00:00:00+00:00',
       updatedAt: '2026-07-31T00:00:00+00:00',
     },
@@ -191,29 +189,12 @@ function sectionByHeading(name: string) {
   return section
 }
 
-class OptimizerWorkerMock {
-  static instances: OptimizerWorkerMock[] = []
-  onerror: ((event: Event) => void) | null = null
-  onmessage: ((event: MessageEvent) => void) | null = null
-  postMessage = vi.fn()
-  terminate = vi.fn()
-
-  constructor() {
-    OptimizerWorkerMock.instances.push(this)
-  }
-
-  emit(message: unknown) {
-    this.onmessage?.({ data: message } as MessageEvent)
-  }
-}
-
 describe('TreeEditorPage', () => {
   beforeEach(async () => {
     window.history.replaceState({}, '', `/trees/${treeId}`)
     window.localStorage.clear()
     window.sessionStorage.clear()
     await i18n.changeLanguage('en')
-    OptimizerWorkerMock.instances = []
     vi.unstubAllGlobals()
   })
 
@@ -251,8 +232,6 @@ describe('TreeEditorPage', () => {
     expect(
       await screen.findByRole('article', { name: 'Unknown person' }),
     ).toBeInTheDocument()
-    const optimizeLayout = screen.getByRole('button', { name: 'Optimize layout' })
-    expect(optimizeLayout.querySelector('svg')).not.toBeNull()
     for (const name of ['Zoom out', 'Zoom in', 'Reset camera']) {
       expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
     }
@@ -269,6 +248,89 @@ describe('TreeEditorPage', () => {
         headers: { 'If-Match': '"tree-current"' },
       }),
     )
+  })
+
+  it('sets a deduplicated spouse pair as reference from the person menu', async () => {
+    const repeatedMarriage = { ...marriage, id: 'second-period' }
+    const initial = {
+      ...graphSnapshot([person, spouse], [], [marriage, repeatedMarriage]),
+      tree: {
+        ...snapshot().tree,
+        reference: { type: 'person', personId: person.id } as const,
+      },
+    }
+    const updated = {
+      ...initial,
+      etag: '"tree-reference"',
+      tree: {
+        ...initial.tree,
+        reference: {
+          type: 'marriage',
+          personIds: [person.id, spouse.id] as [string, string],
+        },
+      },
+    }
+    const request = vi.fn(async (path: string, init?: RequestInit) => (
+      path.endsWith('/reference') && init?.method === 'PUT' ? updated : initial
+    )) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 80,
+      clientY: 120,
+    })
+    const menu = screen.getByRole('menu', { name: 'Person actions' })
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(2)
+    await userEvent.click(within(menu).getByRole('menuitem', {
+      name: 'Set marriage with Ivanov Petr as reference',
+    }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/reference`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: 'marriage',
+          personIds: [person.id, spouse.id],
+        }),
+        headers: { 'If-Match': '"tree-current"' },
+        method: 'PUT',
+      }),
+    ))
+    expect(screen.getByRole('article', { name: 'Ivanova Anna' }))
+      .toHaveClass('person-card-reference')
+    expect(screen.getByRole('article', { name: 'Ivanov Petr' }))
+      .toHaveClass('person-card-reference')
+  })
+
+  it('sets a married pair as reference from its bracket menu', async () => {
+    const initial = graphSnapshot([person, spouse], [], [marriage])
+    const updated = {
+      ...initial,
+      tree: {
+        ...initial.tree,
+        reference: {
+          type: 'marriage',
+          personIds: [person.id, spouse.id] as [string, string],
+        },
+      },
+    }
+    const request = vi.fn(async (path: string) => (
+      path.endsWith('/reference') ? updated : initial
+    )) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanov Petr' })
+    const bracket = document.querySelector('.react-flow__edge')
+    expect(bracket).not.toBeNull()
+    fireEvent.contextMenu(bracket!, { clientX: 140, clientY: 160 })
+    await userEvent.click(screen.getByRole('menuitem', {
+      name: 'Set this marriage as reference',
+    }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/reference`,
+      expect.objectContaining({ method: 'PUT' }),
+    ))
   })
 
   it('switches to a temporary blood-only network without opening person editing', async () => {
@@ -677,113 +739,6 @@ describe('TreeEditorPage', () => {
         method: 'PATCH',
       }),
     ))
-  })
-
-  it('shows a worker preview and applies only its coordinate mutation', async () => {
-    vi.stubGlobal('Worker', OptimizerWorkerMock)
-    const partner = { ...spouse, id: 'partner-two', coordinates: { x: 640, y: 0 } }
-    const tree = graphSnapshot([person, spouse, partner], [], [
-      marriage,
-      { ...marriage, id: 'marriage-two', malePersonId: partner.id },
-    ])
-    const optimized = {
-      ...tree,
-      etag: '"tree-optimized"',
-      people: tree.people.map((item) => item.id === partner.id
-        ? { ...item, coordinates: { x: -320, y: 0 } }
-        : item),
-    }
-    const request = vi.fn(async (
-      _path: string,
-      init?: RequestInit,
-    ) => init?.method === 'POST' ? optimized : tree) as unknown as AuthorizedJsonRequest
-    renderEditor(request)
-
-    await screen.findByRole('button', { name: 'Optimize layout' })
-    await userEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
-    expect(screen.queryByText('Optimizing layout')).not.toBeInTheDocument()
-    const worker = OptimizerWorkerMock.instances[0]!
-    worker.emit({ type: 'progress', checked: 2n, total: 6n })
-    expect(screen.queryByText(/checked 2 of 6/)).not.toBeInTheDocument()
-    worker.emit({
-      type: 'result',
-      result: {
-        candidateCount: 6n,
-        checkedCount: 6n,
-        coordinateUpdates: [{ personId: partner.id, coordinates: { x: -320, y: 0 } }],
-        currentWidth: 900,
-        limited: false,
-        optimizedWidth: 580,
-      },
-    })
-
-    expect(await screen.findByText('Layout preview')).toBeInTheDocument()
-    const originalLayout = screen.getByRole('button', { name: 'Original layout' })
-    const newLayout = screen.getByRole('button', { name: 'New layout' })
-    expect(newLayout).toHaveAttribute('aria-pressed', 'true')
-    await userEvent.click(originalLayout)
-    expect(originalLayout).toHaveAttribute('aria-pressed', 'true')
-    await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(request).toHaveBeenLastCalledWith(
-      `/trees/${treeId}/graph-mutations`,
-      expect.objectContaining({
-        body: JSON.stringify({
-          type: 'reflow_coordinates',
-          coordinateUpdates: [{ personId: partner.id, coordinates: { x: -320, y: 0 } }],
-        }),
-        headers: { 'If-Match': '"tree-optimized"' },
-        method: 'POST',
-      }),
-    ))
-  })
-
-  it('shows calculation progress separately only after a long-running search', async () => {
-    vi.stubGlobal('Worker', OptimizerWorkerMock)
-    const partner = { ...spouse, id: 'partner-two', coordinates: { x: 640, y: 0 } }
-    const tree = graphSnapshot([person, spouse, partner], [], [
-      marriage,
-      { ...marriage, id: 'marriage-two', malePersonId: partner.id },
-    ])
-    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
-    renderEditor(request)
-
-    await screen.findByRole('button', { name: 'Optimize layout' })
-    vi.useFakeTimers()
-    fireEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
-    expect(screen.queryByText('Optimizing layout')).not.toBeInTheDocument()
-    act(() => vi.advanceTimersByTime(2_500))
-    expect(screen.getByText('Optimizing layout')).toBeInTheDocument()
-    expect(screen.getByText(/checked 0 of 6/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(OptimizerWorkerMock.instances[0]?.terminate).toHaveBeenCalledTimes(1)
-    vi.useRealTimers()
-  })
-
-  it('warns before a search exceeding ten thousand layouts and can cancel it', async () => {
-    const center = { ...person, id: 'center', coordinates: { x: 0, y: 0 } }
-    const partners = Array.from({ length: 8 }, (_, index) => ({
-      ...spouse,
-      id: `partner-${index}`,
-      coordinates: { x: (index + 1) * 320, y: 0 },
-    }))
-    const tree = graphSnapshot(
-      [center, ...partners],
-      [],
-      partners.map((partner, index) => ({
-        ...marriage,
-        id: `marriage-${index}`,
-        malePersonId: partner.id,
-        femalePersonId: center.id,
-      })),
-    )
-    const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
-    renderEditor(request)
-
-    await screen.findByRole('button', { name: 'Optimize layout' })
-    await userEvent.click(screen.getByRole('button', { name: 'Optimize layout' }))
-    expect(await screen.findByRole('dialog', { name: 'Many possible layouts' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('dialog', { name: 'Many possible layouts' })).not.toBeInTheDocument()
   })
 
   it('loads person details lazily and autosaves one field', async () => {
@@ -1236,12 +1191,7 @@ describe('TreeEditorPage', () => {
         role: 'father',
         relative: {
           person: expect.objectContaining({ gender: 'unknown' }),
-          coordinates: { x: -160, y: -240 },
         },
-        coordinateUpdates: [{
-          personId: person.id,
-          coordinates: { x: -160, y: 0 },
-        }],
       })
     })
     expect(screen.getAllByText('Petrov Ivan')).toHaveLength(2)
@@ -1367,7 +1317,6 @@ describe('TreeEditorPage', () => {
         body: JSON.stringify({
           type: 'delete_person',
           personId: person.id,
-          coordinateUpdates: [],
         }),
       }),
     )
