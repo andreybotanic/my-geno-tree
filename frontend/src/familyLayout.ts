@@ -1,1521 +1,908 @@
+import {
+  Expression,
+  Operator,
+  Solver,
+  Strength,
+  Variable,
+} from '@lume/kiwi'
 import type { XYPosition } from '@xyflow/react'
-import type { MarriagePeriod, ParentLink, TreeSnapshot } from './api/generated'
+import type { ParentLink, TreeSnapshot } from './api/generated'
+import { chooseChildGapDistances } from './childGapPolicy'
+import {
+  scheduleGenerations,
+  selectAnchorGeneration,
+  type GenerationCandidate,
+} from './layeredGenerationPolicy'
 
 const PERSON_CARD_WIDTH = 260
-const PERSON_CARD_HEIGHT = 160
 const HORIZONTAL_STEP = 320
-const VERTICAL_STEP = 240
 const HALF_SIBLING_GAP = 380
+const CARD_GAP = 40
+const HALF_SIBLING_CARD_GAP = 120
+const BEAM_WIDTH = 32
+const MAX_ORDERING_SWEEPS = 8
 const COORDINATE_TOLERANCE = 0.001
 
-type Coordinates = XYPosition
-type CoordinateUpdate = {
-  personId: string
-  coordinates: Coordinates
+type Family = {
+  childIds: string[]
+  key: string
+  parentIds: string[]
 }
-type Person = {
-  id: string
-  coordinates: Coordinates
+
+type RowStructure = {
+  innerIdsByOuter: ReadonlyMap<string, string[]>
+  outerIds: string[]
+  peopleByInner: ReadonlyMap<string, string[]>
 }
-type ReflowSnapshot = {
-  people: Person[]
+
+type OrderingState = {
+  innerOrderByOuter: Map<string, string[]>
+  outerOrder: string[]
+  personOrderByInner: Map<string, string[]>
+}
+
+type LayoutContext = {
+  childrenByParent: ReadonlyMap<string, Set<string>>
+  families: Family[]
+  ids: string[]
   parentLinks: ParentLink[]
-  marriages?: MarriagePeriod[]
-  partnerPairs?: Array<[string, string]>
-  referenceIds?: string[]
+  parentsByChild: ReadonlyMap<string, Set<string>>
+  partnersByPerson: ReadonlyMap<string, Set<string>>
+  referenceIds: Set<string>
+  roleByParentAndChild: ReadonlyMap<string, ParentLink['role']>
+  rowByPerson: ReadonlyMap<string, number>
+  rows: number[]
+  rowStructures: ReadonlyMap<number, RowStructure>
+  seedPositions: ReadonlyMap<string, XYPosition>
+}
+
+type ChildGapPolicy = {
+  childIds: string[]
+  distances: number[]
+  variable: boolean
+}
+
+type Score = readonly [number, number, number, number, number, number, string]
+
+class DisjointSet {
+  private readonly parents: Map<string, string>
+
+  constructor(ids: readonly string[]) {
+    this.parents = new Map(ids.map((id) => [id, id]))
+  }
+
+  find(id: string): string {
+    const parent = this.parents.get(id) ?? id
+    if (parent === id) return id
+    const root = this.find(parent)
+    this.parents.set(id, root)
+    return root
+  }
+
+  join(first: string, second: string): void {
+    const roots = [this.find(first), this.find(second)].sort((a, b) => a.localeCompare(b))
+    if (roots[0] !== roots[1]) this.parents.set(roots[1]!, roots[0]!)
+  }
 }
 
 /**
- * Refines a deterministic generation seed into family-aware transient positions.
- * The result is derived exclusively from the current snapshot and is never persisted.
+ * Builds transient coordinates from the graph alone. The supplied positions only
+ * carry deterministic generation numbers; their horizontal values are not reused.
  */
 export function refineFamilyLayout(
   snapshot: TreeSnapshot,
   seedPositions: ReadonlyMap<string, XYPosition>,
 ): Map<string, XYPosition> {
-  const people = [...snapshot.people]
-    .sort((left, right) => left.id.localeCompare(right.id))
-    .map((person) => ({
-      id: person.id,
-      coordinates: { ...(seedPositions.get(person.id) ?? { x: 0, y: 0 }) },
-    }))
-  const parentLinks = [...snapshot.parentLinks].sort((left, right) => (
-    left.childId.localeCompare(right.childId)
-    || left.role.localeCompare(right.role)
-    || left.parentId.localeCompare(right.parentId)
-    || left.id.localeCompare(right.id)
-  ))
-  const marriages = [...snapshot.marriages].sort((left, right) => (
-    [left.malePersonId, left.femalePersonId].sort().join(':')
-      .localeCompare([right.malePersonId, right.femalePersonId].sort().join(':'))
-    || left.id.localeCompare(right.id)
-  ))
-  const positions = new Map(people.map((person) => [
-    person.id,
-    { ...person.coordinates },
-  ]))
-  const reference = snapshot.tree.reference
-  for (const update of reflowTree(
-    {
-      people,
-      parentLinks,
-      marriages,
-      referenceIds: reference?.type === 'person'
-        ? [reference.personId]
-        : reference?.personIds ?? [],
-    },
-    { compact: true },
-  )) {
-    positions.set(update.personId, update.coordinates)
-  }
+  const context = createContext(snapshot, seedPositions)
+  if (context.ids.length === 0) return new Map()
 
-  return positions
+  const anchorRow = selectAnchorRow(context)
+  const orders = orderRows(context, anchorRow)
+  const preliminary = solveCoordinates(context, orders, [])
+  const childGapPolicies = buildChildGapPolicies(context, orders, preliminary)
+  const coordinates = solveCoordinates(context, orders, childGapPolicies)
+
+  return new Map(context.ids.map((id) => [id, {
+    x: coordinates.get(id)! - PERSON_CARD_WIDTH / 2,
+    y: context.rowByPerson.get(id)!,
+  }]))
 }
 
-function reflowTree(
-  snapshot: ReflowSnapshot,
-  options: { compact?: boolean } = {},
-): CoordinateUpdate[] {
-  const people = new Map(snapshot.people.map((person) => [person.id, person]))
-  const parentsByChild = new Map<string, string[]>()
-  for (const link of snapshot.parentLinks) {
-    const parents = parentsByChild.get(link.childId) ?? []
-    parents.push(link.parentId)
-    parentsByChild.set(link.childId, parents)
-  }
-  const familyPairs = relationshipPairs(snapshot, people, parentsByChild)
-  const positions = new Map(snapshot.people.map((person) => [
-    person.id,
-    { ...person.coordinates },
-  ]))
-  const depthCache = new Map<string, number>()
-  const calculating = new Set<string>()
-  const depth = (personId: string): number => {
-    const cached = depthCache.get(personId)
-    if (cached !== undefined) {
-      return cached
-    }
-    if (calculating.has(personId)) {
-      return 0
-    }
-    calculating.add(personId)
-    const parentDepths = (parentsByChild.get(personId) ?? [])
-      .filter((parentId) => people.has(parentId))
-      .map(depth)
-    calculating.delete(personId)
-    const result = parentDepths.length === 0 ? 0 : Math.max(...parentDepths) + 1
-    depthCache.set(personId, result)
-    return result
-  }
-  const families = new Map<string, { parentIds: string[]; childIds: string[] }>()
-  for (const [childId, parentIds] of parentsByChild) {
-    const knownParents = [...new Set(parentIds)]
-      .filter((parentId) => people.has(parentId))
-      .sort()
-    if (knownParents.length === 0 || !people.has(childId)) {
-      continue
-    }
-    const key = knownParents.join(':')
-    const family = families.get(key) ?? { parentIds: knownParents, childIds: [] }
-    family.childIds.push(childId)
-    families.set(key, family)
-  }
-  const isHalfSiblingPair = (firstId: string, secondId: string) => {
-    const firstParents = new Set(parentsByChild.get(firstId) ?? [])
-    const secondParents = new Set(parentsByChild.get(secondId) ?? [])
-    if (firstParents.size === 0 || secondParents.size === 0) {
-      return false
-    }
-
-    const sharedParents = [...firstParents].filter((parentId) => secondParents.has(parentId))
-
-    return sharedParents.length > 0 && sharedParents.length < Math.min(
-      firstParents.size,
-      secondParents.size,
-    )
-  }
-  const minimumHorizontalDistance = (firstId: string, secondId: string) => (
-    isHalfSiblingPair(firstId, secondId)
-      ? HALF_SIBLING_GAP
-      : PERSON_CARD_WIDTH + 40
-  )
-
-  const rootRows = new Map<number, string[]>()
-  for (const person of snapshot.people) {
-    const hasKnownParent = (parentsByChild.get(person.id) ?? [])
-      .some((parentId) => people.has(parentId))
-    if (hasKnownParent) {
-      continue
-    }
-    const roots = rootRows.get(person.coordinates.y) ?? []
-    roots.push(person.id)
-    rootRows.set(person.coordinates.y, roots)
-  }
-  const rootFamilyBlocks = arrangeRootFamilyBlocks(
-    snapshot.people,
-    parentsByChild,
-    familyPairs,
-    positions,
-  )
-  const rootOrder = new Map<string, number>()
-  for (const rootIds of rootRows.values()) {
-    const originalRoots = [...rootIds].sort((first, second) => (
-      (people.get(first)?.coordinates.x ?? 0) - (people.get(second)?.coordinates.x ?? 0)
-      || first.localeCompare(second)
-    ))
-    const originalIndex = new Map(originalRoots.map((personId, index) => [
-      personId,
-      index,
-    ]))
-    const seen = new Set<string>()
-    const orderedRoots = originalRoots.flatMap((rootId) => {
-      if (seen.has(rootId)) {
-        return []
-      }
-      const block = (rootFamilyBlocks.get(rootId) ?? [rootId])
-        .filter((personId) => originalIndex.has(personId))
-        .sort((first, second) => (
-          (originalIndex.get(first) ?? 0) - (originalIndex.get(second) ?? 0)
-        ))
-      block.forEach((personId) => seen.add(personId))
-
-      return block
-    })
-    orderedRoots.forEach((personId, index) => rootOrder.set(personId, index))
-  }
-  const rootIds = new Set([...rootRows.values()].flat())
-  const compactRootRows = () => {
-    for (const rootIds of rootRows.values()) {
-      const orderedRoots = [...rootIds].sort((first, second) => (
-        (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
-      ))
-      const firstX = options.compact
-        ? 0
-        : (positions.get(orderedRoots[0] ?? '')?.x ?? 0)
-      orderedRoots.forEach((personId, index) => {
-        const position = positions.get(personId)
-        if (position) {
-          positions.set(personId, {
-            ...position,
-            x: firstX + index * HORIZONTAL_STEP,
-          })
-        }
-      })
-    }
-  }
-
-  const partnersByPerson = new Map<string, Set<string>>()
-  for (const [firstId, secondId] of familyPairs) {
-    const firstPartners = partnersByPerson.get(firstId) ?? new Set<string>()
-    firstPartners.add(secondId)
-    partnersByPerson.set(firstId, firstPartners)
-    const secondPartners = partnersByPerson.get(secondId) ?? new Set<string>()
-    secondPartners.add(firstId)
-    partnersByPerson.set(secondId, secondPartners)
-  }
-  const partnerAnchor = (personId: string) => {
-    const partners = [...(partnersByPerson.get(personId) ?? [])]
-      .map((partnerId) => positions.get(partnerId)?.x)
-      .filter((x): x is number => x !== undefined)
-    if (partners.length === 0) {
-      return positions.get(personId)?.x ?? 0
-    }
-    return partners.reduce((sum, x) => sum + x, 0) / partners.length
-  }
-
-  const fixedGenerationIds = new Set<string>()
-
-  const alignRootPartners = () => {
-    for (const rootIdsInRow of rootRows.values()) {
-      for (const rootId of rootIdsInRow) {
-        if (fixedGenerationIds.has(rootId)) {
-          continue
-        }
-        const partners = [...(partnersByPerson.get(rootId) ?? [])]
-          .filter((partnerId) => !rootIds.has(partnerId))
-        if (partners.length !== 1) {
-          continue
-        }
-        const root = positions.get(rootId)
-        const partner = positions.get(partners[0]!)
-        if (!root || !partner || root.y !== partner.y) {
-          continue
-        }
-        positions.set(rootId, { ...root, x: partner.x + HORIZONTAL_STEP })
-      }
-    }
-  }
-
-  const familiesByParent = new Map<string, Array<{ parentIds: string[]; childIds: string[] }>>()
-  for (const family of families.values()) {
-    for (const parentId of family.parentIds) {
-      const childFamilies = familiesByParent.get(parentId) ?? []
-      childFamilies.push(family)
-      familiesByParent.set(parentId, childFamilies)
-    }
-  }
-  const subtreeSpanCache = new Map<string, number>()
-  const measuringSubtree = new Set<string>()
-  const subtreeSpan = (personId: string): number => {
-    const cached = subtreeSpanCache.get(personId)
-    if (cached !== undefined) {
-      return cached
-    }
-    if (measuringSubtree.has(personId)) {
-      return HORIZONTAL_STEP
-    }
-    measuringSubtree.add(personId)
-    const span = Math.max(
-      HORIZONTAL_STEP,
-      ...(familiesByParent.get(personId) ?? []).map((family) => (
-        family.childIds.reduce((total, childId) => total + subtreeSpan(childId), 0)
-      )),
-    )
-    measuringSubtree.delete(personId)
-    subtreeSpanCache.set(personId, span)
-
-    return span
-  }
-
-  const childSpacing = (childIds: string[]) => Math.max(
-    HORIZONTAL_STEP,
-    ...childIds.map((childId) => {
-      const hasPartner = (partnersByPerson.get(childId)?.size ?? 0) > 0
-
-      return hasPartner
-        ? Math.max(HORIZONTAL_STEP * 2, subtreeSpan(childId))
-        : subtreeSpan(childId)
-    }),
-  )
-
-  const orderedFamilies = [...families.values()]
-    .sort((first, second) => (
-      Math.max(...first.parentIds.map(depth)) - Math.max(...second.parentIds.map(depth))
-      || first.parentIds.join(':').localeCompare(second.parentIds.join(':'))
-    ))
-  const alignFamilies = () => {
-    orderedFamilies.forEach((family) => {
-      const parents = family.parentIds
-        .map((parentId) => positions.get(parentId))
-        .filter((position): position is Coordinates => position !== undefined)
-      if (parents.length !== family.parentIds.length) {
-        return
-      }
-      const familyX = parents.reduce((sum, parent) => sum + parent.x, 0) / parents.length
-      const familyY = Math.max(...parents.map((parent) => parent.y))
-      if (family.childIds.every((childId) => fixedGenerationIds.has(childId))) {
-        const fixedCenter = family.childIds.reduce((sum, childId) => (
-          sum + (positions.get(childId)?.x ?? familyX)
-        ), 0) / family.childIds.length
-        const shift = fixedCenter - familyX
-        if (Math.abs(shift) > COORDINATE_TOLERANCE) {
-          family.parentIds.forEach((parentId) => {
-            const parent = positions.get(parentId)
-            if (parent) {
-              positions.set(parentId, { ...parent, x: parent.x + shift })
-            }
-          })
-        }
-
-        return
-      }
-      const spacing = childSpacing(family.childIds)
-      family.childIds
-        .sort((first, second) => (
-          partnerAnchor(first) - partnerAnchor(second)
-          || first.localeCompare(second)
-        ))
-        .forEach((childId, index, children) => {
-          positions.set(childId, childPosition(
-            familyX,
-            familyY + VERTICAL_STEP,
-            children.length,
-            index,
-            spacing,
-          ))
-        })
-      alignRootPartners()
-    })
-  }
-  const ancestors = (personId: string): Map<string, number> => {
-    const result = new Map<string, number>()
-    const visit = (id: string, distance: number) => {
-      const previousDistance = result.get(id)
-      if (previousDistance !== undefined && previousDistance <= distance) {
-        return
-      }
-      result.set(id, distance)
-      for (const parentId of parentsByChild.get(id) ?? []) {
-        if (people.has(parentId)) {
-          visit(parentId, distance + 1)
-        }
-      }
-    }
-    visit(personId, 0)
-    return result
-  }
-  const referenceAncestorIds = new Set(
-    (snapshot.referenceIds ?? []).flatMap((personId) => [...ancestors(personId).keys()]),
-  )
+function createContext(
+  snapshot: TreeSnapshot,
+  seedPositions: ReadonlyMap<string, XYPosition>,
+): LayoutContext {
+  const ids = snapshot.people.map(({ id }) => id).sort((a, b) => a.localeCompare(b))
+  const idSet = new Set(ids)
+  const parentLinks = [...snapshot.parentLinks]
+    .filter(({ parentId, childId }) => idSet.has(parentId) && idSet.has(childId))
+    .sort(parentLinkComparator)
+  const parentsByChild = new Map<string, Set<string>>()
   const childrenByParent = new Map<string, Set<string>>()
-  const parentRolesByChild = new Map<string, Map<string, ParentLink['role']>>()
-  for (const link of snapshot.parentLinks) {
-    const children = childrenByParent.get(link.parentId) ?? new Set<string>()
-    children.add(link.childId)
-    childrenByParent.set(link.parentId, children)
-    const roles = parentRolesByChild.get(link.childId) ?? new Map()
-    roles.set(link.parentId, link.role)
-    parentRolesByChild.set(link.childId, roles)
+  const roleByParentAndChild = new Map<string, ParentLink['role']>()
+  for (const link of parentLinks) {
+    addToSet(parentsByChild, link.childId, link.parentId)
+    addToSet(childrenByParent, link.parentId, link.childId)
+    roleByParentAndChild.set(`${link.parentId}:${link.childId}`, link.role)
   }
-  const descendantFamilyBlockCache = new Map<string, Set<string>>()
-  const descendantFamilyBlock = (personId: string): Set<string> => {
-    const cached = descendantFamilyBlockCache.get(personId)
-    if (cached) {
-      return cached
-    }
-    const block = new Set<string>()
-    const pending = [personId]
-    while (pending.length > 0) {
-      const currentId = pending.shift()!
-      if (block.has(currentId) || !people.has(currentId)) {
-        continue
-      }
-      block.add(currentId)
-      for (const partnerId of partnersByPerson.get(currentId) ?? []) {
-        if (!block.has(partnerId)) {
-          pending.push(partnerId)
-        }
-      }
-      for (const childId of childrenByParent.get(currentId) ?? []) {
-        if (!block.has(childId)) {
-          pending.push(childId)
-        }
-      }
-    }
-    descendantFamilyBlockCache.set(personId, block)
 
-    return block
+  const pairMap = new Map<string, [string, string]>()
+  const registerPair = (first: string, second: string) => {
+    if (first === second || !idSet.has(first) || !idSet.has(second)) return
+    const pair = orderedPair(first, second)
+    pairMap.set(pair.join(':'), pair)
   }
-  const siblingGroups = [...childrenByParent.entries()]
-    .filter(([, childIds]) => childIds.size > 1)
-    .map(([parentId, childIds]) => ({
-      childIds: [...childIds].sort(),
-      lineageKey: [...childIds]
-        .reduce<string[]>((commonParentIds, childId, index) => {
-          const childParentIds = parentsByChild.get(childId) ?? []
-          return index === 0
-            ? [...childParentIds]
-            : commonParentIds.filter((candidateId) => childParentIds.includes(candidateId))
-        }, [])
-        .sort()
-        .join(':'),
-      parentDepth: depth(parentId),
-    }))
-    .filter((group, index, groups) => (
-      groups.findIndex((candidate) => (
-        candidate.childIds.join(':') === group.childIds.join(':')
-      )) === index
-    ))
-    .sort((first, second) => (
-      second.parentDepth - first.parentDepth
-      || first.childIds.join(':').localeCompare(second.childIds.join(':'))
-    ))
-  // A sibling whose co-parent has a known ancestry is the bridge to another
-  // ancestral branch: fathers close the right edge, mothers the left edge.
-  const siblingBridgeSide = (personId: string, lineageKey: string) => {
-    const sides = new Set<number>()
-    const ownChildren = childrenByParent.get(personId) ?? new Set<string>()
-    for (const partnerId of [...(partnersByPerson.get(personId) ?? [])].sort()) {
-      const partnerParentIds = [...(parentsByChild.get(partnerId) ?? [])].sort()
-      if (partnerParentIds.length === 0) {
-        continue
-      }
-      const sharedChildIds = [...(childrenByParent.get(partnerId) ?? [])]
-        .filter((childId) => ownChildren.has(childId))
-        .sort()
-      for (const childId of sharedChildIds) {
-        const ownRole = parentRolesByChild.get(childId)?.get(personId)
-        const partnerRole = parentRolesByChild.get(childId)?.get(partnerId)
-        if (ownRole === 'father' && partnerRole === 'mother') {
-          sides.add(1)
-        } else if (ownRole === 'mother' && partnerRole === 'father') {
-          sides.add(-1)
-        }
-      }
-      if (sharedChildIds.length === 0) {
-        const partnerLineageKey = partnerParentIds.join(':')
-        if (partnerLineageKey !== lineageKey) {
-          sides.add(lineageKey.localeCompare(partnerLineageKey) < 0 ? 1 : -1)
-        }
-      }
-    }
+  for (const item of [...snapshot.marriages].sort((a, b) => a.id.localeCompare(b.id))) {
+    registerPair(item.malePersonId, item.femalePersonId)
+  }
+  for (const parentIds of parentsByChild.values()) {
+    const ordered = [...parentIds].sort((a, b) => a.localeCompare(b))
+    if (ordered.length === 2) registerPair(ordered[0]!, ordered[1]!)
+  }
+  const partnersByPerson = new Map<string, Set<string>>()
+  for (const [first, second] of [...pairMap.values()].sort(pairComparator)) {
+    addToSet(partnersByPerson, first, second)
+    addToSet(partnersByPerson, second, first)
+  }
 
-    return sides.size === 1 ? [...sides][0]! : 0
+  const rowByPerson = new Map(ids.map((id) => [
+    id,
+    seedPositions.get(id)?.y ?? 0,
+  ]))
+  const rows = [...new Set(rowByPerson.values())].sort((a, b) => a - b)
+  const familiesByParents = new Map<string, Family>()
+  for (const [childId, parentSet] of [...parentsByChild].sort(([a], [b]) => a.localeCompare(b))) {
+    const parentIds = [...parentSet].sort((a, b) => a.localeCompare(b))
+    const key = parentIds.join(':')
+    const family = familiesByParents.get(key) ?? { childIds: [], key, parentIds }
+    family.childIds.push(childId)
+    familiesByParents.set(key, family)
   }
-  // Keep every sibling's partners and descendants in one horizontal band so
-  // cousin branches cannot alternate. Around the reference branch, close unused
-  // space from both sides; deep groups are fixed before ancestors.
-  const separateSiblingSubtrees = () => {
-    for (const siblingGroup of siblingGroups) {
-      const branches = siblingGroup.childIds.map((personId) => ({
-        members: descendantFamilyBlock(personId),
-        personId,
-        side: siblingBridgeSide(personId, siblingGroup.lineageKey),
-      }))
-      const branchesOverlap = branches.some((branch, index) => (
-        branches.slice(index + 1).some((candidate) => (
-          [...branch.members].some((personId) => candidate.members.has(personId))
-        ))
-      ))
-      if (branchesOverlap) {
-        continue
-      }
-      branches.sort((first, second) => (
-        first.side - second.side
-        || (positions.get(first.personId)?.x ?? 0) - (positions.get(second.personId)?.x ?? 0)
-        || first.personId.localeCompare(second.personId)
-      ))
-      const branchBounds = (branch: (typeof branches)[number]) => {
-        const branchPositions = [...branch.members]
-          .map((personId) => positions.get(personId))
-          .filter((position): position is Coordinates => position !== undefined)
-        return branchPositions.length === 0
-          ? undefined
-          : {
-              left: Math.min(...branchPositions.map((position) => position.x)),
-              right: Math.max(...branchPositions.map((position) => position.x)),
-            }
-      }
-      const shiftBranch = (branch: (typeof branches)[number], shift: number) => {
-        if (Math.abs(shift) > COORDINATE_TOLERANCE) {
-          branch.members.forEach((personId) => {
-            const position = positions.get(personId)
-            if (position) {
-              positions.set(personId, { ...position, x: position.x + shift })
-            }
-          })
-        }
-      }
-      const referenceBranchIndex = branches.findIndex((branch) => (
-        (snapshot.referenceIds ?? []).some((personId) => branch.members.has(personId))
-      ))
-      if (referenceBranchIndex === -1) {
-        const originalBounds = branches
-          .map(branchBounds)
-          .filter((bounds): bounds is NonNullable<typeof bounds> => bounds !== undefined)
-        const originalCenter = originalBounds.length === 0
-          ? 0
-          : (
-              Math.min(...originalBounds.map((bounds) => bounds.left))
-              + Math.max(...originalBounds.map((bounds) => bounds.right))
-            ) / 2
-        let previousRight: number | undefined
-        for (const branch of branches) {
-          const bounds = branchBounds(branch)
-          if (!bounds) {
-            continue
-          }
-          const shift = previousRight === undefined
-            ? 0
-            : Math.max(0, previousRight + PERSON_CARD_WIDTH + 40 - bounds.left)
-          shiftBranch(branch, shift)
-          previousRight = Math.max(
-            previousRight ?? Number.NEGATIVE_INFINITY,
-            bounds.right + shift,
-          )
-        }
-        const packedBounds = branches
-          .map(branchBounds)
-          .filter((bounds): bounds is NonNullable<typeof bounds> => bounds !== undefined)
-        if (packedBounds.length > 0) {
-          const packedCenter = (
-            Math.min(...packedBounds.map((bounds) => bounds.left))
-            + Math.max(...packedBounds.map((bounds) => bounds.right))
-          ) / 2
-          const centeringShift = originalCenter - packedCenter
-          branches.forEach((branch) => shiftBranch(branch, centeringShift))
-        }
-        continue
-      }
-      const anchorIndex = referenceBranchIndex
-      for (let index = anchorIndex - 1; index >= 0; index -= 1) {
-        const branch = branches[index]!
-        const next = branches[index + 1]!
-        const bounds = branchBounds(branch)
-        const nextBounds = branchBounds(next)
-        if (!bounds || !nextBounds) {
-          continue
-        }
-        shiftBranch(
-          branch,
-          nextBounds.left - (PERSON_CARD_WIDTH + 40) - bounds.right,
-        )
-      }
-      for (let index = anchorIndex + 1; index < branches.length; index += 1) {
-        const previous = branches[index - 1]!
-        const branch = branches[index]!
-        const previousBounds = branchBounds(previous)
-        const bounds = branchBounds(branch)
-        if (!previousBounds || !bounds) {
-          continue
-        }
-        shiftBranch(
-          branch,
-          previousBounds.right + PERSON_CARD_WIDTH + 40 - bounds.left,
-        )
-      }
+  const families = [...familiesByParents.values()]
+    .map((family) => ({ ...family, childIds: family.childIds.sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.key.localeCompare(b.key))
+
+  const rowStructures = new Map<number, RowStructure>()
+  for (const row of rows) {
+    const rowIds = ids.filter((id) => rowByPerson.get(id) === row)
+    rowStructures.set(row, buildRowStructure(rowIds, partnersByPerson, childrenByParent))
+  }
+  const reference = snapshot.tree.reference
+  const referenceIds = new Set(reference?.type === 'person'
+    ? [reference.personId]
+    : reference?.personIds ?? [])
+
+  return {
+    childrenByParent,
+    families,
+    ids,
+    parentLinks,
+    parentsByChild,
+    partnersByPerson,
+    referenceIds,
+    roleByParentAndChild,
+    rowByPerson,
+    rows,
+    rowStructures,
+    seedPositions,
+  }
+}
+
+/**
+ * Partner components are indivisible. Sibling components contain those partner
+ * components, so siblings may only be separated by one of their spouses.
+ */
+function buildRowStructure(
+  rowIds: string[],
+  partnersByPerson: ReadonlyMap<string, Set<string>>,
+  childrenByParent: ReadonlyMap<string, Set<string>>,
+): RowStructure {
+  const rowSet = new Set(rowIds)
+  const partnerSet = new DisjointSet(rowIds)
+  for (const id of rowIds) {
+    for (const partnerId of partnersByPerson.get(id) ?? []) {
+      if (rowSet.has(partnerId)) partnerSet.join(id, partnerId)
     }
   }
-  const coParentsByPerson = new Map<string, Set<string>>()
-  for (const roles of parentRolesByChild.values()) {
-    const parentIds = [...roles.keys()]
-    if (parentIds.length !== 2) {
-      continue
-    }
-    for (const [personId, coParentId] of [parentIds, [...parentIds].reverse()] as [string, string][]) {
-      const coParents = coParentsByPerson.get(personId) ?? new Set<string>()
-      coParents.add(coParentId)
-      coParentsByPerson.set(personId, coParents)
+  const peopleByInner = groupByRoot(rowIds, partnerSet)
+  const innerByPerson = new Map<string, string>()
+  for (const [innerId, people] of peopleByInner) {
+    people.forEach((id) => innerByPerson.set(id, innerId))
+  }
+
+  const innerIds = [...peopleByInner.keys()].sort((a, b) => a.localeCompare(b))
+  const outerSet = new DisjointSet(innerIds)
+  for (const children of childrenByParent.values()) {
+    const childInnerIds = [...children]
+      .filter((id) => rowSet.has(id))
+      .map((id) => innerByPerson.get(id)!)
+      .filter((id, index, values) => values.indexOf(id) === index)
+      .sort((a, b) => a.localeCompare(b))
+    for (let index = 1; index < childInnerIds.length; index += 1) {
+      outerSet.join(childInnerIds[0]!, childInnerIds[index]!)
     }
   }
-  const isUnambiguousCoParentPair = (firstId: string, secondId: string) => (
-    coParentsByPerson.get(firstId)?.size === 1
-    && coParentsByPerson.get(firstId)?.has(secondId) === true
-    && coParentsByPerson.get(secondId)?.size === 1
-    && coParentsByPerson.get(secondId)?.has(firstId) === true
+  const innerIdsByOuter = groupByRoot(innerIds, outerSet)
+
+  return {
+    innerIdsByOuter,
+    outerIds: [...innerIdsByOuter.keys()].sort((a, b) => a.localeCompare(b)),
+    peopleByInner,
+  }
+}
+
+function groupByRoot(ids: string[], set: DisjointSet): Map<string, string[]> {
+  const result = new Map<string, string[]>()
+  for (const id of [...ids].sort((a, b) => a.localeCompare(b))) {
+    const root = set.find(id)
+    const values = result.get(root) ?? []
+    values.push(id)
+    result.set(root, values)
+  }
+  return result
+}
+
+function selectAnchorRow(context: LayoutContext): number {
+  const peopleByRow = peopleByRowMap(context)
+  const referenceRows = [...context.referenceIds]
+    .map((id) => context.rowByPerson.get(id))
+    .filter((row): row is number => row !== undefined)
+  const referenceRow = referenceRows.length === 0
+    ? 0
+    : referenceRows.reduce((sum, row) => sum + row, 0) / referenceRows.length
+
+  return selectAnchorGeneration(
+    generationCandidates(context, peopleByRow),
+    referenceRow,
   )
-  const orientParentPairs = () => {
-    const orientedPairs = new Set<string>()
-    for (const roles of parentRolesByChild.values()) {
-      const fatherId = [...roles].find(([, role]) => role === 'father')?.[0]
-      const motherId = [...roles].find(([, role]) => role === 'mother')?.[0]
-      if (!fatherId || !motherId) {
-        continue
-      }
-      if (!isUnambiguousCoParentPair(fatherId, motherId)) {
-        continue
-      }
-      const key = [fatherId, motherId].sort().join(':')
-      if (orientedPairs.has(key)) {
-        continue
-      }
-      orientedPairs.add(key)
-      const father = positions.get(fatherId)
-      const mother = positions.get(motherId)
-      if (!father || !mother || father.y !== mother.y) {
-        continue
-      }
-      // Only an unambiguous co-parent pair is compacted; a shared parent with
-      // several partners must retain the independently balanced family blocks.
-      const center = (father.x + mother.x) / 2
-      positions.set(fatherId, { ...father, x: center - HORIZONTAL_STEP / 2 })
-      positions.set(motherId, { ...mother, x: center + HORIZONTAL_STEP / 2 })
-    }
-  }
-  // Pull each unambiguous parent pair towards the child that continues to the
-  // reference. A single-child pair is aligned exactly; for a wide sibling branch
-  // the movement stops at the nearest occupied card to avoid a new collision.
-  const alignParentPairsToReference = () => {
-    for (const family of [...orderedFamilies].reverse()) {
-      if (
-        family.parentIds.length !== 2
-        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
-      ) {
-        continue
-      }
-      const referenceChildren = family.childIds
-        .filter((childId) => referenceAncestorIds.has(childId))
-      const targetChildId = referenceChildren.length === 1
-        ? referenceChildren[0]
-        : family.childIds.length === 1
-          ? family.childIds[0]
-          : undefined
-      const target = targetChildId ? positions.get(targetChildId) : undefined
-      const parentPositions = family.parentIds
-        .map((parentId) => positions.get(parentId))
-        .filter((position): position is Coordinates => position !== undefined)
-      if (
-        !target
-        || parentPositions.length !== family.parentIds.length
-        || parentPositions.some((parent) => parent.y !== parentPositions[0]!.y)
-      ) {
-        continue
-      }
-      const parentCenter = parentPositions.reduce((sum, parent) => sum + parent.x, 0)
-        / parentPositions.length
-      const desiredShift = target.x - parentCenter
-      let allowedShift = desiredShift
-      if (family.childIds.length > 1) {
-        const parentIds = new Set(family.parentIds)
-        for (const parentId of family.parentIds) {
-          const parent = positions.get(parentId)!
-          for (const [otherId, other] of positions) {
-            if (parentIds.has(otherId) || other.y !== parent.y) {
-              continue
-            }
-            if (desiredShift > 0 && other.x > parent.x) {
-              allowedShift = Math.min(
-                allowedShift,
-                other.x - minimumHorizontalDistance(parentId, otherId) - parent.x,
-              )
-            } else if (desiredShift < 0 && other.x < parent.x) {
-              allowedShift = Math.max(
-                allowedShift,
-                other.x + minimumHorizontalDistance(otherId, parentId) - parent.x,
-              )
-            }
-          }
-        }
-      }
-      if (Math.abs(allowedShift) <= COORDINATE_TOLERANCE) {
-        continue
-      }
-      family.parentIds.forEach((parentId) => {
-        const parent = positions.get(parentId)!
-        positions.set(parentId, { ...parent, x: parent.x + allowedShift })
-      })
-    }
-  }
-  // Balance a co-parent pair between the centre of all its children and the
-  // centres of both spouses' parent blocks. The median deliberately permits
-  // asymmetric links when that keeps three neighbouring generations compact.
-  const balanceParentPairsBetweenGenerations = () => {
-    for (const family of orderedFamilies) {
-      if (
-        family.parentIds.length !== 2
-        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
-        || !family.parentIds.every((parentId) => referenceAncestorIds.has(parentId))
-      ) {
-        continue
-      }
-      const parentPositions = family.parentIds
-        .map((parentId) => positions.get(parentId))
-        .filter((position): position is Coordinates => position !== undefined)
-      const childPositions = family.childIds
-        .map((childId) => positions.get(childId))
-        .filter((position): position is Coordinates => position !== undefined)
-      if (
-        parentPositions.length !== family.parentIds.length
-        || childPositions.length === 0
-        || parentPositions.some((parent) => parent.y !== parentPositions[0]!.y)
-      ) {
-        continue
-      }
-      const parentCenter = parentPositions.reduce((sum, parent) => sum + parent.x, 0)
-        / parentPositions.length
-      const targetCenters = [
-        childPositions.reduce((sum, child) => sum + child.x, 0) / childPositions.length,
-      ]
-      family.parentIds.forEach((parentId, index) => {
-        const ownParents = (parentsByChild.get(parentId) ?? [])
-          .map((ownParentId) => positions.get(ownParentId))
-          .filter((position): position is Coordinates => position !== undefined)
-        if (ownParents.length === 0) {
-          return
-        }
-        const ownParentCenter = ownParents.reduce((sum, parent) => sum + parent.x, 0)
-          / ownParents.length
-        targetCenters.push(
-          ownParentCenter - (parentPositions[index]!.x - parentCenter),
-        )
-      })
-      targetCenters.sort((left, right) => left - right)
-      const middle = Math.floor(targetCenters.length / 2)
-      const targetCenter = targetCenters.length % 2 === 0
-        ? (targetCenters[middle - 1]! + targetCenters[middle]!) / 2
-        : targetCenters[middle]!
-      const desiredShift = targetCenter - parentCenter
-      let allowedShift = desiredShift
-      const parentIds = new Set(family.parentIds)
-      for (const parentId of family.parentIds) {
-        const parent = positions.get(parentId)!
-        for (const [otherId, other] of positions) {
-          if (parentIds.has(otherId) || other.y !== parent.y) {
-            continue
-          }
-          if (desiredShift > 0 && other.x > parent.x) {
-            allowedShift = Math.min(
-              allowedShift,
-              other.x - minimumHorizontalDistance(parentId, otherId) - parent.x,
-            )
-          } else if (desiredShift < 0 && other.x < parent.x) {
-            allowedShift = Math.max(
-              allowedShift,
-              other.x + minimumHorizontalDistance(otherId, parentId) - parent.x,
-            )
-          }
-        }
-      }
-      if (Math.abs(allowedShift) <= COORDINATE_TOLERANCE) {
-        continue
-      }
-      family.parentIds.forEach((parentId) => {
-        const parent = positions.get(parentId)!
-        positions.set(parentId, { ...parent, x: parent.x + allowedShift })
-      })
-    }
-  }
-  // Place complete ancestral parent pairs as close as possible to the children
-  // below them. Isotonic projection shares every required separation between
-  // the blocks on both sides instead of accumulating it in the right-hand tail.
-  const compactReferenceAncestorParentRows = () => {
-    const rows = new Map<number, Array<{
-      leftId: string
-      leftOffset: number
-      parentIds: string[]
-      childIds: string[]
-      rightId: string
-      rightOffset: number
-    }>>()
-    for (const family of orderedFamilies) {
-      if (
-        family.parentIds.length !== 2
-        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
-        || !family.parentIds.every((parentId) => (
-          referenceAncestorIds.has(parentId)
-          && partnersByPerson.get(parentId)?.size === 1
-        ))
-      ) {
-        continue
-      }
-      const referenceChildIds = family.childIds
-        .filter((childId) => referenceAncestorIds.has(childId))
-      const orderedParents = [...family.parentIds]
-        .sort((first, second) => (
-          positions.get(first)!.x - positions.get(second)!.x
-          || first.localeCompare(second)
-        ))
-      const left = positions.get(orderedParents[0]!)
-      const right = positions.get(orderedParents[1]!)
-      if (!left || !right || left.y !== right.y || referenceChildIds.length === 0) {
-        continue
-      }
-      const center = (left.x + right.x) / 2
-      const row = rows.get(left.y) ?? []
-      row.push({
-        leftId: orderedParents[0]!,
-        leftOffset: center - left.x,
-        parentIds: family.parentIds,
-        childIds: family.childIds,
-        rightId: orderedParents[1]!,
-        rightOffset: right.x - center,
-      })
-      rows.set(left.y, row)
-    }
+}
 
-    for (const [, row] of [...rows.entries()].sort((
-      [firstY],
-      [secondY],
-    ) => secondY - firstY)) {
-      if (row.length < 2) {
-        continue
-      }
-      const idealCenter = (block: (typeof row)[number]) => block.childIds
-        .reduce((sum, childId) => sum + positions.get(childId)!.x, 0)
-        / block.childIds.length
-      row.sort((first, second) => (
-        idealCenter(first) - idealCenter(second)
-        || first.parentIds.join(':').localeCompare(second.parentIds.join(':'))
-      ))
-      const offsets = [0]
-      for (let index = 1; index < row.length; index += 1) {
-        const previous = row[index - 1]!
-        const current = row[index]!
-        offsets.push(
-          offsets[index - 1]!
-          + previous.rightOffset
-          + minimumHorizontalDistance(previous.rightId, current.leftId)
-          + current.leftOffset,
-        )
-      }
-      const pools = row.map((block, index) => ({
-        end: index,
-        start: index,
-        sum: idealCenter(block) - offsets[index]!,
-        weight: 1,
-      }))
-      for (let index = 1; index < pools.length;) {
-        const previous = pools[index - 1]!
-        const current = pools[index]!
-        if (previous.sum / previous.weight <= current.sum / current.weight) {
-          index += 1
-          continue
-        }
-        previous.end = current.end
-        previous.sum += current.sum
-        previous.weight += current.weight
-        pools.splice(index, 1)
-        if (index > 1) {
-          index -= 1
-        }
-      }
-      for (const pool of pools) {
-        const projected = pool.sum / pool.weight
-        for (let index = pool.start; index <= pool.end; index += 1) {
-          const block = row[index]!
-          const targetCenter = projected + offsets[index]!
-          const currentCenter = (
-            positions.get(block.leftId)!.x + positions.get(block.rightId)!.x
-          ) / 2
-          const shift = targetCenter - currentCenter
-          block.parentIds.forEach((parentId) => {
-            const position = positions.get(parentId)!
-            positions.set(parentId, { ...position, x: position.x + shift })
-          })
-        }
-      }
-    }
-  }
-  // Final row sweep treats every connected partner group as an atomic block.
-  // It is a safety net for orientation changes made after the main collision pass.
-  const separateFinalPartnerBlocks = () => {
-    const rows = new Map<number, string[]>()
-    for (const [personId, position] of positions) {
-      const row = rows.get(position.y) ?? []
-      row.push(personId)
-      rows.set(position.y, row)
-    }
-    for (const rowIds of rows.values()) {
-      const originalLeft = Math.min(...rowIds.map((personId) => positions.get(personId)!.x))
-      const originalRight = Math.max(...rowIds.map((personId) => positions.get(personId)!.x))
-      const originalCenter = (originalLeft + originalRight) / 2
-      const rowSet = new Set(rowIds)
-      const seen = new Set<string>()
-      const blocks = rowIds.flatMap((personId) => {
-        if (seen.has(personId)) {
-          return []
-        }
-        const members = new Set<string>()
-        const pending = [personId]
-        while (pending.length > 0) {
-          const currentId = pending.shift()!
-          if (members.has(currentId)) {
-            continue
-          }
-          members.add(currentId)
-          seen.add(currentId)
-          for (const partnerId of partnersByPerson.get(currentId) ?? []) {
-            if (rowSet.has(partnerId) && !members.has(partnerId)) {
-              pending.push(partnerId)
-            }
-          }
-        }
+function estimatedRowWidth(context: LayoutContext, ids: string[]): number {
+  const ordered = [...ids].sort((a, b) => a.localeCompare(b))
+  return ordered.slice(1).reduce((width, id, index) => (
+    width + minimumDistance(context, ordered[index]!, id)
+  ), PERSON_CARD_WIDTH)
+}
 
-        return [{ members: [...members].sort() }]
-      }).sort((first, second) => {
-        const firstLeft = Math.min(...first.members.map((id) => positions.get(id)!.x))
-        const secondLeft = Math.min(...second.members.map((id) => positions.get(id)!.x))
-        return firstLeft - secondLeft || first.members.join(':').localeCompare(second.members.join(':'))
-      })
-      let previousRightId: string | undefined
-      for (const block of blocks) {
-        const orderedMembers = [...block.members].sort((first, second) => (
-          positions.get(first)!.x - positions.get(second)!.x || first.localeCompare(second)
-        ))
-        const leftId = orderedMembers[0]!
-        const rightId = orderedMembers.at(-1)!
-        const left = positions.get(leftId)!.x
-        const requiredLeft = previousRightId === undefined
-          ? left
-          : positions.get(previousRightId)!.x
-            + minimumHorizontalDistance(previousRightId, leftId)
-        const shift = Math.max(0, requiredLeft - left)
-        if (shift > COORDINATE_TOLERANCE) {
-          block.members.forEach((memberId) => {
-            const position = positions.get(memberId)!
-            positions.set(memberId, { ...position, x: position.x + shift })
-          })
-        }
-        previousRightId = rightId
-      }
-      const packedLeft = Math.min(...rowIds.map((personId) => positions.get(personId)!.x))
-      const packedRight = Math.max(...rowIds.map((personId) => positions.get(personId)!.x))
-      const centeringShift = originalCenter - (packedLeft + packedRight) / 2
-      if (Math.abs(centeringShift) > COORDINATE_TOLERANCE) {
-        rowIds.forEach((personId) => {
-          const position = positions.get(personId)!
-          positions.set(personId, { ...position, x: position.x + centeringShift })
-        })
-      }
-    }
-  }
-  const belongsToDirectFamily = (personId: string, childId: string) => (
-    (parentsByChild.get(childId) ?? []).some((parentId) => (
-      parentId === personId || partnersByPerson.get(parentId)?.has(personId)
-    ))
+function orderRows(context: LayoutContext, anchorRow: number): Map<number, string[]> {
+  const peopleByRow = peopleByRowMap(context)
+  const orders = new Map<number, string[]>()
+  const scheduledRows = scheduleGenerations(
+    generationCandidates(context, peopleByRow),
+    anchorRow,
   )
-  const isPartnerOfDirectChild = (personId: string, parentId: string) => (
-    [...(childrenByParent.get(parentId) ?? [])].some((childId) => (
-      partnersByPerson.get(childId)?.has(personId)
-    ))
-  )
-  const mayShareVerticalSpace = (firstId: string, secondId: string) => (
-    belongsToDirectFamily(firstId, secondId)
-    || belongsToDirectFamily(secondId, firstId)
-    || isPartnerOfDirectChild(firstId, secondId)
-    || isPartnerOfDirectChild(secondId, firstId)
-  )
-  const overlappingPair = (): [string, string] | undefined => {
-    const orderedPeople = [...positions.entries()]
-      .sort(([, first], [, second]) => first.x - second.x || first.y - second.y)
-    for (let index = 0; index < orderedPeople.length; index += 1) {
-      const [personId, position] = orderedPeople[index]!
-      for (let previous = index - 1; previous >= 0; previous -= 1) {
-        const [previousId, previousPosition] = orderedPeople[previous]!
-        const horizontalDistance = position.x - previousPosition.x
-        if (horizontalDistance >= HALF_SIBLING_GAP) {
-          break
-        }
-        const verticalDistance = Math.abs(position.y - previousPosition.y)
-        if (
-          minimumHorizontalDistance(previousId, personId) - horizontalDistance
-            > COORDINATE_TOLERANCE
-          && (
-          verticalDistance < PERSON_CARD_HEIGHT + 40
-          || (
-            verticalDistance === VERTICAL_STEP
-            && rootIds.has(
-              position.y < previousPosition.y ? personId : previousId,
-            )
-            && !mayShareVerticalSpace(previousId, personId)
-          )
-          )
-        ) {
-          return [previousId, personId]
-        }
-      }
-    }
-    return undefined
-  }
-  const shiftRootSides = (rootId: string, shift: number) => {
-    const root = positions.get(rootId)
-    if (!root) {
-      return false
-    }
-    const orderedRoots = [...(rootRows.get(root.y) ?? [])].sort((first, second) => (
-      (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
-    ))
-    const rootIndex = orderedRoots.indexOf(rootId)
-    if (rootIndex === -1) {
-      return false
-    }
-    orderedRoots.slice(0, rootIndex).forEach((personId) => {
-      const position = positions.get(personId)
-      if (position) {
-        positions.set(personId, { ...position, x: position.x - shift / 2 })
-      }
-    })
-    orderedRoots.slice(rootIndex).forEach((personId) => {
-      const position = positions.get(personId)
-      if (position) {
-        positions.set(personId, { ...position, x: position.x + shift / 2 })
-      }
-    })
-
-    return true
+  for (const next of scheduledRows) {
+    orders.set(next, optimizeRowOrder(context, next, orders))
   }
 
-  const influenceCache = new Map<string, number>()
-  const rootInfluence = (rootId: string, personId: string): number => {
-    const key = `${rootId}:${personId}`
-    const cached = influenceCache.get(key)
-    if (cached !== undefined) {
-      return cached
-    }
-    if (rootId === personId) {
-      influenceCache.set(key, 1)
-      return 1
-    }
-    const parentIds = (parentsByChild.get(personId) ?? [])
-      .filter((parentId) => people.has(parentId))
-    if (parentIds.length === 0) {
-      influenceCache.set(key, 0)
-      return 0
-    }
-    const influence = parentIds.reduce(
-      (sum, parentId) => sum + rootInfluence(rootId, parentId),
-      0,
-    ) / parentIds.length
-    influenceCache.set(key, influence)
-
-    return influence
-  }
-  const relatedRootIds = (personId: string) => {
-    const roots = new Map<string, number>()
-    for (const [ancestorId, distance] of ancestors(personId)) {
-      if (rootIds.has(ancestorId)) {
-        roots.set(ancestorId, distance)
-      }
-      for (const partnerId of partnersByPerson.get(ancestorId) ?? []) {
-        if (rootIds.has(partnerId)) {
-          roots.set(partnerId, Math.min(
-            roots.get(partnerId) ?? Number.POSITIVE_INFINITY,
-            distance - 0.5,
-          ))
-        }
-      }
-    }
-
-    return [...roots.entries()]
-  }
-  const rootSuffixInfluence = (rootId: string, leftId: string, rightId: string) => {
-    const root = positions.get(rootId)
-    if (!root) {
-      return 0
-    }
-    const orderedRoots = [...(rootRows.get(root.y) ?? [])].sort((first, second) => (
-      (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
-    ))
-    const rootIndex = orderedRoots.indexOf(rootId)
-    if (rootIndex === -1) {
-      return 0
-    }
-
-    return orderedRoots.slice(rootIndex).reduce((influence, shiftedRootId) => (
-      influence
-      + rootInfluence(shiftedRootId, rightId)
-      - rootInfluence(shiftedRootId, leftId)
-    ), 0)
-  }
-
-  const rootShiftsForSeparation = (leftId: string, rightId: string, distance: number) => {
-    const relatedRoots = new Map<string, number>()
-    for (const personId of [leftId, rightId]) {
-      for (const [rootId, rootDistance] of relatedRootIds(personId)) {
-        relatedRoots.set(rootId, Math.min(
-          relatedRoots.get(rootId) ?? Number.POSITIVE_INFINITY,
-          rootDistance,
-        ))
-      }
-    }
-
-    return [...relatedRoots.entries()]
-      .map(([rootId, rootDistance]) => {
-        const influence = rootSuffixInfluence(rootId, leftId, rightId)
-        return {
-          rootId,
-          rootDistance,
-          influence,
-          shift: distance / influence,
-        }
-      })
-      .filter((candidate) => Number.isFinite(candidate.shift))
-      .sort((first, second) => (
-        Math.abs(first.shift) - Math.abs(second.shift)
-        || first.rootDistance - second.rootDistance
-        || (positions.get(first.rootId)?.x ?? 0) - (positions.get(second.rootId)?.x ?? 0)
-        || first.rootId.localeCompare(second.rootId)
-      ))
-  }
-
-  const widestGeneration = () => {
-    const peopleByRow = new Map<number, string[]>()
-    for (const [personId, position] of positions) {
-      const people = peopleByRow.get(position.y) ?? []
-      people.push(personId)
-      peopleByRow.set(position.y, people)
-    }
-
-    return [...peopleByRow.entries()]
-      .sort(([firstY, firstPeople], [secondY, secondPeople]) => (
-        secondPeople.length - firstPeople.length || firstY - secondY
-      ))[0]?.[0]
-  }
-  const fixWidestGeneration = () => {
-    const row = widestGeneration()
-    if (row === undefined) {
-      return
-    }
-    const peopleInGeneration = [...positions.entries()]
-      .filter(([, position]) => position.y === row)
-      .sort(([firstId, first], [secondId, second]) => (
-        first.x - second.x || firstId.localeCompare(secondId)
-      ))
-    const originalCenter = peopleInGeneration.length === 0
-      ? 0
-      : (
-          peopleInGeneration[0]![1].x
-          + peopleInGeneration.at(-1)![1].x
-        ) / 2
-    let previousId: string | undefined
-    let previousX: number | undefined
-    peopleInGeneration.forEach(([personId, position]) => {
-      const x = previousId === undefined || previousX === undefined
-        ? position.x
-        : Math.max(
-          position.x,
-          previousX + minimumHorizontalDistance(previousId, personId),
-        )
-      if (x !== position.x) {
-        positions.set(personId, { ...position, x })
-      }
-      fixedGenerationIds.add(personId)
-      previousId = personId
-      previousX = x
-    })
-    if (peopleInGeneration.length > 0) {
-      const packedCenter = (
-        positions.get(peopleInGeneration[0]![0])!.x
-        + positions.get(peopleInGeneration.at(-1)![0])!.x
-      ) / 2
-      const centeringShift = originalCenter - packedCenter
-      if (Math.abs(centeringShift) > COORDINATE_TOLERANCE) {
-        peopleInGeneration.forEach(([personId]) => {
-          const position = positions.get(personId)!
-          positions.set(personId, { ...position, x: position.x + centeringShift })
-        })
-      }
-    }
-  }
-  const reconcileFamilyCentres = () => {
-    for (const family of [...orderedFamilies].reverse()) {
-      const parents = family.parentIds
-        .map((parentId) => positions.get(parentId))
-        .filter((position): position is Coordinates => position !== undefined)
-      const children = family.childIds
-        .map((childId) => positions.get(childId))
-        .filter((position): position is Coordinates => position !== undefined)
-      if (parents.length !== family.parentIds.length || children.length === 0) {
-        continue
-      }
-      const parentCenter = parents.reduce((sum, parent) => sum + parent.x, 0) / parents.length
-      const childCenter = children.reduce((sum, child) => sum + child.x, 0) / children.length
-      const shift = childCenter - parentCenter
-      if (Math.abs(shift) <= COORDINATE_TOLERANCE) {
-        continue
-      }
-      family.parentIds.forEach((parentId) => {
-        const parent = positions.get(parentId)
-        if (parent && !fixedGenerationIds.has(parentId)) {
-          positions.set(parentId, { ...parent, x: parent.x + shift })
-        }
-      })
-    }
-  }
-  const arrangeGeneration = (row: number) => {
+  const sweepRows = [...context.rows].sort((first, second) => (
+    Math.abs(first - anchorRow) - Math.abs(second - anchorRow) || first - second
+  ))
+  for (let sweep = 0; sweep < MAX_ORDERING_SWEEPS; sweep += 1) {
     let changed = false
-    const appliedSeparations = new Set<string>()
-    while (true) {
-      const peopleInGeneration = [...positions.entries()]
-        .filter(([, position]) => position.y === row)
-        .sort(([firstId, first], [secondId, second]) => (
-          first.x - second.x || firstId.localeCompare(secondId)
-        ))
-      let collision: { leftId: string; rightId: string; distance: number } | undefined
-      for (let index = 1; index < peopleInGeneration.length; index += 1) {
-        const [leftId, left] = peopleInGeneration[index - 1]!
-        const [rightId, right] = peopleInGeneration[index]!
-        const distance = minimumHorizontalDistance(leftId, rightId) - (right.x - left.x)
-        if (distance > COORDINATE_TOLERANCE) {
-          collision = {
-            leftId,
-            rightId,
-            distance,
-          }
-          break
-        }
-      }
-      if (!collision) {
-        return changed
-      }
-      const candidates = rootShiftsForSeparation(
-        collision.leftId,
-        collision.rightId,
-        collision.distance,
-      )
-      const candidate = candidates.find((item) => !appliedSeparations.has([
-        collision.leftId,
-        collision.rightId,
-        item.rootId,
-        Math.sign(item.shift),
-      ].join(':')))
-      if (candidate === undefined) {
-        return changed
-      }
-      if (!candidate || !shiftRootSides(
-        candidate.rootId,
-        candidate.shift,
-      )) {
-        return changed
-      }
-      appliedSeparations.add([
-        collision.leftId,
-        collision.rightId,
-        candidate.rootId,
-        Math.sign(candidate.shift),
-      ].join(':'))
-      changed = true
-      alignFamilies()
+    for (const row of sweep % 2 === 0 ? sweepRows : [...sweepRows].reverse()) {
+      const next = optimizeRowOrder(context, row, orders)
+      if (next.join(':') !== orders.get(row)!.join(':')) changed = true
+      orders.set(row, next)
     }
-
+    if (!changed) break
   }
-  const arrangeGenerationsFromWidest = () => {
-    const anchorRow = widestGeneration()
-    if (anchorRow === undefined) {
-      return
-    }
-    const rows = [...new Set([...positions.values()].map((position) => position.y))]
-      .sort((first, second) => (
-        Math.abs(first - anchorRow) - Math.abs(second - anchorRow)
-        || first - second
-      ))
-    for (let pass = 0; pass < rows.length; pass += 1) {
-      let changed = false
-      for (const row of rows) {
-        changed = arrangeGeneration(row) || changed
-      }
-      if (!changed) {
-        return
-      }
-    }
-  }
+  return orders
+}
 
-  const resolveCollisions = () => {
-    const appliedSeparations = new Set<string>()
-    while (true) {
-      const pair = overlappingPair()
-      if (!pair) {
-        break
-      }
-      const [leftId, rightId] = pair
-      const leftPosition = positions.get(leftId)
-      const rightPosition = positions.get(rightId)
-      if (!leftPosition || !rightPosition) {
-        break
-      }
-      const requiredDistance = minimumHorizontalDistance(leftId, rightId)
-        - (rightPosition.x - leftPosition.x)
-      const candidates = rootShiftsForSeparation(leftId, rightId, requiredDistance)
-      const candidate = candidates.find((item) => !appliedSeparations.has([
-        leftId,
-        rightId,
-        item.rootId,
-        Math.sign(item.shift),
-      ].join(':')))
-      if (candidate === undefined) {
-        break
-      }
-      const separationKey = [
-        leftId,
-        rightId,
-        candidate.rootId,
-        Math.sign(candidate.shift),
-      ].join(':')
-      if (!shiftRootSides(candidate.rootId, candidate.shift)) {
-        break
-      }
-      appliedSeparations.add(separationKey)
-      alignFamilies()
+function generationCandidates(
+  context: LayoutContext,
+  peopleByRow: ReadonlyMap<number, string[]>,
+): GenerationCandidate[] {
+  return context.rows.map((row) => {
+    const ids = peopleByRow.get(row) ?? []
+    return {
+      minimumWidth: estimatedRowWidth(context, ids),
+      personCount: ids.length,
+      row,
     }
-  }
-
-  const balanceSharedRootPartners = () => {
-    for (const rowRootIds of rootRows.values()) {
-      const orderedRoots = [...rowRootIds].sort((first, second) => (
-        (rootOrder.get(first) ?? 0) - (rootOrder.get(second) ?? 0)
-      ))
-      for (let index = 1; index < orderedRoots.length - 1; index += 1) {
-        const previousId = orderedRoots[index - 1]!
-        const personId = orderedRoots[index]!
-        const nextId = orderedRoots[index + 1]!
-        if (
-          !partnersByPerson.get(personId)?.has(previousId)
-          || !partnersByPerson.get(personId)?.has(nextId)
-        ) {
-          continue
-        }
-        const previous = positions.get(previousId)
-        const person = positions.get(personId)
-        const next = positions.get(nextId)
-        if (!previous || !person || !next) {
-          continue
-        }
-        const minimumX = previous.x + HORIZONTAL_STEP
-        const maximumX = next.x - HORIZONTAL_STEP
-        if (minimumX > maximumX) {
-          continue
-        }
-        const balancedX = Math.min(
-          maximumX,
-          Math.max(minimumX, (previous.x + next.x) / 2),
-        )
-        positions.set(personId, { ...person, x: balancedX })
-      }
-    }
-  }
-
-  compactRootRows()
-  alignFamilies()
-  separateSiblingSubtrees()
-  fixWidestGeneration()
-  reconcileFamilyCentres()
-  arrangeGenerationsFromWidest()
-  resolveCollisions()
-  balanceSharedRootPartners()
-  alignFamilies()
-  arrangeGenerationsFromWidest()
-  resolveCollisions()
-  arrangeGenerationsFromWidest()
-  reconcileFamilyCentres()
-  separateSiblingSubtrees()
-  reconcileFamilyCentres()
-  orientParentPairs()
-  separateFinalPartnerBlocks()
-  alignParentPairsToReference()
-  separateFinalPartnerBlocks()
-  balanceParentPairsBetweenGenerations()
-  compactReferenceAncestorParentRows()
-
-  return snapshot.people.flatMap((person) => {
-    const coordinates = positions.get(person.id)
-    if (
-      !coordinates
-      || (
-        coordinates.x === person.coordinates.x
-        && coordinates.y === person.coordinates.y
-      )
-    ) {
-      return []
-    }
-
-    return [{ personId: person.id, coordinates }]
   })
 }
 
-function relationshipPairs(
-  snapshot: ReflowSnapshot,
-  people: Map<string, Person>,
-  parentsByChild: Map<string, string[]>,
-): Array<[string, string]> {
-  const pairs = new Map<string, [string, string]>()
-  const registerPair = (firstId: string, secondId: string) => {
-    if (firstId === secondId || !people.has(firstId) || !people.has(secondId)) {
-      return
-    }
-    const sortedIds = [firstId, secondId].sort()
-    const first = sortedIds[0]!
-    const second = sortedIds[1]!
-    pairs.set(`${first}:${second}`, [first, second])
-  }
+function optimizeRowOrder(
+  context: LayoutContext,
+  row: number,
+  fixedOrders: ReadonlyMap<number, string[]>,
+): string[] {
+  const structure = context.rowStructures.get(row)!
+  const targets = orderingTargets(context, row, fixedOrders)
+  const initial = initialOrderingState(context, structure, targets)
+  let beam = [initial]
+  let best = initial
+  let bestScore = scoreOrdering(context, row, best, fixedOrders)
+  const seen = new Set([orderingKey(initial)])
 
-  for (const marriage of snapshot.marriages ?? []) {
-    registerPair(marriage.malePersonId, marriage.femalePersonId)
-  }
-  for (const [firstId, secondId] of snapshot.partnerPairs ?? []) {
-    registerPair(firstId, secondId)
-  }
-  for (const parentIds of parentsByChild.values()) {
-    const knownParentIds = [...new Set(parentIds)].filter((parentId) => (
-      people.has(parentId)
-    ))
-    if (knownParentIds.length === 2) {
-      registerPair(knownParentIds[0]!, knownParentIds[1]!)
+  for (let sweep = 0; sweep < MAX_ORDERING_SWEEPS; sweep += 1) {
+    const candidates: OrderingState[] = [...beam]
+    for (const state of beam) candidates.push(...orderingNeighbors(state))
+    const ranked = candidates
+      .filter((state) => {
+        const key = orderingKey(state)
+        if (seen.has(key) && !beam.includes(state)) return false
+        seen.add(key)
+        return true
+      })
+      .map((state) => ({ score: scoreOrdering(context, row, state, fixedOrders), state }))
+      .sort((a, b) => compareScore(a.score, b.score))
+      .slice(0, BEAM_WIDTH)
+    if (ranked.length === 0) break
+    beam = ranked.map(({ state }) => state)
+    if (compareScore(ranked[0]!.score, bestScore) < 0) {
+      best = ranked[0]!.state
+      bestScore = ranked[0]!.score
     }
   }
-
-  return [...pairs.values()]
+  return flattenOrdering(best)
 }
 
-function arrangeRootFamilyBlocks(
-  people: Person[],
-  parentsByChild: Map<string, string[]>,
-  familyPairs: Array<[string, string]>,
-  positions: Map<string, Coordinates>,
-): Map<string, string[]> {
-  const rootsByRow = new Map<number, string[]>()
-  const rootFamilyBlocks = new Map<string, string[]>()
-  for (const person of people) {
-    const hasKnownParent = (parentsByChild.get(person.id) ?? [])
-      .some((parentId) => positions.has(parentId))
-    if (hasKnownParent) {
-      continue
-    }
-    const roots = rootsByRow.get(person.coordinates.y) ?? []
-    roots.push(person.id)
-    rootsByRow.set(person.coordinates.y, roots)
-  }
-
-  for (const rootIds of rootsByRow.values()) {
-    const orderedRoots = [...rootIds].sort((first, second) => (
-      (positions.get(first)?.x ?? 0) - (positions.get(second)?.x ?? 0)
+function initialOrderingState(
+  context: LayoutContext,
+  structure: RowStructure,
+  targets: ReadonlyMap<string, number>,
+): OrderingState {
+  const personOrderByInner = new Map<string, string[]>()
+  const innerTarget = new Map<string, number>()
+  for (const [innerId, people] of structure.peopleByInner) {
+    const ordered = [...people].sort((first, second) => (
+      roleBias(context, first, people) - roleBias(context, second, people)
+      || (targets.get(first) ?? 0) - (targets.get(second) ?? 0)
+      || Number(!context.referenceIds.has(first)) - Number(!context.referenceIds.has(second))
       || first.localeCompare(second)
     ))
-    const rootSet = new Set(orderedRoots)
-    const partners = new Map<string, Set<string>>()
-    for (const [firstId, secondId] of familyPairs) {
-      if (!rootSet.has(firstId) || !rootSet.has(secondId)) {
-        continue
-      }
-      const firstPartners = partners.get(firstId) ?? new Set<string>()
-      firstPartners.add(secondId)
-      partners.set(firstId, firstPartners)
-      const secondPartners = partners.get(secondId) ?? new Set<string>()
-      secondPartners.add(firstId)
-      partners.set(secondId, secondPartners)
-    }
-
-    const originalIndex = new Map(orderedRoots.map((personId, index) => [
-      personId,
-      index,
-    ]))
-    const seen = new Set<string>()
-    const blocks: string[][] = []
-    for (const rootId of orderedRoots) {
-      if (seen.has(rootId)) {
-        continue
-      }
-      const block: string[] = []
-      const pending = [rootId]
-      seen.add(rootId)
-      while (pending.length > 0) {
-        const personId = pending.pop()!
-        block.push(personId)
-        for (const partnerId of partners.get(personId) ?? []) {
-          if (!seen.has(partnerId)) {
-            seen.add(partnerId)
-            pending.push(partnerId)
-          }
-        }
-      }
-      block.sort((first, second) => (
-        (originalIndex.get(first) ?? 0) - (originalIndex.get(second) ?? 0)
-      ))
-      blocks.push(block)
-    }
-    blocks.sort((first, second) => (
-      (originalIndex.get(first[0]!) ?? 0) - (originalIndex.get(second[0]!) ?? 0)
-    ))
-    for (const block of blocks) {
-      for (const personId of block) {
-        rootFamilyBlocks.set(personId, block)
-      }
-    }
-
-    const arrangedRoots = blocks.flat()
-    const slotXs = orderedRoots.map((personId) => (
-      positions.get(personId)?.x ?? 0
-    ))
-    arrangedRoots.forEach((personId, index) => {
-      const position = positions.get(personId)
-      const slotX = slotXs[index]
-      if (position && slotX !== undefined) {
-        positions.set(personId, { ...position, x: slotX })
-      }
-    })
+    personOrderByInner.set(innerId, ordered)
+    innerTarget.set(innerId, average(ordered.map((id) => targets.get(id) ?? 0)))
   }
 
-  return rootFamilyBlocks
+  const innerOrderByOuter = new Map<string, string[]>()
+  const outerTarget = new Map<string, number>()
+  for (const [outerId, innerIds] of structure.innerIdsByOuter) {
+    const ordered = orientInnerComponents(context, [...innerIds].sort((first, second) => (
+      (innerTarget.get(first) ?? 0) - (innerTarget.get(second) ?? 0)
+      || first.localeCompare(second)
+    )), personOrderByInner, structure.peopleByInner)
+    innerOrderByOuter.set(outerId, ordered)
+    outerTarget.set(outerId, average(ordered.map((id) => innerTarget.get(id) ?? 0)))
+  }
+  const outerOrder = [...structure.outerIds].sort((first, second) => (
+    (outerTarget.get(first) ?? 0) - (outerTarget.get(second) ?? 0)
+    || first.localeCompare(second)
+  ))
+  return { innerOrderByOuter, outerOrder, personOrderByInner }
 }
 
-function childPosition(
-  familyX: number,
-  childY: number,
-  totalChildren: number,
-  index: number,
-  spacing = HORIZONTAL_STEP,
-): Coordinates {
-  return {
-    x: familyX + (index - (totalChildren - 1) / 2) * spacing,
-    y: childY,
+function orientInnerComponents(
+  context: LayoutContext,
+  innerIds: string[],
+  personOrderByInner: ReadonlyMap<string, string[]>,
+  peopleByInner: ReadonlyMap<string, string[]>,
+): string[] {
+  for (const centreId of innerIds) {
+    const centrePeople = personOrderByInner.get(centreId) ?? []
+    if (centrePeople.length < 2) continue
+    const leftPerson = centrePeople[0]!
+    const rightPerson = centrePeople.at(-1)!
+    const leftParents = context.parentsByChild.get(leftPerson) ?? new Set<string>()
+    const rightParents = context.parentsByChild.get(rightPerson) ?? new Set<string>()
+    const sharesParent = (candidateId: string, parents: Set<string>) => (
+      [...(context.parentsByChild.get(candidateId) ?? [])].some((id) => parents.has(id))
+    )
+    const left: string[] = []
+    const right: string[] = []
+    const remaining: string[] = []
+    for (const innerId of innerIds) {
+      if (innerId === centreId) continue
+      const people = peopleByInner.get(innerId) ?? []
+      if (people.some((id) => sharesParent(id, leftParents))) left.push(innerId)
+      else if (people.some((id) => sharesParent(id, rightParents))) right.push(innerId)
+      else remaining.push(innerId)
+    }
+    if (left.length > 0 && right.length > 0) {
+      return [...left, ...remaining.slice(0, Math.floor(remaining.length / 2)), centreId,
+        ...remaining.slice(Math.floor(remaining.length / 2)), ...right]
+    }
   }
+  return innerIds
+}
+
+function roleBias(context: LayoutContext, personId: string, component: string[]): number {
+  let result = 0
+  for (const partnerId of component) {
+    if (partnerId === personId) continue
+    const sharedChildren = [...(context.childrenByParent.get(personId) ?? [])]
+      .filter((childId) => context.childrenByParent.get(partnerId)?.has(childId))
+    for (const childId of sharedChildren) {
+      const role = context.roleByParentAndChild.get(`${personId}:${childId}`)
+      if (role === 'father') result -= 1
+      if (role === 'mother') result += 1
+    }
+  }
+  return result
+}
+
+function orderingTargets(
+  context: LayoutContext,
+  row: number,
+  fixedOrders: ReadonlyMap<number, string[]>,
+): Map<string, number> {
+  const fixedIndexes = new Map<string, number>()
+  for (const [fixedRow, ids] of fixedOrders) {
+    if (fixedRow === row) continue
+    const offset = (ids.length - 1) / 2
+    ids.forEach((id, index) => fixedIndexes.set(id, index - offset))
+  }
+  const targets = new Map<string, number>()
+  for (const id of context.ids.filter((personId) => context.rowByPerson.get(personId) === row)) {
+    const neighbors = relationshipNeighbors(context, id)
+      .map((neighborId) => fixedIndexes.get(neighborId))
+      .filter((value): value is number => value !== undefined)
+    targets.set(id, neighbors.length > 0
+      ? average(neighbors)
+      : (context.seedPositions.get(id)?.x ?? 0) / HORIZONTAL_STEP)
+  }
+  return targets
+}
+
+function orderingNeighbors(state: OrderingState): OrderingState[] {
+  const result: OrderingState[] = []
+  for (let index = 1; index < state.outerOrder.length; index += 1) {
+    const next = cloneOrdering(state)
+    swap(next.outerOrder, index - 1, index)
+    result.push(next)
+  }
+  for (const outerId of state.outerOrder) {
+    const innerOrder = state.innerOrderByOuter.get(outerId) ?? []
+    for (let index = 1; index < innerOrder.length; index += 1) {
+      const next = cloneOrdering(state)
+      swap(next.innerOrderByOuter.get(outerId)!, index - 1, index)
+      result.push(next)
+    }
+  }
+  for (const [innerId, people] of state.personOrderByInner) {
+    for (let index = 1; index < people.length; index += 1) {
+      const next = cloneOrdering(state)
+      swap(next.personOrderByInner.get(innerId)!, index - 1, index)
+      result.push(next)
+    }
+  }
+  return result
+}
+
+function scoreOrdering(
+  context: LayoutContext,
+  row: number,
+  state: OrderingState,
+  fixedOrders: ReadonlyMap<number, string[]>,
+): Score {
+  const order = flattenOrdering(state)
+  const indexById = new Map(order.map((id, index) => [id, index - (order.length - 1) / 2]))
+  const fixedIndexes = new Map<string, number>()
+  for (const [fixedRow, fixedOrder] of fixedOrders) {
+    if (fixedRow === row) continue
+    fixedOrder.forEach((id, index) => fixedIndexes.set(id, index - (fixedOrder.length - 1) / 2))
+  }
+  const edges: Array<[number, number]> = []
+  for (const link of context.parentLinks) {
+    const currentId = context.rowByPerson.get(link.parentId) === row
+      ? link.parentId
+      : context.rowByPerson.get(link.childId) === row
+        ? link.childId
+        : undefined
+    const fixedId = currentId === link.parentId ? link.childId : link.parentId
+    const currentIndex = currentId ? indexById.get(currentId) : undefined
+    const fixedIndex = fixedIndexes.get(fixedId)
+    if (currentIndex !== undefined && fixedIndex !== undefined) edges.push([currentIndex, fixedIndex])
+  }
+  let crossings = 0
+  for (let index = 0; index < edges.length; index += 1) {
+    for (let other = index + 1; other < edges.length; other += 1) {
+      const first = edges[index]!
+      const second = edges[other]!
+      if ((first[0] - second[0]) * (first[1] - second[1]) < 0) crossings += 1
+    }
+  }
+  const deviations = order.map((id) => {
+    const neighbors = relationshipNeighbors(context, id)
+      .map((neighborId) => fixedIndexes.get(neighborId))
+      .filter((value): value is number => value !== undefined)
+    return neighbors.length === 0
+      ? 0
+      : Math.abs(indexById.get(id)! - average(neighbors))
+  })
+  const partnerSpan = [...context.partnersByPerson]
+    .flatMap(([id, partners]) => [...partners]
+      .filter((partnerId) => id < partnerId && indexById.has(id) && indexById.has(partnerId))
+      .map((partnerId) => Math.max(0, Math.abs(
+        indexById.get(id)! - indexById.get(partnerId)!,
+      ) - 1)))
+    .reduce((sum, value) => sum + value, 0)
+  const roleInversions = context.families.filter((family) => {
+    if (family.parentIds.length !== 2) return false
+    const [first, second] = family.parentIds
+    if (!indexById.has(first!) || !indexById.has(second!)) return false
+    const childId = family.childIds[0]!
+    const firstRole = context.roleByParentAndChild.get(`${first}:${childId}`)
+    const fatherId = firstRole === 'father' ? first : second
+    const motherId = firstRole === 'mother' ? first : second
+    return indexById.get(fatherId!)! > indexById.get(motherId!)!
+  }).length
+  const branchOrientationViolations = context.families.reduce((violations, family) => {
+    if (family.parentIds.length !== 2) return violations
+    const [first, second] = [...family.parentIds].sort((left, right) => (
+      (indexById.get(left) ?? 0) - (indexById.get(right) ?? 0)
+    ))
+    if (!indexById.has(first!) || !indexById.has(second!)) return violations
+    const countWrongSide = (personId: string, direction: -1 | 1) => {
+      const ownParents = context.parentsByChild.get(personId) ?? new Set<string>()
+      return context.ids.filter((candidateId) => {
+        if (candidateId === personId || !indexById.has(candidateId)) return false
+        const candidateParents = context.parentsByChild.get(candidateId) ?? new Set<string>()
+        if (![...ownParents].some((id) => candidateParents.has(id))) return false
+        return direction * (indexById.get(candidateId)! - indexById.get(personId)!) < 0
+      }).length
+    }
+    if (
+      (context.parentsByChild.get(first!)?.size ?? 0) === 0
+      || (context.parentsByChild.get(second!)?.size ?? 0) === 0
+    ) return violations
+    return violations + countWrongSide(first!, -1) + countWrongSide(second!, 1)
+  }, 0)
+  const excessChildSpace = context.families.reduce((excess, family) => {
+    const children = family.childIds
+      .filter((id) => indexById.has(id))
+      .sort((first, second) => indexById.get(first)! - indexById.get(second)!)
+    if (children.length < 2) return excess
+    const required = children.slice(1).map((rightId, index) => (
+      Math.max(
+        minimumDistance(context, children[index]!, rightId),
+        (
+          estimatedBranchWidth(context, children[index]!)
+          + estimatedBranchWidth(context, rightId)
+        ) / 2 + CARD_GAP,
+      )
+    ))
+    const uniform = Math.max(...required)
+    return excess + required.reduce((sum, distance) => sum + uniform - distance, 0)
+  }, 0)
+  return [
+    roleInversions + branchOrientationViolations,
+    Math.max(0, ...deviations),
+    crossings,
+    deviations.reduce((sum, value) => sum + value, 0),
+    excessChildSpace,
+    partnerSpan,
+    order.join(':'),
+  ]
+}
+
+function estimatedBranchWidth(context: LayoutContext, rootId: string): number {
+  const rootRow = context.rowByPerson.get(rootId)!
+  const members = new Set<string>()
+  const pending = [rootId]
+  while (pending.length > 0) {
+    const id = pending.shift()!
+    if (members.has(id) || context.rowByPerson.get(id)! < rootRow) continue
+    members.add(id)
+    for (const partnerId of context.partnersByPerson.get(id) ?? []) pending.push(partnerId)
+    for (const childId of context.childrenByParent.get(id) ?? []) pending.push(childId)
+  }
+  const counts = new Map<number, number>()
+  for (const id of members) {
+    const row = context.rowByPerson.get(id)!
+    counts.set(row, (counts.get(row) ?? 0) + 1)
+  }
+  return Math.max(...[...counts.values()].map((count) => (
+    PERSON_CARD_WIDTH + Math.max(0, count - 1) * (PERSON_CARD_WIDTH + CARD_GAP)
+  )))
+}
+
+function solveCoordinates(
+  context: LayoutContext,
+  orders: ReadonlyMap<number, string[]>,
+  childGapPolicies: ChildGapPolicy[],
+): Map<string, number> {
+  const solver = new Solver()
+  solver.maxIterations = 100_000
+  const variables = new Map(context.ids.map((id) => [id, new Variable(id)]))
+  const maxFamilyDeviation = new Variable('max-family-deviation')
+  solver.createConstraint(maxFamilyDeviation, Operator.Ge, 0)
+  solver.createConstraint(maxFamilyDeviation, Operator.Eq, 0, Strength.strong)
+  const referenceVariables = [...context.referenceIds]
+    .filter((id) => variables.has(id))
+    .map((id) => variables.get(id)!)
+  const referenceCenter = referenceVariables.length > 0
+    ? averageExpression(referenceVariables)
+    : new Expression(0)
+  const anchorRow = selectAnchorRow(context)
+  const ancestorFan = isPureAncestorFan(context)
+
+  for (const row of context.rows) {
+    const order = orders.get(row)!
+    const idealWidth = order.slice(1).reduce((width, id, index) => (
+      width + minimumDistance(context, order[index]!, id)
+    ), 0)
+    let desired = -idealWidth / 2
+    order.forEach((id, index) => {
+      const variable = variables.get(id)!
+      if (index > 0) {
+        const previousId = order[index - 1]!
+        solver.createConstraint(
+          variable.minus(variables.get(previousId)!),
+          Operator.Ge,
+          minimumDistance(context, previousId, id),
+        )
+      }
+      solver.createConstraint(variable, Operator.Eq, desired, Strength.weak)
+      if (index + 1 < order.length) desired += minimumDistance(context, id, order[index + 1]!)
+    })
+    if (order.length > 0) {
+      const rowCenter = order.length === 1
+        ? new Expression(variables.get(order[0]!)!)
+        : averageExpression([
+            variables.get(order[0]!)!,
+            variables.get(order.at(-1)!)!,
+          ])
+      solver.createConstraint(
+        rowCenter,
+        Operator.Eq,
+        referenceCenter,
+        ancestorFan || row === anchorRow ? Strength.strong : Strength.weak,
+      )
+    }
+  }
+
+  for (const [personId, partners] of [...context.partnersByPerson].sort(([a], [b]) => (
+    a.localeCompare(b)
+  ))) {
+    for (const partnerId of [...partners].sort((a, b) => a.localeCompare(b))) {
+      if (personId >= partnerId) continue
+      const rowOrder = orders.get(context.rowByPerson.get(personId)!)!
+      const direction = Math.sign(rowOrder.indexOf(partnerId) - rowOrder.indexOf(personId)) || 1
+      solver.createConstraint(
+        variables.get(partnerId)!.minus(variables.get(personId)!),
+        Operator.Eq,
+        direction * HORIZONTAL_STEP,
+        Strength.medium,
+      )
+    }
+  }
+
+  for (const family of context.families) {
+    if (family.childIds.length === 0) continue
+    const parentExpression = averageExpression(family.parentIds.map((id) => variables.get(id)!))
+    const orderedChildren = [...family.childIds].sort((first, second) => (
+      orders.get(context.rowByPerson.get(first)!)!.indexOf(first)
+      - orders.get(context.rowByPerson.get(second)!)!.indexOf(second)
+      || first.localeCompare(second)
+    ))
+    const extremeChildren = orderedChildren.length === 1
+      ? [orderedChildren[0]!]
+      : [orderedChildren[0]!, orderedChildren.at(-1)!]
+    const childExpression = averageExpression(extremeChildren.map((id) => variables.get(id)!))
+    const deviation = parentExpression.minus(childExpression)
+    solver.createConstraint(deviation, Operator.Le, maxFamilyDeviation)
+    solver.createConstraint(deviation.multiply(-1), Operator.Le, maxFamilyDeviation)
+    solver.createConstraint(
+      deviation,
+      Operator.Eq,
+      0,
+      ancestorFan ? Strength.medium : Strength.strong,
+    )
+  }
+
+  for (const policy of childGapPolicies) {
+    for (let index = 1; index < policy.childIds.length; index += 1) {
+      solver.createConstraint(
+        variables.get(policy.childIds[index]!)!.minus(variables.get(policy.childIds[index - 1]!)!),
+        Operator.Eq,
+        policy.distances[index - 1]!,
+        policy.variable ? Strength.strong : Strength.medium,
+      )
+    }
+  }
+
+  solver.updateVariables()
+  return new Map(context.ids.map((id) => [id, normalized(variables.get(id)!.value())]))
+}
+
+function isPureAncestorFan(context: LayoutContext): boolean {
+  return context.referenceIds.size === 1
+    && [...context.childrenByParent.values()].every((children) => children.size <= 1)
+    && context.families.every((family) => family.childIds.length <= 1)
+}
+
+/**
+ * Child spacing is deliberately two-stage. We first retain one common step for
+ * the best legal branch order. Only a reducible interval above 100 px unlocks
+ * pair-specific distances; the order is then frozen and only those gaps shrink.
+ */
+function buildChildGapPolicies(
+  context: LayoutContext,
+  orders: ReadonlyMap<number, string[]>,
+  coordinates: ReadonlyMap<string, number>,
+): ChildGapPolicy[] {
+  const policies: ChildGapPolicy[] = []
+  const descendantBlocks = new Map<string, Set<string>>()
+  for (const family of context.families) {
+    if (family.childIds.length < 2) continue
+    const childIds = [...family.childIds].sort((first, second) => (
+      orders.get(context.rowByPerson.get(first)!)!.indexOf(first)
+      - orders.get(context.rowByPerson.get(second)!)!.indexOf(second)
+      || first.localeCompare(second)
+    ))
+    const blocks = childIds.map((id) => descendantFamilyBlock(context, id, descendantBlocks))
+    if (blocks.some((block, index) => blocks.slice(index + 1).some((other) => (
+      [...block].some((id) => other.has(id))
+    )))) continue
+
+    const required = childIds.slice(1).map((rightId, index) => requiredBranchDistance(
+      context,
+      childIds[index]!,
+      rightId,
+      blocks[index]!,
+      blocks[index + 1]!,
+      coordinates,
+    ))
+    const decision = chooseChildGapDistances(required)
+    policies.push({
+      childIds,
+      distances: decision.distances,
+      variable: decision.variable,
+    })
+  }
+  return policies
+}
+
+function descendantFamilyBlock(
+  context: LayoutContext,
+  rootId: string,
+  cache: Map<string, Set<string>>,
+): Set<string> {
+  const cached = cache.get(rootId)
+  if (cached) return cached
+  const result = new Set<string>()
+  const pending = [rootId]
+  const rootRow = context.rowByPerson.get(rootId)!
+  while (pending.length > 0) {
+    const id = pending.shift()!
+    if (result.has(id) || context.rowByPerson.get(id)! < rootRow) continue
+    result.add(id)
+    for (const partnerId of context.partnersByPerson.get(id) ?? []) pending.push(partnerId)
+    for (const childId of context.childrenByParent.get(id) ?? []) pending.push(childId)
+  }
+  cache.set(rootId, result)
+  return result
+}
+
+function requiredBranchDistance(
+  context: LayoutContext,
+  leftRootId: string,
+  rightRootId: string,
+  leftBlock: Set<string>,
+  rightBlock: Set<string>,
+  coordinates: ReadonlyMap<string, number>,
+): number {
+  const leftRootX = coordinates.get(leftRootId)!
+  const rightRootX = coordinates.get(rightRootId)!
+  const rows = new Set([...leftBlock].map((id) => context.rowByPerson.get(id)!))
+  let required = minimumDistance(context, leftRootId, rightRootId)
+  for (const row of rows) {
+    const leftIds = [...leftBlock].filter((id) => context.rowByPerson.get(id) === row)
+    const rightIds = [...rightBlock].filter((id) => context.rowByPerson.get(id) === row)
+    if (leftIds.length === 0 || rightIds.length === 0) continue
+    const leftContour = Math.max(...leftIds.map((id) => (
+      coordinates.get(id)! - leftRootX + PERSON_CARD_WIDTH / 2
+    )))
+    const rightContour = Math.min(...rightIds.map((id) => (
+      coordinates.get(id)! - rightRootX - PERSON_CARD_WIDTH / 2
+    )))
+    const cardGap = areHalfSiblings(context, leftRootId, rightRootId)
+      ? HALF_SIBLING_CARD_GAP
+      : CARD_GAP
+    required = Math.max(required, leftContour + cardGap - rightContour)
+  }
+  return normalized(required)
+}
+
+function averageExpression(variables: Variable[]): Expression {
+  return new Expression(...variables.map((variable) => [1 / variables.length, variable]))
+}
+
+function minimumDistance(context: LayoutContext, first: string, second: string): number {
+  return areHalfSiblings(context, first, second) ? HALF_SIBLING_GAP : PERSON_CARD_WIDTH + CARD_GAP
+}
+
+function areHalfSiblings(context: LayoutContext, first: string, second: string): boolean {
+  const firstParents = context.parentsByChild.get(first) ?? new Set<string>()
+  const secondParents = context.parentsByChild.get(second) ?? new Set<string>()
+  if (firstParents.size === 0 || secondParents.size === 0) return false
+  const shared = [...firstParents].filter((id) => secondParents.has(id)).length
+  return shared > 0 && shared < Math.max(firstParents.size, secondParents.size)
+}
+
+function relationshipNeighbors(context: LayoutContext, id: string): string[] {
+  return [
+    ...(context.parentsByChild.get(id) ?? []),
+    ...(context.childrenByParent.get(id) ?? []),
+    ...(context.partnersByPerson.get(id) ?? []),
+  ].sort((a, b) => a.localeCompare(b))
+}
+
+function peopleByRowMap(context: LayoutContext): Map<number, string[]> {
+  const result = new Map<number, string[]>()
+  for (const id of context.ids) {
+    const row = context.rowByPerson.get(id)!
+    const values = result.get(row) ?? []
+    values.push(id)
+    result.set(row, values)
+  }
+  return result
+}
+
+function cloneOrdering(state: OrderingState): OrderingState {
+  return {
+    outerOrder: [...state.outerOrder],
+    innerOrderByOuter: new Map([...state.innerOrderByOuter].map(([id, values]) => [id, [...values]])),
+    personOrderByInner: new Map([...state.personOrderByInner].map(([id, values]) => [id, [...values]])),
+  }
+}
+
+function flattenOrdering(state: OrderingState): string[] {
+  return state.outerOrder.flatMap((outerId) => (
+    state.innerOrderByOuter.get(outerId)!.flatMap((innerId) => (
+      state.personOrderByInner.get(innerId)!
+    ))
+  ))
+}
+
+function orderingKey(state: OrderingState): string {
+  return flattenOrdering(state).join(':')
+}
+
+function compareScore(first: Score, second: Score): number {
+  for (let index = 0; index < first.length - 1; index += 1) {
+    const difference = (first[index] as number) - (second[index] as number)
+    if (Math.abs(difference) > COORDINATE_TOLERANCE) return difference
+  }
+  return first[6].localeCompare(second[6])
+}
+
+function normalized(value: number): number {
+  const rounded = Math.round(value * 1_000_000) / 1_000_000
+  return Object.is(rounded, -0) ? 0 : rounded
+}
+
+function average(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function addToSet(map: Map<string, Set<string>>, key: string, value: string): void {
+  const values = map.get(key) ?? new Set<string>()
+  values.add(value)
+  map.set(key, values)
+}
+
+function swap(values: string[], first: number, second: number): void {
+  const value = values[first]!
+  values[first] = values[second]!
+  values[second] = value
+}
+
+function orderedPair(first: string, second: string): [string, string] {
+  return first.localeCompare(second) <= 0 ? [first, second] : [second, first]
+}
+
+function pairComparator(first: [string, string], second: [string, string]): number {
+  return first[0].localeCompare(second[0]) || first[1].localeCompare(second[1])
+}
+
+function parentLinkComparator(first: ParentLink, second: ParentLink): number {
+  return first.childId.localeCompare(second.childId)
+    || first.role.localeCompare(second.role)
+    || first.parentId.localeCompare(second.parentId)
+    || first.id.localeCompare(second.id)
 }

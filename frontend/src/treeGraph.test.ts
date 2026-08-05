@@ -312,6 +312,121 @@ describe('deterministic tree layout', () => {
     ))]).toEqual([...positions])
   })
 
+  it('keeps the 101-person wide-tree regression collision-free and deterministic', () => {
+    const people = ['reference', 'father', 'mother', 'paternal-grandfather',
+      'paternal-grandmother', 'maternal-grandfather', 'maternal-grandmother'].map(person)
+    const parentLinks: ParentLink[] = [
+      link('reference-father', 'father', 'reference', 'father'),
+      link('reference-mother', 'mother', 'reference', 'mother'),
+      link('father-father', 'paternal-grandfather', 'father', 'father'),
+      link('father-mother', 'paternal-grandmother', 'father', 'mother'),
+      link('mother-father', 'maternal-grandfather', 'mother', 'father'),
+      link('mother-mother', 'maternal-grandmother', 'mother', 'mother'),
+    ]
+    const marriages = [
+      marriage('parents', 'father', 'mother'),
+      marriage('paternal-grandparents', 'paternal-grandfather', 'paternal-grandmother'),
+      marriage('maternal-grandparents', 'maternal-grandfather', 'maternal-grandmother'),
+    ]
+    const cousinBranches: string[][] = []
+
+    for (const side of ['paternal', 'maternal']) {
+      const grandfather = `${side}-grandfather`
+      const grandmother = `${side}-grandmother`
+      const cousins: string[] = []
+      for (let branch = 1; branch <= 4; branch += 1) {
+        const sibling = `${side}-sibling-${branch}`
+        const spouse = `${sibling}-spouse`
+        people.push(person(sibling), person(spouse))
+        parentLinks.push(
+          link(`${sibling}-father`, grandfather, sibling, 'father'),
+          link(`${sibling}-mother`, grandmother, sibling, 'mother'),
+        )
+        marriages.push(marriage(`${sibling}-marriage`, sibling, spouse))
+        for (let child = 1; child <= 4; child += 1) {
+          const cousin = `${sibling}-child-${child}`
+          cousins.push(cousin)
+          people.push(person(cousin))
+          parentLinks.push(
+            link(`${cousin}-father`, sibling, cousin, 'father'),
+            link(`${cousin}-mother`, spouse, cousin, 'mother'),
+          )
+        }
+      }
+      cousinBranches.push(cousins)
+    }
+
+    for (let branch = 1; branch <= 8; branch += 1) {
+      const sibling = `sibling-${branch}`
+      const spouse = `${sibling}-spouse`
+      people.push(person(sibling), person(spouse))
+      parentLinks.push(
+        link(`${sibling}-father`, 'father', sibling, 'father'),
+        link(`${sibling}-mother`, 'mother', sibling, 'mother'),
+      )
+      marriages.push(marriage(`${sibling}-marriage`, sibling, spouse))
+      for (let child = 1; child <= 2; child += 1) {
+        const nephew = `${sibling}-child-${child}`
+        people.push(person(nephew))
+        parentLinks.push(
+          link(`${nephew}-father`, sibling, nephew, 'father'),
+          link(`${nephew}-mother`, spouse, nephew, 'mother'),
+        )
+      }
+    }
+
+    people.push(person('reference-spouse'))
+    marriages.push(marriage('reference-marriage', 'reference', 'reference-spouse'))
+    for (let child = 1; child <= 7; child += 1) {
+      const childId = `reference-child-${child}`
+      people.push(person(childId))
+      parentLinks.push(
+        link(`${childId}-father`, 'reference', childId, 'father'),
+        link(`${childId}-mother`, 'reference-spouse', childId, 'mother'),
+      )
+      if (child <= 3) {
+        const spouse = `${childId}-spouse`
+        const grandchild = `${childId}-child`
+        people.push(person(spouse), person(grandchild))
+        marriages.push(marriage(`${childId}-marriage`, childId, spouse))
+        parentLinks.push(
+          link(`${grandchild}-father`, childId, grandchild, 'father'),
+          link(`${grandchild}-mother`, spouse, grandchild, 'mother'),
+        )
+      }
+    }
+
+    expect(people).toHaveLength(101)
+    const tree = snapshot(people, parentLinks, marriages, {
+      type: 'person', personId: 'reference',
+    })
+    const positions = layoutTree(tree)
+    for (const [firstId, first] of positions) {
+      for (const [secondId, second] of positions) {
+        if (firstId >= secondId) continue
+        const overlaps = first.x < second.x + PERSON_CARD_WIDTH
+          && first.x + PERSON_CARD_WIDTH > second.x
+          && first.y < second.y + PERSON_CARD_HEIGHT
+          && first.y + PERSON_CARD_HEIGHT > second.y
+        expect(overlaps, `${firstId} overlaps ${secondId}`).toBe(false)
+      }
+    }
+    const branchSpans = cousinBranches.map((ids) => ({
+      left: Math.min(...ids.map((id) => positions.get(id)!.x)),
+      right: Math.max(...ids.map((id) => positions.get(id)!.x + PERSON_CARD_WIDTH)),
+    }))
+    expect(
+      branchSpans[0]!.right <= branchSpans[1]!.left
+      || branchSpans[1]!.right <= branchSpans[0]!.left,
+    ).toBe(true)
+    expect([...layoutTree(snapshot(
+      [...people].reverse(),
+      [...parentLinks].reverse(),
+      [...marriages].reverse(),
+      tree.tree.reference,
+    ))]).toEqual([...positions])
+  }, 15_000)
+
   it('centers every sibling block below its parents', () => {
     const family = snapshot(
       ['father', 'mother', 'first', 'second', 'third'].map(person),
@@ -334,6 +449,46 @@ describe('deterministic tree layout', () => {
     expect(positions.get('first')!.y - positions.get('father')!.y).toBe(240)
     expect(positions.get('second')!.y).toBe(positions.get('first')!.y)
     expect(positions.get('third')!.y).toBe(positions.get('first')!.y)
+  })
+
+  it('compacts narrow child intervals around one wide descendant branch', () => {
+    const childIds = ['child-a', 'child-b', 'child-c', 'child-d']
+    const grandchildIds = Array.from({ length: 6 }, (_, index) => `grandchild-${index}`)
+    const family = snapshot(
+      [
+        'father', 'mother', ...childIds, 'wide-child-spouse', ...grandchildIds,
+      ].map(person),
+      [
+        ...childIds.flatMap((childId, index) => [
+          link(`father-${index}`, 'father', childId, 'father'),
+          link(`mother-${index}`, 'mother', childId, 'mother'),
+        ]),
+        ...grandchildIds.flatMap((childId, index) => [
+          link(`wide-${index}`, 'child-b', childId, 'father'),
+          link(`spouse-${index}`, 'wide-child-spouse', childId, 'mother'),
+        ]),
+      ],
+      [
+        marriage('parents', 'father', 'mother'),
+        marriage('wide-child', 'child-b', 'wide-child-spouse'),
+      ],
+      { type: 'marriage', personIds: ['father', 'mother'] },
+    )
+    const positions = layoutTree(family)
+    const orderedChildren = [...childIds].sort((first, second) => (
+      positions.get(first)!.x - positions.get(second)!.x
+    ))
+    const gaps = orderedChildren.slice(1).map((id, index) => (
+      positions.get(id)!.x - positions.get(orderedChildren[index]!)!.x
+    ))
+    const parentCenter = (positions.get('father')!.x + positions.get('mother')!.x) / 2
+    const extremeChildCenter = (
+      positions.get(orderedChildren[0]!)!.x
+      + positions.get(orderedChildren.at(-1)!)!.x
+    ) / 2
+
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeGreaterThan(100)
+    expect(parentCenter).toBeCloseTo(extremeChildCenter)
   })
 
   it('keeps a sibling group contiguous except for their spouses', () => {
