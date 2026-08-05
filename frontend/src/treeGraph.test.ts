@@ -412,6 +412,82 @@ describe('deterministic tree layout', () => {
     ))]).toEqual([...positions])
   })
 
+  it('orients two ancestral sibling branches towards their connecting marriage', () => {
+    const people = [
+      'paternal-grandfather', 'paternal-grandmother',
+      'maternal-grandfather', 'maternal-grandmother',
+      'father', 'mother', 'proband',
+      'paternal-relative-1', 'paternal-spouse-1',
+      'paternal-relative-2', 'paternal-spouse-2',
+      'maternal-relative-1', 'maternal-spouse-1',
+      'maternal-relative-2', 'maternal-spouse-2',
+      'paternal-cousin-1-1', 'paternal-cousin-1-2',
+      'paternal-cousin-2-1', 'paternal-cousin-2-2',
+      'maternal-cousin-1-1', 'maternal-cousin-1-2',
+      'maternal-cousin-2-1', 'maternal-cousin-2-2',
+    ].map(person)
+    const parentLinks: ParentLink[] = [
+      ...['father', 'paternal-relative-1', 'paternal-relative-2'].flatMap((childId) => [
+        link(`paternal-grandfather-${childId}`, 'paternal-grandfather', childId, 'father'),
+        link(`paternal-grandmother-${childId}`, 'paternal-grandmother', childId, 'mother'),
+      ]),
+      ...['mother', 'maternal-relative-1', 'maternal-relative-2'].flatMap((childId) => [
+        link(`maternal-grandfather-${childId}`, 'maternal-grandfather', childId, 'father'),
+        link(`maternal-grandmother-${childId}`, 'maternal-grandmother', childId, 'mother'),
+      ]),
+      link('father-proband', 'father', 'proband', 'father'),
+      link('mother-proband', 'mother', 'proband', 'mother'),
+    ]
+    for (const branch of ['paternal', 'maternal'] as const) {
+      for (const familyIndex of [1, 2]) {
+        for (const childIndex of [1, 2]) {
+          const childId = `${branch}-cousin-${familyIndex}-${childIndex}`
+          parentLinks.push(
+            link(
+              `${branch}-relative-${familyIndex}-${childId}`,
+              `${branch}-relative-${familyIndex}`,
+              childId,
+              'father',
+            ),
+            link(
+              `${branch}-spouse-${familyIndex}-${childId}`,
+              `${branch}-spouse-${familyIndex}`,
+              childId,
+              'mother',
+            ),
+          )
+        }
+      }
+    }
+    const marriages = [
+      marriage('paternal-grandparents', 'paternal-grandfather', 'paternal-grandmother'),
+      marriage('maternal-grandparents', 'maternal-grandfather', 'maternal-grandmother'),
+      marriage('parents', 'father', 'mother'),
+      ...(['paternal', 'maternal'] as const).flatMap((branch) => [1, 2].map((index) => (
+        marriage(
+          `${branch}-relative-marriage-${index}`,
+          `${branch}-relative-${index}`,
+          `${branch}-spouse-${index}`,
+        )
+      ))),
+    ]
+    const tree = snapshot(
+      people,
+      parentLinks,
+      marriages,
+      { type: 'person', personId: 'proband' },
+    )
+    const positions = layoutTree(tree)
+    const paternalCousins = people.filter((item) => item.id.startsWith('paternal-cousin'))
+    const maternalCousins = people.filter((item) => item.id.startsWith('maternal-cousin'))
+    const paternalRight = Math.max(...paternalCousins.map((item) => positions.get(item.id)!.x))
+    const maternalLeft = Math.min(...maternalCousins.map((item) => positions.get(item.id)!.x))
+
+    expect(paternalRight).toBeLessThan(maternalLeft)
+    expect(positions.get('father')!.x).toBeLessThan(positions.get('mother')!.x)
+    expect(positions.get('mother')!.x - positions.get('father')!.x).toBe(320)
+  })
+
   it('balances one parent between several spouse families', () => {
     const family = snapshot(
       [

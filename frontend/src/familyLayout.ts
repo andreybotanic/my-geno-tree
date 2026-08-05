@@ -346,10 +346,14 @@ function reflowTree(
     return result
   }
   const childrenByParent = new Map<string, Set<string>>()
+  const parentRolesByChild = new Map<string, Map<string, ParentLink['role']>>()
   for (const link of snapshot.parentLinks) {
     const children = childrenByParent.get(link.parentId) ?? new Set<string>()
     children.add(link.childId)
     childrenByParent.set(link.parentId, children)
+    const roles = parentRolesByChild.get(link.childId) ?? new Map()
+    roles.set(link.parentId, link.role)
+    parentRolesByChild.set(link.childId, roles)
   }
   const descendantFamilyBlockCache = new Map<string, Set<string>>()
   const descendantFamilyBlock = (personId: string): Set<string> => {
@@ -384,6 +388,15 @@ function reflowTree(
     .filter(([, childIds]) => childIds.size > 1)
     .map(([parentId, childIds]) => ({
       childIds: [...childIds].sort(),
+      lineageKey: [...childIds]
+        .reduce<string[]>((commonParentIds, childId, index) => {
+          const childParentIds = parentsByChild.get(childId) ?? []
+          return index === 0
+            ? [...childParentIds]
+            : commonParentIds.filter((candidateId) => childParentIds.includes(candidateId))
+        }, [])
+        .sort()
+        .join(':'),
       parentDepth: depth(parentId),
     }))
     .filter((group, index, groups) => (
@@ -395,6 +408,38 @@ function reflowTree(
       second.parentDepth - first.parentDepth
       || first.childIds.join(':').localeCompare(second.childIds.join(':'))
     ))
+  // A sibling whose co-parent has a known ancestry is the bridge to another
+  // ancestral branch: fathers close the right edge, mothers the left edge.
+  const siblingBridgeSide = (personId: string, lineageKey: string) => {
+    const sides = new Set<number>()
+    const ownChildren = childrenByParent.get(personId) ?? new Set<string>()
+    for (const partnerId of [...(partnersByPerson.get(personId) ?? [])].sort()) {
+      const partnerParentIds = [...(parentsByChild.get(partnerId) ?? [])].sort()
+      if (partnerParentIds.length === 0) {
+        continue
+      }
+      const sharedChildIds = [...(childrenByParent.get(partnerId) ?? [])]
+        .filter((childId) => ownChildren.has(childId))
+        .sort()
+      for (const childId of sharedChildIds) {
+        const ownRole = parentRolesByChild.get(childId)?.get(personId)
+        const partnerRole = parentRolesByChild.get(childId)?.get(partnerId)
+        if (ownRole === 'father' && partnerRole === 'mother') {
+          sides.add(1)
+        } else if (ownRole === 'mother' && partnerRole === 'father') {
+          sides.add(-1)
+        }
+      }
+      if (sharedChildIds.length === 0) {
+        const partnerLineageKey = partnerParentIds.join(':')
+        if (partnerLineageKey !== lineageKey) {
+          sides.add(lineageKey.localeCompare(partnerLineageKey) < 0 ? 1 : -1)
+        }
+      }
+    }
+
+    return sides.size === 1 ? [...sides][0]! : 0
+  }
   // Keep every sibling's partners and descendants in one horizontal band so
   // cousin branches cannot alternate. Deep groups are fixed before ancestors.
   const separateSiblingSubtrees = () => {
@@ -402,6 +447,7 @@ function reflowTree(
       const branches = siblingGroup.childIds.map((personId) => ({
         members: descendantFamilyBlock(personId),
         personId,
+        side: siblingBridgeSide(personId, siblingGroup.lineageKey),
       }))
       const branchesOverlap = branches.some((branch, index) => (
         branches.slice(index + 1).some((candidate) => (
@@ -412,7 +458,8 @@ function reflowTree(
         continue
       }
       branches.sort((first, second) => (
-        (positions.get(first.personId)?.x ?? 0) - (positions.get(second.personId)?.x ?? 0)
+        first.side - second.side
+        || (positions.get(first.personId)?.x ?? 0) - (positions.get(second.personId)?.x ?? 0)
         || first.personId.localeCompare(second.personId)
       ))
       let previousRight: number | undefined
@@ -438,6 +485,49 @@ function reflowTree(
         }
         previousRight = Math.max(previousRight ?? Number.NEGATIVE_INFINITY, right + shift)
       }
+    }
+  }
+  const orientParentPairs = () => {
+    const orientedPairs = new Set<string>()
+    const coParentsByPerson = new Map<string, Set<string>>()
+    for (const roles of parentRolesByChild.values()) {
+      const parentIds = [...roles.keys()]
+      if (parentIds.length !== 2) {
+        continue
+      }
+      for (const [personId, coParentId] of [parentIds, [...parentIds].reverse()] as [string, string][]) {
+        const coParents = coParentsByPerson.get(personId) ?? new Set<string>()
+        coParents.add(coParentId)
+        coParentsByPerson.set(personId, coParents)
+      }
+    }
+    for (const roles of parentRolesByChild.values()) {
+      const fatherId = [...roles].find(([, role]) => role === 'father')?.[0]
+      const motherId = [...roles].find(([, role]) => role === 'mother')?.[0]
+      if (!fatherId || !motherId) {
+        continue
+      }
+      if (
+        coParentsByPerson.get(fatherId)?.size !== 1
+        || coParentsByPerson.get(motherId)?.size !== 1
+      ) {
+        continue
+      }
+      const key = [fatherId, motherId].sort().join(':')
+      if (orientedPairs.has(key)) {
+        continue
+      }
+      orientedPairs.add(key)
+      const father = positions.get(fatherId)
+      const mother = positions.get(motherId)
+      if (!father || !mother || father.y !== mother.y) {
+        continue
+      }
+      // Only an unambiguous co-parent pair is compacted; a shared parent with
+      // several partners must retain the independently balanced family blocks.
+      const center = (father.x + mother.x) / 2
+      positions.set(fatherId, { ...father, x: center - HORIZONTAL_STEP / 2 })
+      positions.set(motherId, { ...mother, x: center + HORIZONTAL_STEP / 2 })
     }
   }
   const belongsToDirectFamily = (personId: string, childId: string) => (
@@ -835,6 +925,7 @@ function reflowTree(
   reconcileFamilyCentres()
   separateSiblingSubtrees()
   reconcileFamilyCentres()
+  orientParentPairs()
 
   return snapshot.people.flatMap((person) => {
     const coordinates = positions.get(person.id)
