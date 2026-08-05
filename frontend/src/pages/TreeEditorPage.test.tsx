@@ -256,6 +256,12 @@ describe('TreeEditorPage', () => {
     for (const name of ['Zoom out', 'Zoom in', 'Reset camera']) {
       expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
     }
+    const resetPanel = screen.getByRole('button', { name: 'Reset camera' })
+      .closest('.camera-reset-controls')
+    const zoomPanel = screen.getByRole('button', { name: 'Zoom out' })
+      .closest('.zoom-controls')
+    expect(resetPanel).not.toBeNull()
+    expect(resetPanel?.nextElementSibling).toBe(zoomPanel)
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
       expect.objectContaining({

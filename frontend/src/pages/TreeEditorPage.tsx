@@ -208,44 +208,48 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
   const { zoom } = useViewport()
 
   return (
-    <Panel className="zoom-controls" position="bottom-right">
-      <button
-        aria-label={t('editor.zoomOut')}
-        className="editor-tool-button"
-        onClick={() => void zoomOut({ duration: 150 })}
-        title={t('editor.zoomOut')}
-        type="button"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M5 12h14" />
-        </svg>
-      </button>
-      <output aria-label={t('editor.zoomLevel')}>
-        {Math.round(zoom * 100)}%
-      </output>
-      <button
-        aria-label={t('editor.zoomIn')}
-        className="editor-tool-button"
-        onClick={() => void zoomIn({ duration: 150 })}
-        title={t('editor.zoomIn')}
-        type="button"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M5 12h14M12 5v14" />
-        </svg>
-      </button>
-      <button
-        aria-label={t('editor.resetCamera')}
-        className="editor-tool-button"
-        onClick={onReset}
-        title={t('editor.resetCamera')}
-        type="button"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="5" />
-          <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
-        </svg>
-      </button>
+    <Panel className="camera-controls" position="bottom-right">
+      <div className="camera-reset-controls">
+        <button
+          aria-label={t('editor.resetCamera')}
+          className="editor-tool-button"
+          onClick={onReset}
+          title={t('editor.resetCamera')}
+          type="button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5" />
+            <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
+          </svg>
+        </button>
+      </div>
+      <div className="zoom-controls">
+        <button
+          aria-label={t('editor.zoomOut')}
+          className="editor-tool-button"
+          onClick={() => void zoomOut({ duration: 150 })}
+          title={t('editor.zoomOut')}
+          type="button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <output aria-label={t('editor.zoomLevel')}>
+          {Math.round(zoom * 100)}%
+        </output>
+        <button
+          aria-label={t('editor.zoomIn')}
+          className="editor-tool-button"
+          onClick={() => void zoomIn({ duration: 150 })}
+          title={t('editor.zoomIn')}
+          type="button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h14M12 5v14" />
+          </svg>
+        </button>
+      </div>
     </Panel>
   )
 }

@@ -957,6 +957,7 @@
   stroke-dasharray: 8 7;
 }
 
+.camera-reset-controls,
 .zoom-controls,
 .editor-toolbar {
   align-items: center;
@@ -966,6 +967,12 @@
   box-shadow: 0 8px 24px var(--color-shadow);
   display: flex;
   overflow: hidden;
+}
+
+.camera-controls {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }
 
 .zoom-controls output {
