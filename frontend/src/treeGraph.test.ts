@@ -194,6 +194,25 @@ describe('deterministic tree layout', () => {
     expect(Math.abs(
       positions.get(ids.paternalGrandfather)!.x - positions.get(ids.father)!.x,
     )).toBeLessThanOrEqual(480)
+    expect(Math.abs(
+      positions.get(ids.paternalAunt)!.x - positions.get(ids.paternalGrandfather)!.x,
+    )).toBeLessThanOrEqual(400)
+    const wifeParentCenter = (
+      positions.get(ids.wifeFather)!.x + positions.get(ids.wifeMother)!.x
+    ) / 2
+    const wifeSiblingCenter = (
+      positions.get(ids.referenceWife)!.x + positions.get(ids.wifeSibling)!.x
+    ) / 2
+    const wifeFatherParentCenter = (
+      positions.get(ids.wifePaternalGrandfather)!.x
+      + positions.get(ids.wifePaternalGrandmother)!.x
+    ) / 2
+    expect(Math.abs(wifeParentCenter - wifeSiblingCenter)).toBeLessThanOrEqual(20)
+    expect(Math.abs(
+      wifeFatherParentCenter - positions.get(ids.wifeFather)!.x,
+    )).toBeLessThan(Math.abs(
+      wifeFatherParentCenter - positions.get(ids.wifeMother)!.x,
+    ))
     for (const [firstId, first] of positions) {
       for (const [secondId, second] of positions) {
         if (firstId >= secondId) continue

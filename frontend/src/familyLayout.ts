@@ -453,7 +453,8 @@ function reflowTree(
     return sides.size === 1 ? [...sides][0]! : 0
   }
   // Keep every sibling's partners and descendants in one horizontal band so
-  // cousin branches cannot alternate. Deep groups are fixed before ancestors.
+  // cousin branches cannot alternate. Around the reference branch, close unused
+  // space from both sides; deep groups are fixed before ancestors.
   const separateSiblingSubtrees = () => {
     for (const siblingGroup of siblingGroups) {
       const branches = siblingGroup.childIds.map((personId) => ({
@@ -474,20 +475,19 @@ function reflowTree(
         || (positions.get(first.personId)?.x ?? 0) - (positions.get(second.personId)?.x ?? 0)
         || first.personId.localeCompare(second.personId)
       ))
-      let previousRight: number | undefined
-      for (const branch of branches) {
+      const branchBounds = (branch: (typeof branches)[number]) => {
         const branchPositions = [...branch.members]
           .map((personId) => positions.get(personId))
           .filter((position): position is Coordinates => position !== undefined)
-        if (branchPositions.length === 0) {
-          continue
-        }
-        const left = Math.min(...branchPositions.map((position) => position.x))
-        const right = Math.max(...branchPositions.map((position) => position.x))
-        const shift = previousRight === undefined
-          ? 0
-          : Math.max(0, previousRight + PERSON_CARD_WIDTH + 40 - left)
-        if (shift > COORDINATE_TOLERANCE) {
+        return branchPositions.length === 0
+          ? undefined
+          : {
+              left: Math.min(...branchPositions.map((position) => position.x)),
+              right: Math.max(...branchPositions.map((position) => position.x)),
+            }
+      }
+      const shiftBranch = (branch: (typeof branches)[number], shift: number) => {
+        if (Math.abs(shift) > COORDINATE_TOLERANCE) {
           branch.members.forEach((personId) => {
             const position = positions.get(personId)
             if (position) {
@@ -495,7 +495,54 @@ function reflowTree(
             }
           })
         }
-        previousRight = Math.max(previousRight ?? Number.NEGATIVE_INFINITY, right + shift)
+      }
+      const referenceBranchIndex = branches.findIndex((branch) => (
+        (snapshot.referenceIds ?? []).some((personId) => branch.members.has(personId))
+      ))
+      if (referenceBranchIndex === -1) {
+        let previousRight: number | undefined
+        for (const branch of branches) {
+          const bounds = branchBounds(branch)
+          if (!bounds) {
+            continue
+          }
+          const shift = previousRight === undefined
+            ? 0
+            : Math.max(0, previousRight + PERSON_CARD_WIDTH + 40 - bounds.left)
+          shiftBranch(branch, shift)
+          previousRight = Math.max(
+            previousRight ?? Number.NEGATIVE_INFINITY,
+            bounds.right + shift,
+          )
+        }
+        continue
+      }
+      const anchorIndex = referenceBranchIndex
+      for (let index = anchorIndex - 1; index >= 0; index -= 1) {
+        const branch = branches[index]!
+        const next = branches[index + 1]!
+        const bounds = branchBounds(branch)
+        const nextBounds = branchBounds(next)
+        if (!bounds || !nextBounds) {
+          continue
+        }
+        shiftBranch(
+          branch,
+          nextBounds.left - (PERSON_CARD_WIDTH + 40) - bounds.right,
+        )
+      }
+      for (let index = anchorIndex + 1; index < branches.length; index += 1) {
+        const previous = branches[index - 1]!
+        const branch = branches[index]!
+        const previousBounds = branchBounds(previous)
+        const bounds = branchBounds(branch)
+        if (!previousBounds || !bounds) {
+          continue
+        }
+        shiftBranch(
+          branch,
+          previousBounds.right + PERSON_CARD_WIDTH + 40 - bounds.left,
+        )
       }
     }
   }
@@ -597,6 +644,85 @@ function reflowTree(
                 other.x + minimumHorizontalDistance(otherId, parentId) - parent.x,
               )
             }
+          }
+        }
+      }
+      if (Math.abs(allowedShift) <= COORDINATE_TOLERANCE) {
+        continue
+      }
+      family.parentIds.forEach((parentId) => {
+        const parent = positions.get(parentId)!
+        positions.set(parentId, { ...parent, x: parent.x + allowedShift })
+      })
+    }
+  }
+  // Balance a co-parent pair between the centre of all its children and the
+  // centres of both spouses' parent blocks. The median deliberately permits
+  // asymmetric links when that keeps three neighbouring generations compact.
+  const balanceParentPairsBetweenGenerations = () => {
+    for (const family of orderedFamilies) {
+      if (
+        family.parentIds.length !== 2
+        || !isUnambiguousCoParentPair(family.parentIds[0]!, family.parentIds[1]!)
+        || !family.parentIds.every((parentId) => referenceAncestorIds.has(parentId))
+      ) {
+        continue
+      }
+      const parentPositions = family.parentIds
+        .map((parentId) => positions.get(parentId))
+        .filter((position): position is Coordinates => position !== undefined)
+      const childPositions = family.childIds
+        .map((childId) => positions.get(childId))
+        .filter((position): position is Coordinates => position !== undefined)
+      if (
+        parentPositions.length !== family.parentIds.length
+        || childPositions.length === 0
+        || parentPositions.some((parent) => parent.y !== parentPositions[0]!.y)
+      ) {
+        continue
+      }
+      const parentCenter = parentPositions.reduce((sum, parent) => sum + parent.x, 0)
+        / parentPositions.length
+      const targetCenters = [
+        childPositions.reduce((sum, child) => sum + child.x, 0) / childPositions.length,
+      ]
+      family.parentIds.forEach((parentId, index) => {
+        const ownParents = (parentsByChild.get(parentId) ?? [])
+          .map((ownParentId) => positions.get(ownParentId))
+          .filter((position): position is Coordinates => position !== undefined)
+        if (ownParents.length === 0) {
+          return
+        }
+        const ownParentCenter = ownParents.reduce((sum, parent) => sum + parent.x, 0)
+          / ownParents.length
+        targetCenters.push(
+          ownParentCenter - (parentPositions[index]!.x - parentCenter),
+        )
+      })
+      targetCenters.sort((left, right) => left - right)
+      const middle = Math.floor(targetCenters.length / 2)
+      const targetCenter = targetCenters.length % 2 === 0
+        ? (targetCenters[middle - 1]! + targetCenters[middle]!) / 2
+        : targetCenters[middle]!
+      const desiredShift = targetCenter - parentCenter
+      let allowedShift = desiredShift
+      const parentIds = new Set(family.parentIds)
+      for (const parentId of family.parentIds) {
+        const parent = positions.get(parentId)!
+        for (const [otherId, other] of positions) {
+          if (parentIds.has(otherId) || other.y !== parent.y) {
+            continue
+          }
+          if (desiredShift > 0 && other.x > parent.x) {
+            allowedShift = Math.min(
+              allowedShift,
+              other.x - minimumHorizontalDistance(parentId, otherId) - parent.x,
+            )
+          } else if (desiredShift < 0 && other.x < parent.x) {
+            allowedShift = Math.max(
+              allowedShift,
+              other.x + minimumHorizontalDistance(otherId, parentId) - parent.x,
+            )
           }
         }
       }
@@ -1069,6 +1195,7 @@ function reflowTree(
   separateFinalPartnerBlocks()
   alignParentPairsToReference()
   separateFinalPartnerBlocks()
+  balanceParentPairsBetweenGenerations()
 
   return snapshot.people.flatMap((person) => {
     const coordinates = positions.get(person.id)
