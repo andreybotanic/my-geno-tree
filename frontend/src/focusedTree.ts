@@ -94,9 +94,12 @@ export const VISIBILITY_RULES: readonly VisibilityRule[] = [
   },
   {
     id: 'siblings-and-spouses',
-    // Adds the reference person's full or half siblings and every spouse from every marriage period.
+    // Adds the reference person's full or half siblings, both known parents of each sibling,
+    // and every spouse from every marriage period.
     apply: (anchorId, visible, indexes) => {
-      addAll(visible, siblingsOf(anchorId, indexes))
+      for (const siblingId of siblingsOf(anchorId, indexes)) {
+        addChildWithKnownParents(siblingId, visible, indexes)
+      }
       addAll(visible, indexes.spousesByPerson.get(anchorId) ?? [])
     },
   },

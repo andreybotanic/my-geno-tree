@@ -5,9 +5,13 @@ import { effectiveReference } from './focusedTree'
 
 export const PERSON_CARD_WIDTH = 260
 export const PERSON_CARD_HEIGHT = 160
+export const CHILD_BRANCH_OFFSET = 28
+export const PAIR_TO_CHILD_CLEARANCE = 12
 const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
 const PARTNER_OUTLET_SPACING = 32
+const MIN_BRACKET_DEPTH = 16
+const MIN_NESTED_BRACKET_SEPARATION = 12
 
 export type FamilyEdgeData = {
   bracketDepth: number
@@ -27,6 +31,13 @@ type Family = {
   children: Set<string>
   married: boolean
   people: [string, string]
+}
+
+type PartnerOutlet = {
+  key: string
+  partnerId: string
+  partnerX: number
+  personId: string
 }
 
 const pairKey = (first: string, second: string) => (
@@ -179,12 +190,6 @@ export function buildTreeEdges(
     families.set(key, family)
   }
 
-  type PartnerOutlet = {
-    key: string
-    partnerId: string
-    partnerX: number
-    personId: string
-  }
   const outlets = new Map<string, PartnerOutlet[]>()
   for (const [key, family] of families) {
     for (const [personId, partnerId] of [family.people, [...family.people].reverse()] as [string, string][]) {
@@ -199,14 +204,11 @@ export function buildTreeEdges(
     }
   }
   const outletLayout = new Map<string, { bracketDepth: number; offset: number }>()
-  const partnerSide = (outlet: PartnerOutlet) => (
-    outlet.partnerX < (positions.get(outlet.personId)?.x ?? 0) ? 'left' : 'right'
-  )
   for (const values of outlets.values()) {
     values
       .sort((left, right) => (
-        (partnerSide(left) === 'left' ? -1 : 1)
-        - (partnerSide(right) === 'left' ? -1 : 1)
+        (partnerSide(left, positions) === 'left' ? -1 : 1)
+        - (partnerSide(right, positions) === 'left' ? -1 : 1)
         || right.partnerX - left.partnerX
         || left.key.localeCompare(right.key)
       ))
@@ -218,20 +220,13 @@ export function buildTreeEdges(
         },
       ))
   }
-  const bracketLength = (outlet: PartnerOutlet) => {
-    const person = positions.get(outlet.personId)
-    const partner = positions.get(outlet.partnerId)
-    if (!person || !partner) return 0
-    const ownOffset = outletLayout.get(`${outlet.key}:${outlet.personId}`)?.offset ?? 0
-    const partnerOffset = outletLayout.get(`${outlet.key}:${outlet.partnerId}`)?.offset ?? 0
-    return Math.abs(person.x + ownOffset - partner.x - partnerOffset)
-  }
   for (const values of outlets.values()) {
     for (const side of ['left', 'right'] as const) {
       values
-        .filter((outlet) => partnerSide(outlet) === side)
+        .filter((outlet) => partnerSide(outlet, positions) === side)
         .sort((left, right) => (
-          bracketLength(left) - bracketLength(right)
+          bracketLength(left, outletLayout, positions)
+          - bracketLength(right, outletLayout, positions)
           || left.key.localeCompare(right.key)
         ))
         .forEach((outlet, index) => {
@@ -244,6 +239,13 @@ export function buildTreeEdges(
         })
     }
   }
+
+  const familyBracketDepths = resolveFamilyBracketDepths(
+    families,
+    outlets,
+    outletLayout,
+    positions,
+  )
 
   const reference = snapshot.tree.reference
   const referencePair = reference?.type === 'marriage'
@@ -273,7 +275,7 @@ export function buildTreeEdges(
       targetHandle: 'bottom-target',
       type: 'family',
       data: {
-        bracketDepth: Math.max(sourceLayout.bracketDepth, targetLayout.bracketDepth),
+        bracketDepth: familyBracketDepths.get(key)!,
         childPoints,
         married: family.married,
         personIds: family.people,
@@ -284,6 +286,79 @@ export function buildTreeEdges(
     })
   }
   return edges.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+function resolveFamilyBracketDepths(
+  families: ReadonlyMap<string, Family>,
+  outlets: ReadonlyMap<string, PartnerOutlet[]>,
+  outletLayout: ReadonlyMap<string, { bracketDepth: number; offset: number }>,
+  positions: ReadonlyMap<string, XYPosition>,
+): Map<string, number> {
+  const maximumDepths = new Map<string, number>()
+  const depths = new Map<string, number>()
+  for (const [key, family] of families) {
+    if (!family.people.every((id) => positions.has(id))) continue
+    const parentBottom = Math.max(...family.people.map((id) => (
+      positions.get(id)!.y + PERSON_CARD_HEIGHT
+    )))
+    const childTop = Math.min(...[...family.children]
+      .filter((id) => positions.has(id))
+      .map((id) => positions.get(id)!.y))
+    const maximumDepth = Number.isFinite(childTop)
+      ? childTop - CHILD_BRANCH_OFFSET - PAIR_TO_CHILD_CLEARANCE - parentBottom
+      : Number.POSITIVE_INFINITY
+    maximumDepths.set(key, maximumDepth)
+    const [first, second] = family.people
+    const desiredDepth = Math.max(
+      outletLayout.get(`${key}:${first}`)!.bracketDepth,
+      outletLayout.get(`${key}:${second}`)!.bracketDepth,
+    )
+    depths.set(key, Math.min(desiredDepth, maximumDepth))
+  }
+
+  for (const values of outlets.values()) {
+    for (const side of ['left', 'right'] as const) {
+      const nested = values
+        .filter((outlet) => partnerSide(outlet, positions) === side)
+        .filter((outlet) => maximumDepths.has(outlet.key))
+        .filter((outlet) => Number.isFinite(maximumDepths.get(outlet.key)))
+        .sort((left, right) => (
+          bracketLength(left, outletLayout, positions) - bracketLength(right, outletLayout, positions)
+          || left.key.localeCompare(right.key)
+        ))
+      let deeperDepth = Number.POSITIVE_INFINITY
+      for (const outlet of [...nested].reverse()) {
+        const depth = Math.min(
+          depths.get(outlet.key)!,
+          deeperDepth - MIN_NESTED_BRACKET_SEPARATION,
+        )
+        depths.set(outlet.key, Math.max(MIN_BRACKET_DEPTH, depth))
+        deeperDepth = depths.get(outlet.key)!
+      }
+    }
+  }
+
+  return depths
+}
+
+function partnerSide(
+  outlet: PartnerOutlet,
+  positions: ReadonlyMap<string, XYPosition>,
+): 'left' | 'right' {
+  return outlet.partnerX < (positions.get(outlet.personId)?.x ?? 0) ? 'left' : 'right'
+}
+
+function bracketLength(
+  outlet: PartnerOutlet,
+  outletLayout: ReadonlyMap<string, { bracketDepth: number; offset: number }>,
+  positions: ReadonlyMap<string, XYPosition>,
+): number {
+  const person = positions.get(outlet.personId)
+  const partner = positions.get(outlet.partnerId)
+  if (!person || !partner) return 0
+  const ownOffset = outletLayout.get(`${outlet.key}:${outlet.personId}`)?.offset ?? 0
+  const partnerOffset = outletLayout.get(`${outlet.key}:${outlet.partnerId}`)?.offset ?? 0
+  return Math.abs(person.x + ownOffset - partner.x - partnerOffset)
 }
 
 function parentsByChild(parentLinks: ParentLink[]) {

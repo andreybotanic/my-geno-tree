@@ -56,18 +56,23 @@ type OrderingState = {
 
 type LayoutContext = {
   childrenByParent: ReadonlyMap<string, Set<string>>
+  estimatedBranchWidths: Map<string, number>
   families: Family[]
   ids: string[]
   marriedPartnersByPerson: ReadonlyMap<string, Set<string>>
+  minimumDistances: Map<string, number>
+  multiMarriedPersonIds: ReadonlySet<string>
   parentLinks: ParentLink[]
   parentsByChild: ReadonlyMap<string, Set<string>>
   partnersByPerson: ReadonlyMap<string, Set<string>>
   referenceIds: Set<string>
+  relationshipNeighborsByPerson: ReadonlyMap<string, string[]>
   roleByParentAndChild: ReadonlyMap<string, ParentLink['role']>
   rowByPerson: ReadonlyMap<string, number>
   rows: number[]
   rowStructures: ReadonlyMap<number, RowStructure>
   seedPositions: ReadonlyMap<string, XYPosition>
+  siblingsByPerson: ReadonlyMap<string, string[]>
   trace: LayoutTrace | null
 }
 
@@ -75,6 +80,14 @@ type ChildGapPolicy = {
   childIds: string[]
   distances: number[]
   variable: boolean
+}
+
+type RowScoringContext = {
+  childFamilies: Family[]
+  edges: Array<readonly [string, number]>
+  fixedIndexes: ReadonlyMap<string, number>
+  parentFamilies: Family[]
+  partnerPairs: Array<readonly [string, string]>
 }
 
 type Score = readonly [number, number, number, number, number, number, string]
@@ -201,6 +214,24 @@ function createContext(
     addToSet(partnersByPerson, first, second)
     addToSet(partnersByPerson, second, first)
   }
+  const relationshipNeighborsByPerson = new Map(ids.map((id) => [
+    id,
+    [
+      ...(parentsByChild.get(id) ?? []),
+      ...(childrenByParent.get(id) ?? []),
+      ...(partnersByPerson.get(id) ?? []),
+    ].sort((first, second) => first.localeCompare(second)),
+  ]))
+  const siblingsByPerson = new Map<string, Set<string>>()
+  for (const children of childrenByParent.values()) {
+    for (const personId of children) {
+      const siblings = siblingsByPerson.get(personId) ?? new Set<string>()
+      for (const siblingId of children) {
+        if (siblingId !== personId) siblings.add(siblingId)
+      }
+      siblingsByPerson.set(personId, siblings)
+    }
+  }
 
   const rowByPerson = new Map(ids.map((id) => [
     id,
@@ -243,18 +274,28 @@ function createContext(
 
   return {
     childrenByParent,
+    estimatedBranchWidths: new Map(),
     families,
     ids,
     marriedPartnersByPerson,
+    minimumDistances: new Map(),
+    multiMarriedPersonIds: new Set([...marriedPartnersByPerson]
+      .filter(([, partners]) => partners.size > 1)
+      .map(([personId]) => personId)),
     parentLinks,
     parentsByChild,
     partnersByPerson,
     referenceIds,
+    relationshipNeighborsByPerson,
     roleByParentAndChild,
     rowByPerson,
     rows,
     rowStructures,
     seedPositions,
+    siblingsByPerson: new Map([...siblingsByPerson].map(([personId, siblings]) => [
+      personId,
+      [...siblings].sort((first, second) => first.localeCompare(second)),
+    ])),
     trace,
   }
 }
@@ -410,10 +451,20 @@ function optimizeRowOrder(
 ): string[] {
   const structure = context.rowStructures.get(row)!
   const targets = orderingTargets(context, row, fixedOrders)
+  const scoringContext = createRowScoringContext(context, row, fixedOrders)
   const initial = initialOrderingState(context, structure, targets)
+  const scoreCache = new Map<string, Score>()
+  const score = (state: OrderingState) => {
+    const key = orderingKey(state)
+    const cached = scoreCache.get(key)
+    if (cached) return cached
+    const next = scoreOrdering(context, state, scoringContext)
+    scoreCache.set(key, next)
+    return next
+  }
   let beam = [initial]
   let best = initial
-  let bestScore = scoreOrdering(context, row, best, fixedOrders)
+  let bestScore = score(best)
   const seen = new Set([orderingKey(initial)])
   const runDetails: Record<string, unknown> = {
     final: null,
@@ -442,7 +493,7 @@ function optimizeRowOrder(
         seen.add(key)
         return true
       })
-      .map((state) => ({ score: scoreOrdering(context, row, state, fixedOrders), state }))
+      .map((state) => ({ score: score(state), state }))
       .sort((a, b) => compareScore(a.score, b.score))
     const ranked = scored.slice(0, BEAM_WIDTH)
     if (ranked.length === 0) break
@@ -603,39 +654,58 @@ function orderingNeighbors(state: OrderingState): OrderingState[] {
   return result
 }
 
-function scoreOrdering(
+function createRowScoringContext(
   context: LayoutContext,
   row: number,
-  state: OrderingState,
   fixedOrders: ReadonlyMap<number, string[]>,
-): Score {
-  const order = flattenOrdering(state)
-  const indexById = new Map(order.map((id, index) => [id, index - (order.length - 1) / 2]))
+): RowScoringContext {
   const fixedIndexes = new Map<string, number>()
   for (const [fixedRow, fixedOrder] of fixedOrders) {
     if (fixedRow === row) continue
     fixedOrder.forEach((id, index) => fixedIndexes.set(id, index - (fixedOrder.length - 1) / 2))
   }
-  const edges: Array<[number, number]> = []
+  const edges: Array<readonly [string, number]> = []
   for (const link of context.parentLinks) {
     const currentId = context.rowByPerson.get(link.parentId) === row
       ? link.parentId
       : context.rowByPerson.get(link.childId) === row
         ? link.childId
         : undefined
+    if (!currentId) continue
     const fixedId = currentId === link.parentId ? link.childId : link.parentId
-    const currentIndex = currentId ? indexById.get(currentId) : undefined
     const fixedIndex = fixedIndexes.get(fixedId)
-    if (currentIndex !== undefined && fixedIndex !== undefined) edges.push([currentIndex, fixedIndex])
+    if (fixedIndex !== undefined) edges.push([currentId, fixedIndex])
   }
-  let crossings = 0
-  for (let index = 0; index < edges.length; index += 1) {
-    for (let other = index + 1; other < edges.length; other += 1) {
-      const first = edges[index]!
-      const second = edges[other]!
-      if ((first[0] - second[0]) * (first[1] - second[1]) < 0) crossings += 1
+  const parentFamilies = context.families.filter((family) => (
+    family.parentIds.every((personId) => context.rowByPerson.get(personId) === row)
+  ))
+  const childFamilies = context.families.filter((family) => (
+    family.childIds.some((personId) => context.rowByPerson.get(personId) === row)
+  ))
+  const partnerPairs: Array<readonly [string, string]> = []
+  for (const [personId, partners] of context.partnersByPerson) {
+    if (context.rowByPerson.get(personId) !== row) continue
+    for (const partnerId of partners) {
+      if (personId < partnerId && context.rowByPerson.get(partnerId) === row) {
+        partnerPairs.push([personId, partnerId])
+      }
     }
   }
+  return { childFamilies, edges, fixedIndexes, parentFamilies, partnerPairs }
+}
+
+function scoreOrdering(
+  context: LayoutContext,
+  state: OrderingState,
+  scoringContext: RowScoringContext,
+): Score {
+  const order = flattenOrdering(state)
+  const indexById = new Map(order.map((id, index) => [id, index - (order.length - 1) / 2]))
+  const fixedIndexes = scoringContext.fixedIndexes
+  const edges = scoringContext.edges.map(([personId, fixedIndex]) => (
+    [indexById.get(personId)!, fixedIndex] as const
+  ))
+  const crossings = countEdgeCrossings(edges)
   const deviations = order.map((id) => {
     const neighbors = relationshipNeighbors(context, id)
       .map((neighborId) => fixedIndexes.get(neighborId))
@@ -644,42 +714,36 @@ function scoreOrdering(
       ? 0
       : Math.abs(indexById.get(id)! - average(neighbors))
   })
-  const partnerSpan = [...context.partnersByPerson]
-    .flatMap(([id, partners]) => [...partners]
-      .filter((partnerId) => id < partnerId && indexById.has(id) && indexById.has(partnerId))
-      .map((partnerId) => Math.max(0, Math.abs(
-        indexById.get(id)! - indexById.get(partnerId)!,
-      ) - 1)))
+  const partnerSpan = scoringContext.partnerPairs
+    .map(([first, second]) => Math.max(0, Math.abs(
+      indexById.get(first)! - indexById.get(second)!,
+    ) - 1))
     .reduce((sum, value) => sum + value, 0)
-  const roleInversions = context.families.filter((family) => {
+  const roleInversions = scoringContext.parentFamilies.filter((family) => {
     if (family.parentIds.length !== 2) return false
     const [first, second] = family.parentIds
     if (!indexById.has(first!) || !indexById.has(second!)) return false
-    const hasOtherSpouse = (personId: string, partnerId: string) => (
-      [...(context.marriedPartnersByPerson.get(personId) ?? [])]
-        .some((candidateId) => candidateId !== partnerId)
-    )
-    if (hasOtherSpouse(first!, second!) || hasOtherSpouse(second!, first!)) return false
+    if (
+      context.multiMarriedPersonIds.has(first!)
+      || context.multiMarriedPersonIds.has(second!)
+    ) return false
     const childId = family.childIds[0]!
     const firstRole = context.roleByParentAndChild.get(`${first}:${childId}`)
     const fatherId = firstRole === 'father' ? first : second
     const motherId = firstRole === 'mother' ? first : second
     return indexById.get(fatherId!)! > indexById.get(motherId!)!
   }).length
-  const branchOrientationViolations = context.families.reduce((violations, family) => {
+  const branchOrientationViolations = scoringContext.parentFamilies.reduce((violations, family) => {
     if (family.parentIds.length !== 2) return violations
     const [first, second] = [...family.parentIds].sort((left, right) => (
       (indexById.get(left) ?? 0) - (indexById.get(right) ?? 0)
     ))
     if (!indexById.has(first!) || !indexById.has(second!)) return violations
     const countWrongSide = (personId: string, direction: -1 | 1) => {
-      const ownParents = context.parentsByChild.get(personId) ?? new Set<string>()
-      return context.ids.filter((candidateId) => {
-        if (candidateId === personId || !indexById.has(candidateId)) return false
-        const candidateParents = context.parentsByChild.get(candidateId) ?? new Set<string>()
-        if (![...ownParents].some((id) => candidateParents.has(id))) return false
-        return direction * (indexById.get(candidateId)! - indexById.get(personId)!) < 0
-      }).length
+      return (context.siblingsByPerson.get(personId) ?? []).filter((candidateId) => (
+        indexById.has(candidateId)
+        && direction * (indexById.get(candidateId)! - indexById.get(personId)!) < 0
+      )).length
     }
     if (
       (context.parentsByChild.get(first!)?.size ?? 0) === 0
@@ -687,7 +751,7 @@ function scoreOrdering(
     ) return violations
     return violations + countWrongSide(first!, -1) + countWrongSide(second!, 1)
   }, 0)
-  const excessChildSpace = context.families.reduce((excess, family) => {
+  const excessChildSpace = scoringContext.childFamilies.reduce((excess, family) => {
     const children = family.childIds
       .filter((id) => indexById.has(id))
       .sort((first, second) => indexById.get(first)! - indexById.get(second)!)
@@ -715,12 +779,50 @@ function scoreOrdering(
   ]
 }
 
+/** Counts only strict inversions: shared endpoints are not crossing edges. */
+function countEdgeCrossings(edges: ReadonlyArray<readonly [number, number]>): number {
+  if (edges.length < 2) return 0
+  const targets = [...new Set(edges.map(([, target]) => target))].sort((a, b) => a - b)
+  const targetIndex = new Map(targets.map((target, index) => [target, index + 1]))
+  const tree = new Array<number>(targets.length + 1).fill(0)
+  const prefixSum = (index: number) => {
+    let sum = 0
+    for (let next = index; next > 0; next -= next & -next) sum += tree[next]!
+    return sum
+  }
+  const add = (index: number) => {
+    for (let next = index; next < tree.length; next += next & -next) tree[next]! += 1
+  }
+
+  const ordered = [...edges].sort((first, second) => (
+    first[0] - second[0] || first[1] - second[1]
+  ))
+  let crossings = 0
+  let inserted = 0
+  for (let start = 0; start < ordered.length;) {
+    let end = start + 1
+    while (end < ordered.length && ordered[end]![0] === ordered[start]![0]) end += 1
+    for (let index = start; index < end; index += 1) {
+      const rank = targetIndex.get(ordered[index]![1])!
+      crossings += inserted - prefixSum(rank)
+    }
+    for (let index = start; index < end; index += 1) {
+      add(targetIndex.get(ordered[index]![1])!)
+      inserted += 1
+    }
+    start = end
+  }
+  return crossings
+}
+
 function estimatedBranchWidth(context: LayoutContext, rootId: string): number {
+  const cached = context.estimatedBranchWidths.get(rootId)
+  if (cached !== undefined) return cached
   const rootRow = context.rowByPerson.get(rootId)!
   const members = new Set<string>()
   const pending = [rootId]
-  while (pending.length > 0) {
-    const id = pending.shift()!
+  for (let index = 0; index < pending.length; index += 1) {
+    const id = pending[index]!
     if (members.has(id) || context.rowByPerson.get(id)! < rootRow) continue
     members.add(id)
     for (const partnerId of context.partnersByPerson.get(id) ?? []) pending.push(partnerId)
@@ -731,9 +833,11 @@ function estimatedBranchWidth(context: LayoutContext, rootId: string): number {
     const row = context.rowByPerson.get(id)!
     counts.set(row, (counts.get(row) ?? 0) + 1)
   }
-  return Math.max(...[...counts.values()].map((count) => (
+  const width = Math.max(...[...counts.values()].map((count) => (
     PERSON_CARD_WIDTH + Math.max(0, count - 1) * (PERSON_CARD_WIDTH + SIBLING_CARD_GAP)
   )))
+  context.estimatedBranchWidths.set(rootId, width)
+  return width
 }
 
 function solveCoordinates(
@@ -1020,7 +1124,12 @@ function averageExpression(variables: Variable[]): Expression {
 }
 
 function minimumDistance(context: LayoutContext, first: string, second: string): number {
-  return PERSON_CARD_WIDTH + minimumCardGap(context, first, second)
+  const key = orderedPair(first, second).join(':')
+  const cached = context.minimumDistances.get(key)
+  if (cached !== undefined) return cached
+  const distance = PERSON_CARD_WIDTH + minimumCardGap(context, first, second)
+  context.minimumDistances.set(key, distance)
+  return distance
 }
 
 function minimumCardGap(context: LayoutContext, first: string, second: string): number {
@@ -1045,11 +1154,7 @@ function areSiblings(context: LayoutContext, first: string, second: string): boo
 }
 
 function relationshipNeighbors(context: LayoutContext, id: string): string[] {
-  return [
-    ...(context.parentsByChild.get(id) ?? []),
-    ...(context.childrenByParent.get(id) ?? []),
-    ...(context.partnersByPerson.get(id) ?? []),
-  ].sort((a, b) => a.localeCompare(b))
+  return context.relationshipNeighborsByPerson.get(id) ?? []
 }
 
 function peopleByRowMap(context: LayoutContext): Map<number, string[]> {

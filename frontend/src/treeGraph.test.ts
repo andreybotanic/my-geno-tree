@@ -920,6 +920,34 @@ describe('deterministic tree layout', () => {
     })
   })
 
+  it('compresses nested parent brackets above their children branching rail', () => {
+    const family = snapshot(
+      ['shared', 'near-spouse', 'far-spouse', 'near-child', 'far-child'].map(person),
+      [
+        link('shared-near', 'shared', 'near-child', 'mother'),
+        link('near-parent', 'near-spouse', 'near-child', 'father'),
+        link('shared-far', 'shared', 'far-child', 'mother'),
+        link('far-parent', 'far-spouse', 'far-child', 'father'),
+      ],
+      [
+        marriage('near-marriage', 'near-spouse', 'shared'),
+        marriage('far-marriage', 'far-spouse', 'shared'),
+      ],
+      { type: 'person', personId: 'shared' },
+    )
+    const positions = new Map([
+      ['shared', { x: 0, y: 0 }],
+      ['near-spouse', { x: 320, y: 0 }],
+      ['far-spouse', { x: 640, y: 0 }],
+      ['near-child', { x: 320, y: 240 }],
+      ['far-child', { x: 640, y: 240 }],
+    ])
+    const edges = new Map(buildTreeEdges(family, positions).map((edge) => [edge.id, edge]))
+
+    expect(edges.get('family:near-spouse:shared')?.data?.bracketDepth).toBe(24)
+    expect(edges.get('family:far-spouse:shared')?.data?.bracketDepth).toBe(40)
+  })
+
   it('renders unmarried co-parents as one family and a lone parent separately', () => {
     const family = snapshot(
       ['father', 'mother', 'shared-child', 'single-child'].map(person),

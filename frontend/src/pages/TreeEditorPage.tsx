@@ -83,6 +83,8 @@ import {
 import {
   buildTreeEdges,
   layoutTree,
+  PERSON_CARD_HEIGHT,
+  PERSON_CARD_WIDTH,
   type TreeFlowEdge,
 } from '../treeGraph'
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
@@ -785,6 +787,8 @@ function TreeCanvas({
     id: person.id,
     type: 'person',
     position: treePositions.get(person.id) ?? { x: 0, y: 0 },
+    height: PERSON_CARD_HEIGHT,
+    width: PERSON_CARD_WIDTH,
     data: { isReference: referencePersonIds.has(person.id), person },
     selected: person.id === selectedPersonId,
   })), [focusedSnapshot.people, referencePersonIds, selectedPersonId, treePositions])

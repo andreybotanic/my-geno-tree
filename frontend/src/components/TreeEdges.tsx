@@ -7,6 +7,10 @@ import type {
   FamilyFlowEdge,
   SingleParentFlowEdge,
 } from '../treeGraph'
+import {
+  CHILD_BRANCH_OFFSET,
+  PAIR_TO_CHILD_CLEARANCE,
+} from '../treeGraph'
 
 const CARD_CONNECTION_OVERLAP = 5
 const PAIR_CORNER_RADIUS = 8
@@ -21,7 +25,14 @@ export function FamilyEdge({
 }: EdgeProps<FamilyFlowEdge>) {
   const sourceExitX = sourceX + (data?.sourceOffset ?? 0)
   const targetExitX = targetX + (data?.targetOffset ?? 0)
-  const pairY = Math.max(sourceY, targetY) + (data?.bracketDepth ?? 24)
+  const children = data?.childPoints ?? []
+  const childBracketY = childrenBracketY(children)
+  const pairY = childBracketY === null
+    ? Math.max(sourceY, targetY) + (data?.bracketDepth ?? 24)
+    : Math.min(
+        Math.max(sourceY, targetY) + (data?.bracketDepth ?? 24),
+        childBracketY - PAIR_TO_CHILD_CLEARANCE,
+      )
   const pairPath = [
     `M ${sourceExitX} ${sourceY - CARD_CONNECTION_OVERLAP}`,
     `L ${sourceExitX} ${pairY - PAIR_CORNER_RADIUS}`,
@@ -30,7 +41,6 @@ export function FamilyEdge({
     `Q ${targetExitX} ${pairY} ${targetExitX} ${pairY - PAIR_CORNER_RADIUS}`,
     `L ${targetExitX} ${targetY - CARD_CONNECTION_OVERLAP}`,
   ].join(' ')
-  const children = data?.childPoints ?? []
   const childPath = childrenPath(
     (sourceX + targetX) / 2,
     pairY,
@@ -87,7 +97,8 @@ function childrenPath(
   if (children.length === 0) {
     return ''
   }
-  const bracketY = Math.min(...children.map((child) => child.topY)) - 28
+  const bracketY = childrenBracketY(children)
+  if (bracketY === null) return ''
   if (children.length === 1) {
     const child = children[0]
     if (!child) {
@@ -117,6 +128,12 @@ function childrenPath(
       ? [bracketBranchPath(familyX, bracketY, last)]
       : []),
   ].join(' ')
+}
+
+function childrenBracketY(children: Array<{ topX: number; topY: number }>): number | null {
+  return children.length === 0
+    ? null
+    : Math.min(...children.map((child) => child.topY)) - CHILD_BRANCH_OFFSET
 }
 
 function childBranchPath(

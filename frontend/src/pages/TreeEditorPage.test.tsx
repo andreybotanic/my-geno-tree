@@ -214,9 +214,12 @@ describe('TreeEditorPage', () => {
       within(dialog).getByRole('button', { name: 'Save' }),
     )
 
-    expect(
-      await screen.findByRole('article', { name: 'Unknown person' }),
-    ).toBeInTheDocument()
+    const createdCard = await screen.findByRole('article', { name: 'Unknown person' })
+    expect(createdCard).toBeInTheDocument()
+    expect(createdCard.closest('.react-flow__node')).toHaveStyle({
+      height: '160px',
+      width: '260px',
+    })
     for (const name of ['Zoom out', 'Zoom in', 'Reset camera']) {
       expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
     }

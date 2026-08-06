@@ -149,6 +149,40 @@ describe('TreeEdges', () => {
     )
   })
 
+  it('keeps a deep partner bracket above the children branching rail', () => {
+    const { container } = render(
+      <svg>
+        <FamilyEdge
+          {...{
+            ...familyProps([
+              { id: 'child-a', topX: 150, topY: 160 },
+              { id: 'child-b', topX: 350, topY: 160 },
+            ]),
+            data: {
+              bracketDepth: 300,
+              childPoints: [
+                { id: 'child-a', topX: 150, topY: 160 },
+                { id: 'child-b', topX: 350, topY: 160 },
+              ],
+              married: true,
+              sourceOffset: 0,
+              targetOffset: 0,
+            },
+          }}
+        />
+      </svg>,
+    )
+
+    expect(container.querySelector('.tree-edge-marriage')).toHaveAttribute(
+      'd',
+      expect.stringContaining('Q 100 120 108 120'),
+    )
+    expect(container.querySelector('.tree-edge-child')).toHaveAttribute(
+      'd',
+      expect.stringContaining('M 250 120 L 250 132'),
+    )
+  })
+
   it('nests brackets without intersections when every partner is on one side', () => {
     const { container } = render(
       <svg>

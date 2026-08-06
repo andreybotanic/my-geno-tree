@@ -33,7 +33,7 @@ const married = (first: string, second: string, dissolved = false): MarriagePeri
 
 function family(reference: TreeSnapshot['tree']['reference']): TreeSnapshot {
   const ids = [
-    'anchor', 'parent', 'other-parent', 'grandparent', 'half-sibling',
+    'anchor', 'parent', 'other-parent', 'grandparent', 'half-sibling', 'half-sibling-other-parent',
     'aunt', 'cousin', 'cousin-parent', 'spouse', 'spouse-parent',
     'spouse-sibling', 'step-child', 'step-parent', 'niece', 'niece-parent',
     'child', 'grandchild', 'grandchild-parent', 'too-far-local-child',
@@ -48,6 +48,7 @@ function family(reference: TreeSnapshot['tree']['reference']): TreeSnapshot {
       parent('parent', 'anchor'),
       parent('other-parent', 'anchor', 'mother'),
       parent('parent', 'half-sibling'),
+      parent('half-sibling-other-parent', 'half-sibling', 'mother'),
       parent('aunt', 'cousin'),
       parent('cousin-parent', 'cousin', 'mother'),
       parent('spouse-parent', 'spouse'),
@@ -70,7 +71,7 @@ describe('focused tree visibility', () => {
     const tree = family({ type: 'person', personId: 'anchor' })
     const visible = visiblePersonIdsFor(tree, 'anchor')
     expect(visible).toEqual(new Set([
-      'anchor', 'parent', 'other-parent', 'grandparent', 'half-sibling',
+      'anchor', 'parent', 'other-parent', 'grandparent', 'half-sibling', 'half-sibling-other-parent',
       'aunt', 'cousin', 'cousin-parent', 'spouse', 'spouse-parent',
       'spouse-sibling', 'step-child', 'step-parent', 'niece', 'niece-parent',
       'child', 'grandchild', 'grandchild-parent',
