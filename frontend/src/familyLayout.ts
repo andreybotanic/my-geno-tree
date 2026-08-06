@@ -16,12 +16,25 @@ import {
 
 const PERSON_CARD_WIDTH = 260
 const HORIZONTAL_STEP = 320
-const HALF_SIBLING_GAP = 380
-const CARD_GAP = 40
-const HALF_SIBLING_CARD_GAP = 120
+const SPOUSE_CARD_GAP = 60
+const HALF_SIBLING_CARD_GAP = 60
+const SIBLING_CARD_GAP = 40
+const OTHER_CARD_GAP = 80
 const BEAM_WIDTH = 32
 const MAX_ORDERING_SWEEPS = 8
 const COORDINATE_TOLERANCE = 0.001
+const TRACED_TREE_ID = '019fbc81-55ed-7721-ae53-c517ec550b6a'
+
+type LayoutTraceEvent = {
+  details: Record<string, unknown>
+  phase: string
+}
+
+type LayoutTrace = {
+  events: LayoutTraceEvent[]
+  labels: Record<string, string>
+  treeId: string
+}
 
 type Family = {
   childIds: string[]
@@ -45,6 +58,7 @@ type LayoutContext = {
   childrenByParent: ReadonlyMap<string, Set<string>>
   families: Family[]
   ids: string[]
+  marriedPartnersByPerson: ReadonlyMap<string, Set<string>>
   parentLinks: ParentLink[]
   parentsByChild: ReadonlyMap<string, Set<string>>
   partnersByPerson: ReadonlyMap<string, Set<string>>
@@ -54,6 +68,7 @@ type LayoutContext = {
   rows: number[]
   rowStructures: ReadonlyMap<number, RowStructure>
   seedPositions: ReadonlyMap<string, XYPosition>
+  trace: LayoutTrace | null
 }
 
 type ChildGapPolicy = {
@@ -63,6 +78,30 @@ type ChildGapPolicy = {
 }
 
 type Score = readonly [number, number, number, number, number, number, string]
+
+function traceEvent(
+  context: LayoutContext,
+  phase: string,
+  details: Record<string, unknown>,
+): void {
+  context.trace?.events.push({ details, phase })
+}
+
+function traceScore(score: Score): Record<string, unknown> {
+  return {
+    roleOrBranchOrientationViolations: score[0],
+    maximumNeighborDeviation: score[1],
+    edgeOrderInversions: score[2],
+    totalNeighborDeviation: score[3],
+    excessChildSpace: score[4],
+    partnerSpan: score[5],
+    uuidOrder: score[6],
+  }
+}
+
+function tracedOrder(context: LayoutContext, ids: readonly string[]): Array<Record<string, string>> {
+  return ids.map((id) => ({ id, label: context.trace?.labels[id] ?? id }))
+}
 
 class DisjointSet {
   private readonly parents: Map<string, string>
@@ -98,9 +137,24 @@ export function refineFamilyLayout(
 
   const anchorRow = selectAnchorRow(context)
   const orders = orderRows(context, anchorRow)
-  const preliminary = solveCoordinates(context, orders, [])
+  const preliminary = solveCoordinates(context, orders, [], 'preliminary')
   const childGapPolicies = buildChildGapPolicies(context, orders, preliminary)
-  const coordinates = solveCoordinates(context, orders, childGapPolicies)
+  const coordinates = solveCoordinates(context, orders, childGapPolicies, 'final')
+
+  if (context.trace) {
+    const host = globalThis as typeof globalThis & { __familyLayoutTrace?: LayoutTrace }
+    host.__familyLayoutTrace = context.trace
+    const serializedTrace = JSON.stringify(context.trace, null, 2)
+    const traceElement = document.querySelector<HTMLScriptElement>('#family-layout-trace')
+      ?? document.body.appendChild(document.createElement('script'))
+    traceElement.id = 'family-layout-trace'
+    traceElement.type = 'application/json'
+    traceElement.textContent = serializedTrace
+    console.info(
+      `[family-layout] Trace for ${context.trace.treeId} is available as globalThis.__familyLayoutTrace`,
+      context.trace,
+    )
+  }
 
   return new Map(context.ids.map((id) => [id, {
     x: coordinates.get(id)! - PERSON_CARD_WIDTH / 2,
@@ -127,6 +181,7 @@ function createContext(
   }
 
   const pairMap = new Map<string, [string, string]>()
+  const marriedPartnersByPerson = new Map<string, Set<string>>()
   const registerPair = (first: string, second: string) => {
     if (first === second || !idSet.has(first) || !idSet.has(second)) return
     const pair = orderedPair(first, second)
@@ -134,6 +189,8 @@ function createContext(
   }
   for (const item of [...snapshot.marriages].sort((a, b) => a.id.localeCompare(b.id))) {
     registerPair(item.malePersonId, item.femalePersonId)
+    addToSet(marriedPartnersByPerson, item.malePersonId, item.femalePersonId)
+    addToSet(marriedPartnersByPerson, item.femalePersonId, item.malePersonId)
   }
   for (const parentIds of parentsByChild.values()) {
     const ordered = [...parentIds].sort((a, b) => a.localeCompare(b))
@@ -171,11 +228,24 @@ function createContext(
   const referenceIds = new Set(reference?.type === 'person'
     ? [reference.personId]
     : reference?.personIds ?? [])
+  const trace = snapshot.tree.id === TRACED_TREE_ID
+    ? {
+        events: [],
+        labels: Object.fromEntries(snapshot.people.map((person) => {
+          const label = [person.birthSurname, person.givenName, person.patronymic]
+            .flatMap((part) => part.state === 'known' ? [part.value] : [])
+            .join(' ')
+          return [person.id, label || 'Неизвестная персона']
+        })),
+        treeId: snapshot.tree.id,
+      }
+    : null
 
   return {
     childrenByParent,
     families,
     ids,
+    marriedPartnersByPerson,
     parentLinks,
     parentsByChild,
     partnersByPerson,
@@ -185,6 +255,7 @@ function createContext(
     rows,
     rowStructures,
     seedPositions,
+    trace,
   }
 }
 
@@ -250,11 +321,19 @@ function selectAnchorRow(context: LayoutContext): number {
   const referenceRow = referenceRows.length === 0
     ? 0
     : referenceRows.reduce((sum, row) => sum + row, 0) / referenceRows.length
-
-  return selectAnchorGeneration(
-    generationCandidates(context, peopleByRow),
+  const candidates = generationCandidates(context, peopleByRow)
+  const selectedRow = selectAnchorGeneration(candidates, referenceRow)
+  traceEvent(context, 'anchor-generation', {
+    candidates: candidates.map((candidate) => ({
+      ...candidate,
+      people: tracedOrder(context, peopleByRow.get(candidate.row) ?? []),
+      referenceDistance: Math.abs(candidate.row - referenceRow),
+    })),
     referenceRow,
-  )
+    selectedRow,
+  })
+
+  return selectedRow
 }
 
 function estimatedRowWidth(context: LayoutContext, ids: string[]): number {
@@ -271,8 +350,17 @@ function orderRows(context: LayoutContext, anchorRow: number): Map<number, strin
     generationCandidates(context, peopleByRow),
     anchorRow,
   )
+  traceEvent(context, 'generation-schedule', {
+    anchorRow,
+    scheduledRows,
+  })
   for (const next of scheduledRows) {
-    orders.set(next, optimizeRowOrder(context, next, orders))
+    const order = optimizeRowOrder(context, next, orders, 'initial-placement')
+    orders.set(next, order)
+    traceEvent(context, 'generation-placed', {
+      order: tracedOrder(context, order),
+      row: next,
+    })
   }
 
   const sweepRows = [...context.rows].sort((first, second) => (
@@ -281,10 +369,20 @@ function orderRows(context: LayoutContext, anchorRow: number): Map<number, strin
   for (let sweep = 0; sweep < MAX_ORDERING_SWEEPS; sweep += 1) {
     let changed = false
     for (const row of sweep % 2 === 0 ? sweepRows : [...sweepRows].reverse()) {
-      const next = optimizeRowOrder(context, row, orders)
-      if (next.join(':') !== orders.get(row)!.join(':')) changed = true
+      const previous = orders.get(row)!
+      const next = optimizeRowOrder(context, row, orders, `global-sweep-${sweep + 1}`)
+      if (next.join(':') !== previous.join(':')) {
+        changed = true
+        traceEvent(context, 'global-sweep-reordered', {
+          after: tracedOrder(context, next),
+          before: tracedOrder(context, previous),
+          row,
+          sweep: sweep + 1,
+        })
+      }
       orders.set(row, next)
     }
+    traceEvent(context, 'global-sweep-completed', { changed, sweep: sweep + 1 })
     if (!changed) break
   }
   return orders
@@ -308,6 +406,7 @@ function optimizeRowOrder(
   context: LayoutContext,
   row: number,
   fixedOrders: ReadonlyMap<number, string[]>,
+  reason: string,
 ): string[] {
   const structure = context.rowStructures.get(row)!
   const targets = orderingTargets(context, row, fixedOrders)
@@ -316,11 +415,27 @@ function optimizeRowOrder(
   let best = initial
   let bestScore = scoreOrdering(context, row, best, fixedOrders)
   const seen = new Set([orderingKey(initial)])
+  const runDetails: Record<string, unknown> = {
+    final: null,
+    fixedRows: [...fixedOrders].map(([fixedRow, ids]) => ({
+      order: tracedOrder(context, ids),
+      row: fixedRow,
+    })),
+    initial: {
+      order: tracedOrder(context, flattenOrdering(initial)),
+      score: traceScore(bestScore),
+    },
+    reason,
+    row,
+    sweeps: [],
+    targets: Object.fromEntries([...targets].map(([id, target]) => [id, target])),
+  }
+  const sweepTrace = runDetails.sweeps as Array<Record<string, unknown>>
 
   for (let sweep = 0; sweep < MAX_ORDERING_SWEEPS; sweep += 1) {
     const candidates: OrderingState[] = [...beam]
     for (const state of beam) candidates.push(...orderingNeighbors(state))
-    const ranked = candidates
+    const scored = candidates
       .filter((state) => {
         const key = orderingKey(state)
         if (seen.has(key) && !beam.includes(state)) return false
@@ -329,14 +444,30 @@ function optimizeRowOrder(
       })
       .map((state) => ({ score: scoreOrdering(context, row, state, fixedOrders), state }))
       .sort((a, b) => compareScore(a.score, b.score))
-      .slice(0, BEAM_WIDTH)
+    const ranked = scored.slice(0, BEAM_WIDTH)
     if (ranked.length === 0) break
     beam = ranked.map(({ state }) => state)
-    if (compareScore(ranked[0]!.score, bestScore) < 0) {
+    const improved = compareScore(ranked[0]!.score, bestScore) < 0
+    sweepTrace.push({
+      acceptedAsBest: improved,
+      attempted: scored.map(({ score, state }) => ({
+        order: tracedOrder(context, flattenOrdering(state)),
+        score: traceScore(score),
+      })),
+      generatedCandidateCount: candidates.length,
+      retainedCandidateCount: ranked.length,
+      sweep: sweep + 1,
+    })
+    if (improved) {
       best = ranked[0]!.state
       bestScore = ranked[0]!.score
     }
   }
+  runDetails.final = {
+    order: tracedOrder(context, flattenOrdering(best)),
+    score: traceScore(bestScore),
+  }
+  traceEvent(context, 'row-order-search', runDetails)
   return flattenOrdering(best)
 }
 
@@ -524,6 +655,11 @@ function scoreOrdering(
     if (family.parentIds.length !== 2) return false
     const [first, second] = family.parentIds
     if (!indexById.has(first!) || !indexById.has(second!)) return false
+    const hasOtherSpouse = (personId: string, partnerId: string) => (
+      [...(context.marriedPartnersByPerson.get(personId) ?? [])]
+        .some((candidateId) => candidateId !== partnerId)
+    )
+    if (hasOtherSpouse(first!, second!) || hasOtherSpouse(second!, first!)) return false
     const childId = family.childIds[0]!
     const firstRole = context.roleByParentAndChild.get(`${first}:${childId}`)
     const fatherId = firstRole === 'father' ? first : second
@@ -562,7 +698,7 @@ function scoreOrdering(
         (
           estimatedBranchWidth(context, children[index]!)
           + estimatedBranchWidth(context, rightId)
-        ) / 2 + CARD_GAP,
+        ) / 2 + SIBLING_CARD_GAP,
       )
     ))
     const uniform = Math.max(...required)
@@ -596,7 +732,7 @@ function estimatedBranchWidth(context: LayoutContext, rootId: string): number {
     counts.set(row, (counts.get(row) ?? 0) + 1)
   }
   return Math.max(...[...counts.values()].map((count) => (
-    PERSON_CARD_WIDTH + Math.max(0, count - 1) * (PERSON_CARD_WIDTH + CARD_GAP)
+    PERSON_CARD_WIDTH + Math.max(0, count - 1) * (PERSON_CARD_WIDTH + SIBLING_CARD_GAP)
   )))
 }
 
@@ -604,6 +740,7 @@ function solveCoordinates(
   context: LayoutContext,
   orders: ReadonlyMap<number, string[]>,
   childGapPolicies: ChildGapPolicy[],
+  pass: 'preliminary' | 'final',
 ): Map<string, number> {
   const solver = new Solver()
   solver.maxIterations = 100_000
@@ -685,7 +822,85 @@ function solveCoordinates(
   }
 
   solver.updateVariables()
-  return new Map(context.ids.map((id) => [id, normalized(variables.get(id)!.value())]))
+  const coordinates = new Map(context.ids.map((id) => [
+    id,
+    normalized(variables.get(id)!.value()),
+  ]))
+  traceCoordinateSolution(context, orders, childGapPolicies, coordinates, pass)
+  return coordinates
+}
+
+function traceCoordinateSolution(
+  context: LayoutContext,
+  orders: ReadonlyMap<number, string[]>,
+  childGapPolicies: ChildGapPolicy[],
+  coordinates: ReadonlyMap<string, number>,
+  pass: 'preliminary' | 'final',
+): void {
+  if (!context.trace) return
+  const policyByPair = new Map<string, number>()
+  for (const policy of childGapPolicies) {
+    policy.childIds.slice(1).forEach((rightId, index) => {
+      policyByPair.set(`${policy.childIds[index]}:${rightId}`, policy.distances[index]!)
+    })
+  }
+  const rows = [...orders].map(([row, order]) => ({
+    gaps: order.slice(1).map((rightId, index) => {
+      const leftId = order[index]!
+      const minimum = minimumDistance(context, leftId, rightId)
+      const actual = normalized(coordinates.get(rightId)! - coordinates.get(leftId)!)
+      const contourRequirement = policyByPair.get(`${leftId}:${rightId}`)
+        ?? policyByPair.get(`${rightId}:${leftId}`)
+      return {
+        actual,
+        addedSpace: normalized(actual - minimum),
+        contourRequirement: contourRequirement ?? null,
+        inferredCause: actual <= minimum + COORDINATE_TOLERANCE
+          ? 'minimum-card-gap'
+          : contourRequirement !== undefined && actual >= contourRequirement - COORDINATE_TOLERANCE
+            ? 'descendant-contours'
+            : 'family-axis-or-partner-constraint',
+        left: tracedOrder(context, [leftId])[0],
+        minimum,
+        right: tracedOrder(context, [rightId])[0],
+      }
+    }),
+    people: order.map((id) => ({
+      ...tracedOrder(context, [id])[0],
+      x: coordinates.get(id),
+    })),
+    row,
+  }))
+  const families = context.families
+    .filter((family) => family.childIds.length > 0)
+    .map((family) => {
+      const orderedChildren = [...family.childIds].sort((first, second) => (
+        coordinates.get(first)! - coordinates.get(second)! || first.localeCompare(second)
+      ))
+      const extremeChildren = orderedChildren.length === 1
+        ? [orderedChildren[0]!]
+        : [orderedChildren[0]!, orderedChildren.at(-1)!]
+      const parentCenter = average(family.parentIds.map((id) => coordinates.get(id)!))
+      const childCenter = average(extremeChildren.map((id) => coordinates.get(id)!))
+      return {
+        childCenter,
+        children: tracedOrder(context, orderedChildren),
+        deviation: normalized(parentCenter - childCenter),
+        extremeChildren: tracedOrder(context, extremeChildren),
+        parentCenter,
+        parents: tracedOrder(context, family.parentIds),
+      }
+    })
+  traceEvent(context, 'coordinate-solution', {
+    childGapPolicies: childGapPolicies.map((policy) => ({
+      children: tracedOrder(context, policy.childIds),
+      distances: policy.distances,
+      variable: policy.variable,
+    })),
+    families,
+    pass,
+    rows,
+  })
 }
 
 function isPureAncestorFan(context: LayoutContext): boolean {
@@ -716,7 +931,13 @@ function buildChildGapPolicies(
     const blocks = childIds.map((id) => descendantFamilyBlock(context, id, descendantBlocks))
     if (blocks.some((block, index) => blocks.slice(index + 1).some((other) => (
       [...block].some((id) => other.has(id))
-    )))) continue
+    )))) {
+      traceEvent(context, 'child-gap-policy-skipped', {
+        children: tracedOrder(context, childIds),
+        reason: 'descendant-blocks-overlap',
+      })
+      continue
+    }
 
     const required = childIds.slice(1).map((rightId, index) => requiredBranchDistance(
       context,
@@ -727,6 +948,15 @@ function buildChildGapPolicies(
       coordinates,
     ))
     const decision = chooseChildGapDistances(required)
+    traceEvent(context, 'child-gap-policy', {
+      blocks: blocks.map((block, index) => ({
+        members: tracedOrder(context, [...block].sort((a, b) => a.localeCompare(b))),
+        root: tracedOrder(context, [childIds[index]!])[0],
+      })),
+      children: tracedOrder(context, childIds),
+      decision,
+      required,
+    })
     policies.push({
       childIds,
       distances: decision.distances,
@@ -779,9 +1009,7 @@ function requiredBranchDistance(
     const rightContour = Math.min(...rightIds.map((id) => (
       coordinates.get(id)! - rightRootX - PERSON_CARD_WIDTH / 2
     )))
-    const cardGap = areHalfSiblings(context, leftRootId, rightRootId)
-      ? HALF_SIBLING_CARD_GAP
-      : CARD_GAP
+    const cardGap = minimumCardGap(context, leftRootId, rightRootId)
     required = Math.max(required, leftContour + cardGap - rightContour)
   }
   return normalized(required)
@@ -792,7 +1020,14 @@ function averageExpression(variables: Variable[]): Expression {
 }
 
 function minimumDistance(context: LayoutContext, first: string, second: string): number {
-  return areHalfSiblings(context, first, second) ? HALF_SIBLING_GAP : PERSON_CARD_WIDTH + CARD_GAP
+  return PERSON_CARD_WIDTH + minimumCardGap(context, first, second)
+}
+
+function minimumCardGap(context: LayoutContext, first: string, second: string): number {
+  if (context.partnersByPerson.get(first)?.has(second)) return SPOUSE_CARD_GAP
+  if (areHalfSiblings(context, first, second)) return HALF_SIBLING_CARD_GAP
+  if (areSiblings(context, first, second)) return SIBLING_CARD_GAP
+  return OTHER_CARD_GAP
 }
 
 function areHalfSiblings(context: LayoutContext, first: string, second: string): boolean {
@@ -801,6 +1036,12 @@ function areHalfSiblings(context: LayoutContext, first: string, second: string):
   if (firstParents.size === 0 || secondParents.size === 0) return false
   const shared = [...firstParents].filter((id) => secondParents.has(id)).length
   return shared > 0 && shared < Math.max(firstParents.size, secondParents.size)
+}
+
+function areSiblings(context: LayoutContext, first: string, second: string): boolean {
+  const firstParents = context.parentsByChild.get(first) ?? new Set<string>()
+  const secondParents = context.parentsByChild.get(second) ?? new Set<string>()
+  return [...firstParents].some((id) => secondParents.has(id))
 }
 
 function relationshipNeighbors(context: LayoutContext, id: string): string[] {

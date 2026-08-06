@@ -555,7 +555,7 @@ describe('deterministic tree layout', () => {
 
     expect(Math.abs(
       positions.get('first-child')!.x - positions.get('second-child')!.x,
-    )).toBeGreaterThanOrEqual(380)
+    )).toBeGreaterThanOrEqual(320)
   })
 
   it('keeps every neighbouring card apart in a dense generation', () => {
@@ -874,8 +874,8 @@ describe('deterministic tree layout', () => {
       .map((id) => positions.get(id)!.x)
       .sort((left, right) => left - right)
 
-    expect(children[1]! - children[0]!).toBeGreaterThanOrEqual(380)
-    expect(children[2]! - children[1]!).toBeGreaterThanOrEqual(380)
+    expect(children[1]! - children[0]!).toBeGreaterThanOrEqual(320)
+    expect(children[2]! - children[1]!).toBeGreaterThanOrEqual(320)
     for (const [spouseId, childId] of [
       ['first-spouse', 'first-child'],
       ['second-spouse', 'second-child'],
