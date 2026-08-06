@@ -73,6 +73,7 @@ import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { EventDialog } from '../components/EventDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
+import { ExportTreeDialog } from '../components/TreeExchangeDialogs'
 import {
   matchTreeEditorPath,
   navigate,
@@ -252,6 +253,7 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
 
 type LayoutToolbarProps = {
   isNetworkView: boolean
+  onExport: () => void
   onRegenerateNetwork: () => void
   onSaveNetworkState: () => void
   onToggleNetworkView: () => void
@@ -259,6 +261,7 @@ type LayoutToolbarProps = {
 
 function LayoutToolbar({
   isNetworkView,
+  onExport,
   onRegenerateNetwork,
   onSaveNetworkState,
   onToggleNetworkView,
@@ -267,6 +270,17 @@ function LayoutToolbar({
 
   return (
     <Panel className="editor-toolbar" position="top-right">
+      <button
+        aria-label={t('treeExport.action')}
+        className="editor-tool-button"
+        onClick={onExport}
+        title={t('treeExport.action')}
+        type="button"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+        </svg>
+      </button>
       <button
         aria-label={isNetworkView
           ? t('editor.showTreeView')
@@ -657,6 +671,7 @@ function BloodNetworkSidebar({
 type TreeCanvasProps = {
   bloodNetworkSidebarContainer: HTMLElement | null
   onClearSelection: () => void
+  onExport: () => void
   onChangeReference: (reference: TreeReference) => Promise<void>
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
   request: AuthorizedJsonRequest
@@ -672,6 +687,7 @@ type TreeCanvasProps = {
 function TreeCanvas({
   bloodNetworkSidebarContainer,
   onClearSelection,
+  onExport,
   onChangeReference,
   onSaveBloodNetworkState,
   request,
@@ -1283,6 +1299,7 @@ function TreeCanvas({
       <Background color="var(--color-border)" gap={22} size={1} />
       <LayoutToolbar
         isNetworkView={view === 'network'}
+        onExport={onExport}
         onRegenerateNetwork={() => {
           cameras.current.network = null
           setNetworkGeneration((generation) => generation + 1)
@@ -1516,7 +1533,7 @@ type PendingRemoval =
 
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
-  const { request, updateUser, user } = useAuth()
+  const { request, requestBlob, updateUser, user } = useAuth()
   const path = usePath()
   const treeRoute = matchTreeEditorPath(path)
   const isCurrentTreeRoute = treeRoute?.treeId === treeId
@@ -1527,6 +1544,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     'loading',
   )
   const [creating, setCreating] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
   const [conflict, setConflict] = useState(false)
@@ -2098,6 +2116,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
                 <TreeCanvas
                   bloodNetworkSidebarContainer={bloodNetworkSidebarContainer}
                   onClearSelection={closePersonDetails}
+                  onExport={() => setExporting(true)}
                   onChangeReference={changeReference}
                   onSaveBloodNetworkState={saveBloodNetworkState}
                   onSelectPerson={(personId) => void selectPerson(personId)}
@@ -2160,6 +2179,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         <PersonFormDialog
           onCancel={() => setCreating(false)}
           onSave={createFirstPerson}
+        />
+      )}
+      {exporting && snapshot && (
+        <ExportTreeDialog
+          onCancel={() => setExporting(false)}
+          requestBlob={requestBlob}
+          treeId={treeId}
+          treeName={snapshot.tree.name}
         />
       )}
       {relativeAction && selectedPerson && snapshot && (

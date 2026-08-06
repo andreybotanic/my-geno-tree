@@ -328,12 +328,14 @@ describe('TreeEditorPage', () => {
 
     await screen.findByRole('article', { name: 'Ivanova Anna' })
     expect(window.location.pathname).toBe(`/trees/${treeId}/tree`)
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     const showBloodNetwork = screen.getByRole('button', { name: 'Show blood network' })
     expect(showBloodNetwork.querySelector('svg')).toHaveAttribute('viewBox', '0 0 24 24')
     await userEvent.click(showBloodNetwork)
 
     expect(window.location.pathname).toBe(`/trees/${treeId}/network`)
     const showFamilyTree = screen.getByRole('button', { name: 'Show family tree' })
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(showFamilyTree.querySelector('svg')).toHaveAttribute('viewBox', '0 0 16 16')
     expect(showFamilyTree.querySelector('path')).toHaveAttribute(
       'd',
@@ -470,7 +472,7 @@ describe('TreeEditorPage', () => {
     })
     await userEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
     await waitFor(() => {
-      expect(screen.getByLabelText('Current zoom')).not.toHaveTextContent('100%')
+      expect(screen.getByLabelText('Current zoom')).toHaveTextContent('120%')
     })
     const treeZoom = screen.getByLabelText('Current zoom').textContent
 

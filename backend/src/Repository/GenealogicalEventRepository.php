@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\FamilyTree;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Entity\Value\EventSource;
@@ -72,6 +73,26 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
             ->andWhere('event.person = :person')
             ->setParameter('person', $person)
             ->orderBy('event.createdAt', 'ASC')
+            ->addOrderBy('event.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $events;
+    }
+
+    /** @return list<GenealogicalEvent> */
+    public function findManualForTree(FamilyTree $tree): array
+    {
+        /** @var list<GenealogicalEvent> $events */
+        $events = $this->createQueryBuilder('event')
+            ->addSelect('person')
+            ->join('event.person', 'person')
+            ->andWhere('person.tree = :tree')
+            ->andWhere('event.source = :source')
+            ->setParameter('tree', $tree)
+            ->setParameter('source', EventSource::MANUAL)
+            ->orderBy('person.createdAt', 'ASC')
+            ->addOrderBy('event.createdAt', 'ASC')
             ->addOrderBy('event.id', 'ASC')
             ->getQuery()
             ->getResult();

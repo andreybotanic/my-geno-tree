@@ -7,10 +7,12 @@ import {
   DeleteTreeDialog,
   TreeNameDialog,
 } from '../components/TreeDialogs'
+import { ImportTreeDialog } from '../components/TreeExchangeDialogs'
 import { navigate, treeEditorPath } from '../routing'
 
 type DialogState =
   | { type: 'create' }
+  | { type: 'import' }
   | { type: 'delete'; tree: FamilyTree }
   | { type: 'rename'; tree: FamilyTree }
   | null
@@ -61,13 +63,18 @@ export function TreesPage() {
           <p className="eyebrow">MyGenoTree</p>
           <h1>{t('trees.title')}</h1>
         </div>
-        <button
-          className="primary-button"
-          onClick={() => setDialog({ type: 'create' })}
-          type="button"
-        >
-          {t('trees.create')}
-        </button>
+        <div className="tree-heading-actions">
+          <button className="secondary-button" onClick={() => setDialog({ type: 'import' })} type="button">
+            {t('treeImport.action')}
+          </button>
+          <button
+            className="primary-button"
+            onClick={() => setDialog({ type: 'create' })}
+            type="button"
+          >
+            {t('trees.create')}
+          </button>
+        </div>
       </div>
 
       {status === 'loading' && (
@@ -137,6 +144,16 @@ export function TreesPage() {
           mode="create"
           onCancel={() => setDialog(null)}
           onSave={create}
+        />
+      )}
+      {dialog?.type === 'import' && (
+        <ImportTreeDialog
+          onCancel={() => setDialog(null)}
+          onImported={(treeId) => {
+            setDialog(null)
+            navigate(treeEditorPath(treeId, 'tree'))
+          }}
+          request={request}
         />
       )}
       {dialog?.type === 'rename' && (

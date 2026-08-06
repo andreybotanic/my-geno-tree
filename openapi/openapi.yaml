@@ -291,6 +291,95 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /tree-imports/inspect:
+    post:
+      operationId: inspectTreeImport
+      summary: Recognize and validate a GEDCOM tree before importing it
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TreeImportFile"
+      responses:
+        "200":
+          description: Recognized GEDCOM format, statistics and warnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeImportInspection"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /tree-imports:
+    post:
+      operationId: importTree
+      summary: Validate a GEDCOM file and atomically create a new family tree
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TreeImportRequest"
+      responses:
+        "201":
+          description: Imported family tree
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+            Location:
+              description: Snapshot endpoint for the imported tree
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTree"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/exports:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    post:
+      operationId: exportTree
+      summary: Export an owned tree as a GEDCOM 5.5.1 file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreeExportRequest"
+      responses:
+        "200":
+          description: UTF-8 GEDCOM download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            application/x-gedcom:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees/{treeId}:
     parameters:
       - $ref: "#/components/parameters/TreeId"
@@ -1094,6 +1183,66 @@ components:
           maxItems: 2
           items:
             $ref: "#/components/schemas/BloodNetworkPreset"
+    TreeImportFile:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+    TreeImportRequest:
+      type: object
+      additionalProperties: false
+      required: [file, name]
+      properties:
+        file:
+          type: string
+          format: binary
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    TreeImportWarning:
+      type: object
+      additionalProperties: false
+      required: [code, count]
+      properties:
+        code:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+    TreeImportInspection:
+      type: object
+      additionalProperties: false
+      required: [format, personCount, familyCount, warnings]
+      properties:
+        format:
+          type: string
+          enum: [GEDCOM 5.5, GEDCOM 5.5.1]
+        personCount:
+          type: integer
+          minimum: 1
+        familyCount:
+          type: integer
+          minimum: 0
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeImportWarning"
+    TreeExportRequest:
+      type: object
+      additionalProperties: false
+      required: [format, fileName]
+      properties:
+        format:
+          type: string
+          enum: [gedcom-5.5.1]
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 150
     TreeNameRequest:
       type: object
       additionalProperties: false

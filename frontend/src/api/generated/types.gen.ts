@@ -64,6 +64,32 @@ export type UpdateBloodNetworkPresetsRequest = {
     ];
 };
 
+export type TreeImportFile = {
+    file: Blob | File;
+};
+
+export type TreeImportRequest = {
+    file: Blob | File;
+    name: string;
+};
+
+export type TreeImportWarning = {
+    code: string;
+    count: number;
+};
+
+export type TreeImportInspection = {
+    format: 'GEDCOM 5.5' | 'GEDCOM 5.5.1';
+    personCount: number;
+    familyCount: number;
+    warnings: Array<TreeImportWarning>;
+};
+
+export type TreeExportRequest = {
+    format: 'gedcom-5.5.1';
+    fileName: string;
+};
+
 export type TreeNameRequest = {
     name: string;
 };
@@ -806,6 +832,107 @@ export type CreateTreeResponses = {
 };
 
 export type CreateTreeResponse = CreateTreeResponses[keyof CreateTreeResponses];
+
+export type InspectTreeImportData = {
+    body: TreeImportFile;
+    path?: never;
+    query?: never;
+    url: '/tree-imports/inspect';
+};
+
+export type InspectTreeImportErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type InspectTreeImportError = InspectTreeImportErrors[keyof InspectTreeImportErrors];
+
+export type InspectTreeImportResponses = {
+    /**
+     * Recognized GEDCOM format, statistics and warnings
+     */
+    200: TreeImportInspection;
+};
+
+export type InspectTreeImportResponse = InspectTreeImportResponses[keyof InspectTreeImportResponses];
+
+export type ImportTreeData = {
+    body: TreeImportRequest;
+    path?: never;
+    query?: never;
+    url: '/tree-imports';
+};
+
+export type ImportTreeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ImportTreeError = ImportTreeErrors[keyof ImportTreeErrors];
+
+export type ImportTreeResponses = {
+    /**
+     * Imported family tree
+     */
+    201: FamilyTree;
+};
+
+export type ImportTreeResponse = ImportTreeResponses[keyof ImportTreeResponses];
+
+export type ExportTreeData = {
+    body: TreeExportRequest;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/exports';
+};
+
+export type ExportTreeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ExportTreeError = ExportTreeErrors[keyof ExportTreeErrors];
+
+export type ExportTreeResponses = {
+    /**
+     * UTF-8 GEDCOM download
+     */
+    200: Blob | File;
+};
+
+export type ExportTreeResponse = ExportTreeResponses[keyof ExportTreeResponses];
 
 export type DeleteTreeData = {
     body?: never;

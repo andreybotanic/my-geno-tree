@@ -137,6 +137,34 @@ export const treeApi = {
       body: JSON.stringify({ name }),
     })
   },
+  inspectImport(request: AuthorizedJsonRequest, file: File) {
+    const form = new FormData()
+    form.set('file', file)
+    return request<import('./generated').TreeImportInspection>(
+      '/tree-imports/inspect',
+      { method: 'POST', body: form },
+    )
+  },
+  import(request: AuthorizedJsonRequest, file: File, name: string) {
+    const form = new FormData()
+    form.set('file', file)
+    form.set('name', name)
+    return request<import('./generated').FamilyTree>('/tree-imports', {
+      method: 'POST',
+      body: form,
+    })
+  },
+  export(
+    request: AuthorizedBlobRequest,
+    treeId: string,
+    fileName: string,
+  ) {
+    return request(`/trees/${treeId}/exports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: 'gedcom-5.5.1', fileName }),
+    })
+  },
   rename(
     request: AuthorizedJsonRequest,
     treeId: string,

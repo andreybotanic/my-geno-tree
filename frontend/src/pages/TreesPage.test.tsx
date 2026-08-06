@@ -98,6 +98,69 @@ describe('TreesPage', () => {
     }))
   })
 
+  it('recognizes a GEDCOM file before enabling import and opens the imported tree', async () => {
+    const imported = { ...tree, id: '019861c4-6a93-7a2e-8ca8-51813740d4aff' }
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/tree-imports/inspect') {
+        return {
+          format: 'GEDCOM 5.5.1',
+          personCount: 3,
+          familyCount: 1,
+          warnings: [{ code: 'unsupported_place', count: 2 }],
+        }
+      }
+      if (path === '/tree-imports' && init?.method === 'POST') return imported
+      return { items: [] }
+    }) as unknown as AuthorizedJsonRequest
+    renderPage(request)
+
+    await screen.findByText('You do not have any family trees yet.')
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }))
+    const dialog = screen.getByRole('dialog', { name: 'Import family tree' })
+    const importButton = within(dialog).getByRole('button', { name: 'Import' })
+    expect(importButton).toBeDisabled()
+    await userEvent.type(within(dialog).getByLabelText('Tree name'), 'Imported')
+    await userEvent.upload(
+      within(dialog).getByLabelText('GEDCOM file'),
+      new File(['0 HEAD'], 'tree.ged', { type: 'application/x-gedcom' }),
+    )
+    expect(await within(dialog).findByText('GEDCOM 5.5.1')).toBeInTheDocument()
+    expect(within(dialog).getByText('3 people, 1 families')).toBeInTheDocument()
+    expect(importButton).toBeEnabled()
+    await userEvent.click(importButton)
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/trees/${imported.id}/tree`))
+    expect(request).toHaveBeenCalledWith('/tree-imports', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('keeps import disabled when the file format is not recognized', async () => {
+    const request = vi.fn(async (path: string) => {
+      if (path === '/tree-imports/inspect') {
+        const { ApiRequestError } = await import('../api/client')
+        throw new ApiRequestError(422, {
+          code: 'TREE_IMPORT_FORMAT_UNRECOGNIZED',
+          message: 'tree_import_format_unrecognized',
+          fields: {},
+          details: {},
+        })
+      }
+      return { items: [] }
+    }) as unknown as AuthorizedJsonRequest
+    renderPage(request)
+
+    await screen.findByText('You do not have any family trees yet.')
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }))
+    const dialog = screen.getByRole('dialog', { name: 'Import family tree' })
+    await userEvent.type(within(dialog).getByLabelText('Tree name'), 'Invalid')
+    await userEvent.upload(
+      within(dialog).getByLabelText('GEDCOM file'),
+      new File(['not gedcom'], 'bad.ged', { type: 'application/x-gedcom' }),
+    )
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('could not be recognized')
+    expect(within(dialog).getByRole('button', { name: 'Import' })).toBeDisabled()
+  })
+
   it('renames and then irreversibly deletes a tree', async () => {
     let items = [tree]
     const request = vi.fn(async (
