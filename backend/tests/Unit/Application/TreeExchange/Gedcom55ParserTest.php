@@ -61,6 +61,28 @@ GEDCOM);
         self::assertSame(1, $document->warnings['unsupported_source']);
     }
 
+    public function testAllowsBurialAfterDeath(): void
+    {
+        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Petrova/
+1 BIRT
+2 DATE 1 JAN 1900
+1 DEAT
+2 DATE 22 NOV 1998
+1 BURI
+2 DATE 30 NOV 1998
+0 TRLR
+GEDCOM);
+
+        self::assertSame('BURI', $document->people[0]['events'][0]['title']);
+        self::assertSame(30, $document->people[0]['events'][0]['date']->getDay());
+    }
+
     public function testRejectsUnsupportedVersionEncodingAndBrokenReference(): void
     {
         foreach ([

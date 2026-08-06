@@ -327,7 +327,11 @@ final class Gedcom55Parser
                 $this->fail('TREE_IMPORT_CHRONOLOGY_CONFLICT');
             }
             foreach ($person['events'] as $event) {
-                $this->assertWithinLife($event['date'], $person['birthDate'], $person['deathDate']);
+                $this->assertWithinLife(
+                    $event['date'],
+                    $person['birthDate'],
+                    'BURI' === $event['title'] ? null : $person['deathDate'],
+                );
             }
         }
         /** @var array<string, array<string, true>> $adjacency */
