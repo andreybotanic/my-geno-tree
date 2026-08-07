@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { GenealogicalEvent } from '../api/generated'
-import { ambiguousEventGroups } from '../eventTimeline'
+import { datesAreAmbiguous } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
 import { AddButton } from './AddButton'
 
@@ -27,28 +27,22 @@ export function EventTimeline({
   const [orderError, setOrderError] = useState('')
   const [reordering, setReordering] = useState(false)
   const language = i18n.resolvedLanguage ?? 'en'
-  const groupsByEvent = useMemo(() => {
-    const result = new Map<string, GenealogicalEvent[]>()
-    for (const group of ambiguousEventGroups(events)) {
-      for (const event of group) {
-        result.set(event.id, group)
-      }
-    }
-
-    return result
-  }, [events])
-
   const move = async (event: GenealogicalEvent, offset: -1 | 1) => {
-    const group = groupsByEvent.get(event.id)
-    if (!group || conflict || reordering) {
-      return
-    }
-    const currentIndex = group.findIndex((candidate) => candidate.id === event.id)
+    const currentIndex = events.findIndex(
+      (candidate) => candidate.id === event.id,
+    )
     const targetIndex = currentIndex + offset
-    if (targetIndex < 0 || targetIndex >= group.length) {
+    const target = events[targetIndex]
+    if (
+      currentIndex === -1
+      || !target
+      || !datesAreAmbiguous(event.date, target.date)
+      || conflict
+      || reordering
+    ) {
       return
     }
-    const eventIds = group.map((candidate) => candidate.id)
+    const eventIds = events.map((candidate) => candidate.id)
     const currentId = eventIds[currentIndex]
     const targetId = eventIds[targetIndex]
     if (!currentId || !targetId) {
@@ -85,10 +79,17 @@ export function EventTimeline({
           )}
           <ol className="event-timeline">
             {events.map((event) => {
-              const group = groupsByEvent.get(event.id)
-              const groupIndex = group?.findIndex(
+              const eventIndex = events.findIndex(
                 (candidate) => candidate.id === event.id,
-              ) ?? -1
+              )
+              const previous = events[eventIndex - 1]
+              const next = events[eventIndex + 1]
+              const canMoveUp = Boolean(
+                previous && datesAreAmbiguous(event.date, previous.date),
+              )
+              const canMoveDown = Boolean(
+                next && datesAreAmbiguous(event.date, next.date),
+              )
               const isExpanded = expanded.has(event.id)
               const surname = typeof event.data.newSurname === 'string'
                 ? event.data.newSurname
@@ -132,7 +133,7 @@ export function EventTimeline({
                       )}
                     </>
                   )}
-                  {(event.source === 'manual' || group) && (
+                  {(event.source === 'manual' || canMoveUp || canMoveDown) && (
                     <div className="event-actions">
                       {event.source === 'manual' && (
                         <>
@@ -153,7 +154,7 @@ export function EventTimeline({
                           </button>
                         </>
                       )}
-                      {group && (
+                      {(canMoveUp || canMoveDown) && (
                         <div className="event-order-actions">
                           <button
                             aria-label={t('events.moveUp', {
@@ -162,7 +163,7 @@ export function EventTimeline({
                             })}
                             disabled={conflict
                               || reordering
-                              || groupIndex === 0}
+                              || !canMoveUp}
                             onClick={() => void move(event, -1)}
                             type="button"
                           >
@@ -176,7 +177,7 @@ export function EventTimeline({
                             disabled={
                               conflict
                               || reordering
-                              || groupIndex === group.length - 1
+                              || !canMoveDown
                             }
                             onClick={() => void move(event, 1)}
                             type="button"

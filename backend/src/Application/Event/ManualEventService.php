@@ -146,7 +146,7 @@ final readonly class ManualEventService
             $ifMatch,
         ): array {
             $this->lock($tree, $person, $ifMatch);
-            $timeline = $this->events->findTimeline($person);
+            $timeline = $this->timeline->forPerson($person);
             $eventsById = [];
             foreach ($timeline as $event) {
                 $eventsById[$event->getId()->toRfc4122()] = $event;
@@ -158,15 +158,25 @@ final readonly class ManualEventService
                 }
                 $ordered[] = $eventsById[$eventId];
             }
-            foreach ($ordered as $index => $event) {
-                foreach (array_slice($ordered, $index + 1) as $other) {
-                    if (!$this->chronology->isAmbiguous(
-                        $event->getDate(),
-                        $other->getDate(),
-                    )) {
-                        $this->invalidOrder();
-                    }
-                }
+            if (count($ordered) !== count($timeline)) {
+                $this->invalidOrder();
+            }
+            $changed = array_keys(array_filter(
+                $timeline,
+                static fn (GenealogicalEvent $event, int $index): bool => $event !== $ordered[$index],
+                ARRAY_FILTER_USE_BOTH,
+            ));
+            if (
+                2 !== count($changed)
+                || 1 !== $changed[1] - $changed[0]
+                || $timeline[$changed[0]] !== $ordered[$changed[1]]
+                || $timeline[$changed[1]] !== $ordered[$changed[0]]
+                || !$this->chronology->isAmbiguous(
+                    $timeline[$changed[0]]->getDate(),
+                    $timeline[$changed[1]]->getDate(),
+                )
+            ) {
+                $this->invalidOrder();
             }
 
             $changedAt = $this->clock->now();

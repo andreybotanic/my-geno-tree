@@ -261,11 +261,11 @@ final class ManualEventApiTest extends ApiWebTestCase
             $this->events($accessToken, $tree['id'], $person['id']),
             static fn (array $event): bool => 'birth' === $event['type'],
         ))[0];
-        $orderedIds = [
-            $second['event']['id'],
-            $birth['id'],
-            $first['event']['id'],
-        ];
+        $orderedIds = array_column(
+            $this->events($accessToken, $tree['id'], $person['id']),
+            'id',
+        );
+        [$orderedIds[0], $orderedIds[1]] = [$orderedIds[1], $orderedIds[0]];
 
         $this->jsonRequest(
             'PUT',
@@ -284,7 +284,7 @@ final class ManualEventApiTest extends ApiWebTestCase
         /** @var array{etag: string, items: list<ManualEvent>} $reordered */
         $reordered = $this->responseData();
         self::assertSame(
-            $orderedIds,
+            array_slice($orderedIds, 0, 3),
             array_slice(array_column($reordered['items'], 'id'), 0, 3),
         );
         self::assertSame(
@@ -372,7 +372,55 @@ final class ManualEventApiTest extends ApiWebTestCase
         self::assertNull($updated['event']['manualOrder']);
     }
 
+    public function testApproximateDatesDoNotDisplaceKnownTimelineEvents(): void
+    {
+        [$accessToken, $tree, $snapshot, $person] = $this->personTree(
+            birthDate: [
+                ...$this->knownDate('year', 1858),
+                'approximate' => true,
+            ],
+            deathDate: $this->knownDate('day', 1947, month: 10, day: 20),
+        );
+        $first = $this->createEvent(
+            $accessToken,
+            $tree['id'],
+            $person['id'],
+            $snapshot['etag'],
+            [
+                'type'        => 'custom',
+                'date'        => $this->knownDate('day', 1886, month: 2, day: 23),
+                'title'       => 'First child',
+                'description' => null,
+            ],
+        );
+        $second = $this->createEvent(
+            $accessToken,
+            $tree['id'],
+            $person['id'],
+            $first['etag'],
+            [
+                'type'        => 'custom',
+                'date'        => $this->knownDate('day', 1894, month: 10, day: 1),
+                'title'       => 'Second child',
+                'description' => null,
+            ],
+        );
+
+        $events = $this->events($accessToken, $tree['id'], $person['id']);
+        self::assertSame(
+            ['birth', 'custom', 'custom', 'death'],
+            array_column($events, 'type'),
+        );
+        self::assertSame(
+            [$first['event']['id'], $second['event']['id']],
+            array_slice(array_column($events, 'id'), 1, 2),
+        );
+    }
+
     /**
+     * @param array<string, bool|int|string>|null $birthDate
+     * @param array<string, bool|int|string>|null $deathDate
+     *
      * @return array{
      *     string,
      *     ManualTree,
@@ -380,8 +428,10 @@ final class ManualEventApiTest extends ApiWebTestCase
      *     ManualPerson
      * }
      */
-    private function personTree(): array
-    {
+    private function personTree(
+        ?array $birthDate = null,
+        ?array $deathDate = null,
+    ): array {
         $accessToken = $this->register();
         $tree = $this->createTree($accessToken);
         $this->jsonRequest(
@@ -394,8 +444,8 @@ final class ManualEventApiTest extends ApiWebTestCase
                     'givenName'    => ['state' => 'unknown'],
                     'patronymic'   => ['state' => 'unknown'],
                     'gender'       => 'unknown',
-                    'birthDate'    => $this->knownDate('year', 1900),
-                    'deathDate'    => $this->knownDate('year', 2000),
+                    'birthDate'    => $birthDate ?? $this->knownDate('year', 1900),
+                    'deathDate'    => $deathDate ?? $this->knownDate('year', 2000),
                 ],
             ],
             [
@@ -520,6 +570,7 @@ final class ManualEventApiTest extends ApiWebTestCase
         string $precision,
         int $year,
         ?int $month = null,
+        ?int $day = null,
     ): array {
         $date = [
             'state'       => 'known',
@@ -529,6 +580,9 @@ final class ManualEventApiTest extends ApiWebTestCase
         ];
         if (null !== $month) {
             $date['month'] = $month;
+        }
+        if (null !== $day) {
+            $date['day'] = $day;
         }
 
         return $date;

@@ -97,6 +97,62 @@ describe('EventTimeline', () => {
     expect(onReorder).toHaveBeenCalledWith([manual.id, automatic.id])
   })
 
+  it('moves an uncertain event by exactly one adjacent position', async () => {
+    const earlier: GenealogicalEvent = {
+      ...automatic,
+      id: 'earlier',
+      date: {
+        state: 'known',
+        precision: 'day',
+        year: 1950,
+        month: 1,
+        day: 1,
+        approximate: false,
+      },
+      title: 'Earlier',
+    }
+    const uncertain: GenealogicalEvent = {
+      ...manual,
+      id: 'uncertain',
+      date: { state: 'unknown' },
+      title: 'Uncertain',
+    }
+    const later: GenealogicalEvent = {
+      ...automatic,
+      id: 'later',
+      date: {
+        state: 'known',
+        precision: 'day',
+        year: 2000,
+        month: 1,
+        day: 1,
+        approximate: false,
+      },
+      title: 'Later',
+    }
+    const onReorder = vi.fn(async () => {})
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[automatic, earlier, uncertain, later]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onReorder={onReorder}
+      />,
+    )
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move Uncertain up' }),
+    )
+    expect(onReorder).toHaveBeenCalledWith([
+      automatic.id,
+      uncertain.id,
+      earlier.id,
+      later.id,
+    ])
+  })
+
   it('disables all mutations after a version conflict', () => {
     render(
       <EventTimeline
