@@ -1072,7 +1072,7 @@
 }
 
 .person-photo-placeholder {
-  border: 1px solid var(--color-text-strong);
+  border: 1px solid var(--color-accent);
   border-radius: 9px;
   height: 140px;
   width: 105px;

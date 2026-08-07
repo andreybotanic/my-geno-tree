@@ -138,7 +138,7 @@ describe('semantic design contracts', () => {
       /\.person-card\s*\{[^}]*gap:\s*10px;[^}]*grid-template-columns:\s*105px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*padding:\s*8px;[^}]*width:\s*260px;/s,
     )
     expect(appStyles).toMatch(
-      /\.person-photo-placeholder\s*\{[^}]*border:\s*1px solid var\(--color-text-strong\);[^}]*border-radius:\s*9px;[^}]*height:\s*140px;[^}]*width:\s*105px;/s,
+      /\.person-photo-placeholder\s*\{[^}]*border:\s*1px solid var\(--color-accent\);[^}]*border-radius:\s*9px;[^}]*height:\s*140px;[^}]*width:\s*105px;/s,
     )
     expect(appStyles).toMatch(
       /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
