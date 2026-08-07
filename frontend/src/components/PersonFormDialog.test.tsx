@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiRequestError } from '../api/client'
 import i18n from '../i18n'
@@ -66,7 +66,10 @@ describe('PersonFormDialog', () => {
       within(birth).getByRole('button', { name: 'Unknown' }),
     ).toHaveAttribute('aria-pressed', 'false')
     expect(
-      within(birth).getByRole('spinbutton', { name: 'Birth date: Day' }),
+      within(birth).getByLabelText('Birth date: Exact date'),
+    ).toHaveAttribute('type', 'date')
+    expect(
+      within(birth).getByLabelText('Birth date: Exact date'),
     ).toBeEnabled()
     expect(
       within(birth).queryByRole('checkbox', { name: 'Approximately' }),
@@ -84,8 +87,14 @@ describe('PersonFormDialog', () => {
       within(birth).getByRole('spinbutton', { name: 'Birth date: Year' }),
       '1900',
     )
-    await userEvent.type(
-      within(birth).getByRole('spinbutton', { name: 'Birth date: Month' }),
+    const birthMonth = within(birth).getByRole('combobox', {
+      name: 'Birth date: Month',
+    })
+    expect(
+      within(birthMonth).getByRole('option', { name: 'February' }),
+    ).toHaveValue('2')
+    await userEvent.selectOptions(
+      birthMonth,
       '2',
     )
 
@@ -107,17 +116,9 @@ describe('PersonFormDialog', () => {
         name: 'Death date: Precision',
       }),
     ).toHaveValue('day')
-    await userEvent.type(
-      within(death).getByRole('spinbutton', { name: 'Death date: Year' }),
-      '1980',
-    )
-    await userEvent.type(
-      within(death).getByRole('spinbutton', { name: 'Death date: Month' }),
-      '3',
-    )
-    await userEvent.type(
-      within(death).getByRole('spinbutton', { name: 'Death date: Day' }),
-      '4',
+    fireEvent.change(
+      within(death).getByLabelText('Death date: Exact date'),
+      { target: { value: '1980-03-04' } },
     )
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
@@ -153,6 +154,27 @@ describe('PersonFormDialog', () => {
       'Check the entered name and date values.',
     )
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('shows month names in the selected interface language', async () => {
+    await i18n.changeLanguage('ru')
+    render(<PersonFormDialog onCancel={vi.fn()} onSave={vi.fn(async () => {})} />)
+    const birth = within(screen.getByRole('dialog', {
+      name: 'Создание первой персоны',
+    })).getByRole('group', { name: 'Дата рождения' })
+
+    await userEvent.selectOptions(
+      within(birth).getByRole('combobox', {
+        name: 'Дата рождения: Точность',
+      }),
+      'month',
+    )
+
+    expect(
+      within(
+        within(birth).getByRole('combobox', { name: 'Дата рождения: Месяц' }),
+      ).getByRole('option', { name: 'Январь' }),
+    ).toHaveValue('1')
   })
 
   it.each([

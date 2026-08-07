@@ -254,8 +254,8 @@ describe('PersonDetailsPanel', () => {
       }),
       'month',
     )
-    await userEvent.type(
-      within(dateEditor).getByRole('spinbutton', {
+    await userEvent.selectOptions(
+      within(dateEditor).getByRole('combobox', {
         name: 'Birth date: Month',
       }),
       '5',

@@ -78,12 +78,46 @@ type StructuredDateInputProps = {
   state: DateInputState
 }
 
+function dateInputValue(state: DateInputState): string {
+  const year = Number(state.year)
+  const month = Number(state.month)
+  const day = Number(state.day)
+  const candidate = new Date(Date.UTC(year, month - 1, day))
+
+  if (
+    !Number.isInteger(year)
+    || year < 1582
+    || year > 9999
+    || !Number.isInteger(month)
+    || !Number.isInteger(day)
+    || candidate.getUTCFullYear() !== year
+    || candidate.getUTCMonth() !== month - 1
+    || candidate.getUTCDate() !== day
+  ) {
+    return ''
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 export function StructuredDateInput({
   label,
   onChange,
   state,
 }: StructuredDateInputProps) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const monthFormatter = new Intl.DateTimeFormat(i18n.language, {
+    month: 'long',
+    timeZone: 'UTC',
+  })
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const month = monthFormatter.format(new Date(Date.UTC(2000, index, 1)))
+
+    return {
+      label: month.charAt(0).toLocaleUpperCase(i18n.language) + month.slice(1),
+      value: String(index + 1),
+    }
+  })
 
   return (
     <fieldset className="person-fieldset date-fieldset">
@@ -111,57 +145,67 @@ export function StructuredDateInput({
               </select>
             </label>
             {state.precision === 'day' && (
-              <label>
-                <span>{t('person.day')}</span>
+              <label className="exact-date-control">
+                <span>{t('person.exactDate')}</span>
                 <input
-                  aria-label={`${label}: ${t('person.day')}`}
+                  aria-label={`${label}: ${t('person.exactDate')}`}
                   disabled={state.unknown}
-                  inputMode="numeric"
-                  max="31"
-                  min="1"
-                  onChange={(event) => onChange({
-                    ...state,
-                    day: event.target.value,
-                  })}
-                  type="number"
-                  value={state.day}
+                  max="9999-12-31"
+                  min="1582-01-01"
+                  onChange={(event) => {
+                    const [year = '', month = '', day = ''] = event.target.value.split('-')
+
+                    onChange({
+                      ...state,
+                      day,
+                      month,
+                      year,
+                    })
+                  }}
+                  type="date"
+                  value={dateInputValue(state)}
                 />
               </label>
             )}
-            {state.precision !== 'year' && (
+            {state.precision === 'month' && (
               <label>
                 <span>{t('person.month')}</span>
-                <input
+                <select
                   aria-label={`${label}: ${t('person.month')}`}
                   disabled={state.unknown}
-                  inputMode="numeric"
-                  max="12"
-                  min="1"
                   onChange={(event) => onChange({
                     ...state,
                     month: event.target.value,
                   })}
-                  type="number"
                   value={state.month}
+                >
+                  <option value="">{t('person.month')}</option>
+                  {months.map((month) => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {state.precision !== 'day' && (
+              <label>
+                <span>{t('person.year')}</span>
+                <input
+                  aria-label={`${label}: ${t('person.year')}`}
+                  disabled={state.unknown}
+                  inputMode="numeric"
+                  max="9999"
+                  min="1582"
+                  onChange={(event) => onChange({
+                    ...state,
+                    year: event.target.value,
+                  })}
+                  type="number"
+                  value={state.year}
                 />
               </label>
             )}
-            <label>
-              <span>{t('person.year')}</span>
-              <input
-                aria-label={`${label}: ${t('person.year')}`}
-                disabled={state.unknown}
-                inputMode="numeric"
-                max="9999"
-                min="1582"
-                onChange={(event) => onChange({
-                  ...state,
-                  year: event.target.value,
-                })}
-                type="number"
-                value={state.year}
-              />
-            </label>
           </div>
           <UnknownToggleButton
             active={state.unknown}

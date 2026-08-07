@@ -68,10 +68,8 @@ describe('RelativeDialog', () => {
       }),
     ).toHaveValue('day')
     expect(
-      within(marriageDate).getByRole('spinbutton', {
-        name: 'Marriage date: Day',
-      }),
-    ).toBeEnabled()
+      within(marriageDate).getByLabelText('Marriage date: Exact date'),
+    ).toHaveAttribute('type', 'date')
     await userEvent.selectOptions(
       within(dialog).getByRole('combobox', { name: 'Gender' }),
       'female',

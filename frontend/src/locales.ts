@@ -206,6 +206,7 @@ export const resources = {
         details: 'Person details',
         edit: 'Edit',
         editField: 'Edit {{field}}',
+        exactDate: 'Exact date',
         events: 'Events',
         eventType: {
           birth: 'Birth',
@@ -540,6 +541,7 @@ export const resources = {
         details: 'Данные персоны',
         edit: 'Изменить',
         editField: 'Изменить поле «{{field}}»',
+        exactDate: 'Точная дата',
         events: 'События',
         eventType: {
           birth: 'Рождение',

@@ -2243,6 +2243,10 @@
   flex: 1.4 1 80px;
 }
 
+.date-controls > .exact-date-control {
+  flex: 2 1 160px;
+}
+
 .date-controls > label > span {
   color: var(--color-text-muted);
   font-size: 0.69rem;

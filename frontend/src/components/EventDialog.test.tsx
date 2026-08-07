@@ -59,8 +59,8 @@ describe('EventDialog', () => {
       }),
       '1950',
     )
-    await userEvent.type(
-      within(eventDate).getByRole('spinbutton', {
+    await userEvent.selectOptions(
+      within(eventDate).getByRole('combobox', {
         name: 'Event date: Month',
       }),
       '7',
