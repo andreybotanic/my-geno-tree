@@ -75,10 +75,24 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
             <span>{t('trees.name')}</span>
             <input autoFocus maxLength={101} onChange={(event) => setName(event.target.value)} value={name} />
           </label>
-          <label className="form-field">
-            <span>{t('treeImport.file')}</span>
-            <input accept=".ged" onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)} type="file" />
-          </label>
+          <div className="form-field">
+            <label htmlFor="gedcom-file-input">{t('treeImport.file')}</label>
+            <div className="file-picker">
+              <input
+                accept=".ged"
+                className="file-picker-input"
+                id="gedcom-file-input"
+                onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+              <label className="file-picker-button" htmlFor="gedcom-file-input">
+                {t('treeImport.chooseFile')}
+              </label>
+              <span className={`file-picker-name${file ? '' : ' is-empty'}`}>
+                {file?.name ?? t('treeImport.noFile')}
+              </span>
+            </div>
+          </div>
           {state === 'checking' && <p className="exchange-status">{t('treeImport.checking')}</p>}
           {inspection && (
             <div className="import-inspection" aria-live="polite">

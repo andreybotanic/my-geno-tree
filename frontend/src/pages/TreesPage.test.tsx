@@ -119,12 +119,15 @@ describe('TreesPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Import family tree' })
     const importButton = within(dialog).getByRole('button', { name: 'Import' })
     expect(importButton).toBeDisabled()
+    expect(within(dialog).getByText('Choose GEDCOM file')).toBeInTheDocument()
+    expect(within(dialog).getByText('No file selected')).toBeInTheDocument()
     await userEvent.type(within(dialog).getByLabelText('Tree name'), 'Imported')
     await userEvent.upload(
       within(dialog).getByLabelText('GEDCOM file'),
       new File(['0 HEAD'], 'tree.ged', { type: 'application/x-gedcom' }),
     )
     expect(await within(dialog).findByText('GEDCOM 5.5.1')).toBeInTheDocument()
+    expect(within(dialog).getByText('tree.ged')).toBeInTheDocument()
     expect(within(dialog).getByText('3 people, 1 families')).toBeInTheDocument()
     expect(importButton).toBeEnabled()
     await userEvent.click(importButton)

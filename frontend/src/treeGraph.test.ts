@@ -85,6 +85,48 @@ describe('deterministic tree layout', () => {
     expect(first.y).toBe(second.y)
   })
 
+  it('aligns shorter and deeper ancestral branches of a married couple', () => {
+    const people = [
+      'anchor',
+      'anchor-father',
+      'anchor-mother',
+      'deep-grandfather',
+      'deep-grandmother',
+      'deep-great-grandfather',
+      'deep-great-grandmother',
+      'shallow-grandfather',
+      'shallow-grandmother',
+    ].map(person)
+    const parentLinks = [
+      link('anchor-father', 'anchor-father', 'anchor', 'father'),
+      link('anchor-mother', 'anchor-mother', 'anchor', 'mother'),
+      link('father-father', 'deep-grandfather', 'anchor-father', 'father'),
+      link('father-mother', 'deep-grandmother', 'anchor-father', 'mother'),
+      link('deep-father', 'deep-great-grandfather', 'deep-grandfather', 'father'),
+      link('deep-mother', 'deep-great-grandmother', 'deep-grandfather', 'mother'),
+      link('mother-father', 'shallow-grandfather', 'anchor-mother', 'father'),
+      link('mother-mother', 'shallow-grandmother', 'anchor-mother', 'mother'),
+    ]
+    const marriages = [
+      marriage('anchor-parents', 'anchor-father', 'anchor-mother'),
+      marriage('deep-grandparents', 'deep-grandfather', 'deep-grandmother'),
+      marriage('deep-great-grandparents', 'deep-great-grandfather', 'deep-great-grandmother'),
+      marriage('shallow-grandparents', 'shallow-grandfather', 'shallow-grandmother'),
+    ]
+
+    const positions = layoutTree(snapshot(people, parentLinks, marriages, {
+      type: 'person', personId: 'anchor',
+    }))
+
+    expect(positions.get('anchor-father')!.y).toBe(positions.get('anchor-mother')!.y)
+    expect(positions.get('deep-grandfather')!.y).toBe(
+      positions.get('shallow-grandfather')!.y,
+    )
+    expect(
+      positions.get('anchor-mother')!.y - positions.get('shallow-grandfather')!.y,
+    ).toBe(240)
+  })
+
   it('does not overlap cards and produces one highlighted marriage bracket', () => {
     const tree = snapshot(people, links, marriages, {
       type: 'marriage',

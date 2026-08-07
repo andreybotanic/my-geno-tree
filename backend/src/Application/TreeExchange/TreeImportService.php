@@ -87,7 +87,11 @@ final readonly class TreeImportService
                             $person,
                             EventType::CUSTOM,
                             $event['date'],
-                            $event['title'],
+                            $this->eventTitle(
+                                $event['gedcomTag'],
+                                $event['title'],
+                                $owner->getPreferredLanguage(),
+                            ),
                             $event['description'],
                             [],
                             $createdAt,
@@ -186,6 +190,38 @@ final readonly class TreeImportService
     private function knownText(?string $value): KnownText
     {
         return null === $value ? KnownText::unknown() : KnownText::known($value);
+    }
+
+    private function eventTitle(
+        string $gedcomTag,
+        ?string $customTitle,
+        string $language,
+    ): string {
+        if ('EVEN' === $gedcomTag && null !== $customTitle) {
+            return $customTitle;
+        }
+
+        $titles = [
+            'en' => [
+                'BAPM' => 'Baptism',
+                'BURI' => 'Burial',
+                'EVEN' => 'Event',
+                'OCCU' => 'Occupation',
+                'RESI' => 'Residence',
+            ],
+            'ru' => [
+                'BAPM' => 'Крещение',
+                'BURI' => 'Погребение',
+                'EVEN' => 'Событие',
+                'OCCU' => 'Род занятий',
+                'RESI' => 'Проживание',
+            ],
+        ];
+
+        return $titles[$language][$gedcomTag]
+            ?? $titles['en'][$gedcomTag]
+            ?? $customTitle
+            ?? $gedcomTag;
     }
 
     private function fail(string $code): never

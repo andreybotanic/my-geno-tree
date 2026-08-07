@@ -17,7 +17,8 @@ final readonly class GedcomImportDocument
      *     deathDate: GenealogicalDate|null,
      *     events: list<array{
      *         date: GenealogicalDate,
-     *         title: string,
+     *         gedcomTag: string,
+     *         title: string|null,
      *         description: string|null
      *     }>
      * }> $people

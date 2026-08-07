@@ -64,11 +64,11 @@ export function TreesPage() {
           <h1>{t('trees.title')}</h1>
         </div>
         <div className="tree-heading-actions">
-          <button className="secondary-button" onClick={() => setDialog({ type: 'import' })} type="button">
+          <button className="secondary-button tree-heading-button" onClick={() => setDialog({ type: 'import' })} type="button">
             {t('treeImport.action')}
           </button>
           <button
-            className="primary-button"
+            className="primary-button tree-heading-button"
             onClick={() => setDialog({ type: 'create' })}
             type="button"
           >

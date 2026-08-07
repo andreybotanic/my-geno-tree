@@ -43,7 +43,7 @@ GEDCOM;
 
     public function testInspectImportAndRoundTripExport(): void
     {
-        $token = $this->register();
+        $token = $this->register(language: 'ru');
         $this->multipart('/api/v1/tree-imports/inspect', $token, self::GEDCOM);
         self::assertResponseIsSuccessful();
         self::assertSame('GEDCOM 5.5.1', $this->responseString('format'));
@@ -78,7 +78,7 @@ GEDCOM;
         self::assertStringContainsString("2 VERS 5.5.1\r\n", $export);
         self::assertStringContainsString("1 _MGT_UNMARRIED Y\r\n", $export);
         self::assertStringContainsString('2 TYPE MyGenoTree UUID', $export);
-        self::assertStringContainsString('2 TYPE OCCU', $export);
+        self::assertStringContainsString('2 TYPE Род занятий', $export);
 
         $this->multipart('/api/v1/tree-imports', $token, $export, 'Round trip');
         self::assertResponseStatusCodeSame(201);
@@ -177,11 +177,15 @@ GEDCOM;
         self::assertSame('TREE_IMPORT_FILE_TOO_LARGE', $this->responseString('code'));
     }
 
-    private function register(string $username = 'exchange_owner', string $email = 'exchange@example.test'): string
-    {
+    private function register(
+        string $username = 'exchange_owner',
+        string $email = 'exchange@example.test',
+        string $language = 'en',
+    ): string {
         $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration([
             'username' => $username,
             'email'    => $email,
+            'language' => $language,
         ]));
         self::assertResponseStatusCodeSame(201);
 

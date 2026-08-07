@@ -84,24 +84,16 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
     .sort(parentLinkComparator)
     .map((link) => [find(link.parentId), find(link.childId)] as const)
     .filter(([source, target]) => source !== target)
-  const ranks = new Map([...members.keys()].map((id) => [id, 0]))
-  for (let pass = 0; pass < members.size; pass += 1) {
-    let changed = false
-    for (const [source, target] of componentLinks) {
-      const next = ranks.get(source)! + 1
-      if (next > ranks.get(target)!) {
-        ranks.set(target, next)
-        changed = true
-      }
-    }
-    if (!changed) break
-  }
-
   const reference = effectiveReference(snapshot)!
   const referenceIds = reference.type === 'person'
     ? [reference.personId]
     : reference.personIds
   const referenceRoots = new Set(referenceIds.map(find))
+  const ranks = generationRanks(
+    [...members.keys()],
+    componentLinks,
+    referenceRoots,
+  )
   const distances = componentDistances([...members.keys()], componentLinks, referenceRoots)
   const rows = new Map<number, string[]>()
   for (const componentId of members.keys()) {
@@ -150,6 +142,66 @@ export function layoutTree(snapshot: TreeSnapshot): Map<string, XYPosition> {
   }
 
   return positions
+}
+
+function generationRanks(
+  componentIds: string[],
+  componentLinks: ReadonlyArray<readonly [string, string]>,
+  referenceRoots: ReadonlySet<string>,
+): Map<string, number> {
+  const neighbors = new Map(componentIds.map((id) => [
+    id,
+    [] as Array<{ id: string; offset: number }>,
+  ]))
+  for (const [parentId, childId] of componentLinks) {
+    neighbors.get(parentId)!.push({ id: childId, offset: 1 })
+    neighbors.get(childId)!.push({ id: parentId, offset: -1 })
+  }
+  for (const adjacent of neighbors.values()) {
+    adjacent.sort((first, second) => (
+      first.id.localeCompare(second.id) || first.offset - second.offset
+    ))
+  }
+
+  const ranks = new Map<string, number>()
+  const pending = [...referenceRoots].sort((a, b) => a.localeCompare(b))
+  for (const root of pending) ranks.set(root, 0)
+  for (let index = 0; index < pending.length; index += 1) {
+    const current = pending[index]!
+    for (const neighbor of neighbors.get(current) ?? []) {
+      const candidate = ranks.get(current)! + neighbor.offset
+      const existing = ranks.get(neighbor.id)
+      if (existing === undefined) {
+        ranks.set(neighbor.id, candidate)
+        pending.push(neighbor.id)
+      } else if (existing !== candidate) {
+        return longestPathRanks(componentIds, componentLinks)
+      }
+    }
+  }
+
+  return ranks.size === componentIds.length
+    ? ranks
+    : longestPathRanks(componentIds, componentLinks)
+}
+
+function longestPathRanks(
+  componentIds: string[],
+  componentLinks: ReadonlyArray<readonly [string, string]>,
+): Map<string, number> {
+  const ranks = new Map(componentIds.map((id) => [id, 0]))
+  for (let pass = 0; pass < componentIds.length; pass += 1) {
+    let changed = false
+    for (const [source, target] of componentLinks) {
+      const next = ranks.get(source)! + 1
+      if (next > ranks.get(target)!) {
+        ranks.set(target, next)
+        changed = true
+      }
+    }
+    if (!changed) break
+  }
+  return ranks
 }
 
 export function buildTreeEdges(

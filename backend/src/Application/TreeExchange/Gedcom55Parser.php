@@ -87,7 +87,7 @@ final class Gedcom55Parser
                 $this->warning('unsupported_tag');
             }
         }
-        $people = $this->validateGraph($people, $families);
+        [$people, $families] = $this->validateGraph($people, $families);
 
         return new GedcomImportDocument(
             'GEDCOM ' . $version,
@@ -153,7 +153,12 @@ final class Gedcom55Parser
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
      *     deathDate: GenealogicalDate|null,
-     *     events: list<array{date: GenealogicalDate, title: string, description: string|null}>
+     *     events: list<array{
+     *         date: GenealogicalDate,
+     *         gedcomTag: string,
+     *         title: string|null,
+     *         description: string|null
+     *     }>
      * }, array<string, string>}
      */
     private function person(GedcomNode $node): array
@@ -189,14 +194,15 @@ final class Gedcom55Parser
                     ? $this->text(
                         null === $typeNode ? null : $this->continued($typeNode),
                         200,
-                    ) ?? 'EVEN'
-                    : $tag;
+                    )
+                    : null;
                 $description = trim(implode("\n", array_filter([
                     $this->continued($event),
                     $event->child('NOTE') ? $this->continued($event->child('NOTE')) : null,
                 ], static fn (?string $value): bool => null !== $value && '' !== $value)));
                 $events[] = [
                     'date'        => $this->date($event->child('DATE')?->value),
+                    'gedcomTag'   => $tag,
                     'title'       => $title,
                     'description' => null === ($text = $this->text($description, 5000))
                         ? null
@@ -296,7 +302,12 @@ final class Gedcom55Parser
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
      *     deathDate: GenealogicalDate|null,
-     *     events: list<array{date: GenealogicalDate, title: string, description: string|null}>
+     *     events: list<array{
+     *         date: GenealogicalDate,
+     *         gedcomTag: string,
+     *         title: string|null,
+     *         description: string|null
+     *     }>
      * }> $people
      * @param list<array{
      *     husband: string|null,
@@ -307,15 +318,27 @@ final class Gedcom55Parser
      *     unmarried: bool
      * }> $families
      *
-     * @return list<array{
+     * @return array{list<array{
      *     id: string,
      *     birthSurname: string|null,
      *     givenName: string|null,
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
      *     deathDate: GenealogicalDate|null,
-     *     events: list<array{date: GenealogicalDate, title: string, description: string|null}>
-     * }>
+     *     events: list<array{
+     *         date: GenealogicalDate,
+     *         gedcomTag: string,
+     *         title: string|null,
+     *         description: string|null
+     *     }>
+     * }>, list<array{
+     *     husband: string|null,
+     *     wife: string|null,
+     *     children: list<string>,
+     *     marriageDate: GenealogicalDate,
+     *     dissolutionDate: GenealogicalDate|null,
+     *     unmarried: bool
+     * }>}
      */
     private function validateGraph(array $people, array $families): array
     {
@@ -330,7 +353,7 @@ final class Gedcom55Parser
                 $this->assertWithinLife(
                     $event['date'],
                     $person['birthDate'],
-                    'BURI' === $event['title'] ? null : $person['deathDate'],
+                    'BURI' === $event['gedcomTag'] ? null : $person['deathDate'],
                 );
             }
         }
@@ -340,7 +363,7 @@ final class Gedcom55Parser
         $children = [];
         /** @var array<string, array<string, true>> $roles */
         $roles = [];
-        foreach ($families as $family) {
+        foreach ($families as $familyIndex => $family) {
             foreach (['husband' => Gender::MALE, 'wife' => Gender::FEMALE] as $key => $requiredGender) {
                 $id = $family[$key];
                 if (null === $id) {
@@ -365,12 +388,20 @@ final class Gedcom55Parser
             if ($this->before($family['dissolutionDate'], $family['marriageDate'])) {
                 $this->fail('TREE_IMPORT_CHRONOLOGY_CONFLICT');
             }
+            $dissolutionAfterDeath = false;
             foreach (array_filter([$husband, $wife]) as $spouse) {
                 $person = $people[$personIndexes[$spouse]];
                 $this->assertWithinLife($family['marriageDate'], $person['birthDate'], $person['deathDate']);
                 if (null !== $family['dissolutionDate']) {
-                    $this->assertWithinLife($family['dissolutionDate'], $person['birthDate'], $person['deathDate']);
+                    $this->assertWithinLife($family['dissolutionDate'], $person['birthDate'], null);
+                    $dissolutionAfterDeath = $dissolutionAfterDeath
+                        || $this->afterDeath($family['dissolutionDate'], $person['deathDate']);
                 }
+            }
+            if ($dissolutionAfterDeath) {
+                $family['dissolutionDate'] = GenealogicalDate::unknown();
+                $families[$familyIndex] = $family;
+                $this->warning('chronology_adjusted');
             }
             if (null !== $husband && null !== $wife && !$family['unmarried']) {
                 $this->connect($adjacency, $husband, $wife);
@@ -422,7 +453,16 @@ final class Gedcom55Parser
             $this->fail('TREE_IMPORT_DISCONNECTED');
         }
 
-        return $people;
+        return [$people, $families];
+    }
+
+    private function afterDeath(
+        GenealogicalDate $date,
+        ?GenealogicalDate $deathDate,
+    ): bool {
+        return null !== $date->earliest()
+            && null !== $deathDate?->latest()
+            && $date->earliest() > $deathDate->latest();
     }
 
     private function assertWithinLife(

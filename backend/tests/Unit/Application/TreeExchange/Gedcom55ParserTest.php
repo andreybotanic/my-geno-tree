@@ -35,6 +35,8 @@ GEDCOM));
         self::assertSame('GEDCOM 5.5', $document->format);
         self::assertSame('Ivan', $document->people[0]['givenName']);
         self::assertTrue($document->people[0]['birthDate']->isApproximate());
+        self::assertSame('EVEN', $document->people[0]['events'][0]['gedcomTag']);
+        self::assertSame('Biography', $document->people[0]['events'][0]['title']);
         self::assertSame('First line' . "\n" . 'Second line', $document->people[0]['events'][0]['description']);
         self::assertSame(12, $document->people[0]['events'][0]['date']->getDay());
     }
@@ -79,8 +81,43 @@ GEDCOM);
 0 TRLR
 GEDCOM);
 
-        self::assertSame('BURI', $document->people[0]['events'][0]['title']);
+        self::assertSame('BURI', $document->people[0]['events'][0]['gedcomTag']);
+        self::assertNull($document->people[0]['events'][0]['title']);
         self::assertSame(30, $document->people[0]['events'][0]['date']->getDay());
+    }
+
+    public function testKeepsDivorceWithUnknownDateWhenItIsAfterADeath(): void
+    {
+        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Ivan /Petrov/
+1 SEX M
+1 BIRT
+2 DATE 1900
+1 DEAT
+2 DATE 1980
+0 @I2@ INDI
+1 NAME Anna /Petrova/
+1 SEX F
+1 BIRT
+2 DATE 1905
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 MARR
+2 DATE 1930
+1 DIV
+2 DATE 1985
+0 TRLR
+GEDCOM);
+
+        self::assertSame(1, $document->warnings['chronology_adjusted']);
+        self::assertNotNull($document->families[0]['dissolutionDate']);
+        self::assertFalse($document->families[0]['dissolutionDate']->isKnown());
     }
 
     public function testRejectsUnsupportedVersionEncodingAndBrokenReference(): void

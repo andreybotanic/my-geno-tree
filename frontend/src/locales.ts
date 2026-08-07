@@ -3,11 +3,12 @@ export const resources = {
     translation: {
       treeImport: {
         action: 'Import', checking: 'Recognizing the file…', disconnected: 'The file contains disconnected family trees. Import them separately.',
-        encoding: 'Only UTF-8 and ASCII GEDCOM files are supported.', failed: 'The tree could not be imported.', file: 'GEDCOM file', importing: 'Importing…',
+        chooseFile: 'Choose GEDCOM file', encoding: 'Only UTF-8 and ASCII GEDCOM files are supported.', failed: 'The tree could not be imported.', file: 'GEDCOM file', importing: 'Importing…',
+        noFile: 'No file selected',
         invalid: 'The GEDCOM file is damaged or contains conflicting relationships.', statistics: '{{people}} people, {{families}} families', title: 'Import family tree',
         tooLarge: 'The file must not exceed 10 MB.', unrecognized: 'The file format could not be recognized.', unsupported: 'This GEDCOM version is not supported.', warnings: 'Import warnings',
         warning: {
-          additional_name: 'Additional names skipped: {{count}}', non_birth_parentage: 'Non-birth parent relationships skipped: {{count}}',
+          additional_name: 'Additional names skipped: {{count}}', chronology_adjusted: 'Conflicting dates kept as unknown: {{count}}', non_birth_parentage: 'Non-birth parent relationships skipped: {{count}}',
           unsupported_date: 'Dates kept as unknown: {{count}}', unsupported_media: 'Media objects skipped: {{count}}', unsupported_note: 'Notes skipped: {{count}}',
           unsupported_place: 'Places skipped: {{count}}', unsupported_source: 'Sources skipped: {{count}}', unsupported_tag: 'Unsupported values skipped: {{count}}',
           value_truncated: 'Values shortened to application limits: {{count}}',
@@ -331,11 +332,12 @@ export const resources = {
     translation: {
       treeImport: {
         action: 'Импорт', checking: 'Распознаём файл…', disconnected: 'В файле несколько несвязанных деревьев. Импортируйте их отдельно.',
-        encoding: 'Поддерживаются только GEDCOM-файлы в UTF-8 и ASCII.', failed: 'Не удалось импортировать дерево.', file: 'Файл GEDCOM', importing: 'Импортируем…',
+        chooseFile: 'Выбрать GEDCOM-файл', encoding: 'Поддерживаются только GEDCOM-файлы в UTF-8 и ASCII.', failed: 'Не удалось импортировать дерево.', file: 'Файл GEDCOM', importing: 'Импортируем…',
+        noFile: 'Файл не выбран',
         invalid: 'GEDCOM-файл повреждён или содержит противоречивые связи.', statistics: 'Персон: {{people}}, семей: {{families}}', title: 'Импорт семейного дерева',
         tooLarge: 'Размер файла не должен превышать 10 МБ.', unrecognized: 'Не удалось распознать формат файла.', unsupported: 'Эта версия GEDCOM не поддерживается.', warnings: 'Предупреждения импорта',
         warning: {
-          additional_name: 'Пропущено дополнительных имён: {{count}}', non_birth_parentage: 'Пропущено некровных родительских связей: {{count}}',
+          additional_name: 'Пропущено дополнительных имён: {{count}}', chronology_adjusted: 'Конфликтующих дат сохранено как неизвестные: {{count}}', non_birth_parentage: 'Пропущено некровных родительских связей: {{count}}',
           unsupported_date: 'Дат сохранено как неизвестные: {{count}}', unsupported_media: 'Пропущено медиаобъектов: {{count}}', unsupported_note: 'Пропущено примечаний: {{count}}',
           unsupported_place: 'Пропущено мест: {{count}}', unsupported_source: 'Пропущено источников: {{count}}', unsupported_tag: 'Пропущено неподдерживаемых значений: {{count}}',
           value_truncated: 'Значений сокращено до лимита приложения: {{count}}',

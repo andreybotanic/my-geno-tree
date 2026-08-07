@@ -753,6 +753,10 @@
   gap: 10px;
 }
 
+.tree-heading-button {
+  min-height: 42px;
+}
+
 .tree-exchange-dialog form {
   display: grid;
   gap: 17px;
@@ -765,6 +769,65 @@
   color: var(--color-text-strong);
   min-height: 43px;
   padding: 0 12px;
+}
+
+.file-picker {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 43px;
+  padding: 4px;
+}
+
+.file-picker:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.form-field .file-picker-input {
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.file-picker-button {
+  align-items: center;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.82rem;
+  justify-content: center;
+  min-height: 33px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.file-picker-button:hover {
+  box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+.file-picker-name {
+  color: var(--color-text-strong);
+  font-size: 0.84rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-picker-name.is-empty {
+  color: var(--color-text-muted);
 }
 
 .exchange-status,
