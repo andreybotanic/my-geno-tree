@@ -45,7 +45,7 @@ export function PersonCard({
           url={data.person.photoThumbnailUrl}
         />
       </div>
-      <div className="person-card-copy">
+      <div className="person-card-details">
         <strong>{name}</strong>
         <span>
           {formatLifePeriod(

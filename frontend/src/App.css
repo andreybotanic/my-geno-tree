@@ -1006,10 +1006,10 @@
   border-radius: 16px;
   box-shadow: 0 12px 32px var(--color-shadow);
   display: grid;
-  gap: 14px;
-  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  grid-template-columns: 102px minmax(0, 1fr);
   height: 160px;
-  padding: 12px;
+  padding: 8px;
   position: relative;
   transition:
     border-color 120ms ease,
@@ -1066,9 +1066,9 @@
 }
 
 .person-photo-placeholder {
-  border-radius: 11px;
-  height: 128px;
-  width: 96px;
+  border-radius: 9px;
+  height: 136px;
+  width: 102px;
 }
 
 .person-photo-placeholder img,
@@ -1083,13 +1083,13 @@
   font-size: 1.8rem;
 }
 
-.person-card-copy {
+.person-card-details {
   display: grid;
   gap: 8px;
   min-width: 0;
 }
 
-.person-card-copy strong {
+.person-card-details strong {
   color: var(--color-text-strong);
   display: -webkit-box;
   font-family: var(--font-heading);
@@ -1100,7 +1100,7 @@
   -webkit-line-clamp: 3;
 }
 
-.person-card-copy span {
+.person-card-details span {
   color: var(--color-text-muted);
   font-size: 0.73rem;
   line-height: 1.35;

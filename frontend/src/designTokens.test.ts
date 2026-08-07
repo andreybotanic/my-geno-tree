@@ -135,10 +135,10 @@ describe('semantic design contracts', () => {
 
   it('uses a larger portrait card without doubled section dividers', () => {
     expect(appStyles).toMatch(
-      /\.person-card\s*\{[^}]*grid-template-columns:\s*96px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*width:\s*260px;/s,
+      /\.person-card\s*\{[^}]*gap:\s*10px;[^}]*grid-template-columns:\s*102px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*padding:\s*8px;[^}]*width:\s*260px;/s,
     )
     expect(appStyles).toMatch(
-      /\.person-photo-placeholder\s*\{[^}]*height:\s*128px;[^}]*width:\s*96px;/s,
+      /\.person-photo-placeholder\s*\{[^}]*border-radius:\s*9px;[^}]*height:\s*136px;[^}]*width:\s*102px;/s,
     )
     expect(appStyles).toMatch(
       /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
