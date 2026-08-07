@@ -65,6 +65,7 @@ function KnownTextInput({
             unknown,
             value: unknown ? '' : state.value,
           })}
+          tabIndex={-1}
           title={t('person.unknown')}
         />
       </div>
@@ -77,6 +78,7 @@ type StructuredDateInputProps = {
   label: string
   onChange: (state: DateInputState) => void
   state: DateInputState
+  unknownToggleTabIndex?: number | undefined
 }
 
 function dateInputValue(state: DateInputState): string {
@@ -106,6 +108,7 @@ export function StructuredDateInput({
   label,
   onChange,
   state,
+  unknownToggleTabIndex,
 }: StructuredDateInputProps) {
   const { i18n, t } = useTranslation()
   const monthFormatter = new Intl.DateTimeFormat(i18n.language, {
@@ -234,6 +237,7 @@ export function StructuredDateInput({
                   year: '',
                 }
               : { ...state, unknown: false })}
+            tabIndex={unknownToggleTabIndex}
             title={t('person.unknown')}
           />
         </div>
@@ -258,6 +262,7 @@ export function StructuredDateInput({
 
 type PersonFormDialogProps = {
   children?: ReactNode
+  initialGender?: PersonInput['gender'] | undefined
   onCancel: () => void
   onSave: (person: PersonInput) => Promise<void>
   title?: string
@@ -265,6 +270,7 @@ type PersonFormDialogProps = {
 
 export function PersonFormDialog({
   children,
+  initialGender = 'unknown',
   onCancel,
   onSave,
   title,
@@ -273,7 +279,7 @@ export function PersonFormDialog({
   const [birthSurname, setBirthSurname] = useState(emptyText)
   const [givenName, setGivenName] = useState(emptyText)
   const [patronymic, setPatronymic] = useState(emptyText)
-  const [gender, setGender] = useState<PersonInput['gender']>('unknown')
+  const [gender, setGender] = useState<PersonInput['gender']>(initialGender)
   const [birthDate, setBirthDate] = useState(emptyDate)
   const [deathDate, setDeathDate] = useState(emptyDate)
   const [deceased, setDeceased] = useState(false)
@@ -365,6 +371,7 @@ export function PersonFormDialog({
               label={t('person.birthDate')}
               onChange={setBirthDate}
               state={birthDate}
+              unknownToggleTabIndex={-1}
             />
             <div className="death-date-row">
               <label
@@ -382,6 +389,7 @@ export function PersonFormDialog({
                   label={t('person.deathDate')}
                   onChange={setDeathDate}
                   state={deathDate}
+                  unknownToggleTabIndex={-1}
                 />
               )}
             </div>

@@ -55,6 +55,9 @@ describe('RelativeDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', { name: 'Add spouse' })
+    expect(
+      within(dialog).getByRole('combobox', { name: 'Gender' }),
+    ).toHaveValue('female')
     const marriageDate = within(dialog).getByRole('group', {
       name: 'Marriage date',
     })
@@ -70,10 +73,6 @@ describe('RelativeDialog', () => {
     expect(
       within(marriageDate).getByLabelText('Marriage date: Exact date'),
     ).toHaveAttribute('type', 'date')
-    await userEvent.selectOptions(
-      within(dialog).getByRole('combobox', { name: 'Gender' }),
-      'female',
-    )
     await userEvent.click(
       within(dialog).getByRole('checkbox', { name: 'Marriage ended' }),
     )

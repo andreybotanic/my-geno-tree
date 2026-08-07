@@ -166,6 +166,7 @@ export function RelativeDialog({
   if (mode === 'new' && !hasFixedRelative) {
     return (
       <PersonFormDialog
+        initialGender={action === 'spouse' ? spouseGender(anchor) : 'unknown'}
         onCancel={onCancel}
         onSave={(person) => save({ person })}
         title={title}
@@ -411,4 +412,16 @@ function RelationshipFields({
 function optionalText(value: string) {
   const trimmed = value.trim()
   return trimmed || null
+}
+
+function spouseGender(person: Person): Person['gender'] {
+  if (person.gender === 'female') {
+    return 'male'
+  }
+
+  if (person.gender === 'male') {
+    return 'female'
+  }
+
+  return 'unknown'
 }

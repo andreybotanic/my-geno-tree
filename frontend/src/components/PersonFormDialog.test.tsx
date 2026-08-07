@@ -37,6 +37,7 @@ describe('PersonFormDialog', () => {
     })
     expect(surnameUnknown).toHaveAttribute('title', 'Unknown')
     expect(surnameUnknown).toHaveAttribute('aria-pressed', 'false')
+    expect(surnameUnknown).toHaveAttribute('tabindex', '-1')
     expect(surnameInput).toBeEnabled()
     expect(surname).toHaveClass('person-text-field')
     expect(surname.tagName).toBe('DIV')
@@ -65,6 +66,9 @@ describe('PersonFormDialog', () => {
     expect(
       within(birth).getByRole('button', { name: 'Unknown' }),
     ).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      within(birth).getByRole('button', { name: 'Unknown' }),
+    ).toHaveAttribute('tabindex', '-1')
     expect(
       within(birth).getByLabelText('Birth date: Exact date'),
     ).toHaveAttribute('type', 'date')
