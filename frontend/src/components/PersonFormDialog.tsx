@@ -153,6 +153,10 @@ export function StructuredDateInput({
                   max="9999-12-31"
                   min="1582-01-01"
                   onChange={(event) => {
+                    if ('' === event.target.value) {
+                      return
+                    }
+
                     const [year = '', month = '', day = ''] = event.target.value.split('-')
 
                     onChange({
@@ -160,6 +164,18 @@ export function StructuredDateInput({
                       day,
                       month,
                       year,
+                    })
+                  }}
+                  onBlur={(event) => {
+                    if ('' !== event.target.value) {
+                      return
+                    }
+
+                    onChange({
+                      ...state,
+                      day: '',
+                      month: '',
+                      year: '',
                     })
                   }}
                   type="date"

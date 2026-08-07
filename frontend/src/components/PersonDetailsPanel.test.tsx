@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   GenealogicalEvent,
@@ -270,6 +270,53 @@ describe('PersonDetailsPanel', () => {
         precision: 'month',
         year: 1900,
         month: 5,
+        approximate: false,
+      },
+    })
+  })
+
+  it('keeps the month and day while the date input has an incomplete year', async () => {
+    const onPatch = vi.fn(async () => {})
+    renderPanel({
+      onPatch,
+      value: {
+        ...person,
+        birthDate: {
+          state: 'known',
+          precision: 'day',
+          year: 1900,
+          month: 2,
+          day: 3,
+          approximate: false,
+        },
+      },
+    })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Edit Birth date' }),
+    )
+    const editor = screen.getByRole('group', { name: 'Birth date' })
+    fireEvent.change(
+      within(editor).getByLabelText('Birth date: Exact date'),
+      { target: { value: '' } },
+    )
+    await userEvent.selectOptions(
+      within(editor).getByRole('combobox', {
+        name: 'Birth date: Precision',
+      }),
+      'month',
+    )
+    await userEvent.click(
+      within(editor.closest('form') as HTMLFormElement)
+        .getByRole('button', { name: 'Save' }),
+    )
+
+    expect(onPatch).toHaveBeenLastCalledWith({
+      birthDate: {
+        state: 'known',
+        precision: 'month',
+        year: 1900,
+        month: 2,
         approximate: false,
       },
     })
