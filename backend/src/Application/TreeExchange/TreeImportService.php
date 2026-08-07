@@ -19,6 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final readonly class TreeImportService
 {
@@ -30,6 +31,7 @@ final readonly class TreeImportService
         private FamilyTreeRepository $trees,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
+        private TranslatorInterface $translator,
     ) {
     }
 
@@ -201,27 +203,10 @@ final readonly class TreeImportService
             return $customTitle;
         }
 
-        $titles = [
-            'en' => [
-                'BAPM' => 'Baptism',
-                'BURI' => 'Burial',
-                'EVEN' => 'Event',
-                'OCCU' => 'Occupation',
-                'RESI' => 'Residence',
-            ],
-            'ru' => [
-                'BAPM' => 'Крещение',
-                'BURI' => 'Погребение',
-                'EVEN' => 'Событие',
-                'OCCU' => 'Род занятий',
-                'RESI' => 'Проживание',
-            ],
-        ];
-
-        return $titles[$language][$gedcomTag]
-            ?? $titles['en'][$gedcomTag]
-            ?? $customTitle
-            ?? $gedcomTag;
+        return $this->translator->trans(
+            'tree_import.event_title.' . strtolower($gedcomTag),
+            locale: $language,
+        );
     }
 
     private function fail(string $code): never

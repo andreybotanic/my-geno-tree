@@ -78,7 +78,7 @@ GEDCOM;
         self::assertStringContainsString("2 VERS 5.5.1\r\n", $export);
         self::assertStringContainsString("1 _MGT_UNMARRIED Y\r\n", $export);
         self::assertStringContainsString('2 TYPE MyGenoTree UUID', $export);
-        self::assertStringContainsString('2 TYPE Род занятий', $export);
+        self::assertStringContainsString('2 TYPE Работа', $export);
 
         $this->multipart('/api/v1/tree-imports', $token, $export, 'Round trip');
         self::assertResponseStatusCodeSame(201);
