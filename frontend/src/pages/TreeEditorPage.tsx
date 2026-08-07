@@ -86,6 +86,7 @@ import {
   layoutTree,
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
+  type FamilyFlowEdge,
   type TreeFlowEdge,
 } from '../treeGraph'
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
@@ -127,7 +128,8 @@ type BloodNetworkNodeContextMenu = {
 }
 
 type TreeContextMenu = {
-  kind: 'marriage' | 'person'
+  kind: 'family' | 'person'
+  married?: boolean
   personId?: string
   personIds?: [string, string]
   x: number
@@ -670,7 +672,14 @@ function BloodNetworkSidebar({
 
 type TreeCanvasProps = {
   bloodNetworkSidebarContainer: HTMLElement | null
+  onAddParents: (childId: string) => Promise<void>
   onClearSelection: () => void
+  onOpenRelativeDialog: (
+    anchorId: string,
+    action: RelativeAction,
+    fixedParentIds?: readonly [string, string],
+    fixedRelativeId?: string,
+  ) => void
   onExport: () => void
   onChangeReference: (reference: TreeReference) => Promise<void>
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
@@ -686,9 +695,11 @@ type TreeCanvasProps = {
 
 function TreeCanvas({
   bloodNetworkSidebarContainer,
+  onAddParents,
   onClearSelection,
   onExport,
   onChangeReference,
+  onOpenRelativeDialog,
   onSaveBloodNetworkState,
   request,
   onSelectPerson,
@@ -858,6 +869,23 @@ function TreeCanvas({
       .filter((person) => spouseIds.has(person.id))
       .sort((left, right) => left.id.localeCompare(right.id))
   }, [snapshot.marriages, snapshot.people, treeContextMenu])
+  const treeMenuPerson = useMemo(() => (
+    treeContextMenu?.kind === 'person' && treeContextMenu.personId
+      ? snapshot.people.find((person) => person.id === treeContextMenu.personId) ?? null
+      : null
+  ), [snapshot.people, treeContextMenu])
+  const treeMenuParentRoles = useMemo(() => new Set(
+    treeMenuPerson
+      ? snapshot.parentLinks
+        .filter((link) => link.childId === treeMenuPerson.id)
+        .map((link) => link.role)
+      : [],
+  ), [snapshot.parentLinks, treeMenuPerson])
+  const isReferenceMarriage = (personIds: readonly [string, string]) => {
+    const reference = snapshot.tree.reference
+    return reference?.type === 'marriage'
+      && personIds.every((personId) => reference.personIds.includes(personId))
+  }
 
   useEffect(() => {
     const presets = savedBloodNetworkPresets.map((preset) => ({
@@ -1227,13 +1255,14 @@ function TreeCanvas({
         if (
           view !== 'tree'
           || edge.type !== 'family'
-          || !edge.data?.married
-          || !edge.data.personIds
         ) return
+        const data = (edge as FamilyFlowEdge).data
+        if (!data?.personIds) return
         event.preventDefault()
         setTreeContextMenu({
-          kind: 'marriage',
-          personIds: edge.data.personIds,
+          kind: 'family',
+          married: data.married,
+          personIds: data.personIds,
           x: event.clientX,
           y: event.clientY,
         })
@@ -1391,58 +1420,186 @@ function TreeCanvas({
       >
         {treeContextMenu.kind === 'person' && treeContextMenu.personId && (
           <>
-            <li>
-              <button
-                onClick={() => {
-                  void onChangeReference({
-                    type: 'person',
-                    personId: treeContextMenu.personId!,
-                  }).catch(() => undefined)
-                  setTreeContextMenu(null)
-                }}
-                role="menuitem"
-                type="button"
-              >
-                {t('editor.setReferencePerson')}
-              </button>
-            </li>
-            {treeMenuSpouses.map((spouse) => (
-              <li key={spouse.id}>
+            {treeMenuPerson && !treeMenuParentRoles.has('father')
+              && !treeMenuParentRoles.has('mother') && (
+                <li>
+                  <button
+                    onClick={() => {
+                      void onAddParents(treeMenuPerson.id).catch(() => undefined)
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('relationships.add.parents')}
+                  </button>
+                </li>
+              )}
+            {!treeMenuParentRoles.has('father') && (
+              <li>
                 <button
                   onClick={() => {
-                    void onChangeReference({
-                      type: 'marriage',
-                      personIds: [treeContextMenu.personId!, spouse.id],
-                    }).catch(() => undefined)
+                    onOpenRelativeDialog(treeContextMenu.personId!, 'father')
                     setTreeContextMenu(null)
                   }}
                   role="menuitem"
                   type="button"
                 >
-                  {t('editor.setReferenceMarriage', {
-                    name: formatPersonName(spouse, t),
-                  })}
+                  {t('relationships.add.father')}
                 </button>
               </li>
+            )}
+            {!treeMenuParentRoles.has('mother') && (
+              <li>
+                <button
+                  onClick={() => {
+                    onOpenRelativeDialog(treeContextMenu.personId!, 'mother')
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('relationships.add.mother')}
+                </button>
+              </li>
+            )}
+            {treeMenuPerson?.gender === 'female' && (
+              <li>
+                <button
+                  onClick={() => {
+                    onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('relationships.add.husband')}
+                </button>
+              </li>
+            )}
+            {treeMenuPerson?.gender === 'male' && (
+              <li>
+                <button
+                  onClick={() => {
+                    onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('relationships.add.wife')}
+                </button>
+              </li>
+            )}
+            <li>
+              <button
+                onClick={() => {
+                  onOpenRelativeDialog(treeContextMenu.personId!, 'child')
+                  setTreeContextMenu(null)
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {t('relationships.add.child')}
+              </button>
+            </li>
+            {snapshot.tree.reference?.type !== 'person'
+              || snapshot.tree.reference.personId !== treeContextMenu.personId ? (
+                <li>
+                  <button
+                    onClick={() => {
+                      void onChangeReference({
+                        type: 'person',
+                        personId: treeContextMenu.personId!,
+                      }).catch(() => undefined)
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('editor.setReferencePerson')}
+                  </button>
+                </li>
+              ) : null}
+            {treeMenuSpouses.map((spouse) => (
+              !isReferenceMarriage([treeContextMenu.personId!, spouse.id]) && (
+                <li key={spouse.id}>
+                  <button
+                    onClick={() => {
+                      void onChangeReference({
+                        type: 'marriage',
+                        personIds: [treeContextMenu.personId!, spouse.id],
+                      }).catch(() => undefined)
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('editor.setReferenceMarriage', {
+                      name: formatPersonName(spouse, t),
+                    })}
+                  </button>
+                </li>
+              )
             ))}
           </>
         )}
-        {treeContextMenu.kind === 'marriage' && treeContextMenu.personIds && (
-          <li>
-            <button
-              onClick={() => {
-                void onChangeReference({
-                  type: 'marriage',
-                  personIds: treeContextMenu.personIds!,
-                }).catch(() => undefined)
-                setTreeContextMenu(null)
-              }}
-              role="menuitem"
-              type="button"
-            >
-              {t('editor.setReferenceMarriageFromBracket')}
-            </button>
-          </li>
+        {treeContextMenu.kind === 'family' && treeContextMenu.personIds && (
+          <>
+            <li>
+              <button
+                onClick={() => {
+                  onOpenRelativeDialog(
+                    treeContextMenu.personIds![0],
+                    'child',
+                    treeContextMenu.personIds,
+                  )
+                  setTreeContextMenu(null)
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {t('relationships.add.child')}
+              </button>
+            </li>
+            {!treeContextMenu.married && (
+              <li>
+                <button
+                  onClick={() => {
+                    onOpenRelativeDialog(
+                      treeContextMenu.personIds![0],
+                      'spouse',
+                      undefined,
+                      treeContextMenu.personIds![1],
+                    )
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('relationships.createMarriage')}
+                </button>
+              </li>
+            )}
+            {treeContextMenu.married
+              && !isReferenceMarriage(treeContextMenu.personIds) && (
+                <li>
+                  <button
+                    onClick={() => {
+                      void onChangeReference({
+                        type: 'marriage',
+                        personIds: treeContextMenu.personIds!,
+                      }).catch(() => undefined)
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('editor.setReferenceMarriageFromBracket')}
+                  </button>
+                </li>
+              )}
+          </>
         )}
       </menu>,
       document.body,
@@ -1531,6 +1688,14 @@ type PendingRemoval =
   | { kind: 'parent'; link: ParentLink }
   | { kind: 'person'; person: Person }
 
+type RelativeDialogState = {
+  action: RelativeAction
+  anchorId: string
+  fixedParentIds?: readonly [string, string]
+  fixedRelativeId?: string
+  initialSecondParentId?: string
+}
+
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
   const { request, requestBlob, updateUser, user } = useAuth()
@@ -1548,12 +1713,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
   const [conflict, setConflict] = useState(false)
-  const [relativeAction, setRelativeAction] = useState<RelativeAction | null>(
+  const [relativeDialog, setRelativeDialog] = useState<RelativeDialogState | null>(
     null,
   )
-  const [relativeSecondParentId, setRelativeSecondParentId] = useState<
-    string | null
-  >(null)
   const [marriageEditing, setMarriageEditing] = useState<
     MarriagePeriod | null
   >(null)
@@ -1606,8 +1768,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setConflict(false)
       setSelectedPerson(null)
       setEvents([])
-      setRelativeAction(null)
-      setRelativeSecondParentId(null)
+      setRelativeDialog(null)
       setMarriageEditing(null)
       setPendingRemoval(null)
       setEventEditing(null)
@@ -1797,29 +1958,43 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     relative: RelativePerson,
     options: RelativeOptions,
   ) => {
-    if (!selectedPerson || !relativeAction) return
-    const parents: ParentSpecification[] = relativeAction === 'child'
-      ? [{
-          personId: selectedPerson.id,
-          role: options.parentRole,
-        }, ...(options.secondParentId ? [{
-          personId: options.secondParentId,
-          role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
-        }] : [])]
+    if (!snapshot || !relativeDialog) return
+    const anchor = snapshot.people.find((person) => person.id === relativeDialog.anchorId)
+    if (!anchor) return
+    const parents: ParentSpecification[] = relativeDialog.action === 'child'
+      ? relativeDialog.fixedParentIds
+        ? relativeDialog.fixedParentIds.map((personId) => {
+            const person = snapshot.people.find((item) => item.id === personId)
+            if (!person || person.gender === 'unknown') {
+              throw new Error('Family parents must have known genders')
+            }
+
+            return {
+              personId,
+              role: person.gender === 'male' ? 'father' : 'mother',
+            }
+          })
+        : [{
+            personId: anchor.id,
+            role: options.parentRole,
+          }, ...(options.secondParentId ? [{
+            personId: options.secondParentId,
+            role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
+          }] : [])]
       : []
-    const mutation: GraphMutation = relativeAction === 'father'
-      || relativeAction === 'mother'
+    const mutation: GraphMutation = relativeDialog.action === 'father'
+      || relativeDialog.action === 'mother'
       ? {
           type: 'add_parent',
-          childId: selectedPerson.id,
-          role: relativeAction,
+          childId: anchor.id,
+          role: relativeDialog.action,
           relative,
         }
-      : relativeAction === 'child'
+      : relativeDialog.action === 'child'
         ? { type: 'add_child', parents, relative }
         : {
             type: 'add_marriage_period',
-            personId: selectedPerson.id,
+            personId: anchor.id,
             relative,
             marriageDate: options.marriageDate,
             dissolutionDate: options.dissolutionDate,
@@ -1827,8 +2002,27 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             femaleNewSurname: options.femaleNewSurname,
           }
     await applyMutation(mutation)
-    setRelativeAction(null)
-    setRelativeSecondParentId(null)
+    setRelativeDialog(null)
+  }
+
+  const addParents = async (childId: string) => {
+    await applyMutation({ type: 'add_parents', childId })
+  }
+
+  const openRelativeDialog = (
+    anchorId: string,
+    action: RelativeAction,
+    fixedParentIds?: readonly [string, string],
+    fixedRelativeId?: string,
+    initialSecondParentId?: string,
+  ) => {
+    setRelativeDialog({
+      action,
+      anchorId,
+      ...(fixedParentIds ? { fixedParentIds } : {}),
+      ...(fixedRelativeId ? { fixedRelativeId } : {}),
+      ...(initialSecondParentId ? { initialSecondParentId } : {}),
+    })
   }
 
   const confirmRemoval = async () => {
@@ -2115,9 +2309,11 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               <ReactFlowProvider>
                 <TreeCanvas
                   bloodNetworkSidebarContainer={bloodNetworkSidebarContainer}
+                  onAddParents={addParents}
                   onClearSelection={closePersonDetails}
                   onExport={() => setExporting(true)}
                   onChangeReference={changeReference}
+                  onOpenRelativeDialog={openRelativeDialog}
                   onSaveBloodNetworkState={saveBloodNetworkState}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
@@ -2138,8 +2334,13 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             conflict={conflict}
             events={events}
             onAddRelative={(action, secondParentId) => {
-              setRelativeAction(action)
-              setRelativeSecondParentId(secondParentId ?? null)
+              openRelativeDialog(
+                selectedPerson.id,
+                action,
+                undefined,
+                undefined,
+                secondParentId,
+              )
             }}
             onClose={closePersonDetails}
             onCreateEvent={() => setEventEditing('new')}
@@ -2189,14 +2390,15 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           treeName={snapshot.tree.name}
         />
       )}
-      {relativeAction && selectedPerson && snapshot && (
+      {relativeDialog && snapshot && (
         <RelativeDialog
-          action={relativeAction}
-          anchor={selectedPerson}
-          initialSecondParentId={relativeSecondParentId ?? undefined}
+          action={relativeDialog.action}
+          anchor={snapshot.people.find((person) => person.id === relativeDialog.anchorId)!}
+          fixedParentIds={relativeDialog.fixedParentIds}
+          fixedRelativeId={relativeDialog.fixedRelativeId}
+          initialSecondParentId={relativeDialog.initialSecondParentId}
           onCancel={() => {
-            setRelativeAction(null)
-            setRelativeSecondParentId(null)
+            setRelativeDialog(null)
           }}
           onSave={addRelative}
           snapshot={snapshot}

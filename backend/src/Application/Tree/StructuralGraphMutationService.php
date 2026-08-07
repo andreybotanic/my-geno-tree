@@ -13,6 +13,8 @@ use App\Entity\MediaObject;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\Gender;
+use App\Entity\Value\GenealogicalDate;
+use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
 use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
@@ -64,6 +66,7 @@ final readonly class StructuralGraphMutationService
             $changedAt = $this->clock->now();
 
             match ($type) {
+                'add_parents'       => $this->addParents($tree, $payload, $changedAt),
                 'add_parent'        => $this->addParent($tree, $payload, $changedAt),
                 'add_child'         => $this->addChild($tree, $payload, $changedAt),
                 'link_parent_child' => $this->linkParentChild(
@@ -125,6 +128,35 @@ final readonly class StructuralGraphMutationService
             $role->requiredGender(),
         );
         $this->createParentLink($tree, $parent, $child, $role, $changedAt);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function addParents(
+        FamilyTree $tree,
+        array $payload,
+        \DateTimeImmutable $changedAt,
+    ): void {
+        $this->assertExactKeys($payload, ['type', 'childId']);
+        $child = $this->person($tree, $payload['childId'], 'childId');
+        $father = $this->anonymousPerson($tree, Gender::MALE, $changedAt);
+        $mother = $this->anonymousPerson($tree, Gender::FEMALE, $changedAt);
+
+        $this->createParentLink(
+            $tree,
+            $father,
+            $child,
+            ParentRole::FATHER,
+            $changedAt,
+        );
+        $this->createParentLink(
+            $tree,
+            $mother,
+            $child,
+            ParentRole::MOTHER,
+            $changedAt,
+        );
     }
 
     /**
@@ -462,6 +494,27 @@ final readonly class StructuralGraphMutationService
             $data->gender,
             $data->birthDate,
             $data->deathDate,
+            $changedAt,
+        );
+        $this->entityManager->persist($person);
+        $this->events->synchronizePersonLifecycle($person, $changedAt);
+
+        return $person;
+    }
+
+    private function anonymousPerson(
+        FamilyTree $tree,
+        Gender $gender,
+        \DateTimeImmutable $changedAt,
+    ): Person {
+        $person = new Person(
+            $tree,
+            KnownText::unknown(),
+            KnownText::unknown(),
+            KnownText::unknown(),
+            $gender,
+            GenealogicalDate::unknown(),
+            null,
             $changedAt,
         );
         $this->entityManager->persist($person);

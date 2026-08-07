@@ -33,6 +33,8 @@ export type RelativeOptions = {
 type RelativeDialogProps = {
   action: RelativeAction
   anchor: Person
+  fixedParentIds?: readonly [string, string] | undefined
+  fixedRelativeId?: string | undefined
   initialSecondParentId?: string | undefined
   onCancel: () => void
   onSave: (
@@ -49,6 +51,8 @@ const defaultRole = (person: Person): ParentRole => (
 export function RelativeDialog({
   action,
   anchor,
+  fixedParentIds,
+  fixedRelativeId,
   initialSecondParentId,
   onCancel,
   onSave,
@@ -74,6 +78,10 @@ export function RelativeDialog({
     () => snapshot.people.filter((person) => person.id !== anchor.id),
     [anchor.id, snapshot.people],
   )
+  const fixedParents = fixedParentIds?.map((id) => (
+    snapshot.people.find((person) => person.id === id)
+  )).filter((person): person is Person => person !== undefined)
+  const hasFixedRelative = fixedRelativeId !== undefined
   const title = t(`relationships.add.${action}`)
 
   const options = (): RelativeOptions | null => {
@@ -106,14 +114,15 @@ export function RelativeDialog({
 
   const saveExisting = async (event: FormEvent) => {
     event.preventDefault()
-    if (!existingPersonId) {
+    const personId = fixedRelativeId ?? existingPersonId
+    if (!personId) {
       setError(t('relationships.choosePerson'))
       return
     }
     setSaving(true)
     setError('')
     try {
-      await save({ personId: existingPersonId })
+      await save({ personId })
     } catch (caught) {
       setError(
         caught instanceof ApiRequestError
@@ -134,6 +143,7 @@ export function RelativeDialog({
       dissolved={dissolved}
       dissolutionDate={dissolutionDate}
       femaleNewSurname={femaleNewSurname}
+      fixedParents={fixedParents}
       maleNewSurname={maleNewSurname}
       marriageDate={marriageDate}
       parentRole={parentRole}
@@ -148,7 +158,7 @@ export function RelativeDialog({
     />
   )
 
-  if (mode === 'new') {
+  if (mode === 'new' && !hasFixedRelative) {
     return (
       <PersonFormDialog
         onCancel={onCancel}
@@ -176,26 +186,30 @@ export function RelativeDialog({
         <h2 id="relative-dialog-title">{title}</h2>
         <form onSubmit={saveExisting}>
           <div className="person-form-grid">
-            <ModeSelector
-              candidatesAvailable={candidates.length > 0}
-              mode={mode}
-              setMode={setMode}
-            />
-            <label className="person-select-field relationship-wide-field">
-              <span>{t('relationships.person')}</span>
-              <select
-                aria-label={t('relationships.person')}
-                onChange={(event) => setExistingPersonId(event.target.value)}
-                value={existingPersonId}
-              >
-                <option value="">{t('relationships.choosePerson')}</option>
-                {candidates.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {formatPersonName(person, t)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!hasFixedRelative && (
+              <>
+                <ModeSelector
+                  candidatesAvailable={candidates.length > 0}
+                  mode={mode}
+                  setMode={setMode}
+                />
+                <label className="person-select-field relationship-wide-field">
+                  <span>{t('relationships.person')}</span>
+                  <select
+                    aria-label={t('relationships.person')}
+                    onChange={(event) => setExistingPersonId(event.target.value)}
+                    value={existingPersonId}
+                  >
+                    <option value="">{t('relationships.choosePerson')}</option>
+                    {candidates.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {formatPersonName(person, t)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             {relationshipFields}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
@@ -263,6 +277,7 @@ type RelationshipFieldsProps = {
   dissolved: boolean
   dissolutionDate: DateInputState
   femaleNewSurname: string
+  fixedParents: Person[] | undefined
   maleNewSurname: string
   marriageDate: DateInputState
   parentRole: ParentRole
@@ -283,6 +298,7 @@ function RelationshipFields({
   dissolved,
   dissolutionDate,
   femaleNewSurname,
+  fixedParents,
   maleNewSurname,
   marriageDate,
   parentRole,
@@ -297,6 +313,15 @@ function RelationshipFields({
 }: RelationshipFieldsProps) {
   const { t } = useTranslation()
   if (action === 'child') {
+    if (fixedParents) {
+      return (
+        <div className="person-select-field relationship-wide-field">
+          <span>{t('relationships.parents')}</span>
+          <strong>{fixedParents.map((person) => formatPersonName(person, t)).join(', ')}</strong>
+        </div>
+      )
+    }
+
     return (
       <>
         <label className="person-select-field">

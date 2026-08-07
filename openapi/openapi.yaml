@@ -1766,6 +1766,7 @@ components:
     GraphMutation:
       oneOf:
         - $ref: "#/components/schemas/CreateFirstPersonMutation"
+        - $ref: "#/components/schemas/AddParentsMutation"
         - $ref: "#/components/schemas/AddParentMutation"
         - $ref: "#/components/schemas/AddChildMutation"
         - $ref: "#/components/schemas/LinkParentChildMutation"
@@ -1785,6 +1786,19 @@ components:
           const: create_first_person
         person:
           $ref: "#/components/schemas/PersonInput"
+    AddParentsMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - childId
+      properties:
+        type:
+          type: string
+          const: add_parents
+        childId:
+          type: string
+          format: uuid
     AddParentMutation:
       type: object
       additionalProperties: false

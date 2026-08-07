@@ -283,11 +283,16 @@ export type ParentSpecification = {
     role: ParentRole;
 };
 
-export type GraphMutation = CreateFirstPersonMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
+export type GraphMutation = CreateFirstPersonMutation | AddParentsMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
 
 export type CreateFirstPersonMutation = {
     type: 'create_first_person';
     person: PersonInput;
+};
+
+export type AddParentsMutation = {
+    type: 'add_parents';
+    childId: string;
 };
 
 export type AddParentMutation = {

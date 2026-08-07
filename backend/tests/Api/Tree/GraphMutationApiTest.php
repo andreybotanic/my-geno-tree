@@ -11,6 +11,8 @@ use Symfony\Component\Uid\UuidV7;
  * @phpstan-type GraphPerson array{
  *     id: string,
  *     gender: string,
+ *     birthSurname: array<string, mixed>,
+ *     givenName: array<string, mixed>,
  *     birthDate: array<string, bool|int|string>
  * }
  * @phpstan-type GraphParentLink array{id: string, parentId: string, childId: string, role: string}
@@ -33,6 +35,45 @@ use Symfony\Component\Uid\UuidV7;
  */
 final class GraphMutationApiTest extends ApiWebTestCase
 {
+    public function testBothAnonymousParentsAreCreatedAtomically(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person());
+        $child = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_parents',
+            'childId' => $child['id'],
+        ]);
+
+        self::assertResponseStatusCodeSame(201);
+        self::assertCount(3, $snapshot['people']);
+        self::assertCount(2, $snapshot['parentLinks']);
+        self::assertSame([], $snapshot['marriages']);
+        $parents = [];
+        foreach ($snapshot['parentLinks'] as $link) {
+            self::assertSame($child['id'], $link['childId']);
+            $parents[$link['role']] = $this->personById($snapshot, $link['parentId']);
+        }
+        self::assertSame('male', $parents['father']['gender']);
+        self::assertSame('female', $parents['mother']['gender']);
+        self::assertSame(['state' => 'unknown'], $parents['father']['birthSurname']);
+        self::assertSame(['state' => 'unknown'], $parents['mother']['givenName']);
+        self::assertSame(['state' => 'unknown'], $parents['father']['birthDate']);
+
+        $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_parents',
+            'childId' => $child['id'],
+        ]);
+        self::assertResponseStatusCodeSame(409);
+        self::assertSame('PARENT_ROLE_ALREADY_ASSIGNED', $this->responseString('code'));
+
+        $current = $this->snapshot($accessToken, $tree['id']);
+        self::assertCount(3, $current['people']);
+        self::assertCount(2, $current['parentLinks']);
+    }
+
     public function testParentsAreCreatedAtomicallyWithRoleAndCycleRules(): void
     {
         $accessToken = $this->register();

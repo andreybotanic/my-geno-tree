@@ -269,7 +269,7 @@ describe('TreeEditorPage', () => {
       clientY: 120,
     })
     const menu = screen.getByRole('menu', { name: 'Person actions' })
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(2)
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(6)
     await userEvent.click(within(menu).getByRole('menuitem', {
       name: 'Set marriage with Ivanov Petr as reference',
     }))
@@ -319,6 +319,125 @@ describe('TreeEditorPage', () => {
       `/trees/${treeId}/reference`,
       expect.objectContaining({ method: 'PUT' }),
     ))
+    fireEvent.contextMenu(bracket!, { clientX: 140, clientY: 160 })
+    expect(screen.queryByRole('menuitem', {
+      name: 'Set this marriage as reference',
+    })).not.toBeInTheDocument()
+  })
+
+  it('creates both anonymous parents from the person menu', async () => {
+    const initial = graphSnapshot([person])
+    const updated = graphSnapshot([
+      person,
+      { ...father, id: '019861c4-6a93-7a2e-8ca8-51813740d4e0' },
+      { ...person, id: '019861c4-6a93-7a2e-8ca8-51813740d4e1' },
+    ])
+    const request = vi.fn(async (_path: string, init?: RequestInit) => (
+      init?.method === 'POST' ? updated : initial
+    )) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 80,
+      clientY: 120,
+    })
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add parents' }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/graph-mutations`,
+      expect.objectContaining({
+        body: JSON.stringify({ type: 'add_parents', childId: person.id }),
+        headers: { 'If-Match': '"tree-current"' },
+        method: 'POST',
+      }),
+    ))
+  })
+
+  it('uses gendered spouse labels', async () => {
+    const request = vi.fn(async () => graphSnapshot([person])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 80,
+      clientY: 120,
+    })
+    expect(screen.getByRole('menuitem', { name: 'Add husband' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Add wife' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add husband' }))
+    expect(screen.getByRole('dialog', { name: 'Add spouse' })).toBeInTheDocument()
+  })
+
+  it('hides spouse creation for a person with an unknown gender', async () => {
+    const unknown = { ...person, gender: 'unknown' as const }
+    const request = vi.fn(async () => graphSnapshot([unknown])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 80,
+      clientY: 120,
+    })
+    expect(screen.queryByRole('menuitem', { name: 'Add husband' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Add wife' })).not.toBeInTheDocument()
+  })
+
+  it('locks both parents when adding a child or a marriage from a co-parent bracket', async () => {
+    const child: Person = {
+      ...spouse,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e2',
+      gender: 'unknown',
+    }
+    const fatherLink: ParentLink = {
+      ...parentLink,
+      childId: child.id,
+      parentId: father.id,
+      role: 'father',
+    }
+    const motherLink: ParentLink = {
+      ...parentLink,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e3',
+      childId: child.id,
+      parentId: person.id,
+      role: 'mother',
+    }
+    const initial = graphSnapshot([father, person, child], [fatherLink, motherLink])
+    const request = vi.fn(async () => initial) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    const bracket = document.querySelector('.react-flow__edge')
+    expect(bracket).not.toBeNull()
+    fireEvent.contextMenu(bracket!, { clientX: 140, clientY: 160 })
+
+    expect(screen.getByRole('menuitem', { name: 'Add child' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Create marriage' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add child' }))
+    expect(screen.getByRole('dialog', { name: 'Add child' })).toBeInTheDocument()
+    expect(screen.getByText('Ivanova Anna, Petrov Ivan')).toBeInTheDocument()
+    expect(screen.queryByText('Second parent')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.contextMenu(bracket!, { clientX: 140, clientY: 160 })
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Create marriage' }))
+    expect(screen.getByRole('dialog', { name: 'Add spouse' })).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'New person' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Person' })).not.toBeInTheDocument()
+  })
+
+  it('hides reference actions for the current reference person and marriage', async () => {
+    const personReference = graphSnapshot([person, spouse], [], [marriage])
+    const request = vi.fn(async () => personReference) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 80,
+      clientY: 120,
+    })
+    expect(screen.queryByRole('menuitem', { name: 'Set as reference' })).not.toBeInTheDocument()
   })
 
   it('switches to a temporary blood-only network without opening person editing', async () => {
