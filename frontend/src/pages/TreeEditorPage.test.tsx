@@ -289,6 +289,10 @@ describe('TreeEditorPage', () => {
       .toHaveClass('person-card-reference')
     expect(screen.getByRole('article', { name: 'Ivanov Petr' }))
       .toHaveClass('person-card-reference')
+    expect(screen.getByRole('article', { name: 'Ivanova Anna' }))
+      .toHaveClass('person-card-female')
+    expect(screen.getByRole('article', { name: 'Ivanov Petr' }))
+      .toHaveClass('person-card-male')
   })
 
   it('sets a married pair as reference from its bracket menu', async () => {

@@ -11,6 +11,8 @@ describe('semantic design contracts', () => {
     for (const token of [
       '--color-background',
       '--color-surface',
+      '--color-person-female-surface',
+      '--color-person-male-surface',
       '--color-text',
       '--color-border',
       '--color-placeholder',
@@ -27,6 +29,15 @@ describe('semantic design contracts', () => {
     }
 
     expect(appStyles).not.toMatch(/#[\da-f]{3,8}\b|(?:rgb|hsl)a?\(/i)
+  })
+
+  it('uses gender-specific surfaces for known-gender person cards', () => {
+    expect(appStyles).toMatch(
+      /\.person-card-female\s*\{[^}]*background:\s*var\(--color-person-female-surface\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-card-male\s*\{[^}]*background:\s*var\(--color-person-male-surface\);/s,
+    )
   })
 
   it('keeps the authenticated avatar inside the fixed-height header', () => {

@@ -25,7 +25,7 @@ export function PersonCard({
   return (
     <article
       aria-label={name}
-      className={`person-card${selected ? ' person-card-selected' : ''}${data.isReference ? ' person-card-reference' : ''}`}
+      className={`person-card person-card-${data.person.gender}${selected ? ' person-card-selected' : ''}${data.isReference ? ' person-card-reference' : ''}`}
       title={name}
     >
       {data.isReference && (

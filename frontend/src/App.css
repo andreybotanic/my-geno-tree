@@ -1017,6 +1017,14 @@
   width: 260px;
 }
 
+.person-card-female {
+  background: var(--color-person-female-surface);
+}
+
+.person-card-male {
+  background: var(--color-person-male-surface);
+}
+
 .person-card-selected {
   border-color: var(--color-accent);
   box-shadow:
