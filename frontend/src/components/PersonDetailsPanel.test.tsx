@@ -298,7 +298,7 @@ describe('PersonDetailsPanel', () => {
     const editor = screen.getByRole('group', { name: 'Birth date' })
     fireEvent.change(
       within(editor).getByLabelText('Birth date: Exact date'),
-      { target: { value: '' } },
+      { target: { value: '0001-02-03' } },
     )
     await userEvent.selectOptions(
       within(editor).getByRole('combobox', {

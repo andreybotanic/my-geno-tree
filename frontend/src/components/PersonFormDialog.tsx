@@ -149,7 +149,9 @@ export function StructuredDateInput({
                 <span>{t('person.exactDate')}</span>
                 <input
                   aria-label={`${label}: ${t('person.exactDate')}`}
+                  defaultValue={dateInputValue(state)}
                   disabled={state.unknown}
+                  key={`${state.unknown}-${state.year}-${state.month}-${state.day}`}
                   max="9999-12-31"
                   min="1582-01-01"
                   onChange={(event) => {
@@ -158,16 +160,29 @@ export function StructuredDateInput({
                     }
 
                     const [year = '', month = '', day = ''] = event.target.value.split('-')
-
-                    onChange({
+                    const value = {
                       ...state,
                       day,
                       month,
                       year,
-                    })
+                    }
+
+                    if ('' === dateInputValue(value)) {
+                      return
+                    }
+
+                    onChange(value)
                   }}
                   onBlur={(event) => {
-                    if ('' !== event.target.value) {
+                    const [year = '', month = '', day = ''] = event.target.value.split('-')
+                    const value = {
+                      ...state,
+                      day,
+                      month,
+                      year,
+                    }
+
+                    if ('' !== dateInputValue(value)) {
                       return
                     }
 
@@ -179,7 +194,6 @@ export function StructuredDateInput({
                     })
                   }}
                   type="date"
-                  value={dateInputValue(state)}
                 />
               </label>
             )}
