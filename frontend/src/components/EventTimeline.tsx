@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { GenealogicalEvent } from '../api/generated'
-import { datesAreAmbiguous } from '../eventTimeline'
+import { canMoveEvent } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
 import { AddButton } from './AddButton'
 
@@ -36,7 +36,7 @@ export function EventTimeline({
     if (
       currentIndex === -1
       || !target
-      || !datesAreAmbiguous(event.date, target.date)
+      || !canMoveEvent(event.date, target.date)
       || conflict
       || reordering
     ) {
@@ -85,10 +85,10 @@ export function EventTimeline({
               const previous = events[eventIndex - 1]
               const next = events[eventIndex + 1]
               const canMoveUp = Boolean(
-                previous && datesAreAmbiguous(event.date, previous.date),
+                previous && canMoveEvent(event.date, previous.date),
               )
               const canMoveDown = Boolean(
-                next && datesAreAmbiguous(event.date, next.date),
+                next && canMoveEvent(event.date, next.date),
               )
               const isExpanded = expanded.has(event.id)
               const surname = typeof event.data.newSurname === 'string'

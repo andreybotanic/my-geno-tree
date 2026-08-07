@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { GenealogicalDate, GenealogicalEvent } from './api/generated'
-import { ambiguousEventGroups, datesAreAmbiguous } from './eventTimeline'
+import {
+  ambiguousEventGroups,
+  canMoveEvent,
+  datesAreAmbiguous,
+} from './eventTimeline'
 
 const date = (
   year: number,
@@ -75,5 +79,15 @@ describe('event timeline ambiguity', () => {
 
     expect(ambiguousEventGroups([first, second, third, fourth, fifth]))
       .toEqual([[first, second], [third, fourth]])
+  })
+
+  it('moves only imprecise events or events from the same exact day', () => {
+    const exactDay = date(1900, 6, 10)
+    const anotherExactDay = date(1900, 6, 10)
+
+    expect(canMoveEvent({ state: 'unknown' }, exactDay)).toBe(true)
+    expect(canMoveEvent(exactDay, { state: 'unknown' })).toBe(false)
+    expect(canMoveEvent(exactDay, anotherExactDay)).toBe(true)
+    expect(canMoveEvent(exactDay, date(1900, 6, 11))).toBe(false)
   })
 })

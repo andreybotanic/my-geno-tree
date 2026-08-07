@@ -49,6 +49,25 @@ export function datesAreAmbiguous(
   )
 }
 
+export function canMoveEvent(
+  event: GenealogicalDate,
+  neighbor: GenealogicalDate,
+) {
+  if (!datesAreAmbiguous(event, neighbor)) {
+    return false
+  }
+
+  if (event.state === 'unknown' || event.precision !== 'day') {
+    return true
+  }
+
+  return neighbor.state === 'known'
+    && neighbor.precision === 'day'
+    && event.year === neighbor.year
+    && event.month === neighbor.month
+    && event.day === neighbor.day
+}
+
 function dateRange(date: GenealogicalDate): DateRange | null {
   if (
     date.state === 'unknown'

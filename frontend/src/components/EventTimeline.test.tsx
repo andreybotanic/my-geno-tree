@@ -142,6 +142,9 @@ describe('EventTimeline', () => {
       />,
     )
 
+    expect(
+      screen.queryByRole('button', { name: 'Move Earlier down' }),
+    ).not.toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Move Uncertain up' }),
     )
