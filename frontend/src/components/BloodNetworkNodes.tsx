@@ -16,6 +16,7 @@ import {
   formatPersonName,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
+import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 
 const BLOOD_NETWORK_ARROW_MARKER_ID = 'blood-network-arrowhead'
 
@@ -116,7 +117,11 @@ export function BloodNetworkPersonNode({
       <AuthenticatedImage
         alt=""
         className="blood-network-photo"
-        fallback={<span aria-hidden="true">?</span>}
+        fallback={(
+          <span className="blood-network-photo-placeholder">
+            <PersonPortraitPlaceholder />
+          </span>
+        )}
         url={data.person.photoThumbnailUrl}
       />
       <span className="blood-network-tooltip" role="tooltip">

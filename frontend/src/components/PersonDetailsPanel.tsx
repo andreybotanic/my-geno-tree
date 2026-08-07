@@ -33,6 +33,7 @@ import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
 import { AuthenticatedImage } from './AuthenticatedImage'
+import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 import { UnknownToggleButton } from './UnknownToggleButton'
 import { AddButton } from './AddButton'
 
@@ -316,7 +317,7 @@ export function PersonDetailsPanel({
         >
           <AuthenticatedImage
             alt=""
-            fallback={<span>{t('person.noPhoto')}</span>}
+            fallback={<PersonPortraitPlaceholder />}
             url={person.photoThumbnailUrl}
           />
         </button>

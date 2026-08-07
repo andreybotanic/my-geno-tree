@@ -6,6 +6,7 @@ import {
   formatPersonName,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
+import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 
 export type PersonNodeData = {
   isReference: boolean
@@ -28,8 +29,13 @@ export function PersonCard({
       title={name}
     >
       {data.isReference && (
-        <span aria-label={t('editor.referenceMarker')} className="person-reference-marker">
-          ★
+        <span
+          aria-label={t('editor.referenceMarker')}
+          className="person-reference-marker"
+        >
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+            <path d="m12 2.5 2.92 5.92 6.53.95-4.73 4.61 1.12 6.5L12 17.4l-5.84 3.07 1.12-6.5-4.73-4.61 6.53-.95Z" />
+          </svg>
         </span>
       )}
       <Handle
@@ -41,7 +47,7 @@ export function PersonCard({
       <div className="person-photo-placeholder" aria-hidden="true">
         <AuthenticatedImage
           alt=""
-          fallback={<span>?</span>}
+          fallback={<PersonPortraitPlaceholder />}
           url={data.person.photoThumbnailUrl}
         />
       </div>

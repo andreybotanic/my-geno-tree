@@ -119,7 +119,8 @@ describe('PersonDetailsPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Ivanova Anna' }))
       .toBeInTheDocument()
-    expect(screen.getByText('No photo')).toBeInTheDocument()
+    expect(document.querySelector('.person-portrait-placeholder'))
+      .toBeInTheDocument()
     expect(screen.getAllByText('c. 1900')).toHaveLength(2)
     expect(screen.queryByText('Automatic event')).not.toBeInTheDocument()
     const panel = screen.getByRole('complementary', {

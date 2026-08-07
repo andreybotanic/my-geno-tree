@@ -1007,7 +1007,7 @@
   box-shadow: 0 12px 32px var(--color-shadow);
   display: grid;
   gap: 10px;
-  grid-template-columns: 102px minmax(0, 1fr);
+  grid-template-columns: 105px minmax(0, 1fr);
   height: 160px;
   padding: 8px;
   position: relative;
@@ -1055,6 +1055,12 @@
   z-index: 2;
 }
 
+.person-reference-marker svg {
+  fill: currentColor;
+  height: 20px;
+  width: 20px;
+}
+
 .person-photo-placeholder,
 .panel-photo-placeholder {
   align-items: center;
@@ -1066,9 +1072,10 @@
 }
 
 .person-photo-placeholder {
+  border: 1px solid var(--color-text-strong);
   border-radius: 9px;
-  height: 136px;
-  width: 102px;
+  height: 140px;
+  width: 105px;
 }
 
 .person-photo-placeholder img,
@@ -1078,9 +1085,11 @@
   width: 100%;
 }
 
-.person-photo-placeholder span {
-  font-family: var(--font-heading);
-  font-size: 1.8rem;
+.person-portrait-placeholder {
+  display: block;
+  fill: currentColor;
+  height: 58%;
+  width: 58%;
 }
 
 .person-card-details {
@@ -1240,13 +1249,12 @@
   width: 100%;
 }
 
-.blood-network-person > span[aria-hidden='true'] {
+.blood-network-photo-placeholder {
   align-items: center;
   background: var(--color-placeholder);
   border-radius: inherit;
+  color: var(--color-accent-contrast);
   display: flex;
-  font-family: var(--font-heading);
-  font-size: 1.4rem;
   height: 100%;
   justify-content: center;
   width: 100%;
@@ -1609,9 +1617,9 @@
 }
 
 .panel-photo-placeholder {
-  background: var(--color-surface);
+  background: var(--color-placeholder);
   border: 0;
-  color: inherit;
+  color: var(--color-accent-contrast);
   cursor: pointer;
   border-radius: 13px;
   height: 180px;
@@ -1632,10 +1640,6 @@
 
 .person-photo-editor .panel-photo-placeholder {
   margin: 0;
-}
-
-.panel-photo-placeholder span {
-  font-size: 0.78rem;
 }
 
 .person-details-section {
