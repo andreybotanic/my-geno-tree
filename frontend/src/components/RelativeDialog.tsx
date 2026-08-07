@@ -372,6 +372,22 @@ function RelationshipFields({
         onChange={setMarriageDate}
         state={marriageDate}
       />
+      <label className="person-select-field">
+        <span>{t('relationships.maleNewSurname')}</span>
+        <input
+          maxLength={100}
+          onChange={(event) => setMaleNewSurname(event.target.value)}
+          value={maleNewSurname}
+        />
+      </label>
+      <label className="person-select-field">
+        <span>{t('relationships.femaleNewSurname')}</span>
+        <input
+          maxLength={100}
+          onChange={(event) => setFemaleNewSurname(event.target.value)}
+          value={femaleNewSurname}
+        />
+      </label>
       <label
         className="deceased-toggle choice-control conditional-date-toggle"
       >
@@ -389,22 +405,6 @@ function RelationshipFields({
           state={dissolutionDate}
         />
       )}
-      <label className="person-select-field">
-        <span>{t('relationships.maleNewSurname')}</span>
-        <input
-          maxLength={100}
-          onChange={(event) => setMaleNewSurname(event.target.value)}
-          value={maleNewSurname}
-        />
-      </label>
-      <label className="person-select-field">
-        <span>{t('relationships.femaleNewSurname')}</span>
-        <input
-          maxLength={100}
-          onChange={(event) => setFemaleNewSurname(event.target.value)}
-          value={femaleNewSurname}
-        />
-      </label>
     </>
   )
 }

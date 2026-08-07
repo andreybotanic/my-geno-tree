@@ -73,8 +73,18 @@ describe('RelativeDialog', () => {
     expect(
       within(marriageDate).getByLabelText('Marriage date: Exact date'),
     ).toHaveAttribute('type', 'date')
+    const maleSurname = within(dialog).getByRole('textbox', {
+      name: 'New surname of the man',
+    })
+    const marriageEnded = within(dialog).getByRole('checkbox', {
+      name: 'Marriage ended',
+    })
+    expect(
+      maleSurname.compareDocumentPosition(marriageEnded)
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0)
     await userEvent.click(
-      within(dialog).getByRole('checkbox', { name: 'Marriage ended' }),
+      marriageEnded,
     )
     expect(
       within(dialog).getByRole('checkbox', { name: 'Marriage ended' })
