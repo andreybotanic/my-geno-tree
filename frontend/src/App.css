@@ -1324,10 +1324,16 @@
   border-radius: 6px;
   color: var(--color-text);
   cursor: pointer;
+  display: block;
   font: inherit;
   padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
+  width: 100%;
+}
+
+.tree-context-menu li {
+  display: flex;
 }
 
 .blood-network-node-menu button:hover {

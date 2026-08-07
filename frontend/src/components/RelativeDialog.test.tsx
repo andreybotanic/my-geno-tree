@@ -202,7 +202,7 @@ describe('RelativeDialog', () => {
       .toHaveTextContent('changed in another session')
   })
 
-  it('rejects a blank known marriage date and can return to new mode', async () => {
+  it('explains how to provide a blank marriage date and can return to new mode', async () => {
     render(
       <RelativeDialog
         action="spouse"
@@ -231,7 +231,9 @@ describe('RelativeDialog', () => {
       within(dialog).getByRole('button', { name: 'Save' }),
     )
     expect(await within(dialog).findByRole('alert'))
-      .toHaveTextContent('relationship could not be saved')
+      .toHaveTextContent(
+        'Specify the marriage date and, if applicable, the dissolution date',
+      )
 
     await userEvent.click(
       within(dialog).getByRole('radio', { name: 'New person' }),

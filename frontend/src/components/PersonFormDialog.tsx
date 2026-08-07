@@ -73,6 +73,7 @@ function KnownTextInput({
 }
 
 type StructuredDateInputProps = {
+  autoFocus?: boolean
   label: string
   onChange: (state: DateInputState) => void
   state: DateInputState
@@ -101,6 +102,7 @@ function dateInputValue(state: DateInputState): string {
 }
 
 export function StructuredDateInput({
+  autoFocus = false,
   label,
   onChange,
   state,
@@ -149,6 +151,7 @@ export function StructuredDateInput({
                 <span>{t('person.exactDate')}</span>
                 <input
                   aria-label={`${label}: ${t('person.exactDate')}`}
+                  autoFocus={autoFocus}
                   defaultValue={dateInputValue(state)}
                   disabled={state.unknown}
                   key={`${state.unknown}-${state.year}-${state.month}-${state.day}`}
@@ -173,26 +176,6 @@ export function StructuredDateInput({
 
                     onChange(value)
                   }}
-                  onBlur={(event) => {
-                    const [year = '', month = '', day = ''] = event.target.value.split('-')
-                    const value = {
-                      ...state,
-                      day,
-                      month,
-                      year,
-                    }
-
-                    if ('' !== dateInputValue(value)) {
-                      return
-                    }
-
-                    onChange({
-                      ...state,
-                      day: '',
-                      month: '',
-                      year: '',
-                    })
-                  }}
                   type="date"
                 />
               </label>
@@ -202,6 +185,7 @@ export function StructuredDateInput({
                 <span>{t('person.month')}</span>
                 <select
                   aria-label={`${label}: ${t('person.month')}`}
+                  autoFocus={autoFocus}
                   disabled={state.unknown}
                   onChange={(event) => onChange({
                     ...state,
@@ -223,6 +207,7 @@ export function StructuredDateInput({
                 <span>{t('person.year')}</span>
                 <input
                   aria-label={`${label}: ${t('person.year')}`}
+                  autoFocus={autoFocus}
                   disabled={state.unknown}
                   inputMode="numeric"
                   max="9999"

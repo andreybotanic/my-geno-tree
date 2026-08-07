@@ -275,6 +275,53 @@ describe('PersonDetailsPanel', () => {
     })
   })
 
+  it('makes unknown values editable and saves a focused date change', async () => {
+    const onPatch = vi.fn(async () => {})
+    renderPanel({
+      onPatch,
+      value: {
+        ...person,
+        givenName: { state: 'unknown' },
+        birthDate: { state: 'unknown' },
+      },
+    })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Edit Given name' }),
+    )
+    const name = screen.getByRole('textbox', { name: 'Given name' })
+    expect(name).toBeEnabled()
+    expect(name).toHaveFocus()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Edit Birth date' }),
+    )
+    const dateEditor = screen.getByRole('group', { name: 'Birth date' })
+    const exactDate = within(dateEditor).getByLabelText(
+      'Birth date: Exact date',
+    )
+    expect(exactDate).toBeEnabled()
+    expect(exactDate).toHaveFocus()
+    fireEvent.change(exactDate, { target: { value: '2001-02-03' } })
+    await userEvent.click(
+      within(dateEditor.closest('form') as HTMLFormElement)
+        .getByRole('button', { name: 'Save' }),
+    )
+    expect(onPatch).toHaveBeenLastCalledWith({
+      birthDate: {
+        state: 'known',
+        precision: 'day',
+        year: 2001,
+        month: 2,
+        day: 3,
+        approximate: false,
+      },
+    })
+  })
+
   it('keeps the month and day while the date input has an incomplete year', async () => {
     const onPatch = vi.fn(async () => {})
     renderPanel({

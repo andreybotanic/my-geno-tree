@@ -208,23 +208,32 @@ export function PersonDetailsPanel({
   const [text, setText] = useState(() => textDraft(person.birthSurname))
   const [gender, setGender] = useState(person.gender)
   const [date, setDate] = useState(() => dateDraft(person.birthDate))
+  const dateRef = useRef(date)
   const [living, setLiving] = useState(person.deathDate === null)
   const language = i18n.resolvedLanguage ?? 'en'
 
   const beginText = (
     field: 'birthSurname' | 'givenName' | 'patronymic',
   ) => {
-    setText(textDraft(person[field]))
+    setText({ ...textDraft(person[field]), unknown: false })
     setEditing(field)
   }
   const beginDate = (field: 'birthDate' | 'deathDate') => {
     setLiving(field === 'deathDate' && person.deathDate === null)
-    setDate(dateDraft(
-      field === 'deathDate'
-        ? person.deathDate ?? { state: 'unknown' }
-        : person.birthDate,
-    ))
+    const value = field === 'deathDate'
+      ? person.deathDate
+      : person.birthDate
+    const draft = {
+      ...dateDraft(value ?? { state: 'unknown' }),
+      unknown: value === null,
+    }
+    dateRef.current = draft
+    setDate(draft)
     setEditing(field)
+  }
+  const updateDate = (value: DateInputState) => {
+    dateRef.current = value
+    setDate(value)
   }
   const saveText = async (
     field: 'birthSurname' | 'givenName' | 'patronymic',
@@ -246,7 +255,7 @@ export function PersonDetailsPanel({
       setEditing(null)
       return
     }
-    const value = dateValue(date)
+    const value = dateValue(dateRef.current)
     if (value === null) {
       throw new Error('invalid date')
     }
@@ -363,7 +372,7 @@ export function PersonDetailsPanel({
               <div className="unknown-field-control">
                 <input
                   aria-label={t(`person.${translation}`)}
-                  autoFocus={!text.unknown}
+                  autoFocus
                   disabled={text.unknown}
                   maxLength={101}
                   onChange={(event) => setText({
@@ -442,8 +451,9 @@ export function PersonDetailsPanel({
               )}
               {!(field === 'deathDate' && living) && (
                 <StructuredDateInput
+                  autoFocus
                   label={t(`person.${field}`)}
-                  onChange={setDate}
+                  onChange={updateDate}
                   state={date}
                 />
               )}

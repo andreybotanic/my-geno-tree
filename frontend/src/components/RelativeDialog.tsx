@@ -119,10 +119,15 @@ export function RelativeDialog({
       setError(t('relationships.choosePerson'))
       return
     }
+    const values = options()
+    if (values === null) {
+      setError(t('relationships.marriageDatesRequired'))
+      return
+    }
     setSaving(true)
     setError('')
     try {
-      await save({ personId })
+      await onSave({ personId }, values)
     } catch (caught) {
       setError(
         caught instanceof ApiRequestError
