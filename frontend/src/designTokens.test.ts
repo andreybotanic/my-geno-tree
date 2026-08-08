@@ -96,12 +96,18 @@ describe('semantic design contracts', () => {
     )
   })
 
-  it('aligns the event date with its dot and connects only adjacent dots', () => {
+  it('aligns the first event line with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
       /\.event-timeline li::before\s*\{[^}]*left:\s*0\.5px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
     )
     expect(appStyles).toMatch(
       /\.event-date\s*\{[^}]*align-items:\s*center;[^}]*display:\s*flex;[^}]*height:\s*13px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-timeline strong\s*\{[^}]*font-size:\s*0\.84rem;[^}]*line-height:\s*1;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-card-content\s*\{[^}]*align-content:\s*start;/s,
     )
     expect(appStyles).toMatch(
       /\.event-timeline li:not\(:last-child\)::after\s*\{[^}]*border-left:\s*2px solid var\(--color-graph-line\);/s,

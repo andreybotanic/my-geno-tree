@@ -2035,6 +2035,7 @@
 }
 
 .event-card-content {
+  align-content: start;
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -2108,6 +2109,7 @@
 .event-timeline strong {
   color: var(--color-text-strong);
   font-size: 0.84rem;
+  line-height: 1;
 }
 
 .event-actions {
