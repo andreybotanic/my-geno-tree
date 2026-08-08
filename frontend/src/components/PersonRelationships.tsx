@@ -154,7 +154,7 @@ export function PersonRelationships({
                     </span>
                     <div className="relationship-actions">
                       <button
-                        className="secondary-button compact-button"
+                        className="relationship-edit-button"
                         onClick={() => onEditMarriage(marriage)}
                         type="button"
                       >

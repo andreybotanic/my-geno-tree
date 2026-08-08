@@ -276,6 +276,7 @@ describe('PersonDetailsPanel', () => {
     const dateEditor = screen.getByRole('group', { name: 'Birth date' })
     const dateRow = dateEditor.closest('.person-detail-row')
     expect(within(dateRow as HTMLElement).queryAllByText('Birth date')).toHaveLength(1)
+    expect(dateRow?.querySelector('fieldset')).toBeNull()
     expect(within(dateRow as HTMLElement).getByRole('button', { name: 'Cancel' }))
       .toHaveTextContent('×')
     await userEvent.selectOptions(

@@ -72,7 +72,6 @@ type PersonDetailsPanelProps = {
 type EditableRowProps = {
   children: ReactNode
   editing: boolean
-  hideLabelWhileEditing?: boolean
   label: string
   onEdit: () => void
   value: string
@@ -81,7 +80,6 @@ type EditableRowProps = {
 function EditableRow({
   children,
   editing,
-  hideLabelWhileEditing = false,
   label,
   onEdit,
   value,
@@ -90,7 +88,7 @@ function EditableRow({
 
   return (
     <div className={`person-detail-row${editing ? ' person-detail-row-editing' : ''}`}>
-      {(!editing || !hideLabelWhileEditing) && <span>{label}</span>}
+      <span>{label}</span>
       {editing ? children : (
         <>
           <strong>{value}</strong>
@@ -445,7 +443,6 @@ export function PersonDetailsPanel({
         {(['birthDate', 'deathDate'] as const).map((field) => (
           <EditableRow
             editing={editing === field}
-            hideLabelWhileEditing
             key={field}
             label={t(`person.${field}`)}
             onEdit={() => !conflict && beginDate(field)}
@@ -469,6 +466,7 @@ export function PersonDetailsPanel({
               {!(field === 'deathDate' && living) && (
                 <StructuredDateInput
                   autoFocus
+                  grouped={false}
                   label={t(`person.${field}`)}
                   onChange={updateDate}
                   state={date}

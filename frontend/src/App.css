@@ -1807,6 +1807,15 @@
   gap: 8px;
 }
 
+.relationship-edit-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 3px 4px;
+}
+
 .danger-link {
   background: transparent;
   border: 0;
@@ -1927,7 +1936,7 @@
 
 .inline-person-editor:not(.inline-person-editor-compact) .inline-cancel-button {
   align-items: center;
-  border: 1px solid var(--color-border);
+  border: 0;
   border-radius: 6px;
   display: inline-flex;
   font-size: 1.1rem;
@@ -1948,6 +1957,16 @@
   justify-self: stretch;
   line-height: 1;
   width: 28px;
+}
+
+.inline-person-editor-compact input:not([type="checkbox"]),
+.inline-person-editor-compact select {
+  min-height: 34px;
+}
+
+.inline-person-editor-compact .unknown-toggle-button {
+  height: 34px;
+  width: 34px;
 }
 
 .event-timeline {
@@ -1973,7 +1992,7 @@
   box-sizing: border-box;
   content: "";
   height: 13px;
-  left: -1px;
+  left: 0;
   position: absolute;
   top: 0;
   transform: translateX(-50%);
@@ -1985,7 +2004,7 @@
   border-left: 2px solid var(--color-graph-line);
   bottom: -6.5px;
   content: "";
-  left: -1px;
+  left: 0;
   position: absolute;
   top: 6.5px;
 }
@@ -1995,7 +2014,7 @@
 }
 
 .event-timeline li:last-child {
-  padding-bottom: 0;
+  padding-bottom: 18px;
 }
 
 .event-card-content {
@@ -2073,7 +2092,7 @@
 }
 
 .event-actions {
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-top: 5px;
 }
 
@@ -2317,6 +2336,10 @@
 .date-fieldset {
   grid-column: 1 / -1;
   width: 100%;
+}
+
+.date-fieldset-ungrouped {
+  min-width: 0;
 }
 
 .date-input-row {

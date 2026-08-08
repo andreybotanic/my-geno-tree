@@ -75,6 +75,7 @@ function KnownTextInput({
 
 type StructuredDateInputProps = {
   autoFocus?: boolean
+  grouped?: boolean
   label: string
   onChange: (state: DateInputState) => void
   state: DateInputState
@@ -105,6 +106,7 @@ function dateInputValue(state: DateInputState): string {
 
 export function StructuredDateInput({
   autoFocus = false,
+  grouped = true,
   label,
   onChange,
   state,
@@ -124,10 +126,8 @@ export function StructuredDateInput({
     }
   })
 
-  return (
-    <fieldset className="person-fieldset date-fieldset">
-      <legend>{label}</legend>
-      <div className="date-field-control">
+  const controls = (
+    <div className="date-field-control">
         <div className="date-input-row">
           <div className="date-controls">
             <label>
@@ -255,8 +255,22 @@ export function StructuredDateInput({
             <span>{t('person.approximate')}</span>
           </label>
         )}
-      </div>
+    </div>
+  )
+
+  return grouped ? (
+    <fieldset className="person-fieldset date-fieldset">
+      <legend>{label}</legend>
+      {controls}
     </fieldset>
+  ) : (
+    <div
+      aria-label={label}
+      className="date-fieldset date-fieldset-ungrouped"
+      role="group"
+    >
+      {controls}
+    </div>
   )
 }
 
