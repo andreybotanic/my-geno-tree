@@ -64,6 +64,7 @@ type PersonDetailsPanelProps = {
   onUploadPhoto: () => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
+  onSelectPerson: (personId: string) => void
   person: Person
   snapshot: TreeSnapshot
 }
@@ -86,7 +87,7 @@ function EditableRow({
   const { t } = useTranslation()
 
   return (
-    <div className="person-detail-row">
+    <div className={`person-detail-row${editing ? ' person-detail-row-editing' : ''}`}>
       <span>{label}</span>
       {editing ? children : (
         <>
@@ -108,12 +109,14 @@ function EditableRow({
 
 type InlineEditorProps<T> = {
   children: ReactNode
+  compact?: boolean
   onCancel: () => void
   onCommit: () => Promise<T>
 }
 
 function InlineEditor<T>({
   children,
+  compact = true,
   onCancel,
   onCommit,
 }: InlineEditorProps<T>) {
@@ -147,15 +150,27 @@ function InlineEditor<T>({
   }
 
   return (
-    <form className="inline-person-editor" onBlur={blur} onSubmit={submit}>
+    <form
+      className={`inline-person-editor${compact ? ' inline-person-editor-compact' : ''}`}
+      onBlur={blur}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+      onSubmit={submit}
+    >
       {children}
       <button className="sr-only" type="submit">{t('common.save')}</button>
       <button
+        aria-label={t('common.cancel')}
         className="inline-cancel-button"
         onClick={onCancel}
+        title={t('common.cancel')}
         type="button"
       >
-        {t('common.cancel')}
+        {compact ? '×' : t('common.cancel')}
       </button>
       {error && <small role="alert">{error}</small>}
     </form>
@@ -201,6 +216,7 @@ export function PersonDetailsPanel({
   onUploadPhoto,
   onRemoveMarriage,
   onRemoveParentLink,
+  onSelectPerson,
   person,
   snapshot,
 }: PersonDetailsPanelProps) {
@@ -278,11 +294,8 @@ export function PersonDetailsPanel({
   return (
     <aside className="person-details-panel" aria-label={t('person.details')}>
       <div className="person-panel-heading">
-        <div>
-          <p className="eyebrow">{t('person.details')}</p>
+        <div className="person-panel-title">
           <h2>{formatPersonName(person, t)}</h2>
-        </div>
-        <div className="person-panel-actions">
           {import.meta.env.DEV && (
             <button
               aria-label={t('person.copyUid')}
@@ -294,6 +307,8 @@ export function PersonDetailsPanel({
               UID
             </button>
           )}
+        </div>
+        <div className="person-panel-actions">
           <button
             aria-label={t('common.close')}
             className="dialog-close"
@@ -305,24 +320,21 @@ export function PersonDetailsPanel({
         </div>
       </div>
 
-      <div className="person-photo-editor">
-        <button
-          aria-label={person.photoThumbnailUrl
-            ? t('media.openPhoto')
-            : t('person.noPhoto')}
-          className="panel-photo-placeholder"
-          disabled={!person.photoThumbnailUrl}
-          onClick={onOpenPhoto}
-          type="button"
-        >
-          <AuthenticatedImage
-            alt=""
-            fallback={<PersonPortraitPlaceholder />}
-            url={person.photoThumbnailUrl}
-          />
-        </button>
-        <div className="person-photo-actions">
-          {person.photoThumbnailUrl ? (
+      {person.photoThumbnailUrl ? (
+        <div className="person-photo-editor">
+          <button
+            aria-label={t('media.openPhoto')}
+            className="panel-photo-placeholder"
+            onClick={onOpenPhoto}
+            type="button"
+          >
+            <AuthenticatedImage
+              alt=""
+              fallback={<PersonPortraitPlaceholder />}
+              url={person.photoThumbnailUrl}
+            />
+          </button>
+          <div className="person-photo-actions">
             <button
               className="secondary-button compact-button"
               disabled={conflict}
@@ -331,13 +343,6 @@ export function PersonDetailsPanel({
             >
               {t('media.replacePhoto')}
             </button>
-          ) : (
-            <AddButton
-              disabled={conflict}
-              onClick={onUploadPhoto}
-            />
-          )}
-          {person.photoThumbnailUrl && (
             <button
               className="danger-link"
               disabled={conflict}
@@ -346,12 +351,18 @@ export function PersonDetailsPanel({
             >
               {t('media.deletePhoto')}
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="person-photo-actions person-photo-actions-empty">
+          <AddButton
+            disabled={conflict}
+            onClick={onUploadPhoto}
+          />
+        </div>
+      )}
 
       <section className="person-details-section">
-        <h3>{t('person.personalData')}</h3>
         {([
           ['birthSurname', 'birthSurname'],
           ['givenName', 'givenName'],
@@ -407,6 +418,7 @@ export function PersonDetailsPanel({
           value={t(`person.${person.gender}`)}
         >
           <InlineEditor
+            compact={false}
             onCancel={() => setEditing(null)}
             onCommit={async () => {
               await onPatch({ gender })
@@ -468,6 +480,7 @@ export function PersonDetailsPanel({
         onEditMarriage={onEditMarriage}
         onRemoveMarriage={onRemoveMarriage}
         onRemoveParentLink={onRemoveParentLink}
+        onSelectPerson={onSelectPerson}
         person={person}
         snapshot={snapshot}
       />

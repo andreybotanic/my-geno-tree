@@ -103,12 +103,14 @@ describe('PersonRelationships', () => {
     const onEditMarriage = vi.fn()
     const onRemoveMarriage = vi.fn()
     const onRemoveParentLink = vi.fn()
+    const onSelectPerson = vi.fn()
     render(
       <PersonRelationships
         onAdd={onAdd}
         onEditMarriage={onEditMarriage}
         onRemoveMarriage={onRemoveMarriage}
         onRemoveParentLink={onRemoveParentLink}
+        onSelectPerson={onSelectPerson}
         person={selected}
         snapshot={snapshot()}
       />,
@@ -134,10 +136,17 @@ describe('PersonRelationships', () => {
     expect(within(outsideMarriage as HTMLElement).queryByText('Junior'))
       .not.toBeInTheDocument()
 
-    const familyButtons = within(family as HTMLElement).getAllByRole('button')
-    await userEvent.click(familyButtons[0] as HTMLElement)
+    const firstMarriage = within(family as HTMLElement)
+      .getByText(/2000/)
+      .closest('li')
+    expect(firstMarriage).not.toBeNull()
+    await userEvent.click(within(firstMarriage as HTMLElement).getByRole('button', {
+      name: 'Edit',
+    }))
     expect(onEditMarriage).toHaveBeenCalledWith(periods[0])
-    await userEvent.click(familyButtons[1] as HTMLElement)
+    await userEvent.click(within(firstMarriage as HTMLElement).getByRole('button', {
+      name: 'Remove',
+    }))
     expect(onRemoveMarriage).toHaveBeenCalledWith(periods[0])
     await userEvent.click(
       within(family as HTMLElement).getByRole('button', { name: 'Add' }),
@@ -148,6 +157,17 @@ describe('PersonRelationships', () => {
       screen.getByRole('button', { name: 'Remove Father link' }),
     )
     expect(onRemoveParentLink).toHaveBeenCalledWith(links[0])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Senior' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Petrova' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Junior' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Outside' }))
+    expect(onSelectPerson.mock.calls).toEqual([
+      [father.id],
+      [spouse.id],
+      [commonChild.id],
+      [outsideChild.id],
+    ])
   })
 
   it('shows missing-parent and empty-family actions', async () => {
@@ -158,13 +178,14 @@ describe('PersonRelationships', () => {
         onEditMarriage={vi.fn()}
         onRemoveMarriage={vi.fn()}
         onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
         person={selected}
         snapshot={snapshot([], [], [selected])}
       />,
     )
 
     expect(screen.getByText('No marriages.')).toBeInTheDocument()
-    expect(screen.getByText('No children in this section.'))
+    expect(screen.getByText('No children outside marriage.'))
       .toBeInTheDocument()
     const parents = screen.getByRole('heading', { name: 'Parents' })
       .closest('section')
@@ -201,6 +222,7 @@ describe('PersonRelationships', () => {
         onEditMarriage={vi.fn()}
         onRemoveMarriage={vi.fn()}
         onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
         person={selected}
         snapshot={snapshot([], periods, [selected, spouse])}
       />,
@@ -218,5 +240,22 @@ describe('PersonRelationships', () => {
     expect(within(childrenBlock as HTMLElement).getByRole('button', {
       name: 'Add',
     })).toBeInTheDocument()
+  })
+
+  it('does not show a parent removal action that would disconnect the tree', () => {
+    render(
+      <PersonRelationships
+        onAdd={vi.fn()}
+        onEditMarriage={vi.fn()}
+        onRemoveMarriage={vi.fn()}
+        onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
+        person={selected}
+        snapshot={snapshot([links[0]!], [], [selected, father])}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Remove Father link' }))
+      .not.toBeInTheDocument()
   })
 })

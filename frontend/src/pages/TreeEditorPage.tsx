@@ -953,6 +953,25 @@ function TreeCanvas({
     cameras.current[cameraView] = { ...viewport }
   }, [cameras])
 
+  useEffect(() => {
+    if (view !== 'tree' || !selectedPersonId || !cameraReady) {
+      return
+    }
+    const position = treePositions.get(selectedPersonId)
+    const flow = instance.current
+    if (!position || !flow) {
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      void flow.setCenter(
+        position.x + PERSON_CARD_WIDTH / 2,
+        position.y + PERSON_CARD_HEIGHT / 2,
+        { duration: 150, zoom: flow.getViewport().zoom },
+      ).then(() => rememberCamera('tree', flow.getViewport()))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [cameraReady, rememberCamera, selectedPersonId, treePositions, view])
+
   const resetCamera = useCallback(async (
     cameraView: TreeEditorView = view,
     flow = instance.current,
@@ -2363,6 +2382,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
               kind: 'parent',
               link,
             })}
+            onSelectPerson={(personId) => void selectPerson(personId)}
             onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
             snapshot={snapshot}

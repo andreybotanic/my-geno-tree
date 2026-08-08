@@ -87,6 +87,7 @@ const renderPanel = ({
       onReorderEvents={vi.fn(async () => {})}
       onRemoveMarriage={vi.fn()}
       onRemoveParentLink={vi.fn()}
+      onSelectPerson={vi.fn()}
       onUploadPhoto={vi.fn()}
       person={value}
       snapshot={{
@@ -119,8 +120,9 @@ describe('PersonDetailsPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Ivanova Anna' }))
       .toBeInTheDocument()
-    expect(document.querySelector('.person-portrait-placeholder'))
-      .toBeInTheDocument()
+    expect(screen.queryByText('Person details')).not.toBeInTheDocument()
+    expect(document.querySelector('.panel-photo-placeholder')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(6)
     expect(screen.getAllByText('c. 1900')).toHaveLength(2)
     expect(screen.queryByText('Automatic event')).not.toBeInTheDocument()
     const panel = screen.getByRole('complementary', {
@@ -144,6 +146,10 @@ describe('PersonDetailsPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Copy UID' }))
 
     expect(writeText).toHaveBeenCalledWith(person.id)
+    expect(screen.getByRole('heading', { name: 'Ivanova Anna' })
+      .parentElement).toContainElement(
+      screen.getByRole('button', { name: 'Copy UID' }),
+    )
   })
 
   it('renders a protected photo and an empty timeline', async () => {
@@ -215,9 +221,9 @@ describe('PersonDetailsPanel', () => {
     renderPanel({ onPatch })
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Edit Birth surname' }),
+      screen.getByRole('button', { name: 'Edit Surname' }),
     )
-    const input = screen.getByRole('textbox', { name: 'Birth surname' })
+    const input = screen.getByRole('textbox', { name: 'Surname' })
     await userEvent.clear(input)
     await userEvent.type(input, '{Enter}')
 
@@ -226,8 +232,19 @@ describe('PersonDetailsPanel', () => {
     )
     expect(onPatch).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('textbox', { name: 'Birth surname' }))
+    expect(screen.queryByRole('textbox', { name: 'Surname' }))
       .not.toBeInTheDocument()
+  })
+
+  it('keeps text and select editors inside their original row height layout', async () => {
+    renderPanel()
+
+    const row = screen.getByText('Given name').closest('.person-detail-row')
+    expect(row).not.toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Given name' }))
+    expect(row?.querySelector('.inline-person-editor-compact')).not.toBeNull()
+    expect(within(row as HTMLElement).getByRole('button', { name: 'Cancel' }))
+      .toHaveTextContent('×')
   })
 
   it('saves gender and structured birth date changes', async () => {

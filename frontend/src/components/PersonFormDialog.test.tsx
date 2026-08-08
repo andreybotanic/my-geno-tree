@@ -27,13 +27,13 @@ describe('PersonFormDialog', () => {
       name: 'Create the first person',
     })
     const surname = within(dialog).getByRole('group', {
-      name: 'Birth surname',
+      name: 'Surname',
     })
     const surnameUnknown = within(surname).getByRole('button', {
       name: 'Unknown',
     })
     const surnameInput = within(surname).getByRole('textbox', {
-      name: 'Birth surname',
+      name: 'Surname',
     })
     expect(surnameUnknown).toHaveAttribute('title', 'Unknown')
     expect(surnameUnknown).toHaveAttribute('aria-pressed', 'false')

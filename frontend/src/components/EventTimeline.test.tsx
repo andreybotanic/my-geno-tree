@@ -142,9 +142,8 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(
-      screen.queryByRole('button', { name: 'Move Earlier down' }),
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Earlier down' }))
+      .toBeDisabled()
     await userEvent.click(
       screen.getByRole('button', { name: 'Move Uncertain up' }),
     )
@@ -171,5 +170,59 @@ describe('EventTimeline', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Birth up' }))
+      .toBeDisabled()
+  })
+
+  it('shows a description immediately when its measured text fits the card', () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({
+        measureText: () => ({ width: 20 }),
+      } as unknown as CanvasRenderingContext2D)
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[{ ...manual, description: 'Short summary' }]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onReorder={vi.fn(async () => {})}
+      />,
+    )
+
+    expect(screen.getByText('Short summary')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show description' }))
+      .not.toBeInTheDocument()
+    getContext.mockRestore()
+  })
+
+  it('marks the connector from death onward as dashed', () => {
+    const death: GenealogicalEvent = {
+      ...automatic,
+      id: 'death',
+      type: 'death',
+      date: {
+        state: 'known',
+        precision: 'year',
+        year: 1980,
+        approximate: false,
+      },
+    }
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[automatic, death, manual]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onReorder={vi.fn(async () => {})}
+      />,
+    )
+
+    const items = document.querySelectorAll('.event-timeline li')
+    expect(items[0]).not.toHaveClass('event-after-death')
+    expect(items[1]).toHaveClass('event-after-death')
+    expect(items[2]).toHaveClass('event-after-death')
+    expect(items[2]?.querySelector('.event-order-actions')).not.toBeNull()
   })
 })

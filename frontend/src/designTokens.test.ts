@@ -66,9 +66,15 @@ describe('semantic design contracts', () => {
     )
   })
 
-  it('centers timeline dots on their vertical line', () => {
+  it('aligns the event date with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
-      /\.event-timeline li::before\s*\{[^}]*left:\s*-1px;[^}]*transform:\s*translateX\(-50%\);/s,
+      /\.event-timeline li::before\s*\{[^}]*left:\s*-1px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-date\s*\{[^}]*line-height:\s*13px;[^}]*min-height:\s*13px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-timeline li:not\(:last-child\)::after\s*\{[^}]*border-left:\s*2px solid var\(--color-graph-line\);/s,
     )
   })
 
@@ -144,14 +150,14 @@ describe('semantic design contracts', () => {
     )
   })
 
-  it('uses a larger portrait card without doubled section dividers', () => {
+  it('uses a larger portrait card with a divider after every field', () => {
     expect(appStyles).toMatch(
       /\.person-card\s*\{[^}]*gap:\s*10px;[^}]*grid-template-columns:\s*105px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*padding:\s*8px;[^}]*width:\s*260px;/s,
     )
     expect(appStyles).toMatch(
       /\.person-photo-placeholder\s*\{[^}]*border:\s*1px solid var\(--color-accent\);[^}]*border-radius:\s*9px;[^}]*height:\s*140px;[^}]*width:\s*105px;/s,
     )
-    expect(appStyles).toMatch(
+    expect(appStyles).not.toMatch(
       /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
     )
   })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { GenealogicalEvent } from '../api/generated'
 import { canMoveEvent } from '../eventTimeline'
@@ -27,6 +27,7 @@ export function EventTimeline({
   const [orderError, setOrderError] = useState('')
   const [reordering, setReordering] = useState(false)
   const language = i18n.resolvedLanguage ?? 'en'
+  const deathIndex = events.findIndex((event) => event.type === 'death')
   const move = async (event: GenealogicalEvent, offset: -1 | 1) => {
     const currentIndex = events.findIndex(
       (candidate) => candidate.id === event.id,
@@ -65,10 +66,7 @@ export function EventTimeline({
     <section className="person-details-section">
       <div className="event-heading">
         <h3>{t('person.events')}</h3>
-        <AddButton
-          disabled={conflict}
-          onClick={onCreate}
-        />
+        <AddButton disabled={conflict} onClick={onCreate} />
       </div>
       {events.length === 0 ? (
         <p className="panel-empty">{t('person.noEvents')}</p>
@@ -78,10 +76,7 @@ export function EventTimeline({
             <p className="form-error" role="alert">{orderError}</p>
           )}
           <ol className="event-timeline">
-            {events.map((event) => {
-              const eventIndex = events.findIndex(
-                (candidate) => candidate.id === event.id,
-              )
+            {events.map((event, eventIndex) => {
               const previous = events[eventIndex - 1]
               const next = events[eventIndex + 1]
               const canMoveUp = Boolean(
@@ -94,100 +89,80 @@ export function EventTimeline({
               const surname = typeof event.data.newSurname === 'string'
                 ? event.data.newSurname
                 : null
+              const title = event.title ?? t(`person.eventType.${event.type}`)
 
               return (
-                <li key={event.id}>
-                  <span>
-                    {formatGenealogicalDate(event.date, language, t)}
-                  </span>
-                  <strong>
-                    {event.type === 'custom' && event.title
-                      ? event.title
-                      : t(`person.eventType.${event.type}`)}
-                  </strong>
-                  {surname && (
-                    <span>{t('events.newSurnameValue', { surname })}</span>
-                  )}
-                  {event.type === 'custom' && event.description && (
-                    <>
-                      <button
-                        aria-expanded={isExpanded}
-                        className="event-summary-button"
-                        onClick={() => setExpanded((current) => {
-                          const next = new Set(current)
-                          if (next.has(event.id)) {
-                            next.delete(event.id)
+                <li
+                  className={eventIndex >= deathIndex && deathIndex !== -1
+                    ? 'event-after-death'
+                    : undefined}
+                  key={event.id}
+                >
+                  <div className="event-card-content">
+                    <span className="event-date">
+                      {formatGenealogicalDate(event.date, language, t)}
+                    </span>
+                    <strong>
+                      {event.type === 'custom' && event.title
+                        ? event.title
+                        : t(`person.eventType.${event.type}`)}
+                    </strong>
+                    {surname && (
+                      <span>{t('events.newSurnameValue', { surname })}</span>
+                    )}
+                    {event.type === 'custom' && event.description && (
+                      <EventDescription
+                        description={event.description}
+                        expanded={isExpanded}
+                        onToggle={() => setExpanded((current) => {
+                          const nextExpanded = new Set(current)
+                          if (nextExpanded.has(event.id)) {
+                            nextExpanded.delete(event.id)
                           } else {
-                            next.add(event.id)
+                            nextExpanded.add(event.id)
                           }
-                          return next
+                          return nextExpanded
                         })}
-                        type="button"
-                      >
-                        {t(isExpanded ? 'events.collapse' : 'events.expand')}
-                      </button>
-                      {isExpanded && (
-                        <p className="event-description">
-                          {event.description}
-                        </p>
-                      )}
-                    </>
-                  )}
-                  {(event.source === 'manual' || canMoveUp || canMoveDown) && (
-                    <div className="event-actions">
-                      {event.source === 'manual' && (
-                        <>
-                          <button
-                            disabled={conflict}
-                            onClick={() => onEdit(event)}
-                            type="button"
-                          >
-                            {t('common.edit')}
-                          </button>
-                          <button
-                            className="danger-link"
-                            disabled={conflict}
-                            onClick={() => onDelete(event)}
-                            type="button"
-                          >
-                            {t('common.remove')}
-                          </button>
-                        </>
-                      )}
-                      {(canMoveUp || canMoveDown) && (
-                        <div className="event-order-actions">
-                          <button
-                            aria-label={t('events.moveUp', {
-                              title: event.title
-                                ?? t(`person.eventType.${event.type}`),
-                            })}
-                            disabled={conflict
-                              || reordering
-                              || !canMoveUp}
-                            onClick={() => void move(event, -1)}
-                            type="button"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            aria-label={t('events.moveDown', {
-                              title: event.title
-                                ?? t(`person.eventType.${event.type}`),
-                            })}
-                            disabled={
-                              conflict
-                              || reordering
-                              || !canMoveDown
-                            }
-                            onClick={() => void move(event, 1)}
-                            type="button"
-                          >
-                            ↓
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      />
+                    )}
+                    {event.source === 'manual' && (
+                      <div className="event-actions">
+                        <button
+                          disabled={conflict}
+                          onClick={() => onEdit(event)}
+                          type="button"
+                        >
+                          {t('common.edit')}
+                        </button>
+                        <button
+                          className="danger-link"
+                          disabled={conflict}
+                          onClick={() => onDelete(event)}
+                          type="button"
+                        >
+                          {t('common.remove')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="event-order-actions">
+                    <button
+                      aria-label={t('events.moveUp', { title })}
+                      disabled={conflict || reordering || !canMoveUp}
+                      onClick={() => void move(event, -1)}
+                      type="button"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      aria-label={t('events.moveDown', { title })}
+                      disabled={conflict || reordering || !canMoveDown}
+                      onClick={() => void move(event, 1)}
+                      type="button"
+                    >
+                      ↓
+                    </button>
+                  </div>
                 </li>
               )
             })}
@@ -195,5 +170,73 @@ export function EventTimeline({
         </>
       )}
     </section>
+  )
+}
+
+type EventDescriptionProps = {
+  description: string
+  expanded: boolean
+  onToggle: () => void
+}
+
+function EventDescription({
+  description,
+  expanded,
+  onToggle,
+}: EventDescriptionProps) {
+  const { t } = useTranslation()
+  const container = useRef<HTMLDivElement>(null)
+  const [fitsOneLine, setFitsOneLine] = useState(false)
+  const measure = useCallback(() => {
+    const element = container.current
+    if (!element || /\r?\n/.test(description)) {
+      setFitsOneLine(false)
+      return
+    }
+    const context = document.createElement('canvas').getContext('2d')
+    if (!context) {
+      setFitsOneLine(false)
+      return
+    }
+    context.font = getComputedStyle(element).font
+    const availableWidth = element.clientWidth || element.offsetWidth
+    setFitsOneLine(context.measureText(description).width <= availableWidth)
+  }, [description])
+
+  useLayoutEffect(() => {
+    measure()
+    const observer = new ResizeObserver(measure)
+    const element = container.current
+    if (element) {
+      observer.observe(element)
+    }
+    return () => observer.disconnect()
+  }, [measure])
+
+  return (
+    <div className="event-description-area" ref={container}>
+      {fitsOneLine || expanded ? (
+        <p className="event-description">{description}</p>
+      ) : (
+        <button
+          aria-expanded={false}
+          className="event-summary-button"
+          onClick={onToggle}
+          type="button"
+        >
+          {t('events.expand')}
+        </button>
+      )}
+      {expanded && !fitsOneLine && (
+        <button
+          aria-expanded
+          className="event-summary-button"
+          onClick={onToggle}
+          type="button"
+        >
+          {t('events.collapse')}
+        </button>
+      )}
+    </div>
   )
 }

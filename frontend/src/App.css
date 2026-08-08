@@ -1577,14 +1577,17 @@
 }
 
 .person-panel-heading {
-  align-items: start;
+  align-items: center;
   display: flex;
   gap: 20px;
   justify-content: space-between;
 }
 
-.person-panel-heading .eyebrow {
-  margin-bottom: 8px;
+.person-panel-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
 }
 
 .person-panel-heading h2 {
@@ -1646,6 +1649,10 @@
   margin: 22px 0;
 }
 
+.person-photo-actions-empty {
+  margin: 22px 0;
+}
+
 .person-photo-editor .panel-photo-placeholder {
   margin: 0;
 }
@@ -1653,6 +1660,11 @@
 .person-details-section {
   border-top: 1px solid var(--color-border);
   padding: 22px 0 6px;
+}
+
+.person-details-section:has(> .person-detail-row:last-child) + .person-details-section,
+.person-details-section:has(> .relationship-row:last-child) + .person-details-section {
+  border-top: 0;
 }
 
 .person-details-section h3 {
@@ -1696,21 +1708,35 @@
   min-height: 46px;
 }
 
-.person-details-section > .person-detail-row:last-child,
-.person-details-section > .relationship-row:last-child {
-  border-bottom: 0;
-}
-
 .relationship-row > span {
   color: var(--color-text-muted);
   font-size: 0.72rem;
   font-weight: 700;
 }
 
-.relationship-row > strong {
+.relationship-person-button {
+  background: transparent;
+  border: 0;
   color: var(--color-text-strong);
+  cursor: pointer;
   font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  padding: 4px;
+  text-align: left;
+}
+
+.relationship-person-button:hover {
+  color: var(--color-accent);
+}
+
+.relationship-row > .relationship-person-button {
   margin-left: auto;
+}
+
+.family-block > .relationship-person-button {
+  justify-self: start;
+  margin-left: -4px;
 }
 
 .family-block {
@@ -1807,6 +1833,7 @@
   grid-template-columns: 105px minmax(0, 1fr) 28px;
   min-height: 52px;
   padding: 8px 0;
+  position: relative;
 }
 
 .person-detail-row > span {
@@ -1845,6 +1872,10 @@
   padding: 4px 0;
 }
 
+.inline-person-editor-compact {
+  display: contents;
+}
+
 .inline-person-editor input:not([type="checkbox"]),
 .inline-person-editor select,
 .person-select-field input:not([type="checkbox"]),
@@ -1872,10 +1903,31 @@
   color: var(--color-state-danger);
 }
 
+.inline-person-editor-compact small {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-state-danger);
+  border-radius: 6px;
+  left: 105px;
+  padding: 4px 7px;
+  position: absolute;
+  top: calc(100% - 4px);
+  z-index: 2;
+}
+
 .inline-cancel-button {
   font-size: 0.72rem;
   justify-self: start;
   padding: 0;
+}
+
+.inline-person-editor-compact .inline-cancel-button {
+  align-self: center;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  height: 28px;
+  justify-self: stretch;
+  line-height: 1;
+  width: 28px;
 }
 
 .event-timeline {
@@ -1887,10 +1939,10 @@
 }
 
 .event-timeline li {
-  border-left: 2px solid var(--color-graph-line);
   display: grid;
-  gap: 3px;
-  padding: 4px 0 18px 18px;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 27px;
+  padding: 0 0 18px 18px;
   position: relative;
 }
 
@@ -1903,9 +1955,39 @@
   height: 13px;
   left: -1px;
   position: absolute;
-  top: 7px;
+  top: 0;
   transform: translateX(-50%);
   width: 13px;
+  z-index: 1;
+}
+
+.event-timeline li:not(:last-child)::after {
+  border-left: 2px solid var(--color-graph-line);
+  bottom: -6.5px;
+  content: "";
+  left: -1px;
+  position: absolute;
+  top: 6.5px;
+}
+
+.event-timeline li.event-after-death:not(:last-child)::after {
+  border-left-style: dashed;
+}
+
+.event-timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.event-card-content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.event-date {
+  align-self: center;
+  line-height: 13px;
+  min-height: 13px;
 }
 
 .add-button {
@@ -1963,8 +2045,7 @@
   font-size: 0.84rem;
 }
 
-.event-actions,
-.event-order-actions {
+.event-actions {
   align-items: center;
   display: flex;
   gap: 5px;
@@ -1992,7 +2073,13 @@
 }
 
 .event-order-actions {
-  margin-left: auto;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
 }
 
 .event-order-actions button {
@@ -2009,6 +2096,11 @@
   padding-left: 0;
 }
 
+.event-description-area {
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
 .event-description {
   color: var(--color-text);
   font-size: 0.78rem;
@@ -2016,6 +2108,10 @@
   margin: 5px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.event-actions > .danger-link {
+  color: var(--color-state-danger);
 }
 
 .panel-empty {

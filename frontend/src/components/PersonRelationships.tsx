@@ -22,6 +22,7 @@ type PersonRelationshipsProps = {
   onEditMarriage: (marriage: MarriagePeriod) => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
+  onSelectPerson: (personId: string) => void
   person: Person
   snapshot: TreeSnapshot
 }
@@ -31,6 +32,7 @@ export function PersonRelationships({
   onEditMarriage,
   onRemoveMarriage,
   onRemoveParentLink,
+  onSelectPerson,
   person,
   snapshot,
 }: PersonRelationshipsProps) {
@@ -87,6 +89,7 @@ export function PersonRelationships({
           link={father}
           onAdd={onAdd}
           onRemove={onRemoveParentLink}
+          onSelectPerson={onSelectPerson}
           person={father ? people.get(father.parentId) : undefined}
           removable={!father || canRemoveParentLink(snapshot, father)}
         />
@@ -95,6 +98,7 @@ export function PersonRelationships({
           link={mother}
           onAdd={onAdd}
           onRemove={onRemoveParentLink}
+          onSelectPerson={onSelectPerson}
           person={mother ? people.get(mother.parentId) : undefined}
           removable={!mother || canRemoveParentLink(snapshot, mother)}
         />
@@ -121,9 +125,15 @@ export function PersonRelationships({
 
           return (
             <article className="family-block" key={spouseId}>
-              <strong>
-                {spouse ? formatPersonName(spouse, t) : t('person.unknown')}
-              </strong>
+              {spouse ? (
+                <button
+                  className="relationship-person-button"
+                  onClick={() => onSelectPerson(spouse.id)}
+                  type="button"
+                >
+                  {formatPersonName(spouse, t)}
+                </button>
+              ) : <strong>{t('person.unknown')}</strong>}
               <ul className="marriage-period-list">
                 {periods.map((marriage) => (
                   <li key={marriage.id}>
@@ -177,7 +187,15 @@ export function PersonRelationships({
                 ) : (
                   <ul className="relationship-list">
                     {commonChildren.map((child) => (
-                      <li key={child.id}>{formatPersonName(child, t)}</li>
+                      <li key={child.id}>
+                        <button
+                          className="relationship-person-button"
+                          onClick={() => onSelectPerson(child.id)}
+                          type="button"
+                        >
+                          {formatPersonName(child, t)}
+                        </button>
+                      </li>
                     ))}
                   </ul>
                 )}
@@ -195,11 +213,21 @@ export function PersonRelationships({
           />
         </div>
         {outsideMarriage.length === 0 ? (
-          <p className="panel-empty">{t('relationships.noChildren')}</p>
+          <p className="panel-empty">
+            {t('relationships.noChildrenOutsideMarriage')}
+          </p>
         ) : (
           <ul className="relationship-list">
             {outsideMarriage.map((child) => (
-              <li key={child.id}>{formatPersonName(child, t)}</li>
+              <li key={child.id}>
+                <button
+                  className="relationship-person-button"
+                  onClick={() => onSelectPerson(child.id)}
+                  type="button"
+                >
+                  {formatPersonName(child, t)}
+                </button>
+              </li>
             ))}
           </ul>
         )}
@@ -214,6 +242,7 @@ type RelativeRowProps = {
   link: ParentLink | undefined
   onAdd: (action: RelativeAction, secondParentId?: string) => void
   onRemove: (link: ParentLink) => void
+  onSelectPerson: (personId: string) => void
   person: Person | undefined
   removable: boolean
 }
@@ -223,6 +252,7 @@ function RelativeRow({
   link,
   onAdd,
   onRemove,
+  onSelectPerson,
   person,
   removable,
 }: RelativeRowProps) {
@@ -233,7 +263,13 @@ function RelativeRow({
       <span>{t(`relationships.${action}`)}</span>
       {link && person ? (
         <>
-          <strong>{formatPersonName(person, t)}</strong>
+          <button
+            className="relationship-person-button"
+            onClick={() => onSelectPerson(person.id)}
+            type="button"
+          >
+            {formatPersonName(person, t)}
+          </button>
           {removable && (
             <button
               aria-label={t('relationships.removeParent', {

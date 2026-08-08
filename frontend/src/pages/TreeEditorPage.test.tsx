@@ -869,6 +869,35 @@ describe('TreeEditorPage', () => {
     )
   })
 
+  it('opens a related person from the panel and updates the selected card', async () => {
+    const tree = graphSnapshot([father, person], [parentLink])
+    const request = vi.fn(async (path: string) => {
+      if (path.endsWith('/events')) {
+        return { items: [event] }
+      }
+      if (path.endsWith(`/people/${father.id}`)) {
+        return father
+      }
+      if (path.endsWith(`/people/${person.id}`)) {
+        return person
+      }
+      return tree
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(
+      await screen.findByRole('article', { name: 'Ivanova Anna' }),
+    )
+    await screen.findByRole('complementary', { name: 'Person details' })
+    await userEvent.click(screen.getByRole('button', { name: 'Petrov Ivan' }))
+
+    expect(await screen.findByRole('heading', { name: 'Petrov Ivan' }))
+      .toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}`)
+    expect(screen.getByRole('article', { name: 'Petrov Ivan' })
+      .closest('.react-flow__node')).toHaveClass('selected')
+  })
+
   it('closes person details when the empty tree canvas is clicked', async () => {
     const request = vi.fn(async (path: string) => {
       if (path.endsWith('/events')) {
