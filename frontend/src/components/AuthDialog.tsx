@@ -39,7 +39,14 @@ export function AuthDialog({ onClose, onSuccess }: AuthDialogProps) {
           onClick={onClose}
           type="button"
         >
-          ×
+          <svg
+            aria-hidden="true"
+            className="dialog-close-icon"
+            focusable="false"
+            viewBox="0 0 24 24"
+          >
+            <path d="m5 5 14 14M19 5 5 19" />
+          </svg>
         </button>
         <AuthForm onSuccess={onSuccess} />
       </section>

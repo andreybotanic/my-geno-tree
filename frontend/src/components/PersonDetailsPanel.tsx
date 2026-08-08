@@ -315,7 +315,7 @@ export function PersonDetailsPanel({
             onClick={onClose}
             type="button"
           >
-            ×
+            <CloseIcon />
           </button>
         </div>
       </div>
@@ -364,6 +364,7 @@ export function PersonDetailsPanel({
       )}
 
       <section className="person-details-section">
+        <h3>{t('person.personalData')}</h3>
         {([
           ['birthSurname', 'birthSurname'],
           ['givenName', 'givenName'],
@@ -508,5 +509,18 @@ export function PersonDetailsPanel({
         </section>
       )}
     </aside>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="dialog-close-icon"
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="m5 5 14 14M19 5 5 19" />
+    </svg>
   )
 }

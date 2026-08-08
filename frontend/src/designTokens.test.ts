@@ -88,6 +88,12 @@ describe('semantic design contracts', () => {
     expect(appStyles).toMatch(
       /\.panel-photo-placeholder\s*\{[^}]*aspect-ratio:\s*3 \/ 4;[^}]*padding:\s*0;/s,
     )
+    expect(appStyles).toMatch(
+      /\.dev-copy-uid-button\s*\{[^}]*margin-top:\s*3px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.dialog-close-icon\s*\{[^}]*fill:\s*none;[^}]*stroke:\s*currentcolor;/s,
+    )
   })
 
   it('aligns the event date with its dot and connects only adjacent dots', () => {

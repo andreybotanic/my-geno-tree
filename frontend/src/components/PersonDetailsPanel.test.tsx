@@ -120,7 +120,8 @@ describe('PersonDetailsPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Ivanova Anna' }))
       .toBeInTheDocument()
-    expect(screen.queryByText('Person details')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Personal data' }))
+      .toBeInTheDocument()
     expect(document.querySelector('.panel-photo-placeholder')).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(5)
     expect(screen.getByRole('button', { name: 'Add photo' })).toBeInTheDocument()
@@ -134,6 +135,8 @@ describe('PersonDetailsPanel', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Close' }))
+      .toContainElement(document.querySelector('.dialog-close-icon'))
   })
 
   it('copies the person UID in development builds', async () => {
