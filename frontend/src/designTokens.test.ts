@@ -66,6 +66,15 @@ describe('semantic design contracts', () => {
     )
   })
 
+  it('keeps the date cancel control on the field label line', () => {
+    expect(appStyles).toMatch(
+      /\.person-detail-row:has\(\.date-fieldset\) \.inline-person-editor\s*\{[^}]*position:\s*static;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-detail-row:has\(\.date-fieldset\) \.inline-cancel-button\s*\{[^}]*top:\s*2px;/s,
+    )
+  })
+
   it('aligns the event date with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
       /\.event-timeline li::before\s*\{[^}]*left:\s*0\.5px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,

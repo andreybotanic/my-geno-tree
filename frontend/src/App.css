@@ -2530,6 +2530,11 @@
 
 .person-detail-row:has(.date-fieldset) .inline-person-editor {
   grid-column: 1 / 4;
+  position: static;
+}
+
+.person-detail-row:has(.date-fieldset) .inline-cancel-button {
+  top: 2px;
 }
 
 .react-flow__node {
