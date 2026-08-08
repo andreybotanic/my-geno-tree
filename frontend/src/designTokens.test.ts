@@ -68,7 +68,7 @@ describe('semantic design contracts', () => {
 
   it('aligns the event date with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
-      /\.event-timeline li::before\s*\{[^}]*left:\s*0;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
+      /\.event-timeline li::before\s*\{[^}]*left:\s*0\.5px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
     )
     expect(appStyles).toMatch(
       /\.event-date\s*\{[^}]*align-items:\s*center;[^}]*display:\s*flex;[^}]*height:\s*13px;/s,
@@ -83,7 +83,10 @@ describe('semantic design contracts', () => {
 
   it('uses one colored, interactive size for every addition action', () => {
     expect(appStyles).toMatch(
-      /\.add-button\s*\{[^}]*background:\s*var\(--color-accent\);[^}]*font-family:\s*var\(--font-body\);[^}]*font-size:\s*0\.78rem;[^}]*height:\s*36px;[^}]*width:\s*132px;/s,
+      /\.add-button\s*\{[^}]*background:\s*var\(--color-accent\);[^}]*font-family:\s*var\(--font-body\);[^}]*font-size:\s*0\.78rem;[^}]*height:\s*32px;[^}]*padding:\s*0 10px;[^}]*width:\s*110px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-photo-actions-empty \.add-button\s*\{[^}]*height:\s*36px;[^}]*width:\s*132px;/s,
     )
     expect(appStyles).toMatch(
       /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*width:\s*15px;/s,

@@ -1945,7 +1945,7 @@
   padding: 0;
   position: absolute;
   right: 0;
-  top: 4px;
+  top: 0;
   width: 28px;
 }
 
@@ -1992,7 +1992,7 @@
   box-sizing: border-box;
   content: "";
   height: 13px;
-  left: 0;
+  left: 0.5px;
   position: absolute;
   top: 0;
   transform: translateX(-50%);
@@ -2040,8 +2040,16 @@
   font-size: 0.78rem;
   font-weight: 700;
   gap: 7px;
-  height: 36px;
+  height: 32px;
   justify-content: center;
+  min-height: 32px;
+  min-width: 110px;
+  padding: 0 10px;
+  width: 110px;
+}
+
+.person-photo-actions-empty .add-button {
+  height: 36px;
   min-height: 36px;
   min-width: 132px;
   padding: 0 14px;
@@ -2152,6 +2160,11 @@
 
 .event-actions > .danger-link {
   color: var(--color-state-danger);
+}
+
+.relationship-actions > .danger-link {
+  font-size: 0.72rem;
+  padding: 3px 4px;
 }
 
 .panel-empty {
