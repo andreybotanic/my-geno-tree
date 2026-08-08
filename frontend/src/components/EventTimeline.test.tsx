@@ -142,8 +142,8 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Move Earlier down' }))
-      .toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Move Earlier down' }))
+      .not.toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Move Uncertain up' }),
     )
@@ -224,5 +224,6 @@ describe('EventTimeline', () => {
     expect(items[1]).toHaveClass('event-after-death')
     expect(items[2]).toHaveClass('event-after-death')
     expect(items[2]?.querySelector('.event-order-actions')).not.toBeNull()
+    expect(items[2]?.querySelectorAll('.event-order-actions button')).toHaveLength(0)
   })
 })

@@ -87,6 +87,7 @@ export const resources = {
       media: {
         avatarHelp: 'Move and zoom the image inside the round crop.',
         avatarTitle: 'Choose avatar crop',
+        addPhoto: 'Add photo',
         chooseImage: 'Choose an image and adjust the crop.',
         deleteAvatar: 'Delete avatar',
         deleteAvatarDescription:
@@ -424,6 +425,7 @@ export const resources = {
         avatarHelp:
           'Перемещайте и масштабируйте изображение внутри круглой области.',
         avatarTitle: 'Выбор области аватара',
+        addPhoto: 'Добавить фото',
         chooseImage: 'Выберите изображение и настройте область.',
         deleteAvatar: 'Удалить аватар',
         deleteAvatarDescription:

@@ -1125,7 +1125,9 @@ describe('TreeEditorPage', () => {
     const photoActions = document.querySelector('.person-photo-actions')
     expect(photoActions).not.toBeNull()
     await userEvent.click(
-      within(photoActions as HTMLElement).getByRole('button', { name: 'Add' }),
+      within(photoActions as HTMLElement).getByRole('button', {
+        name: 'Add photo',
+      }),
     )
     await userEvent.click(screen.getByRole('button', {
       name: 'Save photo crop',

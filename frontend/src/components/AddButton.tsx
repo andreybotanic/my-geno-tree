@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next'
 type AddButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   'children'
->
+> & {
+  label?: string
+}
 
 export function AddButton({
   className,
+  label,
   type = 'button',
   ...props
 }: AddButtonProps) {
@@ -29,7 +32,7 @@ export function AddButton({
       >
         <path d="M8 3v10M3 8h10" />
       </svg>
-      <span>{t('common.add')}</span>
+      <span>{label ?? t('common.add')}</span>
     </button>
   )
 }

@@ -72,6 +72,7 @@ type PersonDetailsPanelProps = {
 type EditableRowProps = {
   children: ReactNode
   editing: boolean
+  hideLabelWhileEditing?: boolean
   label: string
   onEdit: () => void
   value: string
@@ -80,6 +81,7 @@ type EditableRowProps = {
 function EditableRow({
   children,
   editing,
+  hideLabelWhileEditing = false,
   label,
   onEdit,
   value,
@@ -88,7 +90,7 @@ function EditableRow({
 
   return (
     <div className={`person-detail-row${editing ? ' person-detail-row-editing' : ''}`}>
-      <span>{label}</span>
+      {(!editing || !hideLabelWhileEditing) && <span>{label}</span>}
       {editing ? children : (
         <>
           <strong>{value}</strong>
@@ -170,7 +172,7 @@ function InlineEditor<T>({
         title={t('common.cancel')}
         type="button"
       >
-        {compact ? '×' : t('common.cancel')}
+        ×
       </button>
       {error && <small role="alert">{error}</small>}
     </form>
@@ -357,6 +359,7 @@ export function PersonDetailsPanel({
         <div className="person-photo-actions person-photo-actions-empty">
           <AddButton
             disabled={conflict}
+            label={t('media.addPhoto')}
             onClick={onUploadPhoto}
           />
         </div>
@@ -418,7 +421,6 @@ export function PersonDetailsPanel({
           value={t(`person.${person.gender}`)}
         >
           <InlineEditor
-            compact={false}
             onCancel={() => setEditing(null)}
             onCommit={async () => {
               await onPatch({ gender })
@@ -443,12 +445,14 @@ export function PersonDetailsPanel({
         {(['birthDate', 'deathDate'] as const).map((field) => (
           <EditableRow
             editing={editing === field}
+            hideLabelWhileEditing
             key={field}
             label={t(`person.${field}`)}
             onEdit={() => !conflict && beginDate(field)}
             value={dateLabel(person[field])}
           >
             <InlineEditor
+              compact={false}
               onCancel={() => setEditing(null)}
               onCommit={() => saveDate(field)}
             >

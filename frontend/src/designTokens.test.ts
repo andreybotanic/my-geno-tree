@@ -71,7 +71,7 @@ describe('semantic design contracts', () => {
       /\.event-timeline li::before\s*\{[^}]*left:\s*-1px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
     )
     expect(appStyles).toMatch(
-      /\.event-date\s*\{[^}]*line-height:\s*13px;[^}]*min-height:\s*13px;/s,
+      /\.event-date\s*\{[^}]*align-items:\s*center;[^}]*display:\s*flex;[^}]*height:\s*13px;/s,
     )
     expect(appStyles).toMatch(
       /\.event-timeline li:not\(:last-child\)::after\s*\{[^}]*border-left:\s*2px solid var\(--color-graph-line\);/s,

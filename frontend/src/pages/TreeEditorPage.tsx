@@ -722,6 +722,7 @@ function TreeCanvas({
   })
   const [cameraReady, setCameraReady] = useState(false)
   const activeCameraView = useRef<TreeEditorView>(view)
+  const centeredPersonId = useRef<string | null>(null)
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
     BloodNetworkFlowNode[]
   >([])
@@ -954,7 +955,15 @@ function TreeCanvas({
   }, [cameras])
 
   useEffect(() => {
-    if (view !== 'tree' || !selectedPersonId || !cameraReady) {
+    if (!selectedPersonId) {
+      centeredPersonId.current = null
+      return
+    }
+    if (
+      view !== 'tree'
+      || !cameraReady
+      || centeredPersonId.current === selectedPersonId
+    ) {
       return
     }
     const position = treePositions.get(selectedPersonId)
@@ -963,6 +972,7 @@ function TreeCanvas({
       return
     }
     const frame = requestAnimationFrame(() => {
+      centeredPersonId.current = selectedPersonId
       void flow.setCenter(
         position.x + PERSON_CARD_WIDTH / 2,
         position.y + PERSON_CARD_HEIGHT / 2,
