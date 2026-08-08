@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
+  GenealogicalDate,
   MarriagePeriod,
   ParentLink,
   Person,
@@ -144,13 +145,7 @@ export function PersonRelationships({
                         t,
                       )}
                       {' — '}
-                      {marriage.dissolutionDate
-                        ? formatGenealogicalDate(
-                          marriage.dissolutionDate,
-                          language,
-                          t,
-                        )
-                        : t('relationships.currentMarriage')}
+                      {marriageEndLabel(marriage, person, spouse, language, t)}
                     </span>
                     <div className="relationship-actions">
                       <button
@@ -306,4 +301,53 @@ function hasParent(
   return snapshot.parentLinks.some((link) => (
     link.childId === childId && link.parentId === parentId
   ))
+}
+
+function marriageEndLabel(
+  marriage: MarriagePeriod,
+  person: Person,
+  spouse: Person | undefined,
+  language: string,
+  translate: (key: string) => string,
+) {
+  if (marriage.dissolutionDate) {
+    return formatGenealogicalDate(marriage.dissolutionDate, language, translate)
+  }
+
+  const deathDates = [person.deathDate, spouse?.deathDate]
+    .filter((date): date is GenealogicalDate => date !== null && date !== undefined)
+  if (deathDates.length === 0) {
+    return translate('relationships.currentMarriage')
+  }
+
+  const knownDeathDates = deathDates.filter(
+    (date): date is Exclude<GenealogicalDate, { state: 'unknown' }> => (
+      date.state === 'known'
+    ),
+  )
+  if (knownDeathDates.length === 0) {
+    return translate('person.unknown')
+  }
+
+  const earliestDeathDate = knownDeathDates.reduce((earliest, date) => (
+    compareKnownDates(date, earliest) < 0 ? date : earliest
+  ))
+
+  return formatGenealogicalDate(earliestDeathDate, language, translate)
+}
+
+function compareKnownDates(
+  first: Exclude<GenealogicalDate, { state: 'unknown' }>,
+  second: Exclude<GenealogicalDate, { state: 'unknown' }>,
+) {
+  return dateSortValue(first) - dateSortValue(second)
+}
+
+function dateSortValue(
+  date: Exclude<GenealogicalDate, { state: 'unknown' }>,
+) {
+  const month = date.precision === 'year' ? 1 : date.month
+  const day = date.precision === 'day' ? date.day : 1
+
+  return Date.UTC(date.year, month - 1, day)
 }

@@ -242,6 +242,84 @@ describe('PersonRelationships', () => {
     })).toBeInTheDocument()
   })
 
+  it('uses the earliest known spouse death as the end of an undissolved marriage', () => {
+    const deceasedSelected: Person = {
+      ...selected,
+      deathDate: {
+        state: 'known',
+        precision: 'year',
+        year: 2010,
+        approximate: false,
+      },
+    }
+    const deceasedSpouse: Person = {
+      ...spouse,
+      deathDate: {
+        state: 'known',
+        precision: 'year',
+        year: 2008,
+        approximate: false,
+      },
+    }
+    render(
+      <PersonRelationships
+        onAdd={vi.fn()}
+        onEditMarriage={vi.fn()}
+        onRemoveMarriage={vi.fn()}
+        onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
+        person={deceasedSelected}
+        snapshot={snapshot([], [periods[1]!], [deceasedSelected, deceasedSpouse])}
+      />,
+    )
+
+    expect(document.querySelector('.marriage-period-list li > span'))
+      .toHaveTextContent('2008')
+  })
+
+  it('shows a known death before an unknown one and unknown when neither is dated', () => {
+    const deceasedSelected: Person = {
+      ...selected,
+      deathDate: {
+        state: 'known',
+        precision: 'year',
+        year: 2010,
+        approximate: false,
+      },
+    }
+    const unknownDeathSpouse: Person = {
+      ...spouse,
+      deathDate: { state: 'unknown' },
+    }
+    const props = {
+      onAdd: vi.fn(),
+      onEditMarriage: vi.fn(),
+      onRemoveMarriage: vi.fn(),
+      onRemoveParentLink: vi.fn(),
+      onSelectPerson: vi.fn(),
+      person: deceasedSelected,
+      snapshot: snapshot([], [periods[1]!], [deceasedSelected, unknownDeathSpouse]),
+    }
+    const { rerender } = render(<PersonRelationships {...props} />)
+
+    expect(document.querySelector('.marriage-period-list li > span'))
+      .toHaveTextContent('2010')
+
+    rerender(
+      <PersonRelationships
+        {...props}
+        person={{ ...deceasedSelected, deathDate: { state: 'unknown' } }}
+        snapshot={snapshot([], [periods[1]!], [
+          { ...deceasedSelected, deathDate: { state: 'unknown' } },
+          unknownDeathSpouse,
+        ])}
+      />,
+    )
+
+    expect(document.querySelector('.marriage-period-list li > span'))
+      .toHaveTextContent('Unknown')
+  })
+
   it('does not show a parent removal action that would disconnect the tree', () => {
     render(
       <PersonRelationships

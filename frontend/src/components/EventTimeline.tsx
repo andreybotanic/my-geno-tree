@@ -99,14 +99,14 @@ export function EventTimeline({
                   key={event.id}
                 >
                   <div className="event-card-content">
-                    <span className="event-date">
-                      {formatGenealogicalDate(event.date, language, t)}
-                    </span>
                     <strong>
                       {event.type === 'custom' && event.title
                         ? event.title
                         : t(`person.eventType.${event.type}`)}
                     </strong>
+                    <span className="event-date">
+                      {formatGenealogicalDate(event.date, language, t)}
+                    </span>
                     {surname && (
                       <span>{t('events.newSurnameValue', { surname })}</span>
                     )}

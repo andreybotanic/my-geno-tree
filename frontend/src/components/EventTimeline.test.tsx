@@ -73,6 +73,23 @@ describe('EventTimeline', () => {
     expect(onDelete).toHaveBeenCalledWith(manual)
   })
 
+  it('puts the event title before its date in every card', () => {
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[automatic]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onReorder={vi.fn(async () => {})}
+      />,
+    )
+
+    const content = document.querySelector('.event-card-content')
+    expect(content?.children[0]).toHaveTextContent('Birth')
+    expect(content?.children[1]).toHaveTextContent('1900')
+  })
+
   it('reorders only events inside an ambiguous group', async () => {
     const onReorder = vi.fn(async () => {})
     render(

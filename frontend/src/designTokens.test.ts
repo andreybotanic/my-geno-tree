@@ -75,6 +75,21 @@ describe('semantic design contracts', () => {
     )
   })
 
+  it('top-aligns panel controls and removes photo container side padding', () => {
+    expect(appStyles).toMatch(
+      /\.person-panel-heading\s*\{[^}]*align-items:\s*flex-start;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-panel-title\s*\{[^}]*align-items:\s*flex-start;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-photo-editor\s*\{[^}]*align-items:\s*flex-start;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.panel-photo-placeholder\s*\{[^}]*aspect-ratio:\s*3 \/ 4;[^}]*padding:\s*0;/s,
+    )
+  })
+
   it('aligns the event date with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
       /\.event-timeline li::before\s*\{[^}]*left:\s*0\.5px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
