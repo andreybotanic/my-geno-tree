@@ -138,10 +138,39 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, ['type', 'childId']);
+        $detailed = 2 !== count($payload);
+        if (!$detailed) {
+            $this->assertExactKeys($payload, ['type', 'childId']);
+        } else {
+            $this->assertExactKeys($payload, [
+                'type',
+                'childId',
+                'father',
+                'mother',
+                'marriage',
+            ]);
+        }
+
         $child = $this->person($tree, $payload['childId'], 'childId');
-        $father = $this->anonymousPerson($tree, Gender::MALE, $changedAt);
-        $mother = $this->anonymousPerson($tree, Gender::FEMALE, $changedAt);
+        if (!$detailed) {
+            $father = $this->anonymousPerson($tree, Gender::MALE, $changedAt);
+            $mother = $this->anonymousPerson($tree, Gender::FEMALE, $changedAt);
+        } else {
+            $father = $this->newPerson(
+                $tree,
+                $payload['father'],
+                $changedAt,
+                Gender::MALE,
+                'father',
+            );
+            $mother = $this->newPerson(
+                $tree,
+                $payload['mother'],
+                $changedAt,
+                Gender::FEMALE,
+                'mother',
+            );
+        }
 
         $this->createParentLink(
             $tree,
@@ -157,6 +186,24 @@ final readonly class StructuralGraphMutationService
             ParentRole::MOTHER,
             $changedAt,
         );
+
+        if ($detailed && null !== $payload['marriage']) {
+            $marriage = $this->object($payload['marriage'], 'marriage');
+            $this->assertExactKeys($marriage, [
+                'marriageDate',
+                'dissolutionDate',
+                'maleNewSurname',
+                'femaleNewSurname',
+            ], 'marriage');
+            $this->createMarriage(
+                $tree,
+                $father,
+                $mother,
+                $marriage,
+                $changedAt,
+                'marriage.',
+            );
+        }
     }
 
     /**
@@ -234,45 +281,11 @@ final readonly class StructuralGraphMutationService
             $payload['relative'],
             $changedAt,
         );
-        [$male, $female] = $this->invariants->marriagePeople(
+        $this->createMarriage(
+            $tree,
             $person,
             $partner,
-        );
-        $marriageDate = $this->personData->dateValue(
-            $payload['marriageDate'],
-            'marriageDate',
-        );
-        $dissolutionDate = $this->personData->optionalDateValue(
-            $payload['dissolutionDate'],
-            'dissolutionDate',
-        );
-        $this->invariants->assertMarriageDates(
-            $male,
-            $female,
-            $marriageDate,
-            $dissolutionDate,
-        );
-        $maleSurname = $this->optionalSurname(
-            $payload['maleNewSurname'],
-            'maleNewSurname',
-        );
-        $femaleSurname = $this->optionalSurname(
-            $payload['femaleNewSurname'],
-            'femaleNewSurname',
-        );
-        $marriage = new MarriagePeriod(
-            $tree,
-            $male,
-            $female,
-            $marriageDate,
-            $dissolutionDate,
-            $changedAt,
-        );
-        $this->entityManager->persist($marriage);
-        $this->events->synchronizeMarriage(
-            $marriage,
-            $maleSurname,
-            $femaleSurname,
+            $payload,
             $changedAt,
         );
     }
@@ -454,14 +467,15 @@ final readonly class StructuralGraphMutationService
         mixed $value,
         \DateTimeImmutable $changedAt,
         ?Gender $assignedGender = null,
+        string $field = 'relative',
     ): Person {
-        $payload = $this->object($value, 'relative');
+        $payload = $this->object($value, $field);
         if (array_key_exists('personId', $payload)) {
-            $this->assertExactKeys($payload, ['personId'], 'relative');
+            $this->assertExactKeys($payload, ['personId'], $field);
             $person = $this->person(
                 $tree,
                 $payload['personId'],
-                'relative.personId',
+                $field . '.personId',
             );
             if (null !== $assignedGender) {
                 $this->assignGender($person, $assignedGender, $changedAt);
@@ -470,8 +484,25 @@ final readonly class StructuralGraphMutationService
             return $person;
         }
 
-        $this->assertExactKeys($payload, ['person'], 'relative');
-        $data = $this->personData->create($payload['person']);
+        $this->assertExactKeys($payload, ['person'], $field);
+
+        return $this->newPerson(
+            $tree,
+            $payload['person'],
+            $changedAt,
+            $assignedGender,
+            $field . '.person',
+        );
+    }
+
+    private function newPerson(
+        FamilyTree $tree,
+        mixed $value,
+        \DateTimeImmutable $changedAt,
+        ?Gender $assignedGender,
+        string $field,
+    ): Person {
+        $data = $this->personData->create($value);
         if (null !== $assignedGender) {
             if (Gender::UNKNOWN === $data->gender) {
                 $data = new \App\Application\Person\PersonData(
@@ -483,7 +514,7 @@ final readonly class StructuralGraphMutationService
                     $data->deathDate,
                 );
             } elseif ($assignedGender !== $data->gender) {
-                $this->invalid('relative.person.gender', 'parent_role_gender_conflict');
+                $this->invalid($field . '.gender', 'parent_role_gender_conflict');
             }
         }
         $person = new Person(
@@ -500,6 +531,57 @@ final readonly class StructuralGraphMutationService
         $this->events->synchronizePersonLifecycle($person, $changedAt);
 
         return $person;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function createMarriage(
+        FamilyTree $tree,
+        Person $first,
+        Person $second,
+        array $payload,
+        \DateTimeImmutable $changedAt,
+        string $fieldPrefix = '',
+    ): void {
+        [$male, $female] = $this->invariants->marriagePeople($first, $second);
+        $marriageDate = $this->personData->dateValue(
+            $payload['marriageDate'],
+            $fieldPrefix . 'marriageDate',
+        );
+        $dissolutionDate = $this->personData->optionalDateValue(
+            $payload['dissolutionDate'],
+            $fieldPrefix . 'dissolutionDate',
+        );
+        $this->invariants->assertMarriageDates(
+            $male,
+            $female,
+            $marriageDate,
+            $dissolutionDate,
+        );
+        $maleSurname = $this->optionalSurname(
+            $payload['maleNewSurname'],
+            $fieldPrefix . 'maleNewSurname',
+        );
+        $femaleSurname = $this->optionalSurname(
+            $payload['femaleNewSurname'],
+            $fieldPrefix . 'femaleNewSurname',
+        );
+        $marriage = new MarriagePeriod(
+            $tree,
+            $male,
+            $female,
+            $marriageDate,
+            $dissolutionDate,
+            $changedAt,
+        );
+        $this->entityManager->persist($marriage);
+        $this->events->synchronizeMarriage(
+            $marriage,
+            $maleSurname,
+            $femaleSurname,
+            $changedAt,
+        );
     }
 
     private function anonymousPerson(

@@ -9,15 +9,13 @@ import type {
 } from '../api/generated'
 import { ApiRequestError } from '../api/client'
 import {
-  dateValue,
-  emptyDate,
-  type DateInputState,
-} from '../personFormValues'
+  emptyMarriageForm,
+  marriageFormValue,
+  type MarriageFormState,
+} from '../marriageFormState'
 import { formatPersonName } from '../personFormatting'
-import {
-  PersonFormDialog,
-  StructuredDateInput,
-} from './PersonFormDialog'
+import { MarriageFormFields } from './MarriageFormFields'
+import { PersonFormDialog } from './PersonFormDialog'
 
 export type RelativeAction = 'child' | 'father' | 'mother' | 'spouse'
 
@@ -69,11 +67,7 @@ export function RelativeDialog({
   const [secondParentId, setSecondParentId] = useState(
     initialSecondParentId ?? '',
   )
-  const [marriageDate, setMarriageDate] = useState(emptyDate)
-  const [dissolved, setDissolved] = useState(false)
-  const [dissolutionDate, setDissolutionDate] = useState(emptyDate)
-  const [maleNewSurname, setMaleNewSurname] = useState('')
-  const [femaleNewSurname, setFemaleNewSurname] = useState('')
+  const [marriage, setMarriage] = useState(emptyMarriageForm)
   const candidates = useMemo(
     () => snapshot.people.filter((person) => person.id !== anchor.id),
     [anchor.id, snapshot.people],
@@ -85,20 +79,18 @@ export function RelativeDialog({
   const title = t(`relationships.add.${action}`)
 
   const options = (): RelativeOptions | null => {
-    const marriage = dateValue(marriageDate)
-    const dissolution = dissolved ? dateValue(dissolutionDate) : null
-    if (
-      action === 'spouse'
-      && (marriage === null || (dissolved && dissolution === null))
-    ) {
+    const marriageValue = action === 'spouse'
+      ? marriageFormValue(marriage)
+      : null
+    if (action === 'spouse' && marriageValue === null) {
       return null
     }
 
     return {
-      dissolutionDate: action === 'spouse' ? dissolution : null,
-      femaleNewSurname: optionalText(femaleNewSurname),
-      maleNewSurname: optionalText(maleNewSurname),
-      marriageDate: marriage ?? { state: 'unknown' },
+      dissolutionDate: marriageValue?.dissolutionDate ?? null,
+      femaleNewSurname: marriageValue?.femaleNewSurname ?? null,
+      maleNewSurname: marriageValue?.maleNewSurname ?? null,
+      marriageDate: marriageValue?.marriageDate ?? { state: 'unknown' },
       parentRole,
       secondParentId: secondParentId || null,
     }
@@ -145,19 +137,11 @@ export function RelativeDialog({
       action={action}
       anchor={anchor}
       candidates={candidates}
-      dissolved={dissolved}
-      dissolutionDate={dissolutionDate}
-      femaleNewSurname={femaleNewSurname}
       fixedParents={fixedParents}
-      maleNewSurname={maleNewSurname}
-      marriageDate={marriageDate}
+      marriage={marriage}
       parentRole={parentRole}
       secondParentId={secondParentId}
-      setDissolved={setDissolved}
-      setDissolutionDate={setDissolutionDate}
-      setFemaleNewSurname={setFemaleNewSurname}
-      setMaleNewSurname={setMaleNewSurname}
-      setMarriageDate={setMarriageDate}
+      setMarriage={setMarriage}
       setParentRole={setParentRole}
       setSecondParentId={setSecondParentId}
     />
@@ -280,19 +264,11 @@ type RelationshipFieldsProps = {
   action: RelativeAction
   anchor: Person
   candidates: Person[]
-  dissolved: boolean
-  dissolutionDate: DateInputState
-  femaleNewSurname: string
   fixedParents: Person[] | undefined
-  maleNewSurname: string
-  marriageDate: DateInputState
+  marriage: MarriageFormState
   parentRole: ParentRole
   secondParentId: string
-  setDissolved: (value: boolean) => void
-  setDissolutionDate: (value: DateInputState) => void
-  setFemaleNewSurname: (value: string) => void
-  setMaleNewSurname: (value: string) => void
-  setMarriageDate: (value: DateInputState) => void
+  setMarriage: (value: MarriageFormState) => void
   setParentRole: (value: ParentRole) => void
   setSecondParentId: (value: string) => void
 }
@@ -301,19 +277,11 @@ function RelationshipFields({
   action,
   anchor,
   candidates,
-  dissolved,
-  dissolutionDate,
-  femaleNewSurname,
   fixedParents,
-  maleNewSurname,
-  marriageDate,
+  marriage,
   parentRole,
   secondParentId,
-  setDissolved,
-  setDissolutionDate,
-  setFemaleNewSurname,
-  setMaleNewSurname,
-  setMarriageDate,
+  setMarriage,
   setParentRole,
   setSecondParentId,
 }: RelationshipFieldsProps) {
@@ -366,52 +334,8 @@ function RelationshipFields({
   }
 
   return (
-    <>
-      <StructuredDateInput
-        label={t('relationships.marriageDate')}
-        onChange={setMarriageDate}
-        state={marriageDate}
-      />
-      <label className="person-select-field">
-        <span>{t('relationships.maleNewSurname')}</span>
-        <input
-          maxLength={100}
-          onChange={(event) => setMaleNewSurname(event.target.value)}
-          value={maleNewSurname}
-        />
-      </label>
-      <label className="person-select-field">
-        <span>{t('relationships.femaleNewSurname')}</span>
-        <input
-          maxLength={100}
-          onChange={(event) => setFemaleNewSurname(event.target.value)}
-          value={femaleNewSurname}
-        />
-      </label>
-      <label
-        className="deceased-toggle choice-control conditional-date-toggle"
-      >
-        <input
-          checked={dissolved}
-          onChange={(event) => setDissolved(event.target.checked)}
-          type="checkbox"
-        />
-        <span>{t('relationships.dissolved')}</span>
-      </label>
-      {dissolved && (
-        <StructuredDateInput
-          label={t('relationships.dissolutionDate')}
-          onChange={setDissolutionDate}
-          state={dissolutionDate}
-        />
-      )}
-    </>
+    <MarriageFormFields onChange={setMarriage} state={marriage} />
   )
-}
-
-function optionalText(value: string) {
-  const trimmed = value.trim()
-  return trimmed || null
 }
 
 function spouseGender(person: Person): Person['gender'] {

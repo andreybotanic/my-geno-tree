@@ -2196,6 +2196,10 @@
   overflow-y: auto;
 }
 
+.parents-dialog {
+  max-width: 1200px;
+}
+
 .image-crop-dialog {
   max-width: 680px;
 }
@@ -2264,6 +2268,43 @@
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.parents-form-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.parents-person-section,
+.parents-marriage-section {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  margin: 0;
+  min-width: 0;
+  padding: 18px;
+}
+
+.parents-person-section > legend,
+.parents-marriage-section > legend {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0 7px;
+}
+
+.parents-marriage-section {
+  grid-column: 1 / -1;
+}
+
+.parents-married-toggle {
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.parents-marriage-fields {
+  margin-top: 16px;
 }
 
 .person-fieldset {
@@ -2353,7 +2394,8 @@
 
 .unknown-field-control input:disabled,
 .date-controls input:disabled,
-.date-controls select:disabled {
+.date-controls select:disabled,
+.person-select-field select:disabled {
   background: var(--color-background);
   color: var(--color-text-muted);
   cursor: not-allowed;
@@ -2632,5 +2674,15 @@
     border-top: 1px solid var(--color-border);
     grid-column: 1;
     grid-row: 2;
+  }
+}
+
+@media (max-width: 960px) {
+  .parents-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .parents-marriage-section {
+    grid-column: 1;
   }
 }

@@ -329,7 +329,7 @@ describe('TreeEditorPage', () => {
     })).not.toBeInTheDocument()
   })
 
-  it('creates both anonymous parents from the person menu', async () => {
+  it('opens a dialog and creates both parents from the person menu', async () => {
     const initial = graphSnapshot([person])
     const updated = graphSnapshot([
       person,
@@ -348,10 +348,39 @@ describe('TreeEditorPage', () => {
     })
     await userEvent.click(screen.getByRole('menuitem', { name: 'Add parents' }))
 
+    const dialog = screen.getByRole('dialog', { name: 'Add parents' })
+    expect((request as unknown as ReturnType<typeof vi.fn>).mock.calls)
+      .not.toContainEqual([
+        `/trees/${treeId}/graph-mutations`,
+        expect.anything(),
+      ])
+    await activateUnpressedUnknownButtons(dialog)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
     await waitFor(() => expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
       expect.objectContaining({
-        body: JSON.stringify({ type: 'add_parents', childId: person.id }),
+        body: JSON.stringify({
+          type: 'add_parents',
+          childId: person.id,
+          father: {
+            birthSurname: { state: 'unknown' },
+            givenName: { state: 'unknown' },
+            patronymic: { state: 'unknown' },
+            gender: 'male',
+            birthDate: { state: 'unknown' },
+            deathDate: null,
+          },
+          marriage: null,
+          mother: {
+            birthSurname: { state: 'unknown' },
+            givenName: { state: 'unknown' },
+            patronymic: { state: 'unknown' },
+            gender: 'female',
+            birthDate: { state: 'unknown' },
+            deathDate: null,
+          },
+        }),
         headers: { 'If-Match': '"tree-current"' },
         method: 'POST',
       }),

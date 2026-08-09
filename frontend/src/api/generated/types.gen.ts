@@ -290,9 +290,26 @@ export type CreateFirstPersonMutation = {
     person: PersonInput;
 };
 
-export type AddParentsMutation = {
+export type AddParentsMutation = LegacyAddParentsMutation | DetailedAddParentsMutation;
+
+export type LegacyAddParentsMutation = {
     type: 'add_parents';
     childId: string;
+};
+
+export type DetailedAddParentsMutation = {
+    type: 'add_parents';
+    childId: string;
+    father: PersonInput;
+    mother: PersonInput;
+    marriage: ParentsMarriageInput | null;
+};
+
+export type ParentsMarriageInput = {
+    marriageDate: GenealogicalDate;
+    dissolutionDate: GenealogicalDate | null;
+    maleNewSurname: string | null;
+    femaleNewSurname: string | null;
 };
 
 export type AddParentMutation = {

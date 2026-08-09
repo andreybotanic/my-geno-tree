@@ -1787,6 +1787,10 @@ components:
         person:
           $ref: "#/components/schemas/PersonInput"
     AddParentsMutation:
+      oneOf:
+        - $ref: "#/components/schemas/LegacyAddParentsMutation"
+        - $ref: "#/components/schemas/DetailedAddParentsMutation"
+    LegacyAddParentsMutation:
       type: object
       additionalProperties: false
       required:
@@ -1799,6 +1803,57 @@ components:
         childId:
           type: string
           format: uuid
+    DetailedAddParentsMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - childId
+        - father
+        - mother
+        - marriage
+      properties:
+        type:
+          type: string
+          const: add_parents
+        childId:
+          type: string
+          format: uuid
+        father:
+          $ref: "#/components/schemas/PersonInput"
+        mother:
+          $ref: "#/components/schemas/PersonInput"
+        marriage:
+          oneOf:
+            - $ref: "#/components/schemas/ParentsMarriageInput"
+            - type: "null"
+    ParentsMarriageInput:
+      type: object
+      additionalProperties: false
+      required:
+        - marriageDate
+        - dissolutionDate
+        - maleNewSurname
+        - femaleNewSurname
+      properties:
+        marriageDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        dissolutionDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+        maleNewSurname:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 100
+        femaleNewSurname:
+          type:
+            - string
+            - "null"
+          minLength: 1
+          maxLength: 100
     AddParentMutation:
       type: object
       additionalProperties: false

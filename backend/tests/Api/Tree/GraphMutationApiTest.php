@@ -74,6 +74,164 @@ final class GraphMutationApiTest extends ApiWebTestCase
         self::assertCount(2, $current['parentLinks']);
     }
 
+    public function testDetailedParentsAreCreatedWithoutMarriage(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person([
+            'birthDate' => $this->knownDate('year', 2000),
+        ]));
+        $child = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_parents',
+            'childId' => $child['id'],
+            'father'  => $this->person([
+                'birthSurname' => ['state' => 'known', 'value' => 'Petrov'],
+                'givenName'    => ['state' => 'known', 'value' => 'Ivan'],
+                'gender'       => 'male',
+                'birthDate'    => $this->knownDate('year', 1970),
+            ]),
+            'mother' => $this->person([
+                'birthSurname' => ['state' => 'known', 'value' => 'Sidorova'],
+                'givenName'    => ['state' => 'known', 'value' => 'Anna'],
+                'gender'       => 'female',
+                'birthDate'    => $this->knownDate('year', 1972),
+            ]),
+            'marriage' => null,
+        ]);
+
+        self::assertResponseStatusCodeSame(201);
+        self::assertCount(3, $snapshot['people']);
+        self::assertCount(2, $snapshot['parentLinks']);
+        self::assertSame([], $snapshot['marriages']);
+        $parents = [];
+        foreach ($snapshot['parentLinks'] as $link) {
+            $parents[$link['role']] = $this->personById($snapshot, $link['parentId']);
+        }
+        self::assertSame(
+            ['state' => 'known', 'value' => 'Petrov'],
+            $parents['father']['birthSurname'],
+        );
+        self::assertSame(
+            ['state' => 'known', 'value' => 'Anna'],
+            $parents['mother']['givenName'],
+        );
+    }
+
+    public function testDetailedParentsMarriageSynchronizesEvents(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person([
+            'birthDate' => $this->knownDate('year', 2000),
+        ]));
+        $child = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_parents',
+            'childId' => $child['id'],
+            'father'  => $this->person([
+                'gender'    => 'male',
+                'birthDate' => $this->knownDate('year', 1960),
+            ]),
+            'mother' => $this->person([
+                'gender'    => 'female',
+                'birthDate' => $this->knownDate('year', 1962),
+            ]),
+            'marriage' => [
+                'marriageDate'     => $this->knownDate('year', 1985),
+                'dissolutionDate'  => $this->knownDate('year', 2010),
+                'maleNewSurname'   => 'Newman',
+                'femaleNewSurname' => 'Newwoman',
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(201);
+        self::assertCount(1, $snapshot['marriages']);
+        $parents = [];
+        foreach ($snapshot['parentLinks'] as $link) {
+            $parents[$link['role']] = $this->personById($snapshot, $link['parentId']);
+        }
+        self::assertSame(
+            ['birth', 'marriage', 'surname_change', 'child_birth', 'divorce'],
+            array_column(
+                $this->events($accessToken, $tree['id'], $parents['father']['id']),
+                'type',
+            ),
+        );
+        self::assertSame(
+            ['birth', 'marriage', 'surname_change', 'child_birth', 'divorce'],
+            array_column(
+                $this->events($accessToken, $tree['id'], $parents['mother']['id']),
+                'type',
+            ),
+        );
+    }
+
+    public function testInvalidDetailedParentsMarriageRollsBackEverything(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person([
+            'birthDate' => $this->knownDate('year', 2000),
+        ]));
+        $child = $snapshot['people'][0];
+
+        $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_parents',
+            'childId' => $child['id'],
+            'father'  => $this->person([
+                'gender'    => 'male',
+                'birthDate' => $this->knownDate('year', 1960),
+            ]),
+            'mother' => $this->person([
+                'gender'    => 'female',
+                'birthDate' => $this->knownDate('year', 1962),
+            ]),
+            'marriage' => [
+                'marriageDate'     => $this->knownDate('year', 1990),
+                'dissolutionDate'  => $this->knownDate('year', 1980),
+                'maleNewSurname'   => null,
+                'femaleNewSurname' => null,
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        $current = $this->snapshot($accessToken, $tree['id']);
+        self::assertSame($snapshot['etag'], $current['etag']);
+        self::assertCount(1, $current['people']);
+        self::assertSame([], $current['parentLinks']);
+        self::assertSame([], $current['marriages']);
+    }
+
+    public function testInvalidDetailedParentRollsBackEverything(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson($accessToken, $tree, $this->person());
+        $child = $snapshot['people'][0];
+
+        $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'     => 'add_parents',
+            'childId'  => $child['id'],
+            'father'   => $this->person(['gender' => 'female']),
+            'mother'   => $this->person(['gender' => 'female']),
+            'marriage' => null,
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            ['parent_role_gender_conflict'],
+            $this->responseStringList('fields', 'father.gender'),
+        );
+        $current = $this->snapshot($accessToken, $tree['id']);
+        self::assertSame($snapshot['etag'], $current['etag']);
+        self::assertCount(1, $current['people']);
+        self::assertSame([], $current['parentLinks']);
+        self::assertSame([], $current['marriages']);
+    }
+
     public function testParentsAreCreatedAtomicallyWithRoleAndCycleRules(): void
     {
         $accessToken = $this->register();

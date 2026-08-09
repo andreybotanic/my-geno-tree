@@ -60,6 +60,10 @@ import {
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
 import {
+  ParentsFormDialog,
+  type ParentsFormValue,
+} from '../components/ParentsFormDialog'
+import {
   RelativeDialog,
   type RelativeAction,
   type RelativeOptions,
@@ -1745,6 +1749,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [relativeDialog, setRelativeDialog] = useState<RelativeDialogState | null>(
     null,
   )
+  const [parentsDialogChildId, setParentsDialogChildId] = useState<string | null>(
+    null,
+  )
   const [marriageEditing, setMarriageEditing] = useState<
     MarriagePeriod | null
   >(null)
@@ -1798,6 +1805,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setSelectedPerson(null)
       setEvents([])
       setRelativeDialog(null)
+      setParentsDialogChildId(null)
       setMarriageEditing(null)
       setPendingRemoval(null)
       setEventEditing(null)
@@ -2035,7 +2043,19 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   }
 
   const addParents = async (childId: string) => {
-    await applyMutation({ type: 'add_parents', childId })
+    setParentsDialogChildId(childId)
+  }
+
+  const saveParents = async (value: ParentsFormValue) => {
+    if (!parentsDialogChildId) {
+      throw new Error('Parent creation is unavailable')
+    }
+    await applyMutation({
+      type: 'add_parents',
+      childId: parentsDialogChildId,
+      ...value,
+    })
+    setParentsDialogChildId(null)
   }
 
   const openRelativeDialog = (
@@ -2432,6 +2452,12 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           }}
           onSave={addRelative}
           snapshot={snapshot}
+        />
+      )}
+      {parentsDialogChildId && (
+        <ParentsFormDialog
+          onCancel={() => setParentsDialogChildId(null)}
+          onSave={saveParents}
         />
       )}
       {marriageEditing && (

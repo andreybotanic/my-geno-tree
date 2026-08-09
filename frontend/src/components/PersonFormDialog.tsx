@@ -1,33 +1,15 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type {
-  KnownText,
-  PersonInput,
-} from '../api/generated'
+import type { PersonInput } from '../api/generated'
 import { ApiRequestError } from '../api/client'
+import type { DateInputState } from '../personFormValues'
 import {
-  dateValue,
-  emptyDate,
-  type DateInputState,
-} from '../personFormValues'
+  emptyPersonForm,
+  personFormValue,
+  type PersonFormState,
+  type TextInputState,
+} from '../personFormState'
 import { UnknownToggleButton } from './UnknownToggleButton'
-
-type TextInputState = {
-  unknown: boolean
-  value: string
-}
-
-const emptyText = (): TextInputState => ({ unknown: false, value: '' })
-function textValue(state: TextInputState): KnownText | null {
-  const value = state.value.trim()
-  if (state.unknown) {
-    return { state: 'unknown' }
-  }
-
-  return value && value.length <= 100
-    ? { state: 'known', value }
-    : null
-}
 
 type KnownTextInputProps = {
   autoFocus?: boolean
@@ -282,6 +264,87 @@ type PersonFormDialogProps = {
   title?: string
 }
 
+type PersonFormFieldsProps = {
+  autoFocus?: boolean
+  fixedGender?: boolean
+  onChange: (state: PersonFormState) => void
+  state: PersonFormState
+}
+
+export function PersonFormFields({
+  autoFocus = false,
+  fixedGender = false,
+  onChange,
+  state,
+}: PersonFormFieldsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <KnownTextInput
+        autoFocus={autoFocus}
+        label={t('person.birthSurname')}
+        onChange={(birthSurname) => onChange({ ...state, birthSurname })}
+        state={state.birthSurname}
+      />
+      <KnownTextInput
+        label={t('person.givenName')}
+        onChange={(givenName) => onChange({ ...state, givenName })}
+        state={state.givenName}
+      />
+      <KnownTextInput
+        label={t('person.patronymic')}
+        onChange={(patronymic) => onChange({ ...state, patronymic })}
+        state={state.patronymic}
+      />
+      <label className="person-select-field">
+        <span>{t('person.gender')}</span>
+        <select
+          disabled={fixedGender}
+          onChange={(event) => onChange({
+            ...state,
+            gender: event.target.value as PersonInput['gender'],
+          })}
+          value={state.gender}
+        >
+          <option value="unknown">{t('person.unknown')}</option>
+          <option value="male">{t('person.male')}</option>
+          <option value="female">{t('person.female')}</option>
+        </select>
+      </label>
+      <StructuredDateInput
+        label={t('person.birthDate')}
+        onChange={(birthDate) => onChange({ ...state, birthDate })}
+        state={state.birthDate}
+        unknownToggleTabIndex={-1}
+      />
+      <div className="death-date-row">
+        <label
+          className="deceased-toggle choice-control conditional-date-toggle"
+        >
+          <input
+            checked={state.deceased}
+            onChange={(event) => onChange({
+              ...state,
+              deceased: event.target.checked,
+            })}
+            type="checkbox"
+          />
+          <span>{t('person.deceased')}</span>
+        </label>
+        {state.deceased && (
+          <StructuredDateInput
+            label={t('person.deathDate')}
+            onChange={(deathDate) => onChange({ ...state, deathDate })}
+            state={state.deathDate}
+            unknownToggleTabIndex={-1}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
 export function PersonFormDialog({
   children,
   initialGender = 'unknown',
@@ -290,30 +353,16 @@ export function PersonFormDialog({
   title,
 }: PersonFormDialogProps) {
   const { t } = useTranslation()
-  const [birthSurname, setBirthSurname] = useState(emptyText)
-  const [givenName, setGivenName] = useState(emptyText)
-  const [patronymic, setPatronymic] = useState(emptyText)
-  const [gender, setGender] = useState<PersonInput['gender']>(initialGender)
-  const [birthDate, setBirthDate] = useState(emptyDate)
-  const [deathDate, setDeathDate] = useState(emptyDate)
-  const [deceased, setDeceased] = useState(false)
+  const [person, setPerson] = useState(
+    () => emptyPersonForm(initialGender),
+  )
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const surnameValue = textValue(birthSurname)
-    const givenNameValue = textValue(givenName)
-    const patronymicValue = textValue(patronymic)
-    const birthDateValue = dateValue(birthDate)
-    const deathDateValue = deceased ? dateValue(deathDate) : null
-    if (
-      surnameValue === null
-      || givenNameValue === null
-      || patronymicValue === null
-      || birthDateValue === null
-      || (deceased && deathDateValue === null)
-    ) {
+    const value = personFormValue(person)
+    if (value === null) {
       setError(t('person.invalidForm'))
       return
     }
@@ -321,14 +370,7 @@ export function PersonFormDialog({
     setError('')
     setIsSaving(true)
     try {
-      await onSave({
-        birthSurname: surnameValue,
-        givenName: givenNameValue,
-        patronymic: patronymicValue,
-        gender,
-        birthDate: birthDateValue,
-        deathDate: deathDateValue,
-      })
+      await onSave(value)
     } catch (caught) {
       setError(
         caught instanceof ApiRequestError
@@ -352,61 +394,11 @@ export function PersonFormDialog({
         <h2 id="person-dialog-title">{title ?? t('person.createTitle')}</h2>
         <form onSubmit={submit}>
           <div className="person-form-grid">
-            <KnownTextInput
+            <PersonFormFields
               autoFocus
-              label={t('person.birthSurname')}
-              onChange={setBirthSurname}
-              state={birthSurname}
+              onChange={setPerson}
+              state={person}
             />
-            <KnownTextInput
-              label={t('person.givenName')}
-              onChange={setGivenName}
-              state={givenName}
-            />
-            <KnownTextInput
-              label={t('person.patronymic')}
-              onChange={setPatronymic}
-              state={patronymic}
-            />
-            <label className="person-select-field">
-              <span>{t('person.gender')}</span>
-              <select
-                onChange={(event) => setGender(
-                  event.target.value as PersonInput['gender'],
-                )}
-                value={gender}
-              >
-                <option value="unknown">{t('person.unknown')}</option>
-                <option value="male">{t('person.male')}</option>
-                <option value="female">{t('person.female')}</option>
-              </select>
-            </label>
-            <StructuredDateInput
-              label={t('person.birthDate')}
-              onChange={setBirthDate}
-              state={birthDate}
-              unknownToggleTabIndex={-1}
-            />
-            <div className="death-date-row">
-              <label
-                className="deceased-toggle choice-control conditional-date-toggle"
-              >
-                <input
-                  checked={deceased}
-                  onChange={(event) => setDeceased(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>{t('person.deceased')}</span>
-              </label>
-              {deceased && (
-                <StructuredDateInput
-                  label={t('person.deathDate')}
-                  onChange={setDeathDate}
-                  state={deathDate}
-                  unknownToggleTabIndex={-1}
-                />
-              )}
-            </div>
             {children}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
