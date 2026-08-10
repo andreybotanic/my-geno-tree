@@ -6,7 +6,7 @@ use App\Api\ApiException;
 use App\Application\Event\EventPlaceData;
 use App\Application\Event\EventPlaceDataPolicy;
 use App\Entity\Person;
-use App\Entity\Value\DatePrecision;
+use App\Entity\Value\DateKind;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
@@ -203,83 +203,68 @@ final readonly class PersonDataPolicy
         if ('known' !== ($payload['state'] ?? null)) {
             $this->fail($field, 'known_or_unknown_required');
         }
-        if (!is_string($payload['precision'] ?? null)) {
-            $this->fail($field . '.precision', 'date_precision_invalid');
+        if (!is_string($payload['kind'] ?? null)) {
+            $this->fail($field . '.kind', 'date_kind_invalid');
         }
-        $precision = DatePrecision::tryFrom($payload['precision']);
-        if (null === $precision) {
-            $this->fail($field . '.precision', 'date_precision_invalid');
+        $kind = DateKind::tryFrom($payload['kind']);
+        if (null === $kind) {
+            $this->fail($field . '.kind', 'date_kind_invalid');
         }
-        $keys = match ($precision) {
-            DatePrecision::YEAR => [
-                'state',
-                'precision',
-                'year',
-                'approximate',
-            ],
-            DatePrecision::MONTH => [
-                'state',
-                'precision',
-                'year',
-                'month',
-                'approximate',
-            ],
-            DatePrecision::DAY => [
-                'state',
-                'precision',
-                'year',
-                'month',
-                'day',
-                'approximate',
-            ],
-        };
-        $this->assertExactKeys($payload, $keys, $field);
-        if (
-            !is_int($payload['year'])
-            || $payload['year'] < 1582
-            || $payload['year'] > 9999
-        ) {
-            $this->fail($field . '.year', 'date_year_invalid');
+        $keys = ['state', 'kind', 'year', 'month', 'day'];
+        if (DateKind::BETWEEN === $kind) {
+            $keys[] = 'end';
         }
-        if (!is_bool($payload['approximate'])) {
-            $this->fail($field . '.approximate', 'boolean_required');
-        }
-        if (
-            DatePrecision::YEAR !== $precision
-            && $payload['approximate']
-        ) {
-            $this->fail($field . '.approximate', 'approximate_year_only');
-        }
-
-        $month = null;
-        if (DatePrecision::YEAR !== $precision) {
-            $monthValue = $payload['month'];
-            if (!is_int($monthValue) || $monthValue < 1 || $monthValue > 12) {
-                $this->fail($field . '.month', 'date_month_invalid');
+        $this->assertAllowedKeys($payload, $keys, $field);
+        foreach (['state', 'kind', 'year'] as $key) {
+            if (!array_key_exists($key, $payload)) {
+                $this->fail($field . '.' . $key, 'field_required');
             }
-            $month = $monthValue;
         }
-
-        $day = null;
-        if (DatePrecision::DAY === $precision) {
-            $dayValue = $payload['day'];
-            if (
-                !is_int($month)
-                || !is_int($dayValue)
-                || !checkdate($month, $dayValue, $payload['year'])
-            ) {
-                $this->fail($field . '.day', 'date_day_invalid');
+        [$year, $month, $day] = $this->dateParts($payload, $field);
+        $endYear = $endMonth = $endDay = null;
+        if (DateKind::BETWEEN === $kind) {
+            $end = $this->object($payload['end'], $field . '.end');
+            $this->assertAllowedKeys($end, ['year', 'month', 'day'], $field . '.end');
+            if (!array_key_exists('year', $end)) {
+                $this->fail($field . '.end.year', 'field_required');
             }
-            $day = $dayValue;
+            [$endYear, $endMonth, $endDay] = $this->dateParts($end, $field . '.end');
+            $start = GenealogicalDate::known(DateKind::EXACT, $year, $month, $day);
+            $finish = GenealogicalDate::known(DateKind::EXACT, $endYear, $endMonth, $endDay);
+            if ($start->earliest() > $finish->latest()) {
+                $this->fail($field . '.end', 'date_range_invalid');
+            }
         }
 
         return GenealogicalDate::known(
-            $precision,
-            $payload['year'],
+            $kind,
+            $year,
             $month,
             $day,
-            $payload['approximate'],
+            $endYear,
+            $endMonth,
+            $endDay,
         );
+    }
+
+    /** @param array<string, mixed> $payload
+     * @return array{int, int|null, int|null}
+     */
+    private function dateParts(array $payload, string $field): array
+    {
+        if (!is_int($payload['year'] ?? null) || $payload['year'] < 1582 || $payload['year'] > 9999) {
+            $this->fail($field . '.year', 'date_year_invalid');
+        }
+        $month = $payload['month'] ?? null;
+        if (null !== $month && (!is_int($month) || $month < 1 || $month > 12)) {
+            $this->fail($field . '.month', 'date_month_invalid');
+        }
+        $day = $payload['day'] ?? null;
+        if (null !== $day && (!is_int($month) || !is_int($day) || !checkdate($month, $day, $payload['year']))) {
+            $this->fail($field . '.day', 'date_day_invalid');
+        }
+
+        return [$payload['year'], $month, $day];
     }
 
     /**

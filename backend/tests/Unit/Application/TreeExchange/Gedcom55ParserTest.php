@@ -34,7 +34,8 @@ GEDCOM));
 
         self::assertSame('GEDCOM 5.5', $document->format);
         self::assertSame('Ivan', $document->people[0]['givenName']);
-        self::assertTrue($document->people[0]['birthDate']->isApproximate());
+        self::assertSame(\App\Entity\Value\DateKind::APPROXIMATE, $document->people[0]['birthDate']->getKind());
+        self::assertSame(2, $document->people[0]['birthDate']->getMonth());
         self::assertSame('EVEN', $document->people[0]['events'][0]['gedcomTag']);
         self::assertSame('Biography', $document->people[0]['events'][0]['title']);
         self::assertSame('First line' . "\n" . 'Second line', $document->people[0]['events'][0]['description']);

@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonInput } from '../api/generated'
 import { ApiRequestError } from '../api/client'
-import type { DateInputState } from '../personFormValues'
+import { emptyDate, type DateInputState } from '../personFormValues'
 import {
   emptyPersonForm,
   personFormValue,
@@ -65,28 +65,6 @@ type StructuredDateInputProps = {
   unknownToggleTabIndex?: number | undefined
 }
 
-function dateInputValue(state: DateInputState): string {
-  const year = Number(state.year)
-  const month = Number(state.month)
-  const day = Number(state.day)
-  const candidate = new Date(Date.UTC(year, month - 1, day))
-
-  if (
-    !Number.isInteger(year)
-    || year < 1582
-    || year > 9999
-    || !Number.isInteger(month)
-    || !Number.isInteger(day)
-    || candidate.getUTCFullYear() !== year
-    || candidate.getUTCMonth() !== month - 1
-    || candidate.getUTCDate() !== day
-  ) {
-    return ''
-  }
-
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
 export function StructuredDateInput({
   autoFocus = false,
   grouped = true,
@@ -109,135 +87,101 @@ export function StructuredDateInput({
     }
   })
 
+  const dateParts = (prefix: '' | 'end', rowLabel: string) => {
+    const yearKey = prefix ? 'endYear' : 'year'
+    const monthKey = prefix ? 'endMonth' : 'month'
+    const dayKey = prefix ? 'endDay' : 'day'
+
+    return (
+      <div
+        aria-label={state.kind === 'between' ? rowLabel : undefined}
+        className="date-controls"
+        role={state.kind === 'between' ? 'group' : undefined}
+      >
+        <label>
+          <span>{t('person.year')}</span>
+          <input
+            aria-label={`${rowLabel}: ${t('person.year')}`}
+            autoFocus={autoFocus && prefix === ''}
+            disabled={state.unknown}
+            inputMode="numeric"
+            max="9999"
+            min="1582"
+            onChange={(event) => onChange({ ...state, [yearKey]: event.target.value })}
+            type="number"
+            value={state[yearKey]}
+          />
+        </label>
+        <label>
+          <span>{t('person.month')}</span>
+          <select
+            aria-label={`${rowLabel}: ${t('person.month')}`}
+            disabled={state.unknown}
+            onChange={(event) => onChange({
+              ...state,
+              [dayKey]: event.target.value === '' ? '' : state[dayKey],
+              [monthKey]: event.target.value,
+            })}
+            value={state[monthKey]}
+          >
+            <option value="" />
+            {months.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>{t('person.day')}</span>
+          <input
+            aria-label={`${rowLabel}: ${t('person.day')}`}
+            disabled={state.unknown || state[monthKey] === ''}
+            inputMode="numeric"
+            max="31"
+            min="1"
+            onChange={(event) => onChange({ ...state, [dayKey]: event.target.value })}
+            type="number"
+            value={state[dayKey]}
+          />
+        </label>
+      </div>
+    )
+  }
+
   const controls = (
     <div className="date-field-control">
-        <div className="date-input-row">
-          <div className="date-controls">
-            <label>
-              <span>{t('person.precision')}</span>
-              <select
-                aria-label={`${label}: ${t('person.precision')}`}
-                disabled={state.unknown}
-                onChange={(event) => onChange({
-                  ...state,
-                  approximate: event.target.value === 'year'
-                    ? state.approximate
-                    : false,
-                  precision: event.target.value as DateInputState['precision'],
-                })}
-                value={state.precision}
-              >
-                <option value="year">{t('person.year')}</option>
-                <option value="month">{t('person.month')}</option>
-                <option value="day">{t('person.day')}</option>
-              </select>
-            </label>
-            {state.precision === 'day' && (
-              <label className="exact-date-control">
-                <span>{t('person.exactDate')}</span>
-                <input
-                  aria-label={`${label}: ${t('person.exactDate')}`}
-                  autoFocus={autoFocus}
-                  defaultValue={dateInputValue(state)}
-                  disabled={state.unknown}
-                  key={`${state.unknown}-${state.year}-${state.month}-${state.day}`}
-                  max="9999-12-31"
-                  min="1582-01-01"
-                  onChange={(event) => {
-                    if ('' === event.target.value) {
-                      return
-                    }
-
-                    const [year = '', month = '', day = ''] = event.target.value.split('-')
-                    const value = {
-                      ...state,
-                      day,
-                      month,
-                      year,
-                    }
-
-                    if ('' === dateInputValue(value)) {
-                      return
-                    }
-
-                    onChange(value)
-                  }}
-                  type="date"
-                />
-              </label>
-            )}
-            {state.precision === 'month' && (
-              <label>
-                <span>{t('person.month')}</span>
-                <select
-                  aria-label={`${label}: ${t('person.month')}`}
-                  autoFocus={autoFocus}
-                  disabled={state.unknown}
-                  onChange={(event) => onChange({
-                    ...state,
-                    month: event.target.value,
-                  })}
-                  value={state.month}
-                >
-                  <option value="">{t('person.month')}</option>
-                  {months.map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {state.precision !== 'day' && (
-              <label>
-                <span>{t('person.year')}</span>
-                <input
-                  aria-label={`${label}: ${t('person.year')}`}
-                  autoFocus={autoFocus}
-                  disabled={state.unknown}
-                  inputMode="numeric"
-                  max="9999"
-                  min="1582"
-                  onChange={(event) => onChange({
-                    ...state,
-                    year: event.target.value,
-                  })}
-                  type="number"
-                  value={state.year}
-                />
-              </label>
-            )}
-          </div>
-          <UnknownToggleButton
-            active={state.unknown}
-            onChange={(unknown) => onChange(unknown
-              ? {
-                  ...state,
-                  approximate: false,
-                  day: '',
-                  month: '',
-                  unknown: true,
-                  year: '',
-                }
-              : { ...state, unknown: false })}
-            tabIndex={unknownToggleTabIndex}
-            title={t('person.unknown')}
-          />
-        </div>
-        {state.precision === 'year' && (
-          <label className="approximate-toggle choice-control">
-            <input
-              checked={state.approximate}
-              disabled={state.unknown}
-              onChange={(event) => onChange({
-                ...state,
-                approximate: event.target.checked,
-              })}
-              type="checkbox"
-            />
-            <span>{t('person.approximate')}</span>
-          </label>
-        )}
+      <div className="date-kind-row">
+        <label className="person-select-field">
+          <span>{t('person.dateKind')}</span>
+          <select
+            aria-label={`${label}: ${t('person.dateKind')}`}
+            disabled={state.unknown}
+            onChange={(event) => onChange({
+              ...state,
+              endDay: event.target.value === 'between' && state.endDay === '' ? state.day : state.endDay,
+              endMonth: event.target.value === 'between' && state.endMonth === '' ? state.month : state.endMonth,
+              endYear: event.target.value === 'between' && state.endYear === '' ? state.year : state.endYear,
+              kind: event.target.value as DateInputState['kind'],
+            })}
+            value={state.kind}
+          >
+            <option value="exact">{t('person.dateKindExact')}</option>
+            <option value="approximate">{t('person.dateKindApproximate')}</option>
+            <option value="before">{t('person.dateKindBefore')}</option>
+            <option value="after">{t('person.dateKindAfter')}</option>
+            <option value="between">{t('person.dateKindBetween')}</option>
+          </select>
+        </label>
+        <UnknownToggleButton
+          active={state.unknown}
+          onChange={(unknown) => onChange(unknown ? { ...emptyDate(), unknown: true } : { ...state, unknown: false })}
+          tabIndex={unknownToggleTabIndex}
+          title={t('person.unknown')}
+        />
+      </div>
+      {state.kind === 'between' ? (
+        <>
+          {dateParts('', t('person.from'))}
+          {dateParts('end', t('person.to'))}
+        </>
+      ) : dateParts('', label)}
     </div>
   )
 

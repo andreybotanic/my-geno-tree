@@ -31,33 +31,27 @@ export function formatGenealogicalDate(
   if (date.state === 'unknown') {
     return '—'
   }
-  if (date.precision === 'year') {
-    return date.approximate
-      ? translate('person.approximateYear').replace(
-          '{{year}}',
-          String(date.year),
-        )
-      : String(date.year)
+  const formatParts = (parts: { year: number, month?: number, day?: number }) => {
+    if (!parts.month) {
+      return language.startsWith('ru') ? `${parts.year} г.` : String(parts.year)
+    }
+
+    return new Intl.DateTimeFormat(language, parts.day
+      ? { day: 'numeric', month: 'long', timeZone: 'UTC', year: 'numeric' }
+      : { month: 'long', timeZone: 'UTC', year: 'numeric' },
+    ).format(new Date(Date.UTC(parts.year, parts.month - 1, parts.day ?? 1)))
   }
+  const value = formatParts(date)
 
-  const value = new Date(Date.UTC(
-    date.year,
-    date.month - 1,
-    date.precision === 'day' ? date.day : 1,
-  ))
-
-  return new Intl.DateTimeFormat(language, date.precision === 'day'
-    ? {
-        day: 'numeric',
-        month: 'long',
-        timeZone: 'UTC',
-        year: 'numeric',
-      }
-    : {
-        month: 'long',
-        timeZone: 'UTC',
-        year: 'numeric',
-      }).format(value)
+  return date.kind === 'approximate'
+    ? `${translate('person.approximatePrefix')} ${value}`
+    : date.kind === 'before'
+      ? `${translate('person.beforeDate')} ${value}`
+      : date.kind === 'after'
+        ? `${translate('person.afterDate')} ${value}`
+        : date.kind === 'between' && date.end
+          ? `${translate('person.betweenDate')} ${value} ${translate('person.andDate')} ${formatParts(date.end)}`
+          : value
 }
 
 export function formatLifePeriod(

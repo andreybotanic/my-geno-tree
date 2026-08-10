@@ -8,7 +8,7 @@ use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\User;
-use App\Entity\Value\DatePrecision;
+use App\Entity\Value\DateKind;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
@@ -283,17 +283,17 @@ final class AppFixtures extends Fixture
 
     private function year(int $year): GenealogicalDate
     {
-        return GenealogicalDate::known(DatePrecision::YEAR, $year, null, null, false);
+        return GenealogicalDate::known(DateKind::EXACT, $year, null, null);
     }
 
     private function month(int $year, int $month): GenealogicalDate
     {
-        return GenealogicalDate::known(DatePrecision::MONTH, $year, $month, null, false);
+        return GenealogicalDate::known(DateKind::EXACT, $year, $month, null);
     }
 
     private function day(int $year, int $month, int $day): GenealogicalDate
     {
-        return GenealogicalDate::known(DatePrecision::DAY, $year, $month, $day, false);
+        return GenealogicalDate::known(DateKind::EXACT, $year, $month, $day);
     }
 }
 

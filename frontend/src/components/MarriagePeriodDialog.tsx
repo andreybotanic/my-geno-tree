@@ -142,10 +142,12 @@ function dateDraft(value: GenealogicalDate): DateInputState {
   }
 
   return {
-    approximate: value.precision === 'year' && value.approximate,
-    day: value.precision === 'day' ? String(value.day) : '',
-    month: value.precision !== 'year' ? String(value.month) : '',
-    precision: value.precision,
+    day: value.day ? String(value.day) : '',
+    endDay: value.kind === 'between' && value.end?.day ? String(value.end.day) : '',
+    endMonth: value.kind === 'between' && value.end?.month ? String(value.end.month) : '',
+    endYear: value.kind === 'between' && value.end ? String(value.end.year) : '',
+    kind: value.kind,
+    month: value.month ? String(value.month) : '',
     unknown: false,
     year: String(value.year),
   }

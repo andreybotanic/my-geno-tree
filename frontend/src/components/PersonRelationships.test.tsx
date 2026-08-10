@@ -50,15 +50,13 @@ const periods: MarriagePeriod[] = [
     femalePersonId: spouse.id,
     marriageDate: {
       state: 'known',
-      precision: 'year',
       year: 2000,
-      approximate: false,
+      kind: 'exact',
     },
     dissolutionDate: {
       state: 'known',
-      precision: 'year',
       year: 2005,
-      approximate: false,
+      kind: 'exact',
     },
     marriagePlace: null,
     dissolutionPlace: null,
@@ -253,18 +251,16 @@ describe('PersonRelationships', () => {
       ...selected,
       deathDate: {
         state: 'known',
-        precision: 'year',
         year: 2010,
-        approximate: false,
+        kind: 'exact',
       },
     }
     const deceasedSpouse: Person = {
       ...spouse,
       deathDate: {
         state: 'known',
-        precision: 'year',
         year: 2008,
-        approximate: false,
+        kind: 'exact',
       },
     }
     render(
@@ -288,9 +284,8 @@ describe('PersonRelationships', () => {
       ...selected,
       deathDate: {
         state: 'known',
-        precision: 'year',
         year: 2010,
-        approximate: false,
+        kind: 'exact',
       },
     }
     const unknownDeathSpouse: Person = {

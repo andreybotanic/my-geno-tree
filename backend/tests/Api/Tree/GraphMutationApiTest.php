@@ -1086,10 +1086,9 @@ final class GraphMutationApiTest extends ApiWebTestCase
         ?int $day = null,
     ): array {
         $date = [
-            'state'       => 'known',
-            'precision'   => $precision,
-            'year'        => $year,
-            'approximate' => $approximate,
+            'state' => 'known',
+            'kind'  => $approximate ? 'approximate' : 'exact',
+            'year'  => $year,
         ];
         if (null !== $month) {
             $date['month'] = $month;

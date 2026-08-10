@@ -3,7 +3,7 @@
 namespace App\Application\TreeExchange;
 
 use App\Api\ApiException;
-use App\Entity\Value\DatePrecision;
+use App\Entity\Value\DateKind;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -596,62 +596,73 @@ final class Gedcom55Parser
         if ('' === $value) {
             return GenealogicalDate::unknown();
         }
-        $approximate = false;
         if (preg_match('/^(ABT|CAL|EST) (.+)$/i', $value, $matches)) {
-            $approximate = true;
-            $value = $matches[2];
+            $parts = $this->plainDate($matches[2]);
+            if (null !== $parts) {
+                return GenealogicalDate::known(DateKind::APPROXIMATE, ...$parts);
+            }
+        } elseif (preg_match('/^BEF (.+)$/i', $value, $matches)) {
+            $parts = $this->plainDate($matches[1]);
+            if (null !== $parts) {
+                return GenealogicalDate::known(DateKind::BEFORE, ...$parts);
+            }
+        } elseif (preg_match('/^AFT (.+)$/i', $value, $matches)) {
+            $parts = $this->plainDate($matches[1]);
+            if (null !== $parts) {
+                return GenealogicalDate::known(DateKind::AFTER, ...$parts);
+            }
+        } elseif (preg_match('/^BET (.+) AND (.+)$/i', $value, $matches)) {
+            $start = $this->plainDate($matches[1]);
+            $end = $this->plainDate($matches[2]);
+            if (null !== $start && null !== $end) {
+                $startDate = GenealogicalDate::known(DateKind::EXACT, ...$start);
+                $endDate = GenealogicalDate::known(DateKind::EXACT, ...$end);
+                if ($startDate->earliest() <= $endDate->latest()) {
+                    return GenealogicalDate::known(DateKind::BETWEEN, ...$start, ...$end);
+                }
+            }
+        } else {
+            $parts = $this->plainDate($value);
+            if (null !== $parts) {
+                return GenealogicalDate::known(DateKind::EXACT, ...$parts);
+            }
         }
+
+        $this->warning('unsupported_date');
+
+        return GenealogicalDate::unknown();
+    }
+
+    /** @return array{int, int|null, int|null}|null */
+    private function plainDate(string $value): ?array
+    {
+        $value = trim($value);
         $months = [
             'JAN' => 1, 'FEB' => 2, 'MAR' => 3, 'APR' => 4,
             'MAY' => 5, 'JUN' => 6, 'JUL' => 7, 'AUG' => 8,
             'SEP' => 9, 'OCT' => 10, 'NOV' => 11, 'DEC' => 12,
         ];
-        if ($approximate) {
-            $year = null;
-            if (preg_match('/^(\d{4})$/', $value, $matches)) {
-                $year = (int)$matches[1];
-            } elseif (
-                preg_match('/^([A-Z]{3}) (\d{4})$/i', $value, $matches)
-                && isset($months[strtoupper($matches[1])])
-            ) {
-                $year = (int)$matches[2];
-            } elseif (preg_match('/^(\d{1,2}) ([A-Z]{3}) (\d{4})$/i', $value, $matches)) {
-                $day = (int)$matches[1];
-                $month = $months[strtoupper($matches[2])] ?? null;
-                $candidateYear = (int)$matches[3];
-                if (null !== $month && checkdate($month, $day, $candidateYear)) {
-                    $year = $candidateYear;
-                }
-            }
-            if (null !== $year && $year >= 1582) {
-                return GenealogicalDate::known(DatePrecision::YEAR, $year, null, null, true);
-            }
-            $this->warning('unsupported_date');
-
-            return GenealogicalDate::unknown();
-        }
         if (preg_match('/^(\d{4})$/', $value, $matches)) {
             $year = (int)$matches[1];
             if ($year >= 1582) {
-                return GenealogicalDate::known(DatePrecision::YEAR, $year, null, null, $approximate);
+                return [$year, null, null];
             }
         } elseif (preg_match('/^([A-Z]{3}) (\d{4})$/i', $value, $matches)) {
             $month = $months[strtoupper($matches[1])] ?? null;
             $year = (int)$matches[2];
             if (null !== $month && $year >= 1582) {
-                return GenealogicalDate::known(DatePrecision::MONTH, $year, $month, null, false);
+                return [$year, $month, null];
             }
         } elseif (preg_match('/^(\d{1,2}) ([A-Z]{3}) (\d{4})$/i', $value, $matches)) {
             $day = (int)$matches[1];
             $month = $months[strtoupper($matches[2])] ?? null;
             $year = (int)$matches[3];
             if (null !== $month && $year >= 1582 && checkdate($month, $day, $year)) {
-                return GenealogicalDate::known(DatePrecision::DAY, $year, $month, $day, false);
+                return [$year, $month, $day];
             }
         }
-        $this->warning('unsupported_date');
 
-        return GenealogicalDate::unknown();
+        return null;
     }
 
     /** @return array{string|null, string|null} */

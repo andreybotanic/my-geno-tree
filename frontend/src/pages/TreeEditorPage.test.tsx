@@ -75,9 +75,8 @@ const person: Person = {
   gender: 'female',
   birthDate: {
     state: 'known',
-    precision: 'year',
     year: 1900,
-    approximate: false,
+    kind: 'exact',
   },
   deathDate: null,
   birthPlace: null,

@@ -10,8 +10,8 @@ final class GenealogicalDate
     #[ORM\Column(enumType: KnowledgeState::class)]
     private KnowledgeState $state;
 
-    #[ORM\Column(nullable: true, enumType: DatePrecision::class)]
-    private ?DatePrecision $precision;
+    #[ORM\Column(nullable: true, enumType: DateKind::class)]
+    private ?DateKind $kind;
 
     #[ORM\Column(nullable: true)]
     private ?int $year;
@@ -22,23 +22,33 @@ final class GenealogicalDate
     #[ORM\Column(nullable: true)]
     private ?int $day;
 
-    #[ORM\Column]
-    private bool $approximate;
+    #[ORM\Column(nullable: true)]
+    private ?int $endYear;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $endMonth;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $endDay;
 
     private function __construct(
         KnowledgeState $state,
-        ?DatePrecision $precision,
+        ?DateKind $kind,
         ?int $year,
         ?int $month,
         ?int $day,
-        bool $approximate,
+        ?int $endYear,
+        ?int $endMonth,
+        ?int $endDay,
     ) {
         $this->state = $state;
-        $this->precision = $precision;
+        $this->kind = $kind;
         $this->year = $year;
         $this->month = $month;
         $this->day = $day;
-        $this->approximate = $approximate;
+        $this->endYear = $endYear;
+        $this->endMonth = $endMonth;
+        $this->endDay = $endDay;
     }
 
     public static function unknown(): self
@@ -49,24 +59,30 @@ final class GenealogicalDate
             null,
             null,
             null,
-            false,
+            null,
+            null,
+            null,
         );
     }
 
     public static function known(
-        DatePrecision $precision,
+        DateKind $kind,
         int $year,
         ?int $month,
         ?int $day,
-        bool $approximate,
+        ?int $endYear = null,
+        ?int $endMonth = null,
+        ?int $endDay = null,
     ): self {
         return new self(
             KnowledgeState::KNOWN,
-            $precision,
+            $kind,
             $year,
             $month,
             $day,
-            $approximate,
+            $endYear,
+            $endMonth,
+            $endDay,
         );
     }
 
@@ -75,9 +91,9 @@ final class GenealogicalDate
         return KnowledgeState::KNOWN === $this->state;
     }
 
-    public function getPrecision(): ?DatePrecision
+    public function getKind(): ?DateKind
     {
-        return $this->precision;
+        return $this->kind;
     }
 
     public function getYear(): ?int
@@ -95,55 +111,75 @@ final class GenealogicalDate
         return $this->day;
     }
 
-    public function isApproximate(): bool
+    public function getEndYear(): ?int
     {
-        return $this->approximate;
+        return $this->endYear;
+    }
+
+    public function getEndMonth(): ?int
+    {
+        return $this->endMonth;
+    }
+
+    public function getEndDay(): ?int
+    {
+        return $this->endDay;
     }
 
     public function earliest(): ?\DateTimeImmutable
     {
-        if (!$this->isComparable()) {
+        if (!$this->isKnown() || null === $this->kind || DateKind::APPROXIMATE === $this->kind) {
             return null;
         }
 
-        return match ($this->precision) {
-            DatePrecision::YEAR => new \DateTimeImmutable(
-                sprintf('%04d-01-01', $this->year),
-            ),
-            DatePrecision::MONTH => new \DateTimeImmutable(
-                sprintf('%04d-%02d-01', $this->year, $this->month),
-            ),
-            DatePrecision::DAY => new \DateTimeImmutable(sprintf(
-                '%04d-%02d-%02d',
-                $this->year,
-                $this->month,
-                $this->day,
-            )),
-            null => null,
+        return match ($this->kind) {
+            DateKind::BEFORE                   => null,
+            DateKind::AFTER                    => $this->last($this->year, $this->month, $this->day)?->modify('+1 day'),
+            DateKind::EXACT, DateKind::BETWEEN => $this->first($this->year, $this->month, $this->day),
         };
     }
 
     public function latest(): ?\DateTimeImmutable
     {
-        $earliest = $this->earliest();
-        if (null === $earliest) {
+        if (!$this->isKnown() || null === $this->kind || DateKind::APPROXIMATE === $this->kind) {
             return null;
         }
 
-        return match ($this->precision) {
-            DatePrecision::YEAR => $earliest->setDate(
-                (int)$earliest->format('Y'),
-                12,
-                31,
-            ),
-            DatePrecision::MONTH => $earliest->modify('last day of this month'),
-            DatePrecision::DAY   => $earliest,
-            null                 => null,
+        return match ($this->kind) {
+            DateKind::BEFORE  => $this->first($this->year, $this->month, $this->day)?->modify('-1 day'),
+            DateKind::AFTER   => null,
+            DateKind::EXACT   => $this->last($this->year, $this->month, $this->day),
+            DateKind::BETWEEN => $this->last($this->endYear, $this->endMonth, $this->endDay),
         };
     }
 
-    private function isComparable(): bool
+    private function first(?int $year, ?int $month, ?int $day): ?\DateTimeImmutable
     {
-        return $this->isKnown() && !$this->approximate;
+        if (null === $year) {
+            return null;
+        }
+
+        return new \DateTimeImmutable(sprintf(
+            '%04d-%02d-%02d',
+            $year,
+            $month ?? 1,
+            $day ?? 1,
+        ));
+    }
+
+    private function last(?int $year, ?int $month, ?int $day): ?\DateTimeImmutable
+    {
+        $first = $this->first($year, $month, $day);
+        if (null === $first) {
+            return null;
+        }
+
+        if (null !== $day) {
+            return $first;
+        }
+
+        return null === $month
+            ? $first->setDate((int)$first->format('Y'), 12, 31)
+            : $first->modify('last day of this month');
     }
 }

@@ -226,14 +226,6 @@ final class PersonApiTest extends ApiWebTestCase
                 ],
             ]),
             $this->person([
-                'birthDate' => $this->knownDate(
-                    'month',
-                    1900,
-                    true,
-                    2,
-                ),
-            ]),
-            $this->person([
                 'birthDate' => [
                     'state'       => 'known',
                     'precision'   => 'day',
@@ -496,10 +488,9 @@ final class PersonApiTest extends ApiWebTestCase
         ?int $day = null,
     ): array {
         $date = [
-            'state'       => 'known',
-            'precision'   => $precision,
-            'year'        => $year,
-            'approximate' => $approximate,
+            'state' => 'known',
+            'kind'  => $approximate ? 'approximate' : 'exact',
+            'year'  => $year,
         ];
         if (null !== $month) {
             $date['month'] = $month;

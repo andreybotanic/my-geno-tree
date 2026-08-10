@@ -164,7 +164,7 @@ describe('semantic design contracts', () => {
       /\.date-fieldset\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*width:\s*100%;/s,
     )
     expect(appStyles).toMatch(
-      /\.date-input-row\s*\{[^}]*display:\s*flex;[^}]*min-width:\s*0;/s,
+      /\.date-kind-row\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;[^}]*min-width:\s*0;/s,
     )
     expect(appStyles).toMatch(
       /\.date-controls\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1 1 auto;/s,

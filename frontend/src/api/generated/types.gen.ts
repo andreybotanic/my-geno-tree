@@ -121,30 +121,23 @@ export type UnknownValue = {
     state: 'unknown';
 };
 
-export type GenealogicalDate = UnknownValue | KnownYear | KnownMonth | KnownDay;
+export type GenealogicalDate = UnknownValue | KnownGenealogicalDate;
 
-export type KnownYear = {
-    state: 'known';
-    precision: 'year';
+export type DateKind = 'exact' | 'approximate' | 'before' | 'after' | 'between';
+
+export type DateParts = {
     year: number;
-    approximate: boolean;
+    month?: number;
+    day?: number;
 };
 
-export type KnownMonth = {
+export type KnownGenealogicalDate = {
     state: 'known';
-    precision: 'month';
+    kind: DateKind;
     year: number;
-    month: number;
-    approximate: false;
-};
-
-export type KnownDay = {
-    state: 'known';
-    precision: 'day';
-    year: number;
-    month: number;
-    day: number;
-    approximate: false;
+    month?: number;
+    day?: number;
+    end?: DateParts;
 };
 
 export type Gender = 'male' | 'female' | 'unknown';

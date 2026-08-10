@@ -6,7 +6,7 @@ use App\Entity\GenealogicalEvent;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
 use App\Entity\Person;
-use App\Entity\Value\DatePrecision;
+use App\Entity\Value\DateKind;
 use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
 use App\Entity\Value\Gender;
@@ -233,14 +233,40 @@ final class Gedcom551Writer
             return null;
         }
         $months = [1 => 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-        $value = match ($date->getPrecision()) {
-            DatePrecision::YEAR  => (string)$date->getYear(),
-            DatePrecision::MONTH => $months[$date->getMonth() ?? 1] . ' ' . $date->getYear(),
-            DatePrecision::DAY   => $date->getDay() . ' ' . $months[$date->getMonth() ?? 1] . ' ' . $date->getYear(),
-            null                 => null,
-        };
+        $value = $this->dateParts($date->getYear(), $date->getMonth(), $date->getDay(), $months);
+        if (null === $value) {
+            return null;
+        }
 
-        return $date->isApproximate() && null !== $value ? 'ABT ' . $value : $value;
+        return match ($date->getKind()) {
+            DateKind::APPROXIMATE => 'ABT ' . $value,
+            DateKind::BEFORE      => 'BEF ' . $value,
+            DateKind::AFTER       => 'AFT ' . $value,
+            DateKind::BETWEEN     => 'BET ' . $value . ' AND ' . $this->dateParts(
+                $date->getEndYear(),
+                $date->getEndMonth(),
+                $date->getEndDay(),
+                $months,
+            ),
+            DateKind::EXACT => $value,
+            null            => null,
+        };
+    }
+
+    /** @param array<int, string> $months */
+    private function dateParts(?int $year, ?int $month, ?int $day, array $months): ?string
+    {
+        if (null === $year) {
+            return null;
+        }
+        if (null === $month) {
+            return (string)$year;
+        }
+        if (null === $day) {
+            return $months[$month] . ' ' . $year;
+        }
+
+        return $day . ' ' . $months[$month] . ' ' . $year;
     }
 
     private function manualEventTag(GenealogicalEvent $event): string

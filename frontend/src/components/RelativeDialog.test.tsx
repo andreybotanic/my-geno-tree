@@ -69,12 +69,9 @@ describe('RelativeDialog', () => {
     expect(marriageUnknown).toHaveAttribute('aria-pressed', 'false')
     expect(
       within(marriageDate).getByRole('combobox', {
-        name: 'Marriage date: Precision',
+        name: 'Marriage date: Date type',
       }),
-    ).toHaveValue('day')
-    expect(
-      within(marriageDate).getByLabelText('Marriage date: Exact date'),
-    ).toHaveAttribute('type', 'date')
+    ).toHaveValue('exact')
     const maleSurname = within(dialog).getByRole('textbox', {
       name: 'New surname of the man',
     })

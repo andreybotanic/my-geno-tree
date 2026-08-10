@@ -346,8 +346,8 @@ function compareKnownDates(
 function dateSortValue(
   date: Exclude<GenealogicalDate, { state: 'unknown' }>,
 ) {
-  const month = date.precision === 'year' ? 1 : date.month
-  const day = date.precision === 'day' ? date.day : 1
+  const month = date.month ?? 1
+  const day = date.day ?? 1
 
   return Date.UTC(date.year, month - 1, day)
 }

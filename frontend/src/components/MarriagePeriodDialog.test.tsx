@@ -12,18 +12,16 @@ const marriage: MarriagePeriod = {
   femalePersonId: 'female',
   marriageDate: {
     state: 'known',
-    precision: 'month',
     year: 2001,
     month: 2,
-    approximate: false,
+    kind: 'exact',
   },
   dissolutionDate: {
     state: 'known',
-    precision: 'day',
     year: 2004,
     month: 3,
     day: 4,
-    approximate: false,
+    kind: 'exact',
   },
   marriagePlace: null,
   dissolutionPlace: null,
@@ -70,10 +68,9 @@ describe('MarriagePeriodDialog', () => {
     expect(onSave).toHaveBeenCalledWith({
       marriageDate: {
         state: 'known',
-        precision: 'month',
         year: 2001,
         month: 2,
-        approximate: false,
+        kind: 'exact',
       },
       dissolutionDate: null,
     })

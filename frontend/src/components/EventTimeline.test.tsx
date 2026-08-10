@@ -12,9 +12,8 @@ const automatic: GenealogicalEvent = {
   source: 'automatic',
   date: {
     state: 'known',
-    precision: 'year',
     year: 1900,
-    approximate: false,
+    kind: 'exact',
   },
   place: null,
   title: null,
@@ -149,11 +148,10 @@ describe('EventTimeline', () => {
       id: 'earlier',
       date: {
         state: 'known',
-        precision: 'day',
         year: 1950,
         month: 1,
         day: 1,
-        approximate: false,
+        kind: 'exact',
       },
       title: 'Earlier',
     }
@@ -168,11 +166,10 @@ describe('EventTimeline', () => {
       id: 'later',
       date: {
         state: 'known',
-        precision: 'day',
         year: 2000,
         month: 1,
         day: 1,
-        approximate: false,
+        kind: 'exact',
       },
       title: 'Later',
     }
@@ -249,9 +246,8 @@ describe('EventTimeline', () => {
       type: 'death',
       date: {
         state: 'known',
-        precision: 'year',
         year: 1980,
-        approximate: false,
+        kind: 'exact',
       },
     }
     render(

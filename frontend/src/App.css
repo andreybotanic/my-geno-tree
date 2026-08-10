@@ -2725,10 +2725,11 @@
   min-width: 0;
 }
 
-.date-input-row {
+.date-kind-row {
   align-items: end;
-  display: flex;
+  display: grid;
   gap: 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
 }
 

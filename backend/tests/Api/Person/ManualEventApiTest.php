@@ -375,10 +375,7 @@ final class ManualEventApiTest extends ApiWebTestCase
     public function testApproximateDatesDoNotDisplaceKnownTimelineEvents(): void
     {
         [$accessToken, $tree, $snapshot, $person] = $this->personTree(
-            birthDate: [
-                ...$this->knownDate('year', 1858),
-                'approximate' => true,
-            ],
+            birthDate: $this->knownDate('year', 1858, approximate: true),
             deathDate: $this->knownDate('day', 1947, month: 10, day: 20),
         );
         $first = $this->createEvent(
@@ -569,14 +566,14 @@ final class ManualEventApiTest extends ApiWebTestCase
     private function knownDate(
         string $precision,
         int $year,
+        bool $approximate = false,
         ?int $month = null,
         ?int $day = null,
     ): array {
         $date = [
-            'state'       => 'known',
-            'precision'   => $precision,
-            'year'        => $year,
-            'approximate' => false,
+            'state' => 'known',
+            'kind'  => $approximate ? 'approximate' : 'exact',
+            'year'  => $year,
         ];
         if (null !== $month) {
             $date['month'] = $month;

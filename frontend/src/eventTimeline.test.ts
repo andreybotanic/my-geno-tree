@@ -13,25 +13,22 @@ const date = (
 ): GenealogicalDate => day
   ? {
       state: 'known',
-      precision: 'day',
       year,
       month: month ?? 1,
       day,
-      approximate: false,
+      kind: 'exact',
     }
   : month
     ? {
         state: 'known',
-        precision: 'month',
         year,
         month,
-        approximate: false,
+        kind: 'exact',
       }
     : {
         state: 'known',
-        precision: 'year',
         year,
-        approximate: false,
+        kind: 'exact',
       }
 
 const event = (id: string, eventDate: GenealogicalDate): GenealogicalEvent => ({
@@ -63,9 +60,8 @@ describe('event timeline ambiguity', () => {
     expect(datesAreAmbiguous(
       {
         state: 'known',
-        precision: 'year',
         year: 1900,
-        approximate: true,
+        kind: 'approximate',
       },
       date(2000, 1, 1),
     )).toBe(true)
@@ -90,5 +86,25 @@ describe('event timeline ambiguity', () => {
     expect(canMoveEvent(exactDay, { state: 'unknown' })).toBe(false)
     expect(canMoveEvent(exactDay, anotherExactDay)).toBe(true)
     expect(canMoveEvent(exactDay, date(1900, 6, 11))).toBe(false)
+  })
+
+  it('uses one-sided and closed ranges when comparing events', () => {
+    expect(datesAreAmbiguous(
+      { state: 'known', kind: 'before', year: 1900 },
+      date(1900, 1, 1),
+    )).toBe(false)
+    expect(datesAreAmbiguous(
+      { state: 'known', kind: 'after', year: 1900 },
+      date(1900, 12, 31),
+    )).toBe(false)
+    expect(datesAreAmbiguous(
+      {
+        state: 'known',
+        kind: 'between',
+        year: 1900,
+        end: { year: 1901 },
+      },
+      date(1902),
+    )).toBe(false)
   })
 })

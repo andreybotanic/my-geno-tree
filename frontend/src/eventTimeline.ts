@@ -4,8 +4,8 @@ import type {
 } from './api/generated'
 
 type DateRange = {
-  earliest: number
-  latest: number
+  earliest: number | null
+  latest: number | null
 }
 
 export function ambiguousEventGroups(events: GenealogicalEvent[]) {
@@ -44,8 +44,8 @@ export function datesAreAmbiguous(
   }
 
   return !(
-    firstRange.latest < secondRange.earliest
-    || secondRange.latest < firstRange.earliest
+    (firstRange.latest !== null && secondRange.earliest !== null && firstRange.latest < secondRange.earliest)
+    || (secondRange.latest !== null && firstRange.earliest !== null && secondRange.latest < firstRange.earliest)
   )
 }
 
@@ -57,39 +57,32 @@ export function canMoveEvent(
     return false
   }
 
-  if (event.state === 'unknown' || event.precision !== 'day') {
+  if (event.state === 'unknown' || event.kind !== 'exact' || event.day === undefined) {
     return true
   }
 
   return neighbor.state === 'known'
-    && neighbor.precision === 'day'
+    && neighbor.kind === 'exact'
+    && neighbor.day !== undefined
     && event.year === neighbor.year
     && event.month === neighbor.month
     && event.day === neighbor.day
 }
 
 function dateRange(date: GenealogicalDate): DateRange | null {
-  if (
-    date.state === 'unknown'
-    || (date.precision === 'year' && date.approximate)
-  ) {
+  if (date.state === 'unknown' || date.kind === 'approximate') {
     return null
   }
-  const firstMonth = date.precision === 'year' ? 0 : date.month - 1
-  const firstDay = date.precision === 'day' ? date.day : 1
+  const firstMonth = (date.month ?? 1) - 1
+  const firstDay = date.day ?? 1
   const earliest = Date.UTC(date.year, firstMonth, firstDay)
-  if (date.precision === 'day') {
-    return { earliest, latest: earliest }
-  }
-  if (date.precision === 'month') {
-    return {
-      earliest,
-      latest: Date.UTC(date.year, date.month, 0),
-    }
+  const latest = date.day ? earliest : date.month ? Date.UTC(date.year, date.month, 0) : Date.UTC(date.year, 11, 31)
+  if (date.kind === 'before') return { earliest: null, latest: earliest - 86_400_000 }
+  if (date.kind === 'after') return { earliest: latest + 86_400_000, latest: null }
+  if (date.kind === 'between' && date.end) {
+    const endStart = Date.UTC(date.end.year, (date.end.month ?? 1) - 1, date.end.day ?? 1)
+    return { earliest, latest: date.end.day ? endStart : date.end.month ? Date.UTC(date.end.year, date.end.month, 0) : Date.UTC(date.end.year, 11, 31) }
   }
 
-  return {
-    earliest,
-    latest: Date.UTC(date.year, 11, 31),
-  }
+  return { earliest, latest }
 }

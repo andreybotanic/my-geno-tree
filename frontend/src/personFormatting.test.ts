@@ -7,7 +7,11 @@ import {
 } from './personFormatting'
 
 const translate = (key: string) => ({
-  'person.approximateYear': 'c. {{year}}',
+  'person.afterDate': 'after',
+  'person.andDate': 'and',
+  'person.approximatePrefix': '~',
+  'person.beforeDate': 'before',
+  'person.betweenDate': 'between',
   'person.present': 'present',
   'person.unknownPerson': 'Unknown person',
 })[key] ?? key
@@ -18,9 +22,8 @@ const person = {
   patronymic: { state: 'known', value: 'Petrovich' },
   birthDate: {
     state: 'known',
-    precision: 'year',
+    kind: 'approximate',
     year: 1900,
-    approximate: true,
   },
   deathDate: null,
 } satisfies Pick<
@@ -42,7 +45,7 @@ describe('person formatting', () => {
     }, translate)).toBe('Unknown person')
   })
 
-  it('formats every structured date precision', () => {
+  it('formats date parts and every date kind', () => {
     expect(formatGenealogicalDate(
       { state: 'unknown' },
       'en',
@@ -51,20 +54,18 @@ describe('person formatting', () => {
     expect(formatGenealogicalDate(
       {
         state: 'known',
-        precision: 'year',
+        kind: 'approximate',
         year: 1900,
-        approximate: true,
       },
       'en',
       translate,
-    )).toBe('c. 1900')
+    )).toBe('~ 1900')
     expect(formatGenealogicalDate(
       {
         state: 'known',
-        precision: 'month',
+        kind: 'exact',
         year: 1994,
         month: 10,
-        approximate: false,
       },
       'en',
       translate,
@@ -72,23 +73,42 @@ describe('person formatting', () => {
     expect(formatGenealogicalDate(
       {
         state: 'known',
-        precision: 'day',
+        kind: 'exact',
         year: 1994,
         month: 10,
         day: 25,
-        approximate: false,
       },
       'en',
       translate,
     )).toBe('October 25, 1994')
+    expect(formatGenealogicalDate(
+      { state: 'known', kind: 'before', year: 1900 },
+      'en',
+      translate,
+    )).toBe('before 1900')
+    expect(formatGenealogicalDate(
+      { state: 'known', kind: 'after', year: 1900 },
+      'ru',
+      translate,
+    )).toBe('after 1900 г.')
+    expect(formatGenealogicalDate(
+      {
+        state: 'known',
+        kind: 'between',
+        year: 1900,
+        end: { year: 1901 },
+      },
+      'ru',
+      translate,
+    )).toBe('between 1900 г. and 1901 г.')
   })
 
   it('distinguishes a living person from unknown death', () => {
     expect(formatLifePeriod(person, 'en', translate))
-      .toBe('c. 1900 – present')
+      .toBe('~ 1900 – present')
     expect(formatLifePeriod({
       ...person,
       deathDate: { state: 'unknown' },
-    }, 'en', translate)).toBe('c. 1900 – —')
+    }, 'en', translate)).toBe('~ 1900 – —')
   })
 })

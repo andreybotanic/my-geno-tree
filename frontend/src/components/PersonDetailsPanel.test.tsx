@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   GenealogicalEvent,
@@ -18,9 +18,8 @@ const person: Person = {
   gender: 'female',
   birthDate: {
     state: 'known',
-    precision: 'year',
     year: 1900,
-    approximate: true,
+    kind: 'approximate',
   },
   deathDate: null,
   birthPlace: null,
@@ -131,7 +130,7 @@ describe('PersonDetailsPanel', () => {
     expect(document.querySelector('.panel-photo-placeholder')).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(5)
     expect(screen.getByRole('button', { name: 'Add photo' })).toBeInTheDocument()
-    expect(screen.getAllByText('c. 1900')).toHaveLength(2)
+    expect(screen.getAllByText('~ 1900')).toHaveLength(2)
     expect(screen.queryByText('Automatic event')).not.toBeInTheDocument()
     const panel = screen.getByRole('complementary', {
       name: 'Person details',
@@ -290,12 +289,6 @@ describe('PersonDetailsPanel', () => {
       .toHaveTextContent('×')
     await userEvent.selectOptions(
       within(dateEditor).getByRole('combobox', {
-        name: 'Birth date: Precision',
-      }),
-      'month',
-    )
-    await userEvent.selectOptions(
-      within(dateEditor).getByRole('combobox', {
         name: 'Birth date: Month',
       }),
       '5',
@@ -307,10 +300,9 @@ describe('PersonDetailsPanel', () => {
     expect(onPatch).toHaveBeenLastCalledWith({
       birthDate: {
         state: 'known',
-        precision: 'month',
         year: 1900,
         month: 5,
-        approximate: false,
+        kind: 'approximate',
       },
     })
   })
@@ -340,12 +332,20 @@ describe('PersonDetailsPanel', () => {
       screen.getByRole('button', { name: 'Edit Birth date' }),
     )
     const dateEditor = screen.getByRole('group', { name: 'Birth date' })
-    const exactDate = within(dateEditor).getByLabelText(
-      'Birth date: Exact date',
+    const year = within(dateEditor).getByRole('spinbutton', {
+      name: 'Birth date: Year',
+    })
+    expect(year).toBeEnabled()
+    expect(year).toHaveFocus()
+    await userEvent.type(year, '2001')
+    await userEvent.selectOptions(
+      within(dateEditor).getByRole('combobox', { name: 'Birth date: Month' }),
+      '2',
     )
-    expect(exactDate).toBeEnabled()
-    expect(exactDate).toHaveFocus()
-    fireEvent.change(exactDate, { target: { value: '2001-02-03' } })
+    await userEvent.type(
+      within(dateEditor).getByRole('spinbutton', { name: 'Birth date: Day' }),
+      '3',
+    )
     await userEvent.click(
       within(dateEditor.closest('form') as HTMLFormElement)
         .getByRole('button', { name: 'Save' }),
@@ -353,16 +353,15 @@ describe('PersonDetailsPanel', () => {
     expect(onPatch).toHaveBeenLastCalledWith({
       birthDate: {
         state: 'known',
-        precision: 'day',
         year: 2001,
         month: 2,
         day: 3,
-        approximate: false,
+        kind: 'exact',
       },
     })
   })
 
-  it('keeps the month and day while the date input has an incomplete year', async () => {
+  it('does not save a date with an invalid year while retaining its parts', async () => {
     const onPatch = vi.fn(async () => {})
     renderPanel({
       onPatch,
@@ -370,11 +369,10 @@ describe('PersonDetailsPanel', () => {
         ...person,
         birthDate: {
           state: 'known',
-          precision: 'day',
           year: 1900,
           month: 2,
           day: 3,
-          approximate: false,
+          kind: 'exact',
         },
       },
     })
@@ -383,30 +381,25 @@ describe('PersonDetailsPanel', () => {
       screen.getByRole('button', { name: 'Edit Birth date' }),
     )
     const editor = screen.getByRole('group', { name: 'Birth date' })
-    fireEvent.change(
-      within(editor).getByLabelText('Birth date: Exact date'),
-      { target: { value: '0001-02-03' } },
+    await userEvent.clear(
+      within(editor).getByRole('spinbutton', { name: 'Birth date: Year' }),
     )
-    await userEvent.selectOptions(
-      within(editor).getByRole('combobox', {
-        name: 'Birth date: Precision',
-      }),
-      'month',
+    await userEvent.type(
+      within(editor).getByRole('spinbutton', { name: 'Birth date: Year' }),
+      '0001',
     )
     await userEvent.click(
       within(editor.closest('form') as HTMLFormElement)
         .getByRole('button', { name: 'Save' }),
     )
 
-    expect(onPatch).toHaveBeenLastCalledWith({
-      birthDate: {
-        state: 'known',
-        precision: 'month',
-        year: 1900,
-        month: 2,
-        approximate: false,
-      },
-    })
+    expect(onPatch).not.toHaveBeenCalled()
+    expect(within(editor).getByRole('combobox', {
+      name: 'Birth date: Month',
+    })).toHaveValue('2')
+    expect(within(editor).getByRole('spinbutton', {
+      name: 'Birth date: Day',
+    })).toHaveValue(3)
   })
 
   it('distinguishes living from a deceased person with unknown date', async () => {

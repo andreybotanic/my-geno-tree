@@ -184,43 +184,21 @@ Docker Compose должен поднимать HTTPS reverse proxy для `local
 { "state": "unknown" }
 ```
 
-Год:
+Известная дата:
 
 ```json
 {
   "state": "known",
-  "precision": "year",
-  "year": 1994,
-  "approximate": true
-}
-```
-
-Месяц:
-
-```json
-{
-  "state": "known",
-  "precision": "month",
+  "kind": "exact",
   "year": 1994,
   "month": 10,
-  "approximate": false
+  "day": 25
 }
 ```
 
-День:
-
-```json
-{
-  "state": "known",
-  "precision": "day",
-  "year": 1994,
-  "month": 10,
-  "day": 25,
-  "approximate": false
-}
-```
-
-Для `month` и `day` значение `approximate: true` недопустимо.
+`kind` принимает `exact`, `approximate`, `before`, `after` или `between`.
+Для `between` обязательно добавляется объект `end` с `year`, необязательными
+`month` и `day`. Для остальных видов `end` отсутствует.
 
 Поля, у которых отсутствие имеет самостоятельный смысл, дополнительно допускают `null`. Например:
 

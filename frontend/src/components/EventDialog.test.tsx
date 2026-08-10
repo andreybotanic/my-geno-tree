@@ -13,9 +13,8 @@ const surnameEvent: GenealogicalEvent = {
   source: 'manual',
   date: {
     state: 'known',
-    precision: 'year',
     year: 1920,
-    approximate: true,
+    kind: 'approximate',
   },
   place: null,
   title: null,
@@ -45,15 +44,9 @@ describe('EventDialog', () => {
     ).toHaveAttribute('aria-pressed', 'false')
     expect(
       within(eventDate).getByRole('combobox', {
-        name: 'Event date: Precision',
+        name: 'Event date: Date type',
       }),
-    ).toHaveValue('day')
-    await userEvent.selectOptions(
-      within(eventDate).getByRole('combobox', {
-        name: 'Event date: Precision',
-      }),
-      'month',
-    )
+    ).toHaveValue('exact')
     await userEvent.type(
       within(eventDate).getByRole('spinbutton', {
         name: 'Event date: Year',
@@ -80,10 +73,9 @@ describe('EventDialog', () => {
       type: 'custom',
       date: {
         state: 'known',
-        precision: 'month',
         year: 1950,
         month: 7,
-        approximate: false,
+        kind: 'exact',
       },
       title: 'New home',
       description: 'First line\nSecond line',
@@ -109,6 +101,41 @@ describe('EventDialog', () => {
       type: 'surname_change',
       date: surnameEvent.date,
       newSurname: 'Sidorova',
+      place: null,
+    })
+  })
+
+  it('creates an event between two partial dates', async () => {
+    const onSave = vi.fn(async () => {})
+    render(<EventDialog onCancel={vi.fn()} onSave={onSave} />)
+    const date = screen.getByRole('group', { name: 'Event date' })
+    await userEvent.selectOptions(
+      within(date).getByRole('combobox', { name: 'Event date: Date type' }),
+      'between',
+    )
+    const from = within(date).getByRole('group', { name: 'From' })
+    const to = within(date).getByRole('group', { name: 'To' })
+    await userEvent.type(
+      within(from).getByRole('spinbutton', { name: 'From: Year' }),
+      '1950',
+    )
+    await userEvent.type(
+      within(to).getByRole('spinbutton', { name: 'To: Year' }),
+      '1951',
+    )
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Move')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      type: 'custom',
+      date: {
+        state: 'known',
+        kind: 'between',
+        year: 1950,
+        end: { year: 1951 },
+      },
+      title: 'Move',
+      description: null,
       place: null,
     })
   })

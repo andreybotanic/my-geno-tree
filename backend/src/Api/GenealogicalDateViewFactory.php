@@ -2,13 +2,13 @@
 
 namespace App\Api;
 
-use App\Entity\Value\DatePrecision;
+use App\Entity\Value\DateKind;
 use App\Entity\Value\GenealogicalDate;
 
 final readonly class GenealogicalDateViewFactory
 {
     /**
-     * @return array<string, bool|int|string>
+     * @return array<string, array<string, int>|int|string>
      */
     public function create(GenealogicalDate $date): array
     {
@@ -16,33 +16,38 @@ final readonly class GenealogicalDateViewFactory
             return ['state' => 'unknown'];
         }
 
-        $precision = $date->getPrecision();
+        $kind = $date->getKind();
         $year = $date->getYear();
-        if (null === $precision || null === $year) {
-            throw new \LogicException('Known genealogical dates require precision and year.');
+        if (null === $kind || null === $year) {
+            throw new \LogicException('Known genealogical dates require kind and year.');
         }
 
         $view = [
-            'state'       => 'known',
-            'precision'   => $precision->value,
-            'year'        => $year,
-            'approximate' => $date->isApproximate(),
+            'state' => 'known',
+            'kind'  => $kind->value,
+            'year'  => $year,
         ];
-        if (DatePrecision::YEAR !== $precision) {
+        if (null !== $date->getMonth()) {
             $month = $date->getMonth();
-            if (null === $month) {
-                throw new \LogicException('Month and day precision require a month.');
-            }
-
             $view['month'] = $month;
         }
-        if (DatePrecision::DAY === $precision) {
+        if (null !== $date->getDay()) {
             $day = $date->getDay();
-            if (null === $day) {
-                throw new \LogicException('Day precision requires a day.');
-            }
-
             $view['day'] = $day;
+        }
+        if (DateKind::BETWEEN === $kind) {
+            $endYear = $date->getEndYear();
+            if (null === $endYear) {
+                throw new \LogicException('Between dates require an end date.');
+            }
+            $end = ['year' => $endYear];
+            if (null !== $date->getEndMonth()) {
+                $end['month'] = $date->getEndMonth();
+            }
+            if (null !== $date->getEndDay()) {
+                $end['day'] = $date->getEndDay();
+            }
+            $view['end'] = $end;
         }
 
         return $view;
