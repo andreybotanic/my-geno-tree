@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
@@ -101,6 +102,29 @@ final class ApiExceptionListenerTest extends TestCase
             403,
             'FORBIDDEN',
         ];
+    }
+
+    public function testRateLimitHeadersArePreserved(): void
+    {
+        $event = $this->event(
+            '/api/v1/map/tiles/0/0/0.png',
+            new TooManyRequestsHttpException(12, headers: [
+                'X-RateLimit-Limit' => '25',
+            ]),
+        );
+        $listener = new ApiExceptionListener(
+            new ApiErrorResponseFactory(),
+            self::createStub(LoggerInterface::class),
+        );
+
+        $listener($event);
+
+        $response = $event->getResponse();
+        self::assertNotNull($response);
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('RATE_LIMIT_EXCEEDED', $this->responseCode($event));
+        self::assertSame('12', $response->headers->get('Retry-After'));
+        self::assertSame('25', $response->headers->get('X-RateLimit-Limit'));
     }
 
     public function testUnexpectedExceptionIsLoggedAndHidden(): void

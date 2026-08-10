@@ -1001,6 +1001,112 @@ paths:
           $ref: "#/components/responses/NotFound"
         "412":
           $ref: "#/components/responses/TreeVersionConflict"
+  /map/tiles/{z}/{x}/{y}.png:
+    get:
+      operationId: getMapTile
+      summary: Create a short-lived signed redirect to a Yandex map tile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: z
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 20
+        - name: x
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: y
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "302":
+          description: Signed Yandex tile URL
+          headers:
+            Location:
+              description: Temporary signed cross-origin tile URL
+              schema:
+                type: string
+                format: uri
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /map/geocoding/search:
+    get:
+      operationId: searchMapPlaces
+      summary: Search for places after an explicit user request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 200
+      responses:
+        "200":
+          description: At most five resolved place candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeocodingSearchResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /map/geocoding/reverse:
+    get:
+      operationId: reverseGeocodeMapPlace
+      summary: Resolve a WGS84 point after an explicit user map action
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+      responses:
+        "200":
+          description: Resolved place
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedEventPlace"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/BadGateway"
 components:
   securitySchemes:
     bearerAuth:
@@ -1090,6 +1196,24 @@ components:
             $ref: "#/components/schemas/ApiError"
     ValidationError:
       description: One or more fields are invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    RateLimited:
+      description: Shared or per-user request limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds until the request can be retried
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    BadGateway:
+      description: The upstream geocoding service is unavailable
       content:
         application/json:
           schema:
@@ -1547,6 +1671,16 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GeoCoordinates"
             - type: "null"
+    GeocodingSearchResult:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/ResolvedEventPlace"
     PersonInput:
       type: object
       additionalProperties: false

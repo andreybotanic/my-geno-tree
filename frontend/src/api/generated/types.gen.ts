@@ -182,6 +182,10 @@ export type EventPlace = {
     coordinates: GeoCoordinates | null;
 };
 
+export type GeocodingSearchResult = {
+    items: Array<ResolvedEventPlace>;
+};
+
 export type PersonInput = {
     birthSurname: KnownText;
     givenName: KnownText;
@@ -1915,3 +1919,110 @@ export type PutEventPlaceResponses = {
 };
 
 export type PutEventPlaceResponse = PutEventPlaceResponses[keyof PutEventPlaceResponses];
+
+export type GetMapTileData = {
+    body?: never;
+    path: {
+        z: number;
+        x: number;
+        y: number;
+    };
+    query?: never;
+    url: '/map/tiles/{z}/{x}/{y}.png';
+};
+
+export type GetMapTileErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * Shared or per-user request limit exceeded
+     */
+    429: ApiError;
+};
+
+export type GetMapTileError = GetMapTileErrors[keyof GetMapTileErrors];
+
+export type SearchMapPlacesData = {
+    body?: never;
+    path?: never;
+    query: {
+        q: string;
+    };
+    url: '/map/geocoding/search';
+};
+
+export type SearchMapPlacesErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+    /**
+     * Shared or per-user request limit exceeded
+     */
+    429: ApiError;
+    /**
+     * The upstream geocoding service is unavailable
+     */
+    502: ApiError;
+};
+
+export type SearchMapPlacesError = SearchMapPlacesErrors[keyof SearchMapPlacesErrors];
+
+export type SearchMapPlacesResponses = {
+    /**
+     * At most five resolved place candidates
+     */
+    200: GeocodingSearchResult;
+};
+
+export type SearchMapPlacesResponse = SearchMapPlacesResponses[keyof SearchMapPlacesResponses];
+
+export type ReverseGeocodeMapPlaceData = {
+    body?: never;
+    path?: never;
+    query: {
+        latitude: number;
+        longitude: number;
+    };
+    url: '/map/geocoding/reverse';
+};
+
+export type ReverseGeocodeMapPlaceErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+    /**
+     * Shared or per-user request limit exceeded
+     */
+    429: ApiError;
+    /**
+     * The upstream geocoding service is unavailable
+     */
+    502: ApiError;
+};
+
+export type ReverseGeocodeMapPlaceError = ReverseGeocodeMapPlaceErrors[keyof ReverseGeocodeMapPlaceErrors];
+
+export type ReverseGeocodeMapPlaceResponses = {
+    /**
+     * Resolved place
+     */
+    200: ResolvedEventPlace;
+};
+
+export type ReverseGeocodeMapPlaceResponse = ReverseGeocodeMapPlaceResponses[keyof ReverseGeocodeMapPlaceResponses];

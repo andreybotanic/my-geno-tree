@@ -15,5 +15,9 @@ framework:
         #app: cache.adapter.apcu
 
         # Namespaced pools use the above "app" backend by default
-        #pools:
+        pools:
+            cache.map_rate_limiter:
+                adapter: cache.adapter.filesystem
+            cache.map_geocoding:
+                adapter: cache.app
             #my.dedicated.cache: null

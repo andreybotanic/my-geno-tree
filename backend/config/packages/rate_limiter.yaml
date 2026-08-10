@@ -1,0 +1,20 @@
+framework:
+    rate_limiter:
+        yandex_tiles_global:
+            policy: sliding_window
+            limit: 25
+            interval: '1 second'
+            cache_pool: cache.map_rate_limiter
+            lock_factory: lock.default.factory
+        yandex_tiles_user:
+            policy: sliding_window
+            limit: 180
+            interval: '1 minute'
+            cache_pool: cache.map_rate_limiter
+            lock_factory: lock.default.factory
+        nominatim_global:
+            policy: sliding_window
+            limit: 1
+            interval: '1 second'
+            cache_pool: cache.map_rate_limiter
+            lock_factory: lock.default.factory

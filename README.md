@@ -21,6 +21,29 @@ docker compose exec backend php bin/console doctrine:migrations:migrate --no-int
 
 Open <https://localhost>.
 
+### Map services
+
+Create `backend/.env.local` and keep the Yandex credentials on the backend:
+
+```dotenv
+YANDEX_TILES_API_KEY=your-api-key
+YANDEX_TILES_SIGNING_SECRET=your-base64url-signing-secret
+```
+
+The browser requests authenticated same-origin tile URLs. The backend rate
+limits and signs them, then redirects the browser to Yandex; the signing secret
+is never included in frontend assets. Nominatim is configured through
+`NOMINATIM_BASE_URI` and `NOMINATIM_USER_AGENT`; the default is intended for
+local development and a deployment should use an identifying contact URL or
+email in its user agent.
+
+Yandex `Optional + WithTTL` signing is acceptable only while developing this
+local MVP. Before exposing the application outside a trusted environment,
+disable `Optional` in the Yandex dashboard and verify that the equivalent
+unsigned Tiles request returns `403`. A signed redirect can be replayed during
+its validity period without reaching the application's limiter. Use a full
+backend tile proxy instead of redirects in an untrusted public environment.
+
 The reverse proxy creates a local development certificate on first start. To
 trust its certificate authority on Windows, export it and add it to the trusted
 root store:
