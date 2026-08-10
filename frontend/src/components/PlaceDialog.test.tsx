@@ -126,7 +126,7 @@ describe('PlaceDialog', () => {
 
     expect(screen.getByText(/imported without coordinates/i))
       .toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Settlement search' }))
+    expect(screen.getByRole('combobox', { name: 'Settlement search' }))
       .toHaveValue('Old village')
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(mapHarness.markerAdds).toBe(0)
@@ -147,11 +147,10 @@ describe('PlaceDialog', () => {
     }) as AuthContextValue['request']
     const { onSave } = renderDialog(request)
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'Settlement search' }),
+      screen.getByRole('combobox', { name: 'Settlement search' }),
       'Novosibirsk',
     )
-    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
-    await userEvent.click(await screen.findByRole('button', {
+    await userEvent.click(await screen.findByRole('option', {
       name: 'Novosibirsk, Russia',
     }))
     const name = screen.getByRole('textbox', { name: 'Place name' })
@@ -167,6 +166,19 @@ describe('PlaceDialog', () => {
       center: [82.9204, 55.0302],
       zoom: 10,
     })
+    expect(screen.getByText('Point selected')).toBeInTheDocument()
+    expect(screen.queryByText(/55\.0302/)).not.toBeInTheDocument()
+  })
+
+  it('shows the official Yandex logo as a map link', () => {
+    renderDialog(vi.fn())
+
+    const link = screen.getByRole('link', { name: 'Yandex Maps' })
+    expect(link).toHaveAttribute('href', 'https://yandex.ru/maps/')
+    expect(link.querySelector('img')).toHaveAttribute(
+      'src',
+      '/yandex-logo.svg',
+    )
   })
 
   it('reverse geocodes a map click and cancel does not save it', async () => {

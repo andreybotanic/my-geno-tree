@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
 } from 'react'
@@ -36,6 +37,8 @@ export function PlaceDialog({
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<MapLibreMap | null>(null)
   const marker = useRef<MapLibreMarker | null>(null)
+  const searchRequest = useRef(0)
+  const lastSearchStartedAt = useRef(0)
   const markerClass = useRef<
     typeof import('maplibre-gl').Marker | null
   >(null)
@@ -45,11 +48,15 @@ export function PlaceDialog({
   const [name, setName] = useState(place?.name ?? '')
   const [searchQuery, setSearchQuery] = useState(place?.name ?? '')
   const [results, setResults] = useState<ResolvedEventPlace[]>([])
+  const [activeResult, setActiveResult] = useState(-1)
+  const [searchTouched, setSearchTouched] = useState(false)
   const [searching, setSearching] = useState(false)
+  const [searchMessage, setSearchMessage] = useState('')
   const [resolving, setResolving] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const searchResultsId = useId()
 
   const setMarker = (next: GeoCoordinates) => {
     if (!map.current) return
@@ -168,38 +175,77 @@ export function PlaceDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken])
 
-  const search = async () => {
+  useEffect(() => {
+    if (!searchTouched) return
     const query = searchQuery.trim()
-    if (query.length < 2 || query.length > 200) {
-      setError(t('place.searchInvalid'))
-      return
-    }
-    setSearching(true)
-    setError('')
-    try {
-      const response = await mapApi.search(request, query)
-      setResults(response.items)
-      if (response.items.length === 0) {
-        setError(t('place.noResults'))
-      }
-    } catch {
-      setResults([])
-      setError(t('place.searchFailed'))
-    } finally {
+    const requestId = ++searchRequest.current
+    setActiveResult(-1)
+    setResults([])
+    setSearchMessage('')
+    if (query.length < 2) {
       setSearching(false)
+      return undefined
     }
-  }
+    const elapsed = Date.now() - lastSearchStartedAt.current
+    const delay = Math.max(350, 1000 - elapsed)
+    const timeout = window.setTimeout(() => {
+      lastSearchStartedAt.current = Date.now()
+      setSearching(true)
+      void mapApi.search(request, query).then((response) => {
+        if (requestId !== searchRequest.current) return
+        setResults(response.items)
+        setSearchMessage(response.items.length === 0
+          ? t('place.noResults')
+          : '')
+      }).catch(() => {
+        if (requestId !== searchRequest.current) return
+        setSearchMessage(t('place.searchFailed'))
+      }).finally(() => {
+        if (requestId === searchRequest.current) setSearching(false)
+      })
+    }, delay)
+
+    return () => window.clearTimeout(timeout)
+  }, [request, searchQuery, searchTouched, t])
 
   const choose = (result: ResolvedEventPlace) => {
     setName(result.name)
     setCoordinates(result.coordinates)
+    setSearchTouched(false)
+    setSearchQuery(result.name)
     setMarker(result.coordinates)
     map.current?.jumpTo({
       center: [result.coordinates.longitude, result.coordinates.latitude],
       zoom: 10,
     })
     setResults([])
+    setActiveResult(-1)
+    setSearchMessage('')
     setError('')
+  }
+
+  const handleSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' && results.length > 0) {
+      event.preventDefault()
+      setActiveResult((current) => Math.min(current + 1, results.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp' && results.length > 0) {
+      event.preventDefault()
+      setActiveResult((current) => Math.max(current - 1, 0))
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const result = results[activeResult]
+      if (result) choose(result)
+      return
+    }
+    if (event.key === 'Escape') {
+      setResults([])
+      setActiveResult(-1)
+      setSearchMessage('')
+    }
   }
 
   const save = async () => {
@@ -251,44 +297,67 @@ export function PlaceDialog({
         <div className="place-search">
           <label>
             <span>{t('place.search')}</span>
-            <input
-              maxLength={200}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  void search()
-                }
-              }}
-              placeholder={t('place.searchPlaceholder')}
-              value={searchQuery}
-            />
+            <div className="place-autocomplete-control">
+              <input
+                aria-autocomplete="list"
+                aria-controls={searchResultsId}
+                aria-expanded={results.length > 0}
+                maxLength={200}
+                onChange={(event) => {
+                  setSearchTouched(true)
+                  setSearchQuery(event.target.value)
+                }}
+                onFocus={() => setSearchTouched(true)}
+                onKeyDown={handleSearchKey}
+                placeholder={t('place.searchPlaceholder')}
+                role="combobox"
+                value={searchQuery}
+              />
+              {results.length > 0 && (
+                <ul
+                  className="place-search-results"
+                  id={searchResultsId}
+                  role="listbox"
+                >
+                  {results.map((result, index) => (
+                    <li key={`${result.coordinates.latitude}:${result.coordinates.longitude}:${result.name}`}>
+                      <button
+                        aria-selected={activeResult === index}
+                        onClick={() => choose(result)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        role="option"
+                        type="button"
+                      >
+                        {result.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </label>
-          <button
-            className="secondary-button"
-            disabled={searching}
-            onClick={() => void search()}
-            type="button"
-          >
-            {searching ? t('place.searching') : t('place.searchAction')}
-          </button>
         </div>
-        {results.length > 0 && (
-          <ul className="place-search-results">
-            {results.map((result) => (
-              <li key={`${result.coordinates.latitude}:${result.coordinates.longitude}:${result.name}`}>
-                <button onClick={() => choose(result)} type="button">
-                  {result.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+        {(searching || searchMessage) && (
+          <p className="place-search-status" role="status">
+            {searching ? t('place.searching') : searchMessage}
+          </p>
         )}
-        <div
-          aria-label={t('place.map')}
-          className="place-map"
-          ref={mapContainer}
-        />
+        <div className="place-map-frame">
+          <div
+            aria-label={t('place.map')}
+            className="place-map"
+            ref={mapContainer}
+          />
+          <a
+            aria-label={t('place.yandexMaps')}
+            className="yandex-map-logo"
+            href="https://yandex.ru/maps/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <img alt="" height="48" src="/yandex-logo.svg" width="88" />
+          </a>
+        </div>
         <small className="place-attribution">
           {t('place.geocodingAttribution')}
         </small>
@@ -302,10 +371,7 @@ export function PlaceDialog({
         </label>
         <p className="place-coordinate-status">
           {coordinates
-            ? t('place.coordinates', {
-                latitude: coordinates.latitude.toFixed(6),
-                longitude: coordinates.longitude.toFixed(6),
-              })
+            ? t('place.pointSelected')
             : t('place.noPoint')}
           {resolving && ` - ${t('place.resolving')}`}
         </p>

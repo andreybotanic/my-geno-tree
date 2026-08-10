@@ -1036,11 +1036,10 @@ describe('TreeEditorPage', () => {
     }))
     let dialog = screen.getByRole('dialog', { name: 'Event place' })
     await userEvent.type(
-      within(dialog).getByRole('textbox', { name: 'Settlement search' }),
+      within(dialog).getByRole('combobox', { name: 'Settlement search' }),
       'Novosibirsk',
     )
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Search' }))
-    await userEvent.click(await within(dialog).findByRole('button', {
+    await userEvent.click(await within(dialog).findByRole('option', {
       name: 'Novosibirsk, Russia',
     }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))

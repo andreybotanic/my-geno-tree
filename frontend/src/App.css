@@ -2042,10 +2042,10 @@
 }
 
 .event-title-row {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
-  gap: 6px;
-  justify-content: space-between;
+  gap: 4px;
+  justify-content: flex-start;
 }
 
 .event-place-button {
@@ -2056,10 +2056,11 @@
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 24px;
+  height: 18px;
   justify-content: center;
-  padding: 2px;
-  width: 24px;
+  margin-top: -2px;
+  padding: 0;
+  width: 18px;
 }
 
 .event-place-button:disabled {
@@ -2069,12 +2070,12 @@
 
 .event-place-button svg {
   fill: none;
-  height: 18px;
+  height: 16px;
   stroke: currentcolor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.55;
-  width: 18px;
+  width: 16px;
 }
 
 .event-place-button-set {
@@ -2526,10 +2527,7 @@
 }
 
 .place-search {
-  align-items: end;
-  display: grid;
-  gap: 9px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
 }
 
 .place-search label,
@@ -2552,16 +2550,25 @@
   width: 100%;
 }
 
+.place-autocomplete-control {
+  position: relative;
+}
+
 .place-search-results {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 9px;
   display: grid;
   list-style: none;
-  margin: -5px 0 0;
+  left: 0;
+  margin: 4px 0 0;
   max-height: 180px;
   overflow: auto;
   padding: 4px;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
 }
 
 .place-search-results button {
@@ -2579,6 +2586,20 @@
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
+.place-search-results button[aria-selected="true"] {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.place-search-status {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  margin: -7px 0 0;
+}
+
+.place-map-frame {
+  position: relative;
+}
+
 .place-map {
   background: var(--color-background);
   border: 1px solid var(--color-border);
@@ -2586,6 +2607,20 @@
   height: min(390px, 45svh);
   min-height: 280px;
   overflow: hidden;
+}
+
+.yandex-map-logo {
+  bottom: 0;
+  display: block;
+  height: 48px;
+  left: 0;
+  position: absolute;
+  width: 88px;
+  z-index: 2;
+}
+
+.yandex-map-logo img {
+  display: block;
 }
 
 .place-attribution,
@@ -2843,10 +2878,6 @@
   .place-dialog {
     max-height: calc(100svh - 20px);
     padding: 18px;
-  }
-
-  .place-search {
-    grid-template-columns: 1fr;
   }
 
   .place-map {

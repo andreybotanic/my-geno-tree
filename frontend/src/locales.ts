@@ -275,6 +275,7 @@ export const resources = {
         name: 'Place name',
         noPoint: 'No point selected',
         noResults: 'No places found.',
+        pointSelected: 'Point selected',
         pointRequired: 'Select a point and enter a place name.',
         resolving: 'Looking up the point…',
         reverseFailed: 'The point was selected, but its name could not be found. Enter a name manually.',
@@ -287,6 +288,7 @@ export const resources = {
         searching: 'Searching…',
         title: 'Event place',
         unresolvedWarning: 'This place was imported without coordinates. Select a point before saving any changes.',
+        yandexMaps: 'Yandex Maps',
       },
       relationships: {
         add: {
@@ -651,6 +653,7 @@ export const resources = {
         name: 'Название места',
         noPoint: 'Точка не выбрана',
         noResults: 'Места не найдены.',
+        pointSelected: 'Точка выбрана',
         pointRequired: 'Выберите точку и укажите название места.',
         resolving: 'Определяем точку…',
         reverseFailed: 'Точка выбрана, но название определить не удалось. Укажите его вручную.',
@@ -663,6 +666,7 @@ export const resources = {
         searching: 'Ищем…',
         title: 'Место события',
         unresolvedWarning: 'Место импортировано без координат. Перед сохранением изменений выберите точку.',
+        yandexMaps: 'Яндекс Карты',
       },
       relationships: {
         add: {
