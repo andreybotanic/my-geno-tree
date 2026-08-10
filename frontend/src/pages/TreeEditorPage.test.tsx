@@ -46,6 +46,7 @@ vi.mock('maplibre-gl', () => {
     jumpTo() {}
     off() {}
     on() {}
+    once(_type: string, callback: () => void) { callback() }
     remove() {}
   }
 

@@ -110,6 +110,10 @@ export function PlaceDialog({
       markerClass.current = maplibre.Marker
       const initial = place?.coordinates
       instance = new maplibre.Map({
+        attributionControl: {
+          compact: true,
+          customAttribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">&copy; OpenStreetMap contributors</a>',
+        },
         container,
         center: initial
           ? [initial.longitude, initial.latitude]
@@ -147,6 +151,13 @@ export function PlaceDialog({
 
           return { url }
         },
+      })
+      instance.once('load', () => {
+        const attributionControl = container.querySelector<HTMLDetailsElement>(
+          '.maplibregl-ctrl-attrib',
+        )
+        attributionControl?.removeAttribute('open')
+        attributionControl?.classList.remove('maplibregl-compact-show')
       })
       instance.addControl(new maplibre.NavigationControl({ showCompass: false }))
       map.current = instance
@@ -358,9 +369,6 @@ export function PlaceDialog({
             <img alt="" height="48" src="/yandex-logo.svg" width="88" />
           </a>
         </div>
-        <small className="place-attribution">
-          {t('place.geocodingAttribution')}
-        </small>
         <label className="place-name-field">
           <span>{t('place.name')}</span>
           <input
@@ -369,12 +377,11 @@ export function PlaceDialog({
             value={name}
           />
         </label>
-        <p className="place-coordinate-status">
-          {coordinates
-            ? t('place.pointSelected')
-            : t('place.noPoint')}
-          {resolving && ` - ${t('place.resolving')}`}
-        </p>
+        {resolving && (
+          <p className="place-coordinate-status" role="status">
+            {t('place.resolving')}
+          </p>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="dialog-actions place-dialog-actions">
           <button

@@ -11,6 +11,8 @@ const mapHarness = vi.hoisted(() => ({
   markerAdds: 0,
   maxParallel: vi.fn(),
   options: null as null | {
+    attributionControl: { compact: boolean, customAttribution: string }
+    container: HTMLElement
     transformRequest: (
       url: string,
       resourceType: string,
@@ -22,6 +24,14 @@ vi.mock('maplibre-gl', () => {
   class Map {
     constructor(options: typeof mapHarness.options) {
       mapHarness.options = options
+      const attribution = document.createElement('details')
+      attribution.classList.add(
+        'maplibregl-ctrl-attrib',
+        'maplibregl-compact',
+        'maplibregl-compact-show',
+      )
+      attribution.setAttribute('open', '')
+      options?.container.append(attribution)
     }
 
     addControl() {}
@@ -29,6 +39,9 @@ vi.mock('maplibre-gl', () => {
     off() {}
     on(type: string, callback: typeof mapHarness.click) {
       if (type === 'click') mapHarness.click = callback
+    }
+    once(type: string, callback: () => void) {
+      if (type === 'load') callback()
     }
     remove() {}
   }
@@ -99,6 +112,15 @@ describe('PlaceDialog', () => {
     renderDialog(vi.fn())
 
     await waitFor(() => expect(mapHarness.maxParallel).toHaveBeenCalledWith(8))
+    expect(mapHarness.options?.attributionControl).toEqual({
+      compact: true,
+      customAttribution: expect.stringContaining(
+        'https://www.openstreetmap.org/copyright',
+      ),
+    })
+    const attribution = document.querySelector('.maplibregl-ctrl-attrib')
+    expect(attribution).not.toHaveAttribute('open')
+    expect(attribution).not.toHaveClass('maplibregl-compact-show')
     const transform = mapHarness.options?.transformRequest
     expect(transform).toBeTypeOf('function')
     const tileUrl = `${window.location.origin}/api/v1/map/tiles/1/0/0.png`
@@ -166,7 +188,9 @@ describe('PlaceDialog', () => {
       center: [82.9204, 55.0302],
       zoom: 10,
     })
-    expect(screen.getByText('Point selected')).toBeInTheDocument()
+    expect(document.querySelector('.place-coordinate-status'))
+      .not.toBeInTheDocument()
+    expect(document.querySelector('.place-attribution')).not.toBeInTheDocument()
     expect(screen.queryByText(/55\.0302/)).not.toBeInTheDocument()
   })
 
