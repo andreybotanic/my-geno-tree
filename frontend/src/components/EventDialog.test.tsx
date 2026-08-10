@@ -17,6 +17,7 @@ const surnameEvent: GenealogicalEvent = {
     year: 1920,
     approximate: true,
   },
+  place: null,
   title: null,
   description: null,
   data: { newSurname: 'Petrova' },

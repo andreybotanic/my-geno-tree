@@ -27,6 +27,7 @@ final readonly class AutomaticEventSynchronizer
             $person,
             EventType::BIRTH,
             $person->getBirthDate(),
+            $person->getBirthPlace(),
             $changedAt,
         );
 
@@ -50,6 +51,7 @@ final readonly class AutomaticEventSynchronizer
                     EventType::DEATH,
                     $deathDate,
                     $changedAt,
+                    $person->getDeathPlace(),
                 ),
             );
 
@@ -57,6 +59,7 @@ final readonly class AutomaticEventSynchronizer
         }
 
         $death->changeAutomaticDate($deathDate, $changedAt);
+        $death->changePlace($person->getDeathPlace(), $changedAt);
     }
 
     public function synchronizeParentLink(
@@ -71,6 +74,7 @@ final readonly class AutomaticEventSynchronizer
             $link->getId(),
             ['childId' => $link->getChild()->getId()->toRfc4122()],
             $changedAt,
+            $link->getChild()->getBirthPlace(),
         );
     }
 
@@ -112,6 +116,7 @@ final readonly class AutomaticEventSynchronizer
                 $marriage->getId(),
                 ['partnerId' => $partner->getId()->toRfc4122()],
                 $changedAt,
+                $marriage->getMarriagePlace(),
             );
         }
 
@@ -132,6 +137,7 @@ final readonly class AutomaticEventSynchronizer
                     $marriage->getId(),
                     ['partnerId' => $partner->getId()->toRfc4122()],
                     $changedAt,
+                    $marriage->getDissolutionPlace(),
                 );
             }
         }
@@ -140,8 +146,19 @@ final readonly class AutomaticEventSynchronizer
     public function removeForSource(
         \Symfony\Component\Uid\Uuid $sourceEntityId,
     ): void {
+        $places = [];
         foreach ($this->events->findAllForSource($sourceEntityId) as $event) {
+            $place = $event->getPlace();
+            if (
+                EventType::CHILD_BIRTH !== $event->getType()
+                && null !== $place?->getId()
+            ) {
+                $places[$place->getId()->toRfc4122()] = $place;
+            }
             $this->entityManager->remove($event);
+        }
+        foreach ($places as $place) {
+            $this->entityManager->remove($place);
         }
     }
 
@@ -149,6 +166,7 @@ final readonly class AutomaticEventSynchronizer
         Person $person,
         EventType $type,
         GenealogicalDate $date,
+        ?\App\Entity\EventPlace $place,
         \DateTimeImmutable $changedAt,
     ): void {
         $event = $this->events->findAutomaticPersonLifecycle($person, $type);
@@ -159,6 +177,7 @@ final readonly class AutomaticEventSynchronizer
                     $type,
                     $date,
                     $changedAt,
+                    $place,
                 ),
             );
 
@@ -166,6 +185,7 @@ final readonly class AutomaticEventSynchronizer
         }
 
         $event->changeAutomaticDate($date, $changedAt);
+        $event->changePlace($place, $changedAt);
     }
 
     /**
@@ -179,6 +199,7 @@ final readonly class AutomaticEventSynchronizer
         \Symfony\Component\Uid\Uuid $sourceEntityId,
         array $data,
         \DateTimeImmutable $changedAt,
+        ?\App\Entity\EventPlace $place = null,
     ): void {
         $event = $this->events->findAutomaticForSource(
             $person,
@@ -195,6 +216,7 @@ final readonly class AutomaticEventSynchronizer
                     $sourceEntityId,
                     $data,
                     $changedAt,
+                    $place,
                 ),
             );
 
@@ -202,6 +224,7 @@ final readonly class AutomaticEventSynchronizer
         }
 
         $event->changeAutomatic($date, $data, $changedAt);
+        $event->changePlace($place, $changedAt);
     }
 
     private function removeRelated(

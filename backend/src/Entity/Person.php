@@ -36,11 +36,19 @@ class Person
     #[ORM\Embedded(class: GenealogicalDate::class, columnPrefix: 'birth_date_')]
     private GenealogicalDate $birthDate;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?EventPlace $birthPlace = null;
+
     #[ORM\Column]
     private bool $deceased;
 
     #[ORM\Embedded(class: GenealogicalDate::class, columnPrefix: 'death_date_')]
     private GenealogicalDate $storedDeathDate;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?EventPlace $deathPlace = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -115,6 +123,31 @@ class Person
         return $this->deceased ? $this->storedDeathDate : null;
     }
 
+    public function getBirthPlace(): ?EventPlace
+    {
+        return $this->birthPlace;
+    }
+
+    public function getDeathPlace(): ?EventPlace
+    {
+        return $this->deceased ? $this->deathPlace : null;
+    }
+
+    public function changeBirthPlace(?EventPlace $place, \DateTimeImmutable $changedAt): void
+    {
+        $this->birthPlace = $place;
+        $this->updatedAt = $changedAt;
+    }
+
+    public function changeDeathPlace(?EventPlace $place, \DateTimeImmutable $changedAt): void
+    {
+        if (!$this->deceased && null !== $place) {
+            throw new \LogicException('A living person cannot have a death place.');
+        }
+        $this->deathPlace = $place;
+        $this->updatedAt = $changedAt;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -160,6 +193,9 @@ class Person
         $this->birthDate = $birthDate;
         $this->deceased = null !== $deathDate;
         $this->storedDeathDate = $deathDate ?? GenealogicalDate::unknown();
+        if (!$this->deceased) {
+            $this->deathPlace = null;
+        }
         $this->updatedAt = $changedAt;
     }
 }

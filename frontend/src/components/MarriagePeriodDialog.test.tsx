@@ -25,6 +25,8 @@ const marriage: MarriagePeriod = {
     day: 4,
     approximate: false,
   },
+  marriagePlace: null,
+  dissolutionPlace: null,
   createdAt: '2026-07-31T00:00:00+00:00',
   updatedAt: '2026-07-31T00:00:00+00:00',
 }

@@ -55,12 +55,57 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
         ]);
     }
 
+    public function findInTree(FamilyTree $tree, string $id): ?GenealogicalEvent
+    {
+        /** @var GenealogicalEvent|null $event */
+        $event = $this->createQueryBuilder('event')
+            ->addSelect('person', 'place')
+            ->join('event.person', 'person')
+            ->leftJoin('event.place', 'place')
+            ->andWhere('person.tree = :tree')
+            ->andWhere('event.id = :id')
+            ->setParameter('tree', $tree)
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $event;
+    }
+
+    /** @return list<GenealogicalEvent> */
+    public function findAutomaticGroup(EventType $type, Uuid $sourceEntityId): array
+    {
+        /** @var list<GenealogicalEvent> $events */
+        $events = $this->createQueryBuilder('event')
+            ->addSelect('place')
+            ->leftJoin('event.place', 'place')
+            ->andWhere('event.type = :type')
+            ->andWhere('event.source = :source')
+            ->andWhere('event.sourceEntityId = :sourceEntityId')
+            ->setParameter('type', $type)
+            ->setParameter('source', EventSource::AUTOMATIC)
+            ->setParameter('sourceEntityId', $sourceEntityId)
+            ->getQuery()
+            ->getResult();
+
+        return $events;
+    }
+
     /**
      * @return list<GenealogicalEvent>
      */
     public function findAllForSource(Uuid $sourceEntityId): array
     {
-        return $this->findBy(['sourceEntityId' => $sourceEntityId]);
+        /** @var list<GenealogicalEvent> $events */
+        $events = $this->createQueryBuilder('event')
+            ->addSelect('place')
+            ->leftJoin('event.place', 'place')
+            ->andWhere('event.sourceEntityId = :sourceEntityId')
+            ->setParameter('sourceEntityId', $sourceEntityId)
+            ->getQuery()
+            ->getResult();
+
+        return $events;
     }
 
     /**
@@ -70,6 +115,8 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
     {
         /** @var list<GenealogicalEvent> $events */
         $events = $this->createQueryBuilder('event')
+            ->addSelect('place')
+            ->leftJoin('event.place', 'place')
             ->andWhere('event.person = :person')
             ->setParameter('person', $person)
             ->orderBy('event.createdAt', 'ASC')
@@ -81,16 +128,16 @@ final class GenealogicalEventRepository extends ServiceEntityRepository
     }
 
     /** @return list<GenealogicalEvent> */
-    public function findManualForTree(FamilyTree $tree): array
+    public function findAllForTree(FamilyTree $tree): array
     {
         /** @var list<GenealogicalEvent> $events */
         $events = $this->createQueryBuilder('event')
             ->addSelect('person')
+            ->addSelect('place')
             ->join('event.person', 'person')
+            ->leftJoin('event.place', 'place')
             ->andWhere('person.tree = :tree')
-            ->andWhere('event.source = :source')
             ->setParameter('tree', $tree)
-            ->setParameter('source', EventSource::MANUAL)
             ->orderBy('person.createdAt', 'ASC')
             ->addOrderBy('event.createdAt', 'ASC')
             ->addOrderBy('event.id', 'ASC')

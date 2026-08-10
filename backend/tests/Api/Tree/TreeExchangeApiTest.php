@@ -5,6 +5,13 @@ namespace App\Tests\Api\Tree;
 use App\Tests\Api\ApiWebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
+/**
+ * @phpstan-type ExchangePlace array{name: string, coordinates: array{latitude: float, longitude: float}|null}
+ * @phpstan-type ExchangePerson array{id: string, givenName: array{state: string, value?: string}, birthPlace: ExchangePlace|null}
+ * @phpstan-type ExchangeMarriage array{marriagePlace: ExchangePlace|null, dissolutionPlace: ExchangePlace|null}
+ * @phpstan-type ExchangeSnapshot array{people: list<ExchangePerson>, marriages: list<ExchangeMarriage>}
+ * @phpstan-type ExchangeEvent array{type: string, date: array<string, mixed>, place: ExchangePlace|null}
+ */
 final class TreeExchangeApiTest extends ApiWebTestCase
 {
     private const string GEDCOM = <<<'GEDCOM'
@@ -143,6 +150,136 @@ GEDCOM;
         self::assertStringNotContainsString('_MGT_UNMARRIED', $export);
     }
 
+    public function testRoundTripsResolvedAndTextOnlyPlacesAndResidence(): void
+    {
+        $gedcom = <<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Petrova/
+1 SEX F
+1 BIRT
+2 DATE 1905
+2 PLAC Novosibirsk
+3 MAP
+4 LATI N55.0302
+4 LONG E82.9204
+1 RESI
+2 PLAC Tomsk
+0 @I2@ INDI
+1 NAME Ivan /Petrov/
+1 SEX M
+1 BIRT
+2 DATE 1900
+2 PLAC Old village
+0 @F1@ FAM
+1 HUSB @I2@
+1 WIFE @I1@
+1 MARR
+2 DATE 1929
+2 PLAC Moscow
+3 MAP
+4 LATI N55.7558
+4 LONG E37.6173
+1 DIV
+2 DATE 1940
+2 PLAC Unknown court
+3 MAP
+4 LATI N55.7
+0 TRLR
+GEDCOM;
+        $token = $this->register('place_exchange', 'place_exchange@example.test');
+
+        $this->multipart('/api/v1/tree-imports/inspect', $token, $gedcom);
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            ['code' => 'place_coordinates_invalid', 'count' => 1],
+        ], $this->responseData()['warnings']);
+
+        $this->multipart('/api/v1/tree-imports', $token, $gedcom, 'Places');
+        self::assertResponseStatusCodeSame(201);
+        $treeId = $this->responseString('id');
+        $snapshot = $this->snapshot($token, $treeId);
+        self::assertCount(2, $snapshot['people']);
+        self::assertCount(1, $snapshot['marriages']);
+
+        $anna = null;
+        $ivan = null;
+        foreach ($snapshot['people'] as $person) {
+            if ('Anna' === ($person['givenName']['value'] ?? null)) {
+                $anna = $person;
+            }
+            if ('Ivan' === ($person['givenName']['value'] ?? null)) {
+                $ivan = $person;
+            }
+        }
+        self::assertIsArray($anna);
+        self::assertIsArray($ivan);
+        self::assertIsArray($anna['birthPlace']);
+        self::assertIsArray($anna['birthPlace']['coordinates']);
+        self::assertIsArray($ivan['birthPlace']);
+        self::assertSame('Novosibirsk', $anna['birthPlace']['name']);
+        self::assertSame(55.0302, $anna['birthPlace']['coordinates']['latitude']);
+        self::assertSame('Old village', $ivan['birthPlace']['name']);
+        self::assertNull($ivan['birthPlace']['coordinates']);
+
+        $marriage = $snapshot['marriages'][0];
+        self::assertIsArray($marriage['marriagePlace']);
+        self::assertIsArray($marriage['marriagePlace']['coordinates']);
+        self::assertIsArray($marriage['dissolutionPlace']);
+        self::assertSame('Moscow', $marriage['marriagePlace']['name']);
+        self::assertSame(37.6173, $marriage['marriagePlace']['coordinates']['longitude']);
+        self::assertSame('Unknown court', $marriage['dissolutionPlace']['name']);
+        self::assertNull($marriage['dissolutionPlace']['coordinates']);
+
+        $this->jsonRequest(
+            'GET',
+            sprintf('/api/v1/trees/%s/people/%s/events', $treeId, $anna['id']),
+            headers: ['Authorization' => 'Bearer ' . $token],
+        );
+        self::assertResponseIsSuccessful();
+        $residence = null;
+        $eventResponse = $this->responseData();
+        self::assertIsArray($eventResponse['items']);
+        foreach ($eventResponse['items'] as $event) {
+            if (is_array($event) && 'residence' === ($event['type'] ?? null)) {
+                /** @var ExchangeEvent $event */
+                $residence = $event;
+            }
+        }
+        self::assertIsArray($residence);
+        self::assertIsArray($residence['place']);
+        self::assertSame(['state' => 'unknown'], $residence['date']);
+        self::assertSame('Tomsk', $residence['place']['name']);
+        self::assertNull($residence['place']['coordinates']);
+
+        $this->jsonRequest('POST', '/api/v1/trees/' . $treeId . '/exports', [
+            'format'   => 'gedcom-5.5.1',
+            'fileName' => 'Places',
+        ], ['Authorization' => 'Bearer ' . $token]);
+        self::assertResponseIsSuccessful();
+        $export = $this->client->getResponse()->getContent();
+        self::assertIsString($export);
+        self::assertStringContainsString("2 PLAC Novosibirsk\r\n3 MAP\r\n4 LATI N55.0302\r\n4 LONG E82.9204\r\n", $export);
+        self::assertStringContainsString("1 RESI\r\n2 PLAC Tomsk\r\n", $export);
+        self::assertStringContainsString("2 PLAC Old village\r\n", $export);
+        self::assertStringNotContainsString("2 PLAC Old village\r\n3 MAP", $export);
+        self::assertStringContainsString("2 PLAC Unknown court\r\n", $export);
+        self::assertStringNotContainsString("2 PLAC Unknown court\r\n3 MAP", $export);
+
+        $this->multipart('/api/v1/tree-imports', $token, $export, 'Places round trip');
+        self::assertResponseStatusCodeSame(201);
+        $roundTrip = $this->snapshot($token, $this->responseString('id'));
+        self::assertCount(2, $roundTrip['people']);
+        self::assertCount(1, $roundTrip['marriages']);
+        self::assertIsArray($roundTrip['marriages'][0]['marriagePlace']);
+        self::assertIsArray($roundTrip['marriages'][0]['dissolutionPlace']);
+        self::assertSame('Moscow', $roundTrip['marriages'][0]['marriagePlace']['name']);
+        self::assertNull($roundTrip['marriages'][0]['dissolutionPlace']['coordinates']);
+    }
+
     public function testImportRequiresAuthenticationAndExportHidesForeignTree(): void
     {
         $this->multipart('/api/v1/tree-imports/inspect', '', self::GEDCOM);
@@ -190,6 +327,22 @@ GEDCOM;
         self::assertResponseStatusCodeSame(201);
 
         return $this->responseString('accessToken');
+    }
+
+    /** @return ExchangeSnapshot */
+    private function snapshot(string $token, string $treeId): array
+    {
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $treeId . '/snapshot',
+            headers: ['Authorization' => 'Bearer ' . $token],
+        );
+        self::assertResponseIsSuccessful();
+
+        /** @var ExchangeSnapshot $snapshot */
+        $snapshot = $this->responseData();
+
+        return $snapshot;
     }
 
     private function multipart(string $path, string $token, string $contents, ?string $name = null): void

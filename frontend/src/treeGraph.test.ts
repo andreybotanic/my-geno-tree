@@ -16,6 +16,8 @@ const person = (id: string): Person => ({
   gender: 'unknown',
   birthDate: { state: 'unknown' },
   deathDate: null,
+  birthPlace: null,
+  deathPlace: null,
   photoThumbnailUrl: null,
   createdAt,
   updatedAt: createdAt,
@@ -29,6 +31,8 @@ const marriage = (id: string, first: string, second: string): MarriagePeriod => 
   femalePersonId: second,
   marriageDate: { state: 'unknown' },
   dissolutionDate: null,
+  marriagePlace: null,
+  dissolutionPlace: null,
   createdAt,
   updatedAt: createdAt,
 })

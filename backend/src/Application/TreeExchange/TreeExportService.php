@@ -32,7 +32,7 @@ final readonly class TreeExportService
             $this->people->findAllForTree($tree),
             $this->parentLinks->findAllForTree($tree),
             $this->marriages->findAllForTree($tree),
-            $this->events->findManualForTree($tree),
+            $this->events->findAllForTree($tree),
         );
 
         return new TreeExport($contents, $fileName);

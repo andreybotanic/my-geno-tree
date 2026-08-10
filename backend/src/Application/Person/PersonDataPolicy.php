@@ -3,6 +3,8 @@
 namespace App\Application\Person;
 
 use App\Api\ApiException;
+use App\Application\Event\EventPlaceData;
+use App\Application\Event\EventPlaceDataPolicy;
 use App\Entity\Person;
 use App\Entity\Value\DatePrecision;
 use App\Entity\Value\Gender;
@@ -21,10 +23,29 @@ final readonly class PersonDataPolicy
         'deathDate',
     ];
 
+    public function __construct(private EventPlaceDataPolicy $places)
+    {
+    }
+
     public function create(mixed $value): PersonData
     {
         $payload = $this->object($value, 'person');
-        $this->assertExactKeys($payload, self::PERSON_FIELDS, 'person');
+        $this->assertAllowedKeys(
+            $payload,
+            [...self::PERSON_FIELDS, 'birthPlace', 'deathPlace'],
+            'person',
+        );
+        foreach (self::PERSON_FIELDS as $field) {
+            if (!array_key_exists($field, $payload)) {
+                $this->fail('person.' . $field, 'field_required');
+            }
+        }
+
+        $deathDate = $this->optionalDate($payload['deathDate'], 'deathDate');
+        $deathPlace = $this->optionalPlace($payload['deathPlace'] ?? null, 'deathPlace');
+        if (null === $deathDate && null !== $deathPlace) {
+            $this->fail('deathPlace', 'death_place_requires_death');
+        }
 
         return $this->build(
             $this->knownText($payload['birthSurname'], 'birthSurname'),
@@ -32,7 +53,9 @@ final readonly class PersonDataPolicy
             $this->knownText($payload['patronymic'], 'patronymic'),
             $this->gender($payload['gender']),
             $this->date($payload['birthDate'], 'birthDate'),
-            $this->optionalDate($payload['deathDate'], 'deathDate'),
+            $deathDate,
+            $this->optionalPlace($payload['birthPlace'] ?? null, 'birthPlace'),
+            $deathPlace,
         );
     }
 
@@ -94,6 +117,8 @@ final readonly class PersonDataPolicy
         Gender $gender,
         GenealogicalDate $birthDate,
         ?GenealogicalDate $deathDate,
+        ?EventPlaceData $birthPlace = null,
+        ?EventPlaceData $deathPlace = null,
     ): PersonData {
         if (null !== $deathDate) {
             $birthEarliest = $birthDate->earliest();
@@ -114,7 +139,14 @@ final readonly class PersonDataPolicy
             $gender,
             $birthDate,
             $deathDate,
+            $birthPlace,
+            $deathPlace,
         );
+    }
+
+    private function optionalPlace(mixed $value, string $field): ?EventPlaceData
+    {
+        return null === $value ? null : $this->places->resolved($value, $field);
     }
 
     private function knownText(mixed $value, string $field): KnownText

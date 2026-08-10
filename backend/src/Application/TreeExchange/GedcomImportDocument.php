@@ -14,12 +14,15 @@ final readonly class GedcomImportDocument
      *     givenName: string|null,
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
+     *     birthPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     deathDate: GenealogicalDate|null,
+     *     deathPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     events: list<array{
      *         date: GenealogicalDate,
      *         gedcomTag: string,
      *         title: string|null,
-     *         description: string|null
+     *         description: string|null,
+     *         place: array{name: string, latitude: float|null, longitude: float|null}|null
      *     }>
      * }> $people
      * @param list<array{
@@ -27,7 +30,9 @@ final readonly class GedcomImportDocument
      *     wife: string|null,
      *     children: list<string>,
      *     marriageDate: GenealogicalDate,
+     *     marriagePlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     dissolutionDate: GenealogicalDate|null,
+     *     dissolutionPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     unmarried: bool
      * }> $families
      * @param array<string, int> $warnings

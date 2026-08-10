@@ -152,12 +152,15 @@ final class Gedcom55Parser
      *     givenName: string|null,
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
+     *     birthPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     deathDate: GenealogicalDate|null,
+     *     deathPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     events: list<array{
      *         date: GenealogicalDate,
      *         gedcomTag: string,
      *         title: string|null,
-     *         description: string|null
+     *         description: string|null,
+     *         place: array{name: string, latitude: float|null, longitude: float|null}|null
      *     }>
      * }, array<string, string>}
      */
@@ -207,8 +210,9 @@ final class Gedcom55Parser
                     'description' => null === ($text = $this->text($description, 5000))
                         ? null
                         : $text,
+                    'place' => $this->place($event),
                 ];
-                $this->warnUnsupportedChildren($event, ['DATE', 'TYPE', 'NOTE']);
+                $this->warnUnsupportedChildren($event, ['DATE', 'TYPE', 'NOTE', 'PLAC']);
             }
         }
         /** @var array<string, string> $personPedigrees */
@@ -226,10 +230,10 @@ final class Gedcom55Parser
             $this->warnUnsupportedChildren($name, ['GIVN', 'SURN']);
         }
         if (null !== $birth) {
-            $this->warnUnsupportedChildren($birth, ['DATE']);
+            $this->warnUnsupportedChildren($birth, ['DATE', 'PLAC']);
         }
         if (null !== $death) {
-            $this->warnUnsupportedChildren($death, ['DATE']);
+            $this->warnUnsupportedChildren($death, ['DATE', 'PLAC']);
         }
 
         return [[
@@ -238,10 +242,12 @@ final class Gedcom55Parser
             'givenName'    => $givenName,
             'gender'       => $gender,
             'birthDate'    => $this->date($birth?->child('DATE')?->value),
+            'birthPlace'   => null === $birth ? null : $this->place($birth),
             'deathDate'    => null === $death
                 ? null
                 : $this->date($death->child('DATE')?->value),
-            'events' => $events,
+            'deathPlace' => null === $death ? null : $this->place($death),
+            'events'     => $events,
         ], $personPedigrees];
     }
 
@@ -253,7 +259,9 @@ final class Gedcom55Parser
      *     wife: string|null,
      *     children: list<string>,
      *     marriageDate: GenealogicalDate,
+     *     marriagePlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     dissolutionDate: GenealogicalDate|null,
+     *     dissolutionPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     unmarried: bool
      * }
      */
@@ -276,10 +284,10 @@ final class Gedcom55Parser
             'HUSB', 'WIFE', 'CHIL', 'MARR', 'DIV', '_MGT_UNMARRIED',
         ]);
         if (null !== $marriage) {
-            $this->warnUnsupportedChildren($marriage, ['DATE']);
+            $this->warnUnsupportedChildren($marriage, ['DATE', 'PLAC']);
         }
         if (null !== $divorce) {
-            $this->warnUnsupportedChildren($divorce, ['DATE']);
+            $this->warnUnsupportedChildren($divorce, ['DATE', 'PLAC']);
         }
 
         return [
@@ -287,11 +295,72 @@ final class Gedcom55Parser
             'wife'            => $wife,
             'children'        => array_values(array_unique($children)),
             'marriageDate'    => $this->date($marriage?->child('DATE')?->value),
+            'marriagePlace'   => null === $marriage ? null : $this->place($marriage),
             'dissolutionDate' => null === $divorce
                 ? null
                 : $this->date($divorce->child('DATE')?->value),
-            'unmarried' => null !== $node->child('_MGT_UNMARRIED'),
+            'dissolutionPlace' => null === $divorce ? null : $this->place($divorce),
+            'unmarried'        => null !== $node->child('_MGT_UNMARRIED'),
         ];
+    }
+
+    /** @return array{name: string, latitude: float|null, longitude: float|null}|null */
+    private function place(GedcomNode $event): ?array
+    {
+        $placeNode = $event->child('PLAC');
+        if (null === $placeNode) {
+            return null;
+        }
+        $name = $this->text($this->continued($placeNode), 500);
+        if (null === $name) {
+            $this->warning('place_name_invalid');
+
+            return null;
+        }
+        $map = $placeNode->child('MAP');
+        $this->warnUnsupportedChildren($placeNode, ['MAP']);
+        if (null === $map) {
+            return ['name' => $name, 'latitude' => null, 'longitude' => null];
+        }
+        $this->warnUnsupportedChildren($map, ['LATI', 'LONG']);
+        $latitude = $this->coordinate($map->child('LATI')?->value, true);
+        $longitude = $this->coordinate($map->child('LONG')?->value, false);
+        if (null === $latitude || null === $longitude) {
+            $this->warning('place_coordinates_invalid');
+
+            return ['name' => $name, 'latitude' => null, 'longitude' => null];
+        }
+
+        return ['name' => $name, 'latitude' => $latitude, 'longitude' => $longitude];
+    }
+
+    private function coordinate(?string $value, bool $latitude): ?float
+    {
+        if (null === $value) {
+            return null;
+        }
+        $normalized = strtoupper(trim($value));
+        if (!preg_match('/^([NSEW])\s*([0-9]+(?:\.[0-9]+)?)$/', $normalized, $matches)
+            && !preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*([NSEW])$/', $normalized, $suffix)
+        ) {
+            return null;
+        }
+        if (isset($suffix[1])) {
+            $direction = $suffix[2];
+            $magnitude = (float)$suffix[1];
+        } else {
+            $direction = $matches[1];
+            $magnitude = (float)$matches[2];
+        }
+        if ($latitude ? !in_array($direction, ['N', 'S'], true) : !in_array($direction, ['E', 'W'], true)) {
+            return null;
+        }
+        $maximum = $latitude ? 90 : 180;
+        if ($magnitude > $maximum) {
+            return null;
+        }
+
+        return in_array($direction, ['S', 'W'], true) ? -$magnitude : $magnitude;
     }
 
     /**
@@ -301,12 +370,15 @@ final class Gedcom55Parser
      *     givenName: string|null,
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
+     *     birthPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     deathDate: GenealogicalDate|null,
+     *     deathPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     events: list<array{
      *         date: GenealogicalDate,
      *         gedcomTag: string,
      *         title: string|null,
-     *         description: string|null
+     *         description: string|null,
+     *         place: array{name: string, latitude: float|null, longitude: float|null}|null
      *     }>
      * }> $people
      * @param list<array{
@@ -314,7 +386,9 @@ final class Gedcom55Parser
      *     wife: string|null,
      *     children: list<string>,
      *     marriageDate: GenealogicalDate,
+     *     marriagePlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     dissolutionDate: GenealogicalDate|null,
+     *     dissolutionPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     unmarried: bool
      * }> $families
      *
@@ -324,19 +398,24 @@ final class Gedcom55Parser
      *     givenName: string|null,
      *     gender: Gender,
      *     birthDate: GenealogicalDate,
+     *     birthPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     deathDate: GenealogicalDate|null,
+     *     deathPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     events: list<array{
      *         date: GenealogicalDate,
      *         gedcomTag: string,
      *         title: string|null,
-     *         description: string|null
+     *         description: string|null,
+     *         place: array{name: string, latitude: float|null, longitude: float|null}|null
      *     }>
      * }>, list<array{
      *     husband: string|null,
      *     wife: string|null,
      *     children: list<string>,
      *     marriageDate: GenealogicalDate,
+     *     marriagePlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     dissolutionDate: GenealogicalDate|null,
+     *     dissolutionPlace: array{name: string, latitude: float|null, longitude: float|null}|null,
      *     unmarried: bool
      * }>}
      */

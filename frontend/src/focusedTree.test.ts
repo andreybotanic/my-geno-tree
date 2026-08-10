@@ -11,6 +11,8 @@ const person = (id: string): Person => ({
   gender: 'unknown',
   birthDate: { state: 'unknown' },
   deathDate: null,
+  birthPlace: null,
+  deathPlace: null,
   photoThumbnailUrl: null,
   createdAt: at,
   updatedAt: at,
@@ -27,6 +29,8 @@ const married = (first: string, second: string, dissolved = false): MarriagePeri
   femalePersonId: second,
   marriageDate: { state: 'unknown' },
   dissolutionDate: dissolved ? { state: 'unknown' } : null,
+  marriagePlace: null,
+  dissolutionPlace: null,
   createdAt: at,
   updatedAt: at,
 })

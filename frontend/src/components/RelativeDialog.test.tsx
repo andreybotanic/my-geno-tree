@@ -21,6 +21,8 @@ function person(
     gender,
     birthDate: { state: 'unknown' },
     deathDate: null,
+    birthPlace: null,
+    deathPlace: null,
     photoThumbnailUrl: null,
     createdAt,
     updatedAt: createdAt,

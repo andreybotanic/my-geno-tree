@@ -24,10 +24,12 @@ final class PersonRepository extends ServiceEntityRepository
     {
         /** @var list<Person> $people */
         $people = $this->createQueryBuilder('person')
-            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant')
+            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
             ->leftJoin('photoMedia.variants', 'photoVariant')
+            ->leftJoin('person.birthPlace', 'birthPlace')
+            ->leftJoin('person.deathPlace', 'deathPlace')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('person.createdAt', 'ASC')
@@ -42,10 +44,12 @@ final class PersonRepository extends ServiceEntityRepository
     {
         /** @var Person|null $person */
         $person = $this->createQueryBuilder('person')
-            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant')
+            ->addSelect('photoAttachment', 'photoMedia', 'photoVariant', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
             ->leftJoin('photoMedia.variants', 'photoVariant')
+            ->leftJoin('person.birthPlace', 'birthPlace')
+            ->leftJoin('person.deathPlace', 'deathPlace')
             ->andWhere('person.tree = :tree')
             ->andWhere('person.id = :id')
             ->setParameter('tree', $tree)

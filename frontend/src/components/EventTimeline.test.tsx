@@ -16,6 +16,7 @@ const automatic: GenealogicalEvent = {
     year: 1900,
     approximate: false,
   },
+  place: null,
   title: null,
   description: null,
   data: {},

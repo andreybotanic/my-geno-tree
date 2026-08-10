@@ -25,9 +25,11 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     {
         /** @var list<MarriagePeriod> $marriages */
         $marriages = $this->createQueryBuilder('marriage')
-            ->addSelect('male', 'female')
+            ->addSelect('male', 'female', 'marriagePlace', 'dissolutionPlace')
             ->join('marriage.malePerson', 'male')
             ->join('marriage.femalePerson', 'female')
+            ->leftJoin('marriage.marriagePlace', 'marriagePlace')
+            ->leftJoin('marriage.dissolutionPlace', 'dissolutionPlace')
             ->andWhere('marriage.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('marriage.createdAt', 'ASC')
@@ -42,7 +44,19 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
         FamilyTree $tree,
         string $id,
     ): ?MarriagePeriod {
-        return $this->findOneBy(['tree' => $tree, 'id' => $id]);
+        /** @var MarriagePeriod|null $marriage */
+        $marriage = $this->createQueryBuilder('marriage')
+            ->addSelect('marriagePlace', 'dissolutionPlace')
+            ->leftJoin('marriage.marriagePlace', 'marriagePlace')
+            ->leftJoin('marriage.dissolutionPlace', 'dissolutionPlace')
+            ->andWhere('marriage.tree = :tree')
+            ->andWhere('marriage.id = :id')
+            ->setParameter('tree', $tree)
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $marriage;
     }
 
     /**

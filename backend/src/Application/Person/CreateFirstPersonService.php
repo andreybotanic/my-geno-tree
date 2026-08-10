@@ -5,6 +5,7 @@ namespace App\Application\Person;
 use App\Api\ApiException;
 use App\Application\Event\AutomaticEventSynchronizer;
 use App\Application\Tree\TreeVersion;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
 use App\Repository\PersonRepository;
@@ -60,6 +61,24 @@ final readonly class CreateFirstPersonService
                 $changedAt,
             );
             $this->entityManager->persist($person);
+            if (null !== $personData->birthPlace) {
+                $place = EventPlace::resolved(
+                    $personData->birthPlace->name,
+                    $personData->birthPlace->latitude,
+                    $personData->birthPlace->longitude,
+                );
+                $this->entityManager->persist($place);
+                $person->changeBirthPlace($place, $changedAt);
+            }
+            if (null !== $personData->deathPlace) {
+                $place = EventPlace::resolved(
+                    $personData->deathPlace->name,
+                    $personData->deathPlace->latitude,
+                    $personData->deathPlace->longitude,
+                );
+                $this->entityManager->persist($place);
+                $person->changeDeathPlace($place, $changedAt);
+            }
             $this->events->synchronizePersonLifecycle($person, $changedAt);
             $tree->referencePerson($person);
             $tree->touch($changedAt);

@@ -10,5 +10,6 @@ enum EventType: string
     case DEATH = 'death';
     case DIVORCE = 'divorce';
     case MARRIAGE = 'marriage';
+    case RESIDENCE = 'residence';
     case SURNAME_CHANGE = 'surname_change';
 }

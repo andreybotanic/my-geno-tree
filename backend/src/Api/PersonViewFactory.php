@@ -9,6 +9,7 @@ final readonly class PersonViewFactory
     public function __construct(
         private KnownTextViewFactory $texts,
         private GenealogicalDateViewFactory $dates,
+        private EventPlaceViewFactory $places,
     ) {
     }
 
@@ -29,6 +30,12 @@ final readonly class PersonViewFactory
             'deathDate'  => null === $person->getDeathDate()
                 ? null
                 : $this->dates->create($person->getDeathDate()),
+            'birthPlace' => null === $person->getBirthPlace()
+                ? null
+                : $this->places->create($person->getBirthPlace()),
+            'deathPlace' => null === $person->getDeathPlace()
+                ? null
+                : $this->places->create($person->getDeathPlace()),
             'photoThumbnailUrl' => null === $person->getPhotoAttachment()
                 ? null
                 : sprintf(

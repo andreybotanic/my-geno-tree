@@ -59,8 +59,55 @@ GEDCOM);
 
         self::assertFalse($document->people[0]['birthDate']->isKnown());
         self::assertSame(1, $document->warnings['unsupported_date']);
-        self::assertSame(1, $document->warnings['unsupported_place']);
+        self::assertSame([
+            'name'      => 'Somewhere',
+            'latitude'  => null,
+            'longitude' => null,
+        ], $document->people[0]['birthPlace']);
         self::assertSame(1, $document->warnings['unsupported_source']);
+    }
+
+    public function testParsesResolvedAndUnresolvedPlacesAndResidence(): void
+    {
+        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Petrova/
+1 BIRT
+2 PLAC Novosibirsk
+3 MAP
+4 LATI N55.0302
+4 LONG 82.9204E
+1 RESI
+2 PLAC Tomsk
+1 EVEN
+2 TYPE Journey
+2 PLAC Broken coordinates
+3 MAP
+4 LATI N56.5
+0 TRLR
+GEDCOM);
+
+        self::assertSame([
+            'name'      => 'Novosibirsk',
+            'latitude'  => 55.0302,
+            'longitude' => 82.9204,
+        ], $document->people[0]['birthPlace']);
+        self::assertSame('RESI', $document->people[0]['events'][0]['gedcomTag']);
+        self::assertSame([
+            'name'      => 'Tomsk',
+            'latitude'  => null,
+            'longitude' => null,
+        ], $document->people[0]['events'][0]['place']);
+        self::assertSame([
+            'name'      => 'Broken coordinates',
+            'latitude'  => null,
+            'longitude' => null,
+        ], $document->people[0]['events'][1]['place']);
+        self::assertSame(1, $document->warnings['place_coordinates_invalid']);
     }
 
     public function testAllowsBurialAfterDeath(): void

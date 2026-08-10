@@ -4,6 +4,7 @@ namespace App\Application\TreeExchange;
 
 use App\Api\ApiException;
 use App\Application\Tree\TreeNamePolicy;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\GenealogicalEvent;
 use App\Entity\MarriagePeriod;
@@ -27,6 +28,7 @@ final readonly class TreeImportService
 
     public function __construct(
         private Gedcom55Parser $parser,
+        private GedcomEventPlaceFactory $places,
         private TreeNamePolicy $names,
         private FamilyTreeRepository $trees,
         private EntityManagerInterface $entityManager,
@@ -70,11 +72,20 @@ final readonly class TreeImportService
                     );
                     $people[$data['id']] = $person;
                     $this->entityManager->persist($person);
+                    $birthPlace = $this->importedPlace($data['birthPlace']);
+                    if (null !== $birthPlace) {
+                        $person->changeBirthPlace($birthPlace, $createdAt);
+                    }
+                    $deathPlace = $this->importedPlace($data['deathPlace']);
+                    if (null !== $deathPlace) {
+                        $person->changeDeathPlace($deathPlace, $createdAt);
+                    }
                     $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
                         $person,
                         EventType::BIRTH,
                         $data['birthDate'],
                         $createdAt,
+                        $birthPlace,
                     ));
                     if (null !== $data['deathDate']) {
                         $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
@@ -82,21 +93,27 @@ final readonly class TreeImportService
                             EventType::DEATH,
                             $data['deathDate'],
                             $createdAt,
+                            $deathPlace,
                         ));
                     }
                     foreach ($data['events'] as $event) {
                         $this->entityManager->persist(GenealogicalEvent::manual(
                             $person,
-                            EventType::CUSTOM,
+                            'RESI' === $event['gedcomTag']
+                                ? EventType::RESIDENCE
+                                : EventType::CUSTOM,
                             $event['date'],
-                            $this->eventTitle(
-                                $event['gedcomTag'],
-                                $event['title'],
-                                $owner->getPreferredLanguage(),
-                            ),
+                            'RESI' === $event['gedcomTag']
+                                ? null
+                                : $this->eventTitle(
+                                    $event['gedcomTag'],
+                                    $event['title'],
+                                    $owner->getPreferredLanguage(),
+                                ),
                             $event['description'],
-                            [],
+                            ['gedcomTag' => $event['gedcomTag']],
                             $createdAt,
+                            $this->importedPlace($event['place']),
                         ));
                     }
                 }
@@ -118,6 +135,7 @@ final readonly class TreeImportService
                                 $link->getId(),
                                 ['childId' => $people[$childId]->getId()->toRfc4122()],
                                 $createdAt,
+                                $people[$childId]->getBirthPlace(),
                             ));
                         }
                     }
@@ -135,6 +153,14 @@ final readonly class TreeImportService
                         $createdAt,
                     );
                     $this->entityManager->persist($marriage);
+                    $marriagePlace = $this->importedPlace($family['marriagePlace']);
+                    if (null !== $marriagePlace) {
+                        $marriage->changeMarriagePlace($marriagePlace, $createdAt);
+                    }
+                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace']);
+                    if (null !== $dissolutionPlace) {
+                        $marriage->changeDissolutionPlace($dissolutionPlace, $createdAt);
+                    }
                     foreach ([[$male, $female], [$female, $male]] as [$person, $partner]) {
                         $data = ['partnerId' => $partner->getId()->toRfc4122()];
                         $this->entityManager->persist(GenealogicalEvent::automaticRelated(
@@ -145,6 +171,7 @@ final readonly class TreeImportService
                             $marriage->getId(),
                             $data,
                             $createdAt,
+                            $marriagePlace,
                         ));
                         if (null !== $family['dissolutionDate']) {
                             $this->entityManager->persist(GenealogicalEvent::automaticRelated(
@@ -155,6 +182,7 @@ final readonly class TreeImportService
                                 $marriage->getId(),
                                 $data,
                                 $createdAt,
+                                $dissolutionPlace,
                             ));
                         }
                     }
@@ -192,6 +220,21 @@ final readonly class TreeImportService
     private function knownText(?string $value): KnownText
     {
         return null === $value ? KnownText::unknown() : KnownText::known($value);
+    }
+
+    /** @param array{name: string, latitude: float|null, longitude: float|null}|null $data */
+    private function importedPlace(?array $data): ?EventPlace
+    {
+        if (null === $data) {
+            return null;
+        }
+        $place = $this->places->create($data);
+        if (null === $place) {
+            return null;
+        }
+        $this->entityManager->persist($place);
+
+        return $place;
     }
 
     private function eventTitle(

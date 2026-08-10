@@ -40,6 +40,7 @@ const event = (id: string, eventDate: GenealogicalDate): GenealogicalEvent => ({
   type: 'custom',
   source: 'manual',
   date: eventDate,
+  place: null,
   title: id,
   description: null,
   data: {},

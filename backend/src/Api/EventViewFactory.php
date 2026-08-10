@@ -8,6 +8,7 @@ final readonly class EventViewFactory
 {
     public function __construct(
         private GenealogicalDateViewFactory $dates,
+        private EventPlaceViewFactory $places,
     ) {
     }
 
@@ -19,11 +20,14 @@ final readonly class EventViewFactory
         $data = $event->getData();
 
         return [
-            'id'               => $event->getId()->toRfc4122(),
-            'personId'         => $event->getPerson()->getId()->toRfc4122(),
-            'type'             => $event->getType()->value,
-            'source'           => $event->getSource()->value,
-            'date'             => $this->dates->create($event->getDate()),
+            'id'       => $event->getId()->toRfc4122(),
+            'personId' => $event->getPerson()->getId()->toRfc4122(),
+            'type'     => $event->getType()->value,
+            'source'   => $event->getSource()->value,
+            'date'     => $this->dates->create($event->getDate()),
+            'place'    => null === $event->getPlace()
+                ? null
+                : $this->places->create($event->getPlace()),
             'title'            => $event->getTitle(),
             'description'      => $event->getDescription(),
             'data'             => [] === $data ? new \stdClass() : $data,

@@ -947,6 +947,60 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/events/{eventId}/place:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+      - $ref: "#/components/parameters/EventId"
+    put:
+      operationId: putEventPlace
+      summary: Create or resolve the place of any event
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolvedEventPlace"
+      responses:
+        "200":
+          description: Event place saved and related automatic projections synchronized
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventMutationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deleteEventPlace
+      summary: Remove the place from an event and related automatic projections
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Event place removed
+          headers:
+            ETag:
+              $ref: "#/components/headers/TreeEtag"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
 components:
   securitySchemes:
     bearerAuth:
@@ -1456,6 +1510,43 @@ components:
           items:
             type: string
             format: uuid
+    GeoCoordinates:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+    ResolvedEventPlace:
+      type: object
+      additionalProperties: false
+      required: [name, coordinates]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+        coordinates:
+          $ref: "#/components/schemas/GeoCoordinates"
+    EventPlace:
+      type: object
+      additionalProperties: false
+      required: [name, coordinates]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+        coordinates:
+          oneOf:
+            - $ref: "#/components/schemas/GeoCoordinates"
+            - type: "null"
     PersonInput:
       type: object
       additionalProperties: false
@@ -1481,6 +1572,14 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GenealogicalDate"
             - type: "null"
+        birthPlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
+        deathPlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
     PersonPatchRequest:
       type: object
       additionalProperties: false
@@ -1501,30 +1600,58 @@ components:
             - $ref: "#/components/schemas/GenealogicalDate"
             - type: "null"
     Person:
-      unevaluatedProperties: false
-      allOf:
-        - $ref: "#/components/schemas/PersonInput"
-        - type: object
-          required:
-            - id
-            - photoThumbnailUrl
-            - createdAt
-            - updatedAt
-          properties:
-            id:
-              type: string
-              format: uuid
-            photoThumbnailUrl:
-              type:
-                - string
-                - "null"
-              format: uri-reference
-            createdAt:
-              type: string
-              format: date-time
-            updatedAt:
-              type: string
-              format: date-time
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - birthSurname
+        - givenName
+        - patronymic
+        - gender
+        - birthDate
+        - deathDate
+        - birthPlace
+        - deathPlace
+        - photoThumbnailUrl
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        birthSurname:
+          $ref: "#/components/schemas/KnownText"
+        givenName:
+          $ref: "#/components/schemas/KnownText"
+        patronymic:
+          $ref: "#/components/schemas/KnownText"
+        gender:
+          $ref: "#/components/schemas/Gender"
+        birthDate:
+          $ref: "#/components/schemas/GenealogicalDate"
+        deathDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+        birthPlace:
+          oneOf:
+            - $ref: "#/components/schemas/EventPlace"
+            - type: "null"
+        deathPlace:
+          oneOf:
+            - $ref: "#/components/schemas/EventPlace"
+            - type: "null"
+        photoThumbnailUrl:
+          type:
+            - string
+            - "null"
+          format: uri-reference
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     PersonUpdateResult:
       type: object
       additionalProperties: false
@@ -1684,6 +1811,8 @@ components:
         - femalePersonId
         - marriageDate
         - dissolutionDate
+        - marriagePlace
+        - dissolutionPlace
         - createdAt
         - updatedAt
       properties:
@@ -1701,6 +1830,14 @@ components:
         dissolutionDate:
           oneOf:
             - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
+        marriagePlace:
+          oneOf:
+            - $ref: "#/components/schemas/EventPlace"
+            - type: "null"
+        dissolutionPlace:
+          oneOf:
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
         createdAt:
           type: string
@@ -1842,6 +1979,14 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GenealogicalDate"
             - type: "null"
+        marriagePlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
+        dissolutionPlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
         maleNewSurname:
           type:
             - string
@@ -1950,6 +2095,14 @@ components:
             - "null"
           minLength: 1
           maxLength: 100
+        marriagePlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
+        dissolutionPlace:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
     RemoveParentLinkMutation:
       type: object
       additionalProperties: false
@@ -1998,6 +2151,7 @@ components:
         - type
         - source
         - date
+        - place
         - title
         - description
         - data
@@ -2023,6 +2177,7 @@ components:
             - divorce
             - child_birth
             - custom
+            - residence
         source:
           type: string
           enum:
@@ -2030,6 +2185,10 @@ components:
             - manual
         date:
           $ref: "#/components/schemas/GenealogicalDate"
+        place:
+          oneOf:
+            - $ref: "#/components/schemas/EventPlace"
+            - type: "null"
         title:
           type:
             - string
@@ -2093,6 +2252,10 @@ components:
             - string
             - "null"
           maxLength: 5000
+        place:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
     SurnameChangeEventRequest:
       type: object
       additionalProperties: false
@@ -2110,10 +2273,37 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        place:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
+    ResidenceEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - date
+        - description
+      properties:
+        type:
+          type: string
+          const: residence
+        date:
+          $ref: "#/components/schemas/GenealogicalDate"
+        description:
+          type:
+            - string
+            - "null"
+          maxLength: 5000
+        place:
+          oneOf:
+            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - type: "null"
     ManualEventRequest:
       oneOf:
         - $ref: "#/components/schemas/CustomEventRequest"
         - $ref: "#/components/schemas/SurnameChangeEventRequest"
+        - $ref: "#/components/schemas/ResidenceEventRequest"
     EventMutationResult:
       type: object
       additionalProperties: false

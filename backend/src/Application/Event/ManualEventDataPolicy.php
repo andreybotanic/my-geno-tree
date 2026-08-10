@@ -14,6 +14,7 @@ final readonly class ManualEventDataPolicy
 {
     public function __construct(
         private PersonDataPolicy $personData,
+        private EventPlaceDataPolicy $places,
     ) {
     }
 
@@ -27,9 +28,10 @@ final readonly class ManualEventDataPolicy
         }
         $type = EventType::tryFrom($payload['type']);
         if (EventType::CUSTOM === $type) {
-            $this->assertExactKeys(
+            $this->assertKeys(
                 $payload,
                 ['type', 'date', 'title', 'description'],
+                ['place'],
             );
             $title = $this->requiredText(
                 $payload['title'],
@@ -39,9 +41,10 @@ final readonly class ManualEventDataPolicy
             $description = $this->description($payload['description']);
             $data = [];
         } elseif (EventType::SURNAME_CHANGE === $type) {
-            $this->assertExactKeys(
+            $this->assertKeys(
                 $payload,
                 ['type', 'date', 'newSurname'],
+                ['place'],
             );
             $title = null;
             $description = null;
@@ -52,6 +55,11 @@ final readonly class ManualEventDataPolicy
                     100,
                 ),
             ];
+        } elseif (EventType::RESIDENCE === $type) {
+            $this->assertKeys($payload, ['type', 'date', 'description'], ['place']);
+            $title = null;
+            $description = $this->description($payload['description']);
+            $data = [];
         } else {
             $this->invalid('type', 'manual_event_type_invalid');
         }
@@ -65,6 +73,10 @@ final readonly class ManualEventDataPolicy
             $title,
             $description,
             $data,
+            array_key_exists('place', $payload) && null !== $payload['place']
+                ? $this->places->resolved($payload['place'])
+                : null,
+            array_key_exists('place', $payload),
         );
     }
 
@@ -159,6 +171,25 @@ final readonly class ManualEventDataPolicy
         sort($expected);
         if ($actual !== $expected) {
             $this->invalid('event', 'event_fields_invalid');
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param list<string>         $required
+     * @param list<string>         $optional
+     */
+    private function assertKeys(array $payload, array $required, array $optional): void
+    {
+        foreach (array_keys($payload) as $key) {
+            if (!in_array($key, [...$required, ...$optional], true)) {
+                $this->invalid('event', 'event_fields_invalid');
+            }
+        }
+        foreach ($required as $key) {
+            if (!array_key_exists($key, $payload)) {
+                $this->invalid('event', 'event_fields_invalid');
+            }
         }
     }
 

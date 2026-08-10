@@ -34,6 +34,10 @@ class GenealogicalEvent
     #[ORM\Embedded(class: GenealogicalDate::class, columnPrefix: 'event_date_')]
     private GenealogicalDate $date;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?EventPlace $place;
+
     #[ORM\Column(length: 200, nullable: true)]
     private ?string $title;
 
@@ -67,6 +71,7 @@ class GenealogicalEvent
         EventType $type,
         EventSource $source,
         GenealogicalDate $date,
+        ?EventPlace $place,
         ?string $title,
         ?string $description,
         array $data,
@@ -80,6 +85,7 @@ class GenealogicalEvent
         $this->type = $type;
         $this->source = $source;
         $this->date = $date;
+        $this->place = $place;
         $this->title = $title;
         $this->description = $description;
         $this->data = $data;
@@ -95,12 +101,14 @@ class GenealogicalEvent
         EventType $type,
         GenealogicalDate $date,
         \DateTimeImmutable $createdAt,
+        ?EventPlace $place = null,
     ): self {
         return new self(
             $person,
             $type,
             EventSource::AUTOMATIC,
             $date,
+            $place,
             null,
             null,
             [],
@@ -122,12 +130,14 @@ class GenealogicalEvent
         Uuid $sourceEntityId,
         array $data,
         \DateTimeImmutable $createdAt,
+        ?EventPlace $place = null,
     ): self {
         return new self(
             $person,
             $type,
             EventSource::AUTOMATIC,
             $date,
+            $place,
             null,
             null,
             $data,
@@ -149,12 +159,14 @@ class GenealogicalEvent
         ?string $description,
         array $data,
         \DateTimeImmutable $createdAt,
+        ?EventPlace $place = null,
     ): self {
         return new self(
             $person,
             $type,
             EventSource::MANUAL,
             $date,
+            $place,
             $title,
             $description,
             $data,
@@ -188,6 +200,17 @@ class GenealogicalEvent
     public function getDate(): GenealogicalDate
     {
         return $this->date;
+    }
+
+    public function getPlace(): ?EventPlace
+    {
+        return $this->place;
+    }
+
+    public function changePlace(?EventPlace $place, \DateTimeImmutable $changedAt): void
+    {
+        $this->place = $place;
+        $this->updatedAt = $changedAt;
     }
 
     public function getTitle(): ?string

@@ -50,6 +50,12 @@ final class ParentLinkRepository extends ServiceEntityRepository
         return $this->findOneBy(['child' => $child, 'role' => $role]);
     }
 
+    /** @return list<ParentLink> */
+    public function findForChild(Person $child): array
+    {
+        return $this->findBy(['child' => $child]);
+    }
+
     public function findForPair(
         Person $parent,
         Person $child,

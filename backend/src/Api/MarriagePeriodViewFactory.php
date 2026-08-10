@@ -8,6 +8,7 @@ final readonly class MarriagePeriodViewFactory
 {
     public function __construct(
         private GenealogicalDateViewFactory $dates,
+        private EventPlaceViewFactory $places,
     ) {
     }
 
@@ -31,6 +32,12 @@ final readonly class MarriagePeriodViewFactory
             'dissolutionDate' => null === $dissolutionDate
                 ? null
                 : $this->dates->create($dissolutionDate),
+            'marriagePlace' => null === $marriage->getMarriagePlace()
+                ? null
+                : $this->places->create($marriage->getMarriagePlace()),
+            'dissolutionPlace' => null === $marriage->getDissolutionPlace()
+                ? null
+                : $this->places->create($marriage->getDissolutionPlace()),
             'createdAt' => $marriage->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $marriage->getUpdatedAt()->format(DATE_ATOM),
         ];

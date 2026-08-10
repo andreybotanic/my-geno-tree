@@ -16,6 +16,8 @@ final readonly class ManualEventData
         public ?string $title,
         public ?string $description,
         public array $data,
+        public ?EventPlaceData $place,
+        public bool $placeProvided,
     ) {
     }
 }

@@ -4,9 +4,12 @@ namespace App\Application\Tree;
 
 use App\Api\ApiException;
 use App\Application\Event\AutomaticEventSynchronizer;
+use App\Application\Event\EventPlaceData;
+use App\Application\Event\EventPlaceDataPolicy;
 use App\Application\Media\MediaService;
 use App\Application\Person\PersonDataPolicy;
 use App\Application\Person\PersonLookup;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\MediaObject;
@@ -16,6 +19,7 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
+use App\Repository\GenealogicalEventRepository;
 use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
 use Doctrine\DBAL\LockMode;
@@ -27,12 +31,14 @@ final readonly class StructuralGraphMutationService
 {
     public function __construct(
         private PersonDataPolicy $personData,
+        private EventPlaceDataPolicy $placeData,
         private PersonLookup $personLookup,
         private GraphInvariantPolicy $invariants,
         private ParentLinkRepository $parentLinks,
         private MarriagePeriodRepository $marriages,
         private TreeVersion $versions,
         private AutomaticEventSynchronizer $events,
+        private GenealogicalEventRepository $eventRepository,
         private MediaService $media,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
@@ -189,12 +195,12 @@ final readonly class StructuralGraphMutationService
 
         if ($detailed && null !== $payload['marriage']) {
             $marriage = $this->object($payload['marriage'], 'marriage');
-            $this->assertExactKeys($marriage, [
+            $this->assertKeys($marriage, [
                 'marriageDate',
                 'dissolutionDate',
                 'maleNewSurname',
                 'femaleNewSurname',
-            ], 'marriage');
+            ], ['marriagePlace', 'dissolutionPlace'], 'marriage');
             $this->createMarriage(
                 $tree,
                 $father,
@@ -266,7 +272,7 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
+        $this->assertKeys($payload, [
             'type',
             'personId',
             'relative',
@@ -274,7 +280,7 @@ final readonly class StructuralGraphMutationService
             'dissolutionDate',
             'maleNewSurname',
             'femaleNewSurname',
-        ]);
+        ], ['marriagePlace', 'dissolutionPlace']);
         $person = $this->person($tree, $payload['personId'], 'personId');
         $partner = $this->relative(
             $tree,
@@ -367,6 +373,17 @@ final readonly class StructuralGraphMutationService
         foreach ($this->marriages->findForPerson($person) as $marriage) {
             $this->events->removeForSource($marriage->getId());
             $this->entityManager->remove($marriage);
+        }
+        $places = [];
+        foreach ($this->eventRepository->findTimeline($person) as $event) {
+            $place = $event->getPlace();
+            $placeId = $place?->getId();
+            if (null !== $place && null !== $placeId) {
+                $places[$placeId->toRfc4122()] = $place;
+            }
+        }
+        foreach ($places as $place) {
+            $this->entityManager->remove($place);
         }
         $photo = $this->media->detachPersonPhotoRecord($person, $changedAt);
         if ($photo instanceof MediaObject) {
@@ -512,6 +529,8 @@ final readonly class StructuralGraphMutationService
                     $assignedGender,
                     $data->birthDate,
                     $data->deathDate,
+                    $data->birthPlace,
+                    $data->deathPlace,
                 );
             } elseif ($assignedGender !== $data->gender) {
                 $this->invalid($field . '.gender', 'parent_role_gender_conflict');
@@ -528,6 +547,14 @@ final readonly class StructuralGraphMutationService
             $changedAt,
         );
         $this->entityManager->persist($person);
+        $birthPlace = $this->resolvedPlace($data->birthPlace);
+        if (null !== $birthPlace) {
+            $person->changeBirthPlace($birthPlace, $changedAt);
+        }
+        $deathPlace = $this->resolvedPlace($data->deathPlace);
+        if (null !== $deathPlace) {
+            $person->changeDeathPlace($deathPlace, $changedAt);
+        }
         $this->events->synchronizePersonLifecycle($person, $changedAt);
 
         return $person;
@@ -576,6 +603,29 @@ final readonly class StructuralGraphMutationService
             $changedAt,
         );
         $this->entityManager->persist($marriage);
+        $marriagePlace = array_key_exists('marriagePlace', $payload)
+            && null !== $payload['marriagePlace']
+            ? $this->resolvedPlace($this->placeData->resolved(
+                $payload['marriagePlace'],
+                $fieldPrefix . 'marriagePlace',
+            ))
+            : null;
+        if (null !== $marriagePlace) {
+            $marriage->changeMarriagePlace($marriagePlace, $changedAt);
+        }
+        $dissolutionPlace = array_key_exists('dissolutionPlace', $payload)
+            && null !== $payload['dissolutionPlace']
+            ? $this->resolvedPlace($this->placeData->resolved(
+                $payload['dissolutionPlace'],
+                $fieldPrefix . 'dissolutionPlace',
+            ))
+            : null;
+        if (null === $dissolutionDate && null !== $dissolutionPlace) {
+            $this->invalid($fieldPrefix . 'dissolutionPlace', 'dissolution_place_requires_dissolution');
+        }
+        if (null !== $dissolutionPlace) {
+            $marriage->changeDissolutionPlace($dissolutionPlace, $changedAt);
+        }
         $this->events->synchronizeMarriage(
             $marriage,
             $maleSurname,
@@ -708,6 +758,17 @@ final readonly class StructuralGraphMutationService
         return $value;
     }
 
+    private function resolvedPlace(?EventPlaceData $data): ?EventPlace
+    {
+        if (null === $data) {
+            return null;
+        }
+        $place = EventPlace::resolved($data->name, $data->latitude, $data->longitude);
+        $this->entityManager->persist($place);
+
+        return $place;
+    }
+
     private function id(mixed $value, string $field): string
     {
         if (!is_string($value) || !\Symfony\Component\Uid\Uuid::isValid($value)) {
@@ -759,6 +820,29 @@ final readonly class StructuralGraphMutationService
                     '' === $field ? $key : $field . '.' . $key,
                     'field_required',
                 );
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param list<string>         $required
+     * @param list<string>         $optional
+     */
+    private function assertKeys(
+        array $payload,
+        array $required,
+        array $optional,
+        string $field = '',
+    ): void {
+        foreach (array_keys($payload) as $key) {
+            if (!in_array($key, [...$required, ...$optional], true)) {
+                $this->invalid('' === $field ? $key : $field . '.' . $key, 'field_not_allowed');
+            }
+        }
+        foreach ($required as $key) {
+            if (!array_key_exists($key, $payload)) {
+                $this->invalid('' === $field ? $key : $field . '.' . $key, 'field_required');
             }
         }
     }

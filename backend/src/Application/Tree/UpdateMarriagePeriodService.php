@@ -85,12 +85,18 @@ final readonly class UpdateMarriagePeriodService
                 $dissolutionDate,
             );
             $changedAt = $this->clock->now();
+            $removedDissolutionPlace = null === $dissolutionDate
+                ? $marriage->getDissolutionPlace()
+                : null;
             $marriage->changeDates(
                 $marriageDate,
                 $dissolutionDate,
                 $changedAt,
             );
             $this->events->synchronizeMarriageDates($marriage, $changedAt);
+            if (null !== $removedDissolutionPlace) {
+                $this->entityManager->remove($removedDissolutionPlace);
+            }
             $tree->touch($changedAt);
 
             return $marriage;

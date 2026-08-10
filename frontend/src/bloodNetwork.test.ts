@@ -31,6 +31,8 @@ function person(id: string): Person {
     gender: 'unknown',
     birthDate: { state: 'unknown' },
     deathDate: null,
+    birthPlace: null,
+    deathPlace: null,
     photoThumbnailUrl: null,
     createdAt: '',
     updatedAt: '',

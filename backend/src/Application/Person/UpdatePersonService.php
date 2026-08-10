@@ -50,6 +50,9 @@ final readonly class UpdatePersonService
                 $data,
             );
             $changedAt = $this->clock->now();
+            $removedDeathPlace = null === $data->deathDate
+                ? $person->getDeathPlace()
+                : null;
             $person->update(
                 $data->birthSurname,
                 $data->givenName,
@@ -60,6 +63,9 @@ final readonly class UpdatePersonService
                 $changedAt,
             );
             $this->events->synchronizePersonLifecycle($person, $changedAt);
+            if (null !== $removedDeathPlace) {
+                $this->entityManager->remove($removedDeathPlace);
+            }
             $tree->touch($changedAt);
         });
     }

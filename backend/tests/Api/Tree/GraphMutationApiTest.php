@@ -20,6 +20,8 @@ use Symfony\Component\Uid\UuidV7;
  *     id: string,
  *     malePersonId: string,
  *     femalePersonId: string,
+ *     marriagePlace: array{name: string, coordinates: array{latitude: float, longitude: float}|null}|null,
+ *     dissolutionPlace: array{name: string, coordinates: array{latitude: float, longitude: float}|null}|null,
  *     dissolutionDate: array<string, mixed>|null
  * }
  * @phpstan-type GraphSnapshot array{
@@ -30,6 +32,7 @@ use Symfony\Component\Uid\UuidV7;
  * }
  * @phpstan-type GraphEvent array{
  *     type: string,
+ *     place: array{name: string, coordinates: array{latitude: float, longitude: float}|null}|null,
  *     data: array{childId?: string, newSurname?: string}
  * }
  */
@@ -140,8 +143,16 @@ final class GraphMutationApiTest extends ApiWebTestCase
                 'birthDate' => $this->knownDate('year', 1962),
             ]),
             'marriage' => [
-                'marriageDate'     => $this->knownDate('year', 1985),
-                'dissolutionDate'  => $this->knownDate('year', 2010),
+                'marriageDate'    => $this->knownDate('year', 1985),
+                'dissolutionDate' => $this->knownDate('year', 2010),
+                'marriagePlace'   => [
+                    'name'        => 'Moscow',
+                    'coordinates' => ['latitude' => 55.7558, 'longitude' => 37.6173],
+                ],
+                'dissolutionPlace' => [
+                    'name'        => 'Novosibirsk',
+                    'coordinates' => ['latitude' => 55.0302, 'longitude' => 82.9204],
+                ],
                 'maleNewSurname'   => 'Newman',
                 'femaleNewSurname' => 'Newwoman',
             ],
@@ -153,20 +164,26 @@ final class GraphMutationApiTest extends ApiWebTestCase
         foreach ($snapshot['parentLinks'] as $link) {
             $parents[$link['role']] = $this->personById($snapshot, $link['parentId']);
         }
+        self::assertSame('Moscow', $snapshot['marriages'][0]['marriagePlace']['name'] ?? null);
+        self::assertSame('Novosibirsk', $snapshot['marriages'][0]['dissolutionPlace']['name'] ?? null);
+        $fatherEvents = $this->events($accessToken, $tree['id'], $parents['father']['id']);
+        $motherEvents = $this->events($accessToken, $tree['id'], $parents['mother']['id']);
         self::assertSame(
             ['birth', 'marriage', 'surname_change', 'child_birth', 'divorce'],
-            array_column(
-                $this->events($accessToken, $tree['id'], $parents['father']['id']),
-                'type',
-            ),
+            array_column($fatherEvents, 'type'),
         );
         self::assertSame(
             ['birth', 'marriage', 'surname_change', 'child_birth', 'divorce'],
-            array_column(
-                $this->events($accessToken, $tree['id'], $parents['mother']['id']),
-                'type',
-            ),
+            array_column($motherEvents, 'type'),
         );
+        foreach ([$fatherEvents, $motherEvents] as $events) {
+            $placesByType = [];
+            foreach ($events as $event) {
+                $placesByType[$event['type']] = $event['place'];
+            }
+            self::assertSame('Moscow', $placesByType['marriage']['name'] ?? null);
+            self::assertSame('Novosibirsk', $placesByType['divorce']['name'] ?? null);
+        }
     }
 
     public function testInvalidDetailedParentsMarriageRollsBackEverything(): void

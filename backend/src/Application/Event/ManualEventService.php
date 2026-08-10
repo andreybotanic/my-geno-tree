@@ -4,6 +4,7 @@ namespace App\Application\Event;
 
 use App\Api\ApiException;
 use App\Application\Tree\TreeVersion;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
@@ -45,6 +46,15 @@ final readonly class ManualEventService
             $this->lock($tree, $person, $ifMatch);
             $data = $this->dataPolicy->event($person, $payload);
             $changedAt = $this->clock->now();
+            $place = null;
+            if (null !== $data->place) {
+                $place = EventPlace::resolved(
+                    $data->place->name,
+                    $data->place->latitude,
+                    $data->place->longitude,
+                );
+                $this->entityManager->persist($place);
+            }
             $event = GenealogicalEvent::manual(
                 $person,
                 $data->type,
@@ -53,6 +63,7 @@ final readonly class ManualEventService
                 $data->description,
                 $data->data,
                 $changedAt,
+                $place,
             );
             $this->entityManager->persist($event);
             $tree->touch($changedAt);
@@ -93,6 +104,29 @@ final readonly class ManualEventService
                 $data->data,
                 $changedAt,
             );
+            if ($data->placeProvided) {
+                $place = $event->getPlace();
+                if (null === $data->place) {
+                    $event->changePlace(null, $changedAt);
+                    if (null !== $place) {
+                        $this->entityManager->remove($place);
+                    }
+                } elseif (null === $place) {
+                    $place = EventPlace::resolved(
+                        $data->place->name,
+                        $data->place->latitude,
+                        $data->place->longitude,
+                    );
+                    $this->entityManager->persist($place);
+                    $event->changePlace($place, $changedAt);
+                } else {
+                    $place->resolve(
+                        $data->place->name,
+                        $data->place->latitude,
+                        $data->place->longitude,
+                    );
+                }
+            }
             if (
                 null !== $event->getManualOrder()
                 && !$this->hasAmbiguousPeer($person, $event)
@@ -121,6 +155,9 @@ final readonly class ManualEventService
             $this->lock($tree, $person, $ifMatch);
             $this->entityManager->lock($event, LockMode::PESSIMISTIC_WRITE);
             $changedAt = $this->clock->now();
+            if (null !== $event->getPlace()) {
+                $this->entityManager->remove($event->getPlace());
+            }
             $this->entityManager->remove($event);
             $tree->touch($changedAt);
         });

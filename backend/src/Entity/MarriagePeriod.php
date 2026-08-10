@@ -34,6 +34,10 @@ class MarriagePeriod
     #[ORM\Embedded(class: GenealogicalDate::class, columnPrefix: 'marriage_date_')]
     private GenealogicalDate $marriageDate;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?EventPlace $marriagePlace = null;
+
     #[ORM\Column]
     private bool $dissolved;
 
@@ -42,6 +46,10 @@ class MarriagePeriod
         columnPrefix: 'dissolution_date_',
     )]
     private GenealogicalDate $storedDissolutionDate;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?EventPlace $dissolutionPlace = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -95,6 +103,31 @@ class MarriagePeriod
         return $this->dissolved ? $this->storedDissolutionDate : null;
     }
 
+    public function getMarriagePlace(): ?EventPlace
+    {
+        return $this->marriagePlace;
+    }
+
+    public function getDissolutionPlace(): ?EventPlace
+    {
+        return $this->dissolved ? $this->dissolutionPlace : null;
+    }
+
+    public function changeMarriagePlace(?EventPlace $place, \DateTimeImmutable $changedAt): void
+    {
+        $this->marriagePlace = $place;
+        $this->updatedAt = $changedAt;
+    }
+
+    public function changeDissolutionPlace(?EventPlace $place, \DateTimeImmutable $changedAt): void
+    {
+        if (!$this->dissolved && null !== $place) {
+            throw new \LogicException('An active marriage cannot have a dissolution place.');
+        }
+        $this->dissolutionPlace = $place;
+        $this->updatedAt = $changedAt;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -114,6 +147,9 @@ class MarriagePeriod
         $this->dissolved = null !== $dissolutionDate;
         $this->storedDissolutionDate = $dissolutionDate
             ?? GenealogicalDate::unknown();
+        if (!$this->dissolved) {
+            $this->dissolutionPlace = null;
+        }
         $this->updatedAt = $changedAt;
     }
 }

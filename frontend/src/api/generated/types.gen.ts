@@ -167,6 +167,21 @@ export type MarriageTreeReference = {
     ];
 };
 
+export type GeoCoordinates = {
+    latitude: number;
+    longitude: number;
+};
+
+export type ResolvedEventPlace = {
+    name: string;
+    coordinates: GeoCoordinates;
+};
+
+export type EventPlace = {
+    name: string;
+    coordinates: GeoCoordinates | null;
+};
+
 export type PersonInput = {
     birthSurname: KnownText;
     givenName: KnownText;
@@ -174,6 +189,8 @@ export type PersonInput = {
     gender: Gender;
     birthDate: GenealogicalDate;
     deathDate: GenealogicalDate | null;
+    birthPlace?: ResolvedEventPlace | null;
+    deathPlace?: ResolvedEventPlace | null;
 };
 
 export type PersonPatchRequest = {
@@ -185,8 +202,16 @@ export type PersonPatchRequest = {
     deathDate?: GenealogicalDate | null;
 };
 
-export type Person = PersonInput & {
+export type Person = {
     id: string;
+    birthSurname: KnownText;
+    givenName: KnownText;
+    patronymic: KnownText;
+    gender: Gender;
+    birthDate: GenealogicalDate;
+    deathDate: GenealogicalDate | null;
+    birthPlace: EventPlace | null;
+    deathPlace: EventPlace | null;
     photoThumbnailUrl: string | null;
     createdAt: string;
     updatedAt: string;
@@ -254,6 +279,8 @@ export type MarriagePeriod = {
     femalePersonId: string;
     marriageDate: GenealogicalDate;
     dissolutionDate: GenealogicalDate | null;
+    marriagePlace: EventPlace | null;
+    dissolutionPlace: EventPlace | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -308,6 +335,8 @@ export type DetailedAddParentsMutation = {
 export type ParentsMarriageInput = {
     marriageDate: GenealogicalDate;
     dissolutionDate: GenealogicalDate | null;
+    marriagePlace?: ResolvedEventPlace | null;
+    dissolutionPlace?: ResolvedEventPlace | null;
     maleNewSurname: string | null;
     femaleNewSurname: string | null;
 };
@@ -340,6 +369,8 @@ export type AddMarriagePeriodMutation = {
     dissolutionDate: GenealogicalDate | null;
     maleNewSurname: string | null;
     femaleNewSurname: string | null;
+    marriagePlace?: ResolvedEventPlace | null;
+    dissolutionPlace?: ResolvedEventPlace | null;
 };
 
 export type RemoveParentLinkMutation = {
@@ -360,9 +391,10 @@ export type DeletePersonMutation = {
 export type GenealogicalEvent = {
     id: string;
     personId: string;
-    type: 'birth' | 'death' | 'marriage' | 'surname_change' | 'divorce' | 'child_birth' | 'custom';
+    type: 'birth' | 'death' | 'marriage' | 'surname_change' | 'divorce' | 'child_birth' | 'custom' | 'residence';
     source: 'automatic' | 'manual';
     date: GenealogicalDate;
+    place: EventPlace | null;
     title: string | null;
     description: string | null;
     data: {
@@ -384,15 +416,24 @@ export type CustomEventRequest = {
     date: GenealogicalDate;
     title: string;
     description: string | null;
+    place?: ResolvedEventPlace | null;
 };
 
 export type SurnameChangeEventRequest = {
     type: 'surname_change';
     date: GenealogicalDate;
     newSurname: string;
+    place?: ResolvedEventPlace | null;
 };
 
-export type ManualEventRequest = CustomEventRequest | SurnameChangeEventRequest;
+export type ResidenceEventRequest = {
+    type: 'residence';
+    date: GenealogicalDate;
+    description: string | null;
+    place?: ResolvedEventPlace | null;
+};
+
+export type ManualEventRequest = CustomEventRequest | SurnameChangeEventRequest | ResidenceEventRequest;
 
 export type EventMutationResult = {
     event: GenealogicalEvent;
@@ -1786,3 +1827,91 @@ export type ReorderPersonEventsResponses = {
 };
 
 export type ReorderPersonEventsResponse = ReorderPersonEventsResponses[keyof ReorderPersonEventsResponses];
+
+export type DeleteEventPlaceData = {
+    body?: never;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/events/{eventId}/place';
+};
+
+export type DeleteEventPlaceErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+};
+
+export type DeleteEventPlaceError = DeleteEventPlaceErrors[keyof DeleteEventPlaceErrors];
+
+export type DeleteEventPlaceResponses = {
+    /**
+     * Event place removed
+     */
+    204: void;
+};
+
+export type DeleteEventPlaceResponse = DeleteEventPlaceResponses[keyof DeleteEventPlaceResponses];
+
+export type PutEventPlaceData = {
+    body: ResolvedEventPlace;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/events/{eventId}/place';
+};
+
+export type PutEventPlaceErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type PutEventPlaceError = PutEventPlaceErrors[keyof PutEventPlaceErrors];
+
+export type PutEventPlaceResponses = {
+    /**
+     * Event place saved and related automatic projections synchronized
+     */
+    200: EventMutationResult;
+};
+
+export type PutEventPlaceResponse = PutEventPlaceResponses[keyof PutEventPlaceResponses];

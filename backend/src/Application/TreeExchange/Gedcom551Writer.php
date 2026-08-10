@@ -7,6 +7,8 @@ use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\DatePrecision;
+use App\Entity\Value\EventSource;
+use App\Entity\Value\EventType;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\ParentRole;
@@ -17,14 +19,14 @@ final class Gedcom551Writer
      * @param list<Person>            $people
      * @param list<ParentLink>        $parentLinks
      * @param list<MarriagePeriod>    $marriages
-     * @param list<GenealogicalEvent> $manualEvents
+     * @param list<GenealogicalEvent> $events
      */
     public function write(
         string $fileName,
         array $people,
         array $parentLinks,
         array $marriages,
-        array $manualEvents,
+        array $events,
     ): string {
         /** @var array<string, string> $personXrefs */
         $personXrefs = [];
@@ -50,8 +52,24 @@ final class Gedcom551Writer
 
         /** @var array<string, list<GenealogicalEvent>> $eventsByPerson */
         $eventsByPerson = [];
-        foreach ($manualEvents as $event) {
-            $eventsByPerson[$this->id($event->getPerson())][] = $event;
+        /** @var array<string, array<string, GenealogicalEvent>> $lifecycleEvents */
+        $lifecycleEvents = [];
+        /** @var array<string, array<string, GenealogicalEvent>> $marriageEvents */
+        $marriageEvents = [];
+        foreach ($events as $event) {
+            if (EventSource::MANUAL === $event->getSource()) {
+                $eventsByPerson[$this->id($event->getPerson())][] = $event;
+                continue;
+            }
+            if (in_array($event->getType(), [EventType::BIRTH, EventType::DEATH], true)) {
+                $lifecycleEvents[$this->id($event->getPerson())][$event->getType()->value] = $event;
+            }
+            if (
+                in_array($event->getType(), [EventType::MARRIAGE, EventType::DIVORCE], true)
+                && null !== $event->getSourceEntityId()
+            ) {
+                $marriageEvents[$event->getSourceEntityId()->toRfc4122()][$event->getType()->value] = $event;
+            }
         }
 
         $lines = [
@@ -83,16 +101,22 @@ final class Gedcom551Writer
             };
             $lines[] = '1 BIRT';
             $this->appendDate($lines, 2, $person->getBirthDate());
+            $this->appendPlace($lines, 2, ($lifecycleEvents[$personId][EventType::BIRTH->value] ?? null)?->getPlace());
             if (null !== $person->getDeathDate()) {
                 $lines[] = '1 DEAT';
                 $this->appendDate($lines, 2, $person->getDeathDate());
+                $this->appendPlace($lines, 2, ($lifecycleEvents[$personId][EventType::DEATH->value] ?? null)?->getPlace());
             }
             $this->appendValue($lines, 1, 'REFN', $personId);
             $this->appendValue($lines, 2, 'TYPE', 'MyGenoTree UUID');
             foreach ($eventsByPerson[$personId] ?? [] as $event) {
-                $lines[] = '1 EVEN';
+                $gedcomTag = $this->manualEventTag($event);
+                $lines[] = '1 ' . $gedcomTag;
                 $this->appendDate($lines, 2, $event->getDate());
-                $this->appendValue($lines, 2, 'TYPE', $event->getTitle() ?? 'EVEN');
+                $this->appendPlace($lines, 2, $event->getPlace());
+                if ('EVEN' === $gedcomTag) {
+                    $this->appendValue($lines, 2, 'TYPE', $event->getTitle() ?? 'EVEN');
+                }
                 if (null !== $event->getDescription()) {
                     $this->appendValue($lines, 2, 'NOTE', $event->getDescription());
                 }
@@ -119,9 +143,12 @@ final class Gedcom551Writer
             if ($family['marriage'] instanceof MarriagePeriod) {
                 $lines[] = '1 MARR';
                 $this->appendDate($lines, 2, $family['marriage']->getMarriageDate());
+                $marriageId = $family['marriage']->getId()->toRfc4122();
+                $this->appendPlace($lines, 2, ($marriageEvents[$marriageId][EventType::MARRIAGE->value] ?? null)?->getPlace());
                 if (null !== $family['marriage']->getDissolutionDate()) {
                     $lines[] = '1 DIV';
                     $this->appendDate($lines, 2, $family['marriage']->getDissolutionDate());
+                    $this->appendPlace($lines, 2, ($marriageEvents[$marriageId][EventType::DIVORCE->value] ?? null)?->getPlace());
                 }
             } else {
                 $lines[] = '1 _MGT_UNMARRIED Y';
@@ -214,6 +241,40 @@ final class Gedcom551Writer
         };
 
         return $date->isApproximate() && null !== $value ? 'ABT ' . $value : $value;
+    }
+
+    private function manualEventTag(GenealogicalEvent $event): string
+    {
+        if (EventType::RESIDENCE === $event->getType()) {
+            return 'RESI';
+        }
+
+        return 'EVEN';
+    }
+
+    /** @param list<string> $lines */
+    private function appendPlace(array &$lines, int $level, ?\App\Entity\EventPlace $place): void
+    {
+        if (null === $place) {
+            return;
+        }
+        $this->appendValue($lines, $level, 'PLAC', $place->getName());
+        $latitude = $place->getLatitude();
+        $longitude = $place->getLongitude();
+        if (null === $latitude || null === $longitude) {
+            return;
+        }
+        $lines[] = ($level + 1) . ' MAP';
+        $lines[] = ($level + 2) . ' LATI ' . $this->coordinate($latitude, 'N', 'S');
+        $lines[] = ($level + 2) . ' LONG ' . $this->coordinate($longitude, 'E', 'W');
+    }
+
+    private function coordinate(float $coordinate, string $positive, string $negative): string
+    {
+        $direction = $coordinate < 0 ? $negative : $positive;
+        $magnitude = rtrim(rtrim(number_format(abs($coordinate), 7, '.', ''), '0'), '.');
+
+        return $direction . $magnitude;
     }
 
     /** @param list<string> $lines */
