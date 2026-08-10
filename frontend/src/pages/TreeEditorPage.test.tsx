@@ -40,6 +40,31 @@ vi.mock('../components/ImageCropDialog', () => ({
   ),
 }))
 
+vi.mock('maplibre-gl', () => {
+  class Map {
+    addControl() {}
+    jumpTo() {}
+    off() {}
+    on() {}
+    remove() {}
+  }
+
+  class Marker {
+    addTo() { return this }
+    getLngLat() { return { lat: 0, lng: 0 } }
+    on() { return this }
+    remove() {}
+    setLngLat() { return this }
+  }
+
+  return {
+    Map,
+    Marker,
+    NavigationControl: class {},
+    setMaxParallelImageRequests: vi.fn(),
+  }
+})
+
 const treeId = '019861c4-6a93-7a2e-8ca8-51813740d4a5'
 const person: Person = {
   id: '019861c4-6a93-7a2e-8ca8-51813740d4a6',
@@ -374,7 +399,9 @@ describe('TreeEditorPage', () => {
             patronymic: { state: 'unknown' },
             gender: 'male',
             birthDate: { state: 'unknown' },
+            birthPlace: null,
             deathDate: null,
+            deathPlace: null,
           },
           marriage: null,
           mother: {
@@ -383,7 +410,9 @@ describe('TreeEditorPage', () => {
             patronymic: { state: 'unknown' },
             gender: 'female',
             birthDate: { state: 'unknown' },
+            birthPlace: null,
             deathDate: null,
+            deathPlace: null,
           },
         }),
         headers: { 'If-Match': '"tree-current"' },
@@ -959,6 +988,96 @@ describe('TreeEditorPage', () => {
       .not.toBeInTheDocument()
   })
 
+  it('adds and removes a place on an immutable automatic event', async () => {
+    const resolvedPlace = {
+      name: 'Novosibirsk, Russia',
+      coordinates: { latitude: 55.0302, longitude: 82.9204 },
+    }
+    let placeSaved = false
+    let etag = '"tree-current"'
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === `/trees/${treeId}/snapshot`) {
+        return {
+          ...graphSnapshot([{
+            ...person,
+            birthPlace: placeSaved ? resolvedPlace : null,
+          }]),
+          etag,
+        }
+      }
+      if (path === `/trees/${treeId}/people/${person.id}`) {
+        return {
+          ...person,
+          birthPlace: placeSaved ? resolvedPlace : null,
+        }
+      }
+      if (path === `/trees/${treeId}/people/${person.id}/events`) {
+        return { items: [{ ...event, place: placeSaved ? resolvedPlace : null }] }
+      }
+      if (path.startsWith('/map/geocoding/search?')) {
+        return { items: [resolvedPlace] }
+      }
+      if (path === `/trees/${treeId}/events/${event.id}/place`) {
+        placeSaved = init?.method === 'PUT'
+        etag = placeSaved ? '"tree-place-saved"' : '"tree-place-removed"'
+        return init?.method === 'PUT'
+          ? { event: { ...event, place: resolvedPlace }, etag }
+          : undefined
+      }
+
+      throw new Error(`Unexpected request: ${path}`)
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.click(card)
+    await userEvent.click(await screen.findByRole('button', {
+      name: 'Add a place for Birth',
+    }))
+    let dialog = screen.getByRole('dialog', { name: 'Event place' })
+    await userEvent.type(
+      within(dialog).getByRole('textbox', { name: 'Settlement search' }),
+      'Novosibirsk',
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Search' }))
+    await userEvent.click(await within(dialog).findByRole('button', {
+      name: 'Novosibirsk, Russia',
+    }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/events/${event.id}/place`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(resolvedPlace),
+        headers: { 'If-Match': '"tree-current"' },
+      },
+    ))
+    expect(await screen.findByRole('button', {
+      name: 'Edit Novosibirsk, Russia for Birth',
+    })).toBeInTheDocument()
+    expect(screen.getByText('Novosibirsk, Russia')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', {
+      name: 'Edit Novosibirsk, Russia for Birth',
+    }))
+    dialog = screen.getByRole('dialog', { name: 'Event place' })
+    await userEvent.click(within(dialog).getByRole('button', {
+      name: 'Delete place',
+    }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      `/trees/${treeId}/events/${event.id}/place`,
+      {
+        method: 'DELETE',
+        headers: { 'If-Match': '"tree-place-saved"' },
+      },
+    ))
+    expect(await screen.findByRole('button', {
+      name: 'Add a place for Birth',
+    })).toBeInTheDocument()
+  })
+
   it('creates, edits, and deletes a manual event with current ETags', async () => {
     let currentEvents = [event]
     let deleted = false
@@ -1038,6 +1157,7 @@ describe('TreeEditorPage', () => {
           date: { state: 'unknown' },
           title: 'Graduated',
           description: null,
+          place: null,
         }),
       }),
     )

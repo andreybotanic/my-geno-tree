@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MarriageFormState } from '../marriageFormState'
 import { StructuredDateInput } from './PersonFormDialog'
+import { PlaceDialog, PlaceTextButton } from './PlaceDialog'
 
 type MarriageFormFieldsProps = {
   femaleSurnameLabel?: string
@@ -16,14 +18,26 @@ export function MarriageFormFields({
   state,
 }: MarriageFormFieldsProps) {
   const { t } = useTranslation()
+  const [placeEditing, setPlaceEditing] = useState<
+    'dissolution' | 'marriage' | null
+  >(null)
+  const editingPlace = placeEditing === 'marriage'
+    ? state.marriagePlace
+    : state.dissolutionPlace
 
   return (
     <>
-      <StructuredDateInput
-        label={t('relationships.marriageDate')}
-        onChange={(marriageDate) => onChange({ ...state, marriageDate })}
-        state={state.marriageDate}
-      />
+      <div className="date-place-field">
+        <StructuredDateInput
+          label={t('relationships.marriageDate')}
+          onChange={(marriageDate) => onChange({ ...state, marriageDate })}
+          state={state.marriageDate}
+        />
+        <PlaceTextButton
+          onClick={() => setPlaceEditing('marriage')}
+          place={state.marriagePlace}
+        />
+      </div>
       <label className="person-select-field">
         <span>{maleSurnameLabel ?? t('relationships.maleNewSurname')}</span>
         <input
@@ -54,19 +68,54 @@ export function MarriageFormFields({
           onChange={(event) => onChange({
             ...state,
             dissolved: event.target.checked,
+            dissolutionPlace: event.target.checked
+              ? state.dissolutionPlace
+              : null,
           })}
           type="checkbox"
         />
         <span>{t('relationships.dissolved')}</span>
       </label>
       {state.dissolved && (
-        <StructuredDateInput
-          label={t('relationships.dissolutionDate')}
-          onChange={(dissolutionDate) => onChange({
-            ...state,
-            dissolutionDate,
-          })}
-          state={state.dissolutionDate}
+        <div className="date-place-field">
+          <StructuredDateInput
+            label={t('relationships.dissolutionDate')}
+            onChange={(dissolutionDate) => onChange({
+              ...state,
+              dissolutionDate,
+            })}
+            state={state.dissolutionDate}
+          />
+          <PlaceTextButton
+            onClick={() => setPlaceEditing('dissolution')}
+            place={state.dissolutionPlace}
+          />
+        </div>
+      )}
+      {placeEditing && (
+        <PlaceDialog
+          onCancel={() => setPlaceEditing(null)}
+          {...(editingPlace ? {
+            onDelete: () => {
+              onChange({
+                ...state,
+                [placeEditing === 'marriage'
+                  ? 'marriagePlace'
+                  : 'dissolutionPlace']: null,
+              })
+              setPlaceEditing(null)
+            },
+          } : {})}
+          onSave={(place) => {
+            onChange({
+              ...state,
+              [placeEditing === 'marriage'
+                ? 'marriagePlace'
+                : 'dissolutionPlace']: place,
+            })
+            setPlaceEditing(null)
+          }}
+          place={editingPlace}
         />
       )}
     </>

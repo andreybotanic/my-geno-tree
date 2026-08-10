@@ -51,12 +51,14 @@ const renderPanel = ({
   conflict = false,
   events = [birthEvent],
   onClose = vi.fn(),
+  onEditEventPlace = vi.fn(),
   onPatch = vi.fn(async () => {}),
   value = person,
 }: {
   conflict?: boolean
   events?: GenealogicalEvent[]
   onClose?: () => void
+  onEditEventPlace?: (event: GenealogicalEvent) => void
   onPatch?: (patch: PersonPatchRequest) => Promise<void>
   value?: Person
 } = {}) => {
@@ -84,6 +86,7 @@ const renderPanel = ({
       onDeletePerson={vi.fn()}
       onDeletePhoto={vi.fn()}
       onEditEvent={vi.fn()}
+      onEditEventPlace={onEditEventPlace}
       onEditMarriage={vi.fn()}
       onOpenPhoto={vi.fn()}
       onPatch={onPatch}
@@ -109,7 +112,7 @@ const renderPanel = ({
       />
     </AuthContext>,
   )
-  return { onClose, onPatch }
+  return { onClose, onEditEventPlace, onPatch }
 }
 
 describe('PersonDetailsPanel', () => {
@@ -430,6 +433,39 @@ describe('PersonDetailsPanel', () => {
     expect(onPatch).toHaveBeenLastCalledWith({
       deathDate: { state: 'unknown' },
     })
+  })
+
+  it('shows birth place separately and hides death place for a living person', async () => {
+    renderPanel()
+
+    expect(screen.getByText('Place of birth')).toBeInTheDocument()
+    expect(screen.queryByText('Place of death')).not.toBeInTheDocument()
+
+    const deathEvent: GenealogicalEvent = {
+      ...birthEvent,
+      id: 'death-event',
+      type: 'death',
+      date: { state: 'unknown' },
+    }
+    const onEditEventPlace = vi.fn()
+    renderPanel({
+      events: [birthEvent, deathEvent],
+      onEditEventPlace,
+      value: {
+        ...person,
+        deathDate: { state: 'unknown' },
+        deathPlace: {
+          name: 'Imported death place',
+          coordinates: null,
+        },
+      },
+    })
+
+    expect(screen.getByText('Place of death')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {
+      name: 'Imported death place',
+    }))
+    expect(onEditEventPlace).toHaveBeenCalledWith(deathEvent)
   })
 
   it('does not start another edit after a version conflict', async () => {

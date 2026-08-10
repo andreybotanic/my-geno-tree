@@ -4,6 +4,7 @@ import type {
   GenealogicalDate,
   ParentRole,
   Person,
+  ResolvedEventPlace,
   RelativePerson,
   TreeSnapshot,
 } from '../api/generated'
@@ -21,9 +22,11 @@ export type RelativeAction = 'child' | 'father' | 'mother' | 'spouse'
 
 export type RelativeOptions = {
   dissolutionDate: GenealogicalDate | null
+  dissolutionPlace: ResolvedEventPlace | null
   femaleNewSurname: string | null
   maleNewSurname: string | null
   marriageDate: GenealogicalDate
+  marriagePlace: ResolvedEventPlace | null
   parentRole: ParentRole
   secondParentId: string | null
 }
@@ -88,9 +91,11 @@ export function RelativeDialog({
 
     return {
       dissolutionDate: marriageValue?.dissolutionDate ?? null,
+      dissolutionPlace: marriageValue?.dissolutionPlace ?? null,
       femaleNewSurname: marriageValue?.femaleNewSurname ?? null,
       maleNewSurname: marriageValue?.maleNewSurname ?? null,
       marriageDate: marriageValue?.marriageDate ?? { state: 'unknown' },
+      marriagePlace: marriageValue?.marriagePlace ?? null,
       parentRole,
       secondParentId: secondParentId || null,
     }

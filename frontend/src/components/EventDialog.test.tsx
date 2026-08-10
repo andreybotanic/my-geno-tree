@@ -87,6 +87,7 @@ describe('EventDialog', () => {
       },
       title: 'New home',
       description: 'First line\nSecond line',
+      place: null,
     })
   })
 
@@ -108,6 +109,7 @@ describe('EventDialog', () => {
       type: 'surname_change',
       date: surnameEvent.date,
       newSurname: 'Sidorova',
+      place: null,
     })
   })
 
@@ -138,5 +140,49 @@ describe('EventDialog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This tree changed in another session.',
     )
+  })
+
+  it('creates a residence with an unknown date and requires resolving imported places', async () => {
+    const onSave = vi.fn(async () => {})
+    const { unmount } = render(
+      <EventDialog onCancel={vi.fn()} onSave={onSave} />,
+    )
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Event type' }),
+      'residence',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Unknown' }),
+    )
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Description' }),
+      'Moved for work',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith({
+      type: 'residence',
+      date: { state: 'unknown' },
+      description: 'Moved for work',
+      place: null,
+    })
+    unmount()
+
+    const unresolvedSave = vi.fn(async () => {})
+    render(
+      <EventDialog
+        event={{
+          ...surnameEvent,
+          place: { name: 'Imported village', coordinates: null },
+        }}
+        onCancel={vi.fn()}
+        onSave={unresolvedSave}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Check the entered name and date values.',
+    )
+    expect(unresolvedSave).not.toHaveBeenCalled()
   })
 })

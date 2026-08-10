@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import type {
   GenealogicalDate,
   GenealogicalEvent,
+  EventPlace,
   ManualEventRequest,
+  ResolvedEventPlace,
 } from '../api/generated'
 import { ApiRequestError } from '../api/client'
 import {
@@ -13,6 +15,7 @@ import {
   type DateInputState,
 } from '../personFormValues'
 import { StructuredDateInput } from './PersonFormDialog'
+import { PlaceDialog, PlaceTextButton } from './PlaceDialog'
 
 type EventDialogProps = {
   event?: GenealogicalEvent
@@ -26,8 +29,12 @@ export function EventDialog({
   onSave,
 }: EventDialogProps) {
   const { t } = useTranslation()
-  const [type, setType] = useState<'custom' | 'surname_change'>(
-    event?.type === 'surname_change' ? 'surname_change' : 'custom',
+  const [type, setType] = useState<
+    'custom' | 'residence' | 'surname_change'
+  >(
+    event?.type === 'surname_change' || event?.type === 'residence'
+      ? event.type
+      : 'custom',
   )
   const [date, setDate] = useState(
     () => event ? dateDraft(event.date) : emptyDate(),
@@ -39,6 +46,8 @@ export function EventDialog({
       ? event.data.newSurname
       : '',
   )
+  const [place, setPlace] = useState<EventPlace | null>(event?.place ?? null)
+  const [placeEditing, setPlaceEditing] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -47,8 +56,12 @@ export function EventDialog({
     const dateValueResult = dateValue(date)
     const normalizedTitle = title.trim()
     const normalizedSurname = newSurname.trim()
+    const resolvedPlace: ResolvedEventPlace | null = place?.coordinates
+      ? { name: place.name, coordinates: place.coordinates }
+      : null
     if (
       dateValueResult === null
+      || (place !== null && place.coordinates === null)
       || (
         type === 'custom'
         && (!normalizedTitle || normalizedTitle.length > 200)
@@ -68,11 +81,18 @@ export function EventDialog({
           date: dateValueResult,
           title: normalizedTitle,
           description: description || null,
+          place: resolvedPlace,
         }
-      : {
+      : type === 'surname_change' ? {
           type,
           date: dateValueResult,
           newSurname: normalizedSurname,
+          place: resolvedPlace,
+        } : {
+          type,
+          date: dateValueResult,
+          description: description || null,
+          place: resolvedPlace,
         }
     setSaving(true)
     setError('')
@@ -116,13 +136,20 @@ export function EventDialog({
                 <option value="surname_change">
                   {t('events.surnameChange')}
                 </option>
+                <option value="residence">{t('events.residence')}</option>
               </select>
             </label>
-            <StructuredDateInput
-              label={t('events.date')}
-              onChange={setDate}
-              state={date}
-            />
+            <div className="date-place-field">
+              <StructuredDateInput
+                label={t('events.date')}
+                onChange={setDate}
+                state={date}
+              />
+              <PlaceTextButton
+                onClick={() => setPlaceEditing(true)}
+                place={place}
+              />
+            </div>
             {type === 'custom' ? (
               <>
                 <label className="person-select-field">
@@ -147,7 +174,7 @@ export function EventDialog({
                   />
                 </label>
               </>
-            ) : (
+            ) : type === 'surname_change' ? (
               <label className="person-select-field">
                 <span>{t('events.newSurname')}</span>
                 <input
@@ -156,6 +183,18 @@ export function EventDialog({
                     changeEvent.target.value,
                   )}
                   value={newSurname}
+                />
+              </label>
+            ) : (
+              <label className="person-select-field relationship-wide-field">
+                <span>{t('events.description')}</span>
+                <textarea
+                  maxLength={5001}
+                  onChange={(changeEvent) => setDescription(
+                    changeEvent.target.value,
+                  )}
+                  rows={5}
+                  value={description}
                 />
               </label>
             )}
@@ -174,6 +213,22 @@ export function EventDialog({
             </button>
           </div>
         </form>
+        {placeEditing && (
+          <PlaceDialog
+            onCancel={() => setPlaceEditing(false)}
+            {...(place ? {
+              onDelete: () => {
+                setPlace(null)
+                setPlaceEditing(false)
+              },
+            } : {})}
+            onSave={(nextPlace) => {
+              setPlace(nextPlace)
+              setPlaceEditing(false)
+            }}
+            place={place}
+          />
+        )}
       </section>
     </div>
   )

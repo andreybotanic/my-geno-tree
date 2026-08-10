@@ -34,6 +34,7 @@ import type {
   PersonInput,
   PersonPatchRequest,
   RelativePerson,
+  ResolvedEventPlace,
   TreeSnapshot,
   TreeReference,
   User,
@@ -75,6 +76,7 @@ import {
 import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDialog'
 import { MarriagePeriodDialog } from '../components/MarriagePeriodDialog'
 import { EventDialog } from '../components/EventDialog'
+import { PlaceDialog } from '../components/PlaceDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
 import { ExportTreeDialog } from '../components/TreeExchangeDialogs'
@@ -1764,6 +1766,9 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [eventPendingDeletion, setEventPendingDeletion] = useState<
     GenealogicalEvent | null
   >(null)
+  const [placeEditing, setPlaceEditing] = useState<GenealogicalEvent | null>(
+    null,
+  )
   const [photoEditing, setPhotoEditing] = useState(false)
   const [photoDeleting, setPhotoDeleting] = useState(false)
   const [photoViewing, setPhotoViewing] = useState(false)
@@ -1782,6 +1787,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     setEvents([])
     setEventEditing(null)
     setEventPendingDeletion(null)
+    setPlaceEditing(null)
     setPhotoEditing(false)
     setPhotoDeleting(false)
     setPhotoViewing(false)
@@ -1810,6 +1816,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       setPendingRemoval(null)
       setEventEditing(null)
       setEventPendingDeletion(null)
+      setPlaceEditing(null)
       setPhotoEditing(false)
       setPhotoDeleting(false)
       setPhotoViewing(false)
@@ -2035,6 +2042,8 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             relative,
             marriageDate: options.marriageDate,
             dissolutionDate: options.dissolutionDate,
+            marriagePlace: options.marriagePlace,
+            dissolutionPlace: options.dissolutionPlace,
             maleNewSurname: options.maleNewSurname,
             femaleNewSurname: options.femaleNewSurname,
           }
@@ -2188,6 +2197,73 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       )
       setEvents(timeline.items)
       setEventPendingDeletion(null)
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const refreshAfterPlaceMutation = async () => {
+    if (!selectedPerson) return
+    const [updated, timeline] = await Promise.all([
+      treeApi.snapshot(request, treeId),
+      personApi.events(request, treeId, selectedPerson.id),
+    ])
+    setSnapshot(updated)
+    if (marriageEditing) {
+      setMarriageEditing(
+        updated.marriages.find((item) => item.id === marriageEditing.id)
+          ?? null,
+      )
+    }
+    setSelectedPerson(
+      updated.people.find((person) => person.id === selectedPerson.id) ?? null,
+    )
+    setEvents(timeline.items)
+    setPlaceEditing(null)
+  }
+
+  const saveEventPlace = async (place: ResolvedEventPlace) => {
+    if (!snapshot || !placeEditing || conflict) {
+      throw new Error('Event place mutation is unavailable')
+    }
+    try {
+      await eventApi.savePlace(
+        request,
+        treeId,
+        placeEditing.id,
+        snapshot.etag,
+        place,
+      )
+      await refreshAfterPlaceMutation()
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError
+        && error.body.code === 'TREE_VERSION_CONFLICT'
+      ) {
+        setConflict(true)
+      }
+      throw error
+    }
+  }
+
+  const deleteEventPlace = async () => {
+    if (!snapshot || !placeEditing || conflict) {
+      throw new Error('Event place deletion is unavailable')
+    }
+    try {
+      await eventApi.removePlace(
+        request,
+        treeId,
+        placeEditing.id,
+        snapshot.etag,
+      )
+      await refreshAfterPlaceMutation()
     } catch (error) {
       if (
         error instanceof ApiRequestError
@@ -2400,6 +2476,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
             })}
             onDeletePhoto={() => setPhotoDeleting(true)}
             onEditEvent={setEventEditing}
+            onEditEventPlace={setPlaceEditing}
             onEditMarriage={setMarriageEditing}
             onOpenPhoto={() => setPhotoViewing(true)}
             onPatch={patchPerson}
@@ -2464,6 +2541,13 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         <MarriagePeriodDialog
           marriage={marriageEditing}
           onCancel={() => setMarriageEditing(null)}
+          onEditPlace={(type) => {
+            const event = events.find((item) => (
+              item.type === type
+              && item.sourceEntityId === marriageEditing.id
+            ))
+            if (event) setPlaceEditing(event)
+          }}
           onSave={editMarriage}
         />
       )}
@@ -2481,6 +2565,16 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           onCancel={() => setEventPendingDeletion(null)}
           onConfirm={deleteEvent}
           title={t('events.deleteTitle')}
+        />
+      )}
+      {placeEditing && (
+        <PlaceDialog
+          onCancel={() => setPlaceEditing(null)}
+          {...(placeEditing.place ? {
+            onDelete: deleteEventPlace,
+          } : {})}
+          onSave={saveEventPlace}
+          place={placeEditing.place}
         />
       )}
       {photoEditing && (

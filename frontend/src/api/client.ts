@@ -371,6 +371,55 @@ export const eventApi = {
       },
     )
   },
+  savePlace(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    eventId: string,
+    etag: string,
+    place: import('./generated').ResolvedEventPlace,
+  ) {
+    return request<import('./generated').EventMutationResult>(
+      `/trees/${treeId}/events/${eventId}/place`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(place),
+        headers: { 'If-Match': etag },
+      },
+    )
+  },
+  removePlace(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    eventId: string,
+    etag: string,
+  ) {
+    return request<void>(`/trees/${treeId}/events/${eventId}/place`, {
+      method: 'DELETE',
+      headers: { 'If-Match': etag },
+    })
+  },
+}
+
+export const mapApi = {
+  search(request: AuthorizedJsonRequest, query: string) {
+    return request<import('./generated').GeocodingSearchResult>(
+      `/map/geocoding/search?q=${encodeURIComponent(query)}`,
+    )
+  },
+  reverse(
+    request: AuthorizedJsonRequest,
+    latitude: number,
+    longitude: number,
+  ) {
+    const parameters = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+    })
+
+    return request<import('./generated').ResolvedEventPlace>(
+      `/map/geocoding/reverse?${parameters}`,
+    )
+  },
 }
 
 export const profileMediaApi = {

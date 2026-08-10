@@ -4,6 +4,7 @@ import type { GenealogicalEvent } from '../api/generated'
 import { canMoveEvent } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
 import { AddButton } from './AddButton'
+import { PlaceIconButton } from './PlaceDialog'
 
 type EventTimelineProps = {
   conflict: boolean
@@ -11,6 +12,7 @@ type EventTimelineProps = {
   onCreate: () => void
   onDelete: (event: GenealogicalEvent) => void
   onEdit: (event: GenealogicalEvent) => void
+  onEditPlace?: ((event: GenealogicalEvent) => void) | undefined
   onReorder: (eventIds: string[]) => Promise<void>
 }
 
@@ -20,6 +22,7 @@ export function EventTimeline({
   onCreate,
   onDelete,
   onEdit,
+  onEditPlace,
   onReorder,
 }: EventTimelineProps) {
   const { t, i18n } = useTranslation()
@@ -99,11 +102,24 @@ export function EventTimeline({
                   key={event.id}
                 >
                   <div className="event-card-content">
-                    <strong>
-                      {event.type === 'custom' && event.title
-                        ? event.title
-                        : t(`person.eventType.${event.type}`)}
-                    </strong>
+                    <div className="event-title-row">
+                      <strong>
+                        {event.type === 'custom' && event.title
+                          ? event.title
+                          : t(`person.eventType.${event.type}`)}
+                      </strong>
+                      <PlaceIconButton
+                        disabled={conflict}
+                        label={event.place
+                          ? t('place.editForEvent', {
+                              event: title,
+                              place: event.place.name,
+                            })
+                          : t('place.addForEvent', { event: title })}
+                        onClick={() => onEditPlace?.(event)}
+                        place={event.place}
+                      />
+                    </div>
                     <span className="event-date">
                       {formatGenealogicalDate(event.date, language, t)}
                     </span>

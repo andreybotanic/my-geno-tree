@@ -10,6 +10,7 @@ import {
   type TextInputState,
 } from '../personFormState'
 import { UnknownToggleButton } from './UnknownToggleButton'
+import { PlaceDialog, PlaceTextButton } from './PlaceDialog'
 
 type KnownTextInputProps = {
   autoFocus?: boolean
@@ -278,6 +279,12 @@ export function PersonFormFields({
   state,
 }: PersonFormFieldsProps) {
   const { t } = useTranslation()
+  const [placeEditing, setPlaceEditing] = useState<'birth' | 'death' | null>(
+    null,
+  )
+  const editingPlace = placeEditing === 'birth'
+    ? state.birthPlace
+    : state.deathPlace
 
   return (
     <>
@@ -312,12 +319,18 @@ export function PersonFormFields({
           <option value="female">{t('person.female')}</option>
         </select>
       </label>
-      <StructuredDateInput
-        label={t('person.birthDate')}
-        onChange={(birthDate) => onChange({ ...state, birthDate })}
-        state={state.birthDate}
-        unknownToggleTabIndex={-1}
-      />
+      <div className="date-place-field">
+        <StructuredDateInput
+          label={t('person.birthDate')}
+          onChange={(birthDate) => onChange({ ...state, birthDate })}
+          state={state.birthDate}
+          unknownToggleTabIndex={-1}
+        />
+        <PlaceTextButton
+          onClick={() => setPlaceEditing('birth')}
+          place={state.birthPlace}
+        />
+      </div>
       <div className="death-date-row">
         <label
           className="deceased-toggle choice-control conditional-date-toggle"
@@ -327,20 +340,49 @@ export function PersonFormFields({
             onChange={(event) => onChange({
               ...state,
               deceased: event.target.checked,
+              deathPlace: event.target.checked ? state.deathPlace : null,
             })}
             type="checkbox"
           />
           <span>{t('person.deceased')}</span>
         </label>
         {state.deceased && (
-          <StructuredDateInput
-            label={t('person.deathDate')}
-            onChange={(deathDate) => onChange({ ...state, deathDate })}
-            state={state.deathDate}
-            unknownToggleTabIndex={-1}
-          />
+          <div className="date-place-field">
+            <StructuredDateInput
+              label={t('person.deathDate')}
+              onChange={(deathDate) => onChange({ ...state, deathDate })}
+              state={state.deathDate}
+              unknownToggleTabIndex={-1}
+            />
+            <PlaceTextButton
+              onClick={() => setPlaceEditing('death')}
+              place={state.deathPlace}
+            />
+          </div>
         )}
       </div>
+      {placeEditing && (
+        <PlaceDialog
+          onCancel={() => setPlaceEditing(null)}
+          {...(editingPlace ? {
+            onDelete: () => {
+              onChange({
+                ...state,
+                [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: null,
+              })
+              setPlaceEditing(null)
+            },
+          } : {})}
+          onSave={(place) => {
+            onChange({
+              ...state,
+              [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: place,
+            })
+            setPlaceEditing(null)
+          }}
+          place={editingPlace}
+        />
+      )}
     </>
   )
 }

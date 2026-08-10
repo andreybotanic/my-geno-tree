@@ -138,6 +138,7 @@ describe('PersonFormDialog', () => {
         month: 2,
         approximate: false,
       },
+      birthPlace: null,
       deathDate: {
         state: 'known',
         precision: 'day',
@@ -146,6 +147,7 @@ describe('PersonFormDialog', () => {
         day: 4,
         approximate: false,
       },
+      deathPlace: null,
     })
   })
 

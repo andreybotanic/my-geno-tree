@@ -51,7 +51,9 @@ describe('ParentsFormDialog', () => {
         patronymic: { state: 'unknown' },
         gender: 'male',
         birthDate: { state: 'unknown' },
+        birthPlace: null,
         deathDate: null,
+        deathPlace: null,
       },
       mother: {
         birthSurname: { state: 'unknown' },
@@ -59,7 +61,9 @@ describe('ParentsFormDialog', () => {
         patronymic: { state: 'unknown' },
         gender: 'female',
         birthDate: { state: 'unknown' },
+        birthPlace: null,
         deathDate: null,
+        deathPlace: null,
       },
       marriage: null,
     })
@@ -108,7 +112,9 @@ describe('ParentsFormDialog', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       marriage: {
         marriageDate: { state: 'unknown' },
+        marriagePlace: null,
         dissolutionDate: { state: 'unknown' },
+        dissolutionPlace: null,
         maleNewSurname: 'Newman',
         femaleNewSurname: 'Newwoman',
       },

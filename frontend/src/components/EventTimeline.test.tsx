@@ -91,6 +91,34 @@ describe('EventTimeline', () => {
     expect(content?.children[1]).toHaveTextContent('1900')
   })
 
+  it('opens places for automatic events and fills the icon for name-only imports', async () => {
+    const onEditPlace = vi.fn()
+    const imported = {
+      ...automatic,
+      place: { name: 'Imported village', coordinates: null },
+    }
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[imported]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onEditPlace={onEditPlace}
+        onReorder={vi.fn(async () => {})}
+      />,
+    )
+
+    const button = screen.getByRole('button', {
+      name: 'Edit Imported village for Birth',
+    })
+    expect(button).toHaveClass('event-place-button-set')
+    await userEvent.click(button)
+    expect(onEditPlace).toHaveBeenCalledWith(imported)
+    expect(screen.queryByRole('button', { name: 'Edit' }))
+      .not.toBeInTheDocument()
+  })
+
   it('reorders only events inside an ambiguous group', async () => {
     const onReorder = vi.fn(async () => {})
     render(

@@ -12,16 +12,19 @@ import {
   type DateInputState,
 } from '../personFormValues'
 import { StructuredDateInput } from './PersonFormDialog'
+import { PlaceTextButton } from './PlaceDialog'
 
 type MarriagePeriodDialogProps = {
   marriage: MarriagePeriod
   onCancel: () => void
+  onEditPlace?: ((type: 'divorce' | 'marriage') => void) | undefined
   onSave: (patch: MarriagePeriodPatchRequest) => Promise<void>
 }
 
 export function MarriagePeriodDialog({
   marriage,
   onCancel,
+  onEditPlace,
   onSave,
 }: MarriagePeriodDialogProps) {
   const { t } = useTranslation()
@@ -77,11 +80,18 @@ export function MarriagePeriodDialog({
         </h2>
         <form onSubmit={submit}>
           <div className="person-form-grid">
-            <StructuredDateInput
-              label={t('relationships.marriageDate')}
-              onChange={setMarriageDate}
-              state={marriageDate}
-            />
+            <div className="date-place-field">
+              <StructuredDateInput
+                label={t('relationships.marriageDate')}
+                onChange={setMarriageDate}
+                state={marriageDate}
+              />
+              <PlaceTextButton
+                disabled={!onEditPlace}
+                onClick={() => onEditPlace?.('marriage')}
+                place={marriage.marriagePlace}
+              />
+            </div>
             <label
               className="deceased-toggle choice-control conditional-date-toggle"
             >
@@ -93,11 +103,18 @@ export function MarriagePeriodDialog({
               <span>{t('relationships.dissolved')}</span>
             </label>
             {dissolved && (
-              <StructuredDateInput
-                label={t('relationships.dissolutionDate')}
-                onChange={setDissolutionDate}
-                state={dissolutionDate}
-              />
+              <div className="date-place-field">
+                <StructuredDateInput
+                  label={t('relationships.dissolutionDate')}
+                  onChange={setDissolutionDate}
+                  state={dissolutionDate}
+                />
+                <PlaceTextButton
+                  disabled={!onEditPlace}
+                  onClick={() => onEditPlace?.('divorce')}
+                  place={marriage.dissolutionPlace}
+                />
+              </div>
             )}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}

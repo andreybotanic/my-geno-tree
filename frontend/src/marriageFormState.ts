@@ -1,4 +1,7 @@
-import type { GenealogicalDate } from './api/generated'
+import type {
+  GenealogicalDate,
+  ResolvedEventPlace,
+} from './api/generated'
 import {
   dateValue,
   emptyDate,
@@ -8,25 +11,31 @@ import {
 export type MarriageFormState = {
   dissolved: boolean
   dissolutionDate: DateInputState
+  dissolutionPlace: ResolvedEventPlace | null
   femaleNewSurname: string
   maleNewSurname: string
   marriageDate: DateInputState
+  marriagePlace: ResolvedEventPlace | null
 }
 
 export type MarriageFormValue = {
   dissolutionDate: GenealogicalDate | null
+  dissolutionPlace: ResolvedEventPlace | null
   femaleNewSurname: string | null
   maleNewSurname: string | null
   marriageDate: GenealogicalDate
+  marriagePlace: ResolvedEventPlace | null
 }
 
 export function emptyMarriageForm(): MarriageFormState {
   return {
     dissolved: false,
     dissolutionDate: emptyDate(),
+    dissolutionPlace: null,
     femaleNewSurname: '',
     maleNewSurname: '',
     marriageDate: emptyDate(),
+    marriagePlace: null,
   }
 }
 
@@ -43,9 +52,11 @@ export function marriageFormValue(
 
   return {
     dissolutionDate,
+    dissolutionPlace: state.dissolved ? state.dissolutionPlace : null,
     femaleNewSurname: optionalText(state.femaleNewSurname),
     maleNewSurname: optionalText(state.maleNewSurname),
     marriageDate,
+    marriagePlace: state.marriagePlace,
   }
 }
 

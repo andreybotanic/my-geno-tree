@@ -121,7 +121,9 @@ describe('RelativeDialog', () => {
       }),
       {
         marriageDate: { state: 'unknown' },
+        marriagePlace: null,
         dissolutionDate: { state: 'unknown' },
+        dissolutionPlace: null,
         maleNewSurname: 'Newman',
         femaleNewSurname: 'Newwoman',
         parentRole: 'father',

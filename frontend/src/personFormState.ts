@@ -1,4 +1,8 @@
-import type { KnownText, PersonInput } from './api/generated'
+import type {
+  KnownText,
+  PersonInput,
+  ResolvedEventPlace,
+} from './api/generated'
 import {
   dateValue,
   emptyDate,
@@ -16,7 +20,9 @@ export type PersonFormState = {
   patronymic: TextInputState
   gender: PersonInput['gender']
   birthDate: DateInputState
+  birthPlace: ResolvedEventPlace | null
   deathDate: DateInputState
+  deathPlace: ResolvedEventPlace | null
   deceased: boolean
 }
 
@@ -31,7 +37,9 @@ export function emptyPersonForm(
     patronymic: emptyText(),
     gender,
     birthDate: emptyDate(),
+    birthPlace: null,
     deathDate: emptyDate(),
+    deathPlace: null,
     deceased: false,
   }
 }
@@ -58,7 +66,9 @@ export function personFormValue(state: PersonFormState): PersonInput | null {
     patronymic,
     gender: state.gender,
     birthDate,
+    birthPlace: state.birthPlace,
     deathDate,
+    deathPlace: state.deceased ? state.deathPlace : null,
   }
 }
 

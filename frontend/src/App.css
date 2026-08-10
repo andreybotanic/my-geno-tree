@@ -2041,6 +2041,51 @@
   min-width: 0;
 }
 
+.event-title-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.event-place-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 24px;
+  justify-content: center;
+  padding: 2px;
+  width: 24px;
+}
+
+.event-place-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.event-place-button svg {
+  fill: none;
+  height: 18px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+  width: 18px;
+}
+
+.event-place-button-set {
+  color: var(--color-accent);
+}
+
+.event-place-button-set svg path {
+  fill: currentcolor;
+  fill-opacity: 0.18;
+}
+
 .event-date {
   align-items: center;
   display: flex;
@@ -2412,6 +2457,157 @@
   width: 100%;
 }
 
+.date-place-field {
+  display: grid;
+  gap: 5px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.place-text-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 3px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-text-button-set {
+  font-weight: 700;
+}
+
+.place-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.person-place-row {
+  grid-template-columns: 105px minmax(0, 1fr);
+}
+
+.person-place-row .place-text-button {
+  font-size: 0.82rem;
+}
+
+.place-dialog-backdrop {
+  z-index: 60;
+}
+
+.place-dialog {
+  display: grid;
+  gap: 13px;
+  max-height: calc(100svh - 48px);
+  max-width: 860px;
+  overflow: auto;
+  padding: 26px;
+}
+
+.place-dialog h2 {
+  color: var(--color-text-strong);
+  font-family: var(--font-heading);
+  margin: 0;
+}
+
+.place-unresolved-warning {
+  background: var(--color-state-warning-soft);
+  border: 1px solid var(--color-state-warning);
+  border-radius: 9px;
+  color: var(--color-state-warning-strong);
+  font-size: 0.82rem;
+  margin: 0;
+  padding: 9px 11px;
+}
+
+.place-search {
+  align-items: end;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.place-search label,
+.place-name-field {
+  color: var(--color-text);
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.place-search input,
+.place-name-field input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-strong);
+  min-height: 38px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.place-search-results {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  display: grid;
+  list-style: none;
+  margin: -5px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.place-search-results button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  padding: 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.place-search-results button:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.place-map {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  height: min(390px, 45svh);
+  min-height: 280px;
+  overflow: hidden;
+}
+
+.place-attribution,
+.place-coordinate-status {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.place-dialog-actions .place-delete-button {
+  margin-right: auto;
+}
+
+.place-dialog .maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-surface-elevated) 84%, transparent);
+  color: var(--color-text);
+}
+
+.place-dialog .maplibregl-ctrl-attrib a {
+  color: var(--color-accent);
+}
+
 .date-fieldset-ungrouped {
   min-width: 0;
 }
@@ -2642,6 +2838,20 @@
 
   .person-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .place-dialog {
+    max-height: calc(100svh - 20px);
+    padding: 18px;
+  }
+
+  .place-search {
+    grid-template-columns: 1fr;
+  }
+
+  .place-map {
+    height: 42svh;
+    min-height: 240px;
   }
 
   .editor-workspace-panel-open {

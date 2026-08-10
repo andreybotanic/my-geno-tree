@@ -36,6 +36,7 @@ import { AuthenticatedImage } from './AuthenticatedImage'
 import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 import { UnknownToggleButton } from './UnknownToggleButton'
 import { AddButton } from './AddButton'
+import { PlaceTextButton } from './PlaceDialog'
 
 type PersonField = keyof Pick<
   Person,
@@ -57,6 +58,7 @@ type PersonDetailsPanelProps = {
   onCreateEvent: () => void
   onDeleteEvent: (event: GenealogicalEvent) => void
   onEditEvent: (event: GenealogicalEvent) => void
+  onEditEventPlace?: ((event: GenealogicalEvent) => void) | undefined
   onEditMarriage: (marriage: MarriagePeriod) => void
   onOpenPhoto: () => void
   onPatch: (patch: PersonPatchRequest) => Promise<void>
@@ -209,6 +211,7 @@ export function PersonDetailsPanel({
   onDeletePerson,
   onDeletePhoto,
   onEditEvent,
+  onEditEventPlace,
   onEditMarriage,
   onOpenPhoto,
   onPatch,
@@ -228,6 +231,8 @@ export function PersonDetailsPanel({
   const dateRef = useRef(date)
   const [living, setLiving] = useState(person.deathDate === null)
   const language = i18n.resolvedLanguage ?? 'en'
+  const birthEvent = events.find((event) => event.type === 'birth')
+  const deathEvent = events.find((event) => event.type === 'death')
 
   const beginText = (
     field: 'birthSurname' | 'givenName' | 'patronymic',
@@ -476,6 +481,24 @@ export function PersonDetailsPanel({
             </InlineEditor>
           </EditableRow>
         ))}
+        <div className="person-detail-row person-place-row">
+          <span>{t('person.birthPlace')}</span>
+          <PlaceTextButton
+            disabled={conflict || !birthEvent}
+            onClick={() => birthEvent && onEditEventPlace?.(birthEvent)}
+            place={person.birthPlace}
+          />
+        </div>
+        {person.deathDate !== null && (
+          <div className="person-detail-row person-place-row">
+            <span>{t('person.deathPlace')}</span>
+            <PlaceTextButton
+              disabled={conflict || !deathEvent}
+              onClick={() => deathEvent && onEditEventPlace?.(deathEvent)}
+              place={person.deathPlace}
+            />
+          </div>
+        )}
       </section>
 
       <PersonRelationships
@@ -494,6 +517,7 @@ export function PersonDetailsPanel({
         onCreate={onCreateEvent}
         onDelete={onDeleteEvent}
         onEdit={onEditEvent}
+        onEditPlace={onEditEventPlace}
         onReorder={onReorderEvents}
       />
 
