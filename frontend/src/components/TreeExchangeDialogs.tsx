@@ -126,7 +126,7 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
                 <button
                   aria-describedby="import-place-recognition-tooltip"
                   aria-label={t('treeImport.recognizePlacesHelpLabel')}
-                  className="icon-button import-place-recognition-help-button"
+                  className="import-place-recognition-help-button"
                   type="button"
                 >
                   <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">

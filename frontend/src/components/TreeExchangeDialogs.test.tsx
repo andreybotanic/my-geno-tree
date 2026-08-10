@@ -73,7 +73,7 @@ describe('TreeExchangeDialogs', () => {
 
     const recognizePlaces = await screen.findByRole('checkbox', { name: 'Recognize places with OpenStreetMap' })
     expect(recognizePlaces).not.toBeChecked()
-    expect(screen.getByRole('button', { name: 'About place recognition' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'About place recognition' })).not.toHaveClass('icon-button')
     await userEvent.click(recognizePlaces)
     await userEvent.click(screen.getByRole('button', { name: 'Import' }))
 
