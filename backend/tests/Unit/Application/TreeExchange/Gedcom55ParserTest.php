@@ -108,6 +108,8 @@ GEDCOM);
             'longitude' => null,
         ], $document->people[0]['events'][1]['place']);
         self::assertSame(1, $document->warnings['place_coordinates_invalid']);
+        self::assertTrue($document->inspection()['hasUnresolvedPlaces']);
+        self::assertSame(['Tomsk', 'Broken coordinates'], $document->unresolvedPlaceNames());
     }
 
     public function testAllowsBurialAfterDeath(): void

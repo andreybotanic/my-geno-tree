@@ -32,12 +32,40 @@ final readonly class NominatimGeocoder
     /** @return list<array{name: string, coordinates: array{latitude: float, longitude: float}}> */
     public function search(string $query, string $language): array
     {
+        return array_map(
+            static fn (array $candidate): array => $candidate['place'],
+            $this->searchCandidates($query, $language),
+        );
+    }
+
+    /** @return array{name: string, coordinates: array{latitude: float, longitude: float}}|null */
+    public function bestMatch(string $query, string $language): ?array
+    {
+        $best = null;
+        $bestScore = PHP_INT_MIN;
+        foreach ($this->searchCandidates($query, $language) as $candidate) {
+            $score = PHP_INT_MIN;
+            foreach ($candidate['matchNames'] as $name) {
+                $score = max($score, $this->similarity($query, $name));
+            }
+            if ($score > $bestScore) {
+                $best = $candidate['place'];
+                $bestScore = $score;
+            }
+        }
+
+        return $best;
+    }
+
+    /** @return list<array{place: array{name: string, coordinates: array{latitude: float, longitude: float}}, matchNames: list<string>}> */
+    private function searchCandidates(string $query, string $language): array
+    {
         $normalized = trim($query);
         if (mb_strlen($normalized) < 2 || mb_strlen($normalized) > 200) {
             $this->invalid('q', 'text_length_invalid');
         }
         $locale = $this->locale($language);
-        $key = 'search.' . hash('sha256', $locale . "\0" . mb_strtolower($normalized));
+        $key = 'search.' . hash('sha256', "namedetails-v1\0" . $locale . "\0" . mb_strtolower($normalized));
 
         return $this->cache->get($key, function (ItemInterface $item) use ($normalized, $locale): array {
             $item->expiresAfter(self::CACHE_TTL);
@@ -47,6 +75,7 @@ final readonly class NominatimGeocoder
                 'limit'           => 5,
                 'featureType'     => 'settlement',
                 'addressdetails'  => 0,
+                'namedetails'     => 1,
                 'accept-language' => $locale,
             ]);
             $results = [];
@@ -83,7 +112,7 @@ final readonly class NominatimGeocoder
                 throw new ApiException(JsonResponse::HTTP_BAD_GATEWAY, 'GEOCODING_UNAVAILABLE', 'geocoding_unavailable');
             }
 
-            return $place;
+            return $place['place'];
         });
     }
 
@@ -106,7 +135,7 @@ final readonly class NominatimGeocoder
         return $payload;
     }
 
-    /** @return array{name: string, coordinates: array{latitude: float, longitude: float}}|null */
+    /** @return array{place: array{name: string, coordinates: array{latitude: float, longitude: float}}, matchNames: list<string>}|null */
     private function place(mixed $candidate): ?array
     {
         if (!is_array($candidate)) {
@@ -128,12 +157,24 @@ final readonly class NominatimGeocoder
             return null;
         }
 
+        $matchNames = [$name];
+        if (is_array($candidate['namedetails'] ?? null)) {
+            foreach ($candidate['namedetails'] as $alternateName) {
+                if (is_string($alternateName) && '' !== trim($alternateName)) {
+                    $matchNames[] = $alternateName;
+                }
+            }
+        }
+
         return [
-            'name'        => $name,
-            'coordinates' => [
-                'latitude'  => $latitude,
-                'longitude' => $longitude,
+            'place' => [
+                'name'        => $name,
+                'coordinates' => [
+                    'latitude'  => $latitude,
+                    'longitude' => $longitude,
+                ],
             ],
+            'matchNames' => array_values(array_unique($matchNames)),
         ];
     }
 
@@ -150,6 +191,37 @@ final readonly class NominatimGeocoder
     private function locale(string $language): string
     {
         return 'ru' === $language ? 'ru' : 'en';
+    }
+
+    private function similarity(string $query, string $candidate): int
+    {
+        $query = $this->normalizedName($query);
+        $candidate = $this->normalizedName($candidate);
+        if ($query === $candidate) {
+            return 1_000_000;
+        }
+        $candidateWords = array_unique(explode(' ', $candidate));
+        if (in_array($query, $candidateWords, true)) {
+            return 750_000 + mb_strlen($query);
+        }
+        if (str_contains($candidate, $query)) {
+            return 500_000 + mb_strlen($query);
+        }
+        $queryWords = array_unique(explode(' ', $query));
+        $sharedWords = count(array_intersect($queryWords, $candidateWords));
+
+        return $sharedWords * 10_000 - abs(count($queryWords) - count($candidateWords));
+    }
+
+    private function normalizedName(string $value): string
+    {
+        $value = mb_strtolower($value);
+        $normalized = preg_replace('/[^\\p{L}\\p{N}]+/u', ' ', $value);
+        if (null === $normalized) {
+            return '';
+        }
+
+        return trim($normalized);
     }
 
     private function invalid(string $field, string $error): never

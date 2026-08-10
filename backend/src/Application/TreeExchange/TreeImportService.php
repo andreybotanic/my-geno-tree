@@ -29,6 +29,7 @@ final readonly class TreeImportService
     public function __construct(
         private Gedcom55Parser $parser,
         private GedcomEventPlaceFactory $places,
+        private GedcomPlaceRecognizer $placeRecognizer,
         private TreeNamePolicy $names,
         private FamilyTreeRepository $trees,
         private EntityManagerInterface $entityManager,
@@ -43,16 +44,23 @@ final readonly class TreeImportService
         return $this->document($file)->inspection();
     }
 
-    public function import(User $owner, string $requestedName, UploadedFile $file): ImportedTree
-    {
+    public function import(
+        User $owner,
+        string $requestedName,
+        UploadedFile $file,
+        bool $recognizePlaces = false,
+    ): ImportedTree {
         $name = $this->names->normalize($requestedName);
         $document = $this->document($file);
         if ($this->trees->nameExistsForOwner($owner, $name)) {
             throw $this->nameConflict();
         }
+        $recognizedPlaces = $recognizePlaces
+            ? $this->placeRecognizer->recognize($document, $owner->getPreferredLanguage())
+            : [];
 
         try {
-            return $this->entityManager->wrapInTransaction(function () use ($owner, $name, $document): ImportedTree {
+            return $this->entityManager->wrapInTransaction(function () use ($owner, $name, $document, $recognizedPlaces): ImportedTree {
                 $createdAt = $this->clock->now();
                 $tree = new FamilyTree($owner, $name, $createdAt);
                 $this->entityManager->persist($tree);
@@ -72,11 +80,11 @@ final readonly class TreeImportService
                     );
                     $people[$data['id']] = $person;
                     $this->entityManager->persist($person);
-                    $birthPlace = $this->importedPlace($data['birthPlace']);
+                    $birthPlace = $this->importedPlace($data['birthPlace'], $recognizedPlaces);
                     if (null !== $birthPlace) {
                         $person->changeBirthPlace($birthPlace, $createdAt);
                     }
-                    $deathPlace = $this->importedPlace($data['deathPlace']);
+                    $deathPlace = $this->importedPlace($data['deathPlace'], $recognizedPlaces);
                     if (null !== $deathPlace) {
                         $person->changeDeathPlace($deathPlace, $createdAt);
                     }
@@ -113,7 +121,7 @@ final readonly class TreeImportService
                             $event['description'],
                             ['gedcomTag' => $event['gedcomTag']],
                             $createdAt,
-                            $this->importedPlace($event['place']),
+                            $this->importedPlace($event['place'], $recognizedPlaces),
                         ));
                     }
                 }
@@ -153,11 +161,11 @@ final readonly class TreeImportService
                         $createdAt,
                     );
                     $this->entityManager->persist($marriage);
-                    $marriagePlace = $this->importedPlace($family['marriagePlace']);
+                    $marriagePlace = $this->importedPlace($family['marriagePlace'], $recognizedPlaces);
                     if (null !== $marriagePlace) {
                         $marriage->changeMarriagePlace($marriagePlace, $createdAt);
                     }
-                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace']);
+                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace'], $recognizedPlaces);
                     if (null !== $dissolutionPlace) {
                         $marriage->changeDissolutionPlace($dissolutionPlace, $createdAt);
                     }
@@ -222,11 +230,17 @@ final readonly class TreeImportService
         return null === $value ? KnownText::unknown() : KnownText::known($value);
     }
 
-    /** @param array{name: string, latitude: float|null, longitude: float|null}|null $data */
-    private function importedPlace(?array $data): ?EventPlace
+    /**
+     * @param array{name: string, latitude: float|null, longitude: float|null}|null $data
+     * @param array<string, array{name: string, latitude: float, longitude: float}> $recognizedPlaces
+     */
+    private function importedPlace(?array $data, array $recognizedPlaces): ?EventPlace
     {
         if (null === $data) {
             return null;
+        }
+        if (null === $data['latitude'] && isset($recognizedPlaces[$data['name']])) {
+            $data = $recognizedPlaces[$data['name']];
         }
         $place = $this->places->create($data);
         if (null === $place) {

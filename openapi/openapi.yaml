@@ -1381,6 +1381,9 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        recognizePlaces:
+          type: boolean
+          default: false
     TreeImportWarning:
       type: object
       additionalProperties: false
@@ -1394,7 +1397,7 @@ components:
     TreeImportInspection:
       type: object
       additionalProperties: false
-      required: [format, personCount, familyCount, warnings]
+      required: [format, personCount, familyCount, hasUnresolvedPlaces, warnings]
       properties:
         format:
           type: string
@@ -1405,6 +1408,8 @@ components:
         familyCount:
           type: integer
           minimum: 0
+        hasUnresolvedPlaces:
+          type: boolean
         warnings:
           type: array
           items:

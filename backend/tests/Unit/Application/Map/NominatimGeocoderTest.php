@@ -23,6 +23,7 @@ final class NominatimGeocoderTest extends TestCase
             self::assertStringContainsString('/search?', $url);
             self::assertStringContainsString('limit=5', $url);
             self::assertStringContainsString('featureType=settlement', $url);
+            self::assertStringContainsString('namedetails=1', $url);
             self::assertStringContainsString('accept-language=ru', $url);
 
             return new MockResponse(json_encode([
@@ -71,6 +72,51 @@ final class NominatimGeocoderTest extends TestCase
             'name'        => 'Novosibirsk, Russia',
             'coordinates' => ['latitude' => 55.0302, 'longitude' => 82.9204],
         ], $geocoder->reverse(55.0302, 82.9204, 'en'));
+    }
+
+    public function testBestMatchPrefersTheCandidateWhoseNameMostCloselyMatchesThePlace(): void
+    {
+        $client = new MockHttpClient(new MockResponse(json_encode([
+            ['display_name' => 'Novosibirsky District, Russia', 'lat' => '55.1', 'lon' => '82.8'],
+            ['display_name' => 'Novosibirsk, Russia', 'lat' => '55.0302', 'lon' => '82.9204'],
+        ], JSON_THROW_ON_ERROR)), 'https://nominatim.example.test');
+        $geocoder = new NominatimGeocoder(
+            $client,
+            new ArrayAdapter(),
+            $this->acceptingLimiterFactory(1),
+        );
+
+        self::assertSame([
+            'name'        => 'Novosibirsk, Russia',
+            'coordinates' => ['latitude' => 55.0302, 'longitude' => 82.9204],
+        ], $geocoder->bestMatch('Novosibirsk', 'en'));
+    }
+
+    public function testBestMatchKeepsTheBestOsmCandidateWhenItsLocalizedNameUsesAnotherScript(): void
+    {
+        $client = new MockHttpClient(new MockResponse(json_encode([
+            [
+                'display_name' => 'Novosibirsk Oblast, Russia',
+                'lat'          => '55.8',
+                'lon'          => '78.8',
+            ],
+            [
+                'display_name' => 'Новосибирск, Новосибирская область, Россия',
+                'lat'          => '54.9678145',
+                'lon'          => '82.9515989',
+                'namedetails'  => ['name:en' => 'Novosibirsk'],
+            ],
+        ], JSON_THROW_ON_ERROR)), 'https://nominatim.example.test');
+        $geocoder = new NominatimGeocoder(
+            $client,
+            new ArrayAdapter(),
+            $this->acceptingLimiterFactory(1),
+        );
+
+        self::assertSame([
+            'name'        => 'Новосибирск, Новосибирская область, Россия',
+            'coordinates' => ['latitude' => 54.9678145, 'longitude' => 82.9515989],
+        ], $geocoder->bestMatch('Novosibirsk', 'ru'));
     }
 
     public function testInvalidInputIsRejectedWithoutAnUpstreamRequest(): void

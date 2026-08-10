@@ -35,7 +35,12 @@ final readonly class TreeImportController
         if (!is_string($name)) {
             throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'VALIDATION_FAILED', 'validation_failed', ['name' => ['tree_name_required']]);
         }
-        $result = $this->imports->import($user, $name, $this->file($request));
+        $result = $this->imports->import(
+            $user,
+            $name,
+            $this->file($request),
+            $this->recognizePlaces($request),
+        );
         $response = new JsonResponse(
             $this->views->create($result->tree, $result->personCount),
             JsonResponse::HTTP_CREATED,
@@ -57,5 +62,16 @@ final readonly class TreeImportController
         }
 
         return $file;
+    }
+
+    private function recognizePlaces(Request $request): bool
+    {
+        $value = $request->request->get('recognizePlaces', false);
+        $recognized = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+        if (null === $recognized) {
+            throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'VALIDATION_FAILED', 'validation_failed', ['recognizePlaces' => ['boolean_required']]);
+        }
+
+        return $recognized;
     }
 }

@@ -56,10 +56,43 @@ final readonly class GedcomImportDocument
         }
 
         return [
-            'format'      => $this->format,
-            'personCount' => count($this->people),
-            'familyCount' => count($this->families),
-            'warnings'    => $warnings,
+            'format'              => $this->format,
+            'personCount'         => count($this->people),
+            'familyCount'         => count($this->families),
+            'hasUnresolvedPlaces' => [] !== $this->unresolvedPlaceNames(),
+            'warnings'            => $warnings,
         ];
+    }
+
+    /** @return list<string> */
+    public function unresolvedPlaceNames(): array
+    {
+        /** @var array<string, true> $names */
+        $names = [];
+        foreach ($this->people as $person) {
+            $this->addUnresolvedPlace($names, $person['birthPlace']);
+            $this->addUnresolvedPlace($names, $person['deathPlace']);
+            foreach ($person['events'] as $event) {
+                $this->addUnresolvedPlace($names, $event['place']);
+            }
+        }
+        foreach ($this->families as $family) {
+            $this->addUnresolvedPlace($names, $family['marriagePlace']);
+            $this->addUnresolvedPlace($names, $family['dissolutionPlace']);
+        }
+
+        return array_keys($names);
+    }
+
+    /**
+     * @param array<string, true>                                                   $names
+     * @param array{name: string, latitude: float|null, longitude: float|null}|null $place
+     */
+    private function addUnresolvedPlace(array &$names, ?array $place): void
+    {
+        if (null === $place || (null !== $place['latitude'] && null !== $place['longitude'])) {
+            return;
+        }
+        $names[$place['name']] = true;
     }
 }

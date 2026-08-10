@@ -20,6 +20,7 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
   const selectedFile = useRef<File | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
+  const [recognizePlaces, setRecognizePlaces] = useState(false)
   const [inspection, setInspection] = useState<TreeImportInspection | null>(null)
   const [state, setState] = useState<'checking' | 'error' | 'idle' | 'importing'>('idle')
   const [error, setError] = useState('')
@@ -28,6 +29,7 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
     selectedFile.current = nextFile
     setFile(nextFile)
     setInspection(null)
+    setRecognizePlaces(false)
     setError('')
     if (!nextFile) {
       setState('idle')
@@ -53,7 +55,7 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
     setState('importing')
     setError('')
     try {
-      const tree = await treeApi.import(request, file, normalizedName)
+      const tree = await treeApi.import(request, file, normalizedName, recognizePlaces)
       onImported(tree.id)
     } catch (caught) {
       setState('error')
@@ -108,6 +110,35 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
                   </ul>
                 </div>
               )}
+            </div>
+          )}
+          {inspection?.hasUnresolvedPlaces && (
+            <div className="import-place-recognition">
+              <label className="import-place-recognition-toggle">
+                <input
+                  checked={recognizePlaces}
+                  onChange={(event) => setRecognizePlaces(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>{t('treeImport.recognizePlaces')}</span>
+              </label>
+              <span className="import-place-recognition-help">
+                <button
+                  aria-describedby="import-place-recognition-tooltip"
+                  aria-label={t('treeImport.recognizePlacesHelpLabel')}
+                  className="icon-button import-place-recognition-help-button"
+                  type="button"
+                >
+                  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M12 10.5v5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+                    <circle cx="12" cy="7.5" fill="currentColor" r="1" />
+                  </svg>
+                </button>
+                <span className="import-place-recognition-tooltip" id="import-place-recognition-tooltip" role="tooltip">
+                  {t('treeImport.recognizePlacesHelp')}
+                </span>
+              </span>
             </div>
           )}
           {error && <p className="form-error" role="alert">{error}</p>}

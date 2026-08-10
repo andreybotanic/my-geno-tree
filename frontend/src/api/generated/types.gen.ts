@@ -71,6 +71,7 @@ export type TreeImportFile = {
 export type TreeImportRequest = {
     file: Blob | File;
     name: string;
+    recognizePlaces?: boolean;
 };
 
 export type TreeImportWarning = {
@@ -82,6 +83,7 @@ export type TreeImportInspection = {
     format: 'GEDCOM 5.5' | 'GEDCOM 5.5.1';
     personCount: number;
     familyCount: number;
+    hasUnresolvedPlaces: boolean;
     warnings: Array<TreeImportWarning>;
 };
 

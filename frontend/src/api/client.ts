@@ -145,10 +145,11 @@ export const treeApi = {
       { method: 'POST', body: form },
     )
   },
-  import(request: AuthorizedJsonRequest, file: File, name: string) {
+  import(request: AuthorizedJsonRequest, file: File, name: string, recognizePlaces: boolean) {
     const form = new FormData()
     form.set('file', file)
     form.set('name', name)
+    form.set('recognizePlaces', String(recognizePlaces))
     return request<import('./generated').FamilyTree>('/tree-imports', {
       method: 'POST',
       body: form,

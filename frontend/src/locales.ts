@@ -7,6 +7,7 @@ export const resources = {
         noFile: 'No file selected',
         invalid: 'The GEDCOM file is damaged or contains conflicting relationships.', statistics: '{{people}} people, {{families}} families', title: 'Import family tree',
         tooLarge: 'The file must not exceed 10 MB.', unrecognized: 'The file format could not be recognized.', unsupported: 'This GEDCOM version is not supported.', warnings: 'Import warnings',
+        recognizePlaces: 'Recognize places with OpenStreetMap', recognizePlacesHelpLabel: 'About place recognition', recognizePlacesHelp: 'Not all places can be recognized, and a recognized place may still be inaccurate.',
         warning: {
           additional_name: 'Additional names skipped: {{count}}', chronology_adjusted: 'Conflicting dates kept as unknown: {{count}}', non_birth_parentage: 'Non-birth parent relationships skipped: {{count}}',
           unsupported_date: 'Dates kept as unknown: {{count}}', unsupported_media: 'Media objects skipped: {{count}}', unsupported_note: 'Notes skipped: {{count}}',
@@ -377,6 +378,7 @@ export const resources = {
         noFile: 'Файл не выбран',
         invalid: 'GEDCOM-файл повреждён или содержит противоречивые связи.', statistics: 'Персон: {{people}}, семей: {{families}}', title: 'Импорт семейного дерева',
         tooLarge: 'Размер файла не должен превышать 10 МБ.', unrecognized: 'Не удалось распознать формат файла.', unsupported: 'Эта версия GEDCOM не поддерживается.', warnings: 'Предупреждения импорта',
+        recognizePlaces: 'Распознавать места через OpenStreetMap', recognizePlacesHelpLabel: 'О распознавании мест', recognizePlacesHelp: 'Распознаться могут не все места, а распознанное место может быть определено неточно.',
         warning: {
           additional_name: 'Пропущено дополнительных имён: {{count}}', chronology_adjusted: 'Конфликтующих дат сохранено как неизвестные: {{count}}', non_birth_parentage: 'Пропущено некровных родительских связей: {{count}}',
           unsupported_date: 'Дат сохранено как неизвестные: {{count}}', unsupported_media: 'Пропущено медиаобъектов: {{count}}', unsupported_note: 'Пропущено примечаний: {{count}}',
