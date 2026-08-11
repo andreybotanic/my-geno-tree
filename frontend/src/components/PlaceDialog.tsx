@@ -353,6 +353,11 @@ export function PlaceDialog({
             {searching ? t('place.searching') : searchMessage}
           </p>
         )}
+        <p className="geocoding-attribution place-geocoding-attribution">
+          <a href="https://www.geoapify.com/" rel="noreferrer" target="_blank">{t('place.geoapifyAttribution')}</a>
+          {' · '}
+          <a href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">{t('place.openStreetMapAttribution')}</a>
+        </p>
         <div className="place-map-frame">
           <div
             aria-label={t('place.map')}

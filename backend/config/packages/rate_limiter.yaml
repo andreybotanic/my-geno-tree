@@ -12,9 +12,15 @@ framework:
             interval: '1 minute'
             cache_pool: cache.map_rate_limiter
             lock_factory: lock.default.factory
-        nominatim_global:
+        geoapify_requests:
             policy: sliding_window
-            limit: 1
+            limit: 5
             interval: '1 second'
+            cache_pool: cache.map_rate_limiter
+            lock_factory: lock.default.factory
+        geoapify_credits:
+            policy: sliding_window
+            limit: 12000
+            interval: '24 hours'
             cache_pool: cache.map_rate_limiter
             lock_factory: lock.default.factory

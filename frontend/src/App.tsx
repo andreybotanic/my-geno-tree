@@ -7,7 +7,7 @@ import { HomePage } from './pages/HomePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { TreesPage } from './pages/TreesPage'
 import { TreeEditorPage } from './pages/TreeEditorPage'
-import { matchTreeEditorPath, usePath } from './routing'
+import { importNavigationState, matchTreeEditorPath, usePath } from './routing'
 
 function isProtectedPath(path: string): boolean {
   return path === '/profile'
@@ -20,6 +20,7 @@ export default function App() {
   const path = usePath()
   const { isBooting, user } = useAuth()
   const treeRoute = matchTreeEditorPath(path)
+  const importState = importNavigationState()
 
   let page = <HomePage />
   if (isBooting && isProtectedPath(path)) {
@@ -36,7 +37,7 @@ export default function App() {
   } else if (path === '/trees' && user) {
     page = <TreesPage />
   } else if (treeRoute && user) {
-    page = <TreeEditorPage treeId={treeRoute.treeId} />
+    page = <TreeEditorPage importWarningCount={importState?.placeRecognitionIncompleteCount ?? null} treeId={treeRoute.treeId} />
   }
 
   return (

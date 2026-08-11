@@ -328,7 +328,7 @@ paths:
               $ref: "#/components/schemas/TreeImportRequest"
       responses:
         "201":
-          description: Imported family tree
+          description: Imported family tree and non-fatal import warnings
           headers:
             ETag:
               $ref: "#/components/headers/TreeEtag"
@@ -339,7 +339,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FamilyTree"
+                $ref: "#/components/schemas/TreeImportResult"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "409":
@@ -1394,6 +1394,17 @@ components:
         count:
           type: integer
           minimum: 1
+    TreeImportResult:
+      type: object
+      additionalProperties: false
+      required: [tree, warnings]
+      properties:
+        tree:
+          $ref: "#/components/schemas/FamilyTree"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeImportWarning"
     TreeImportInspection:
       type: object
       additionalProperties: false

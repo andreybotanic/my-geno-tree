@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TreeImportInspection } from '../api/generated'
+import type { TreeImportInspection, TreeImportWarning } from '../api/generated'
 import {
   ApiRequestError,
   treeApi,
@@ -11,7 +11,7 @@ import { safeTreeFileName } from '../treeFileName'
 
 type ImportTreeDialogProps = {
   onCancel: () => void
-  onImported: (treeId: string) => void
+  onImported: (treeId: string, warnings: TreeImportWarning[]) => void
   request: AuthorizedJsonRequest
 }
 
@@ -55,8 +55,8 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
     setState('importing')
     setError('')
     try {
-      const tree = await treeApi.import(request, file, normalizedName, recognizePlaces)
-      onImported(tree.id)
+      const result = await treeApi.import(request, file, normalizedName, recognizePlaces)
+      onImported(result.tree.id, result.warnings)
     } catch (caught) {
       setState('error')
       setError(importError(caught, t))
@@ -113,8 +113,9 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
             </div>
           )}
           {inspection?.hasUnresolvedPlaces && (
-            <div className="import-place-recognition">
-              <label className="import-place-recognition-toggle">
+            <>
+              <div className="import-place-recognition">
+                <label className="import-place-recognition-toggle">
                 <input
                   checked={recognizePlaces}
                   onChange={(event) => setRecognizePlaces(event.target.checked)}
@@ -138,8 +139,14 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
                 <span className="import-place-recognition-tooltip" id="import-place-recognition-tooltip" role="tooltip">
                   {t('treeImport.recognizePlacesHelp')}
                 </span>
-              </span>
-            </div>
+                </span>
+              </div>
+              <p className="geocoding-attribution">
+                <a href="https://www.geoapify.com/" rel="noreferrer" target="_blank">{t('treeImport.geoapifyAttribution')}</a>
+                {' · '}
+                <a href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">{t('treeImport.openStreetMapAttribution')}</a>
+              </p>
+            </>
           )}
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">

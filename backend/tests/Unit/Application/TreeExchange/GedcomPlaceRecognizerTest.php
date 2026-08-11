@@ -2,20 +2,22 @@
 
 namespace App\Tests\Unit\Application\TreeExchange;
 
-use App\Application\Map\NominatimGeocoder;
+use App\Application\Map\GeoapifyGeocoder;
 use App\Application\TreeExchange\Gedcom55Parser;
 use App\Application\TreeExchange\GedcomPlaceRecognizer;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\Clock\MockClock;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\RateLimiter\LimiterInterface;
+use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\RateLimiter\Reservation;
 
 final class GedcomPlaceRecognizerTest extends TestCase
 {
-    public function testRecognizesEachDistinctTextOnlyPlaceAndLeavesResolvedPlacesUntouched(): void
+    public function testRecognizesAllDistinctTextOnlyPlacesInOneBatchAndLeavesCoordinatesUntouched(): void
     {
         $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
 0 HEAD
@@ -38,32 +40,35 @@ final class GedcomPlaceRecognizerTest extends TestCase
 4 LONG E37.6173
 0 TRLR
 GEDCOM);
-        $requestCount = 0;
-        $client = new MockHttpClient(function (string $method, string $url) use (&$requestCount): MockResponse {
-            ++$requestCount;
+        $calls = 0;
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$calls): MockResponse {
+            ++$calls;
+            if (1 === $calls) {
+                self::assertSame('POST', $method);
+                self::assertSame(['Novosibirsk', 'Tomsk'], json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR));
+
+                return $this->response(['id' => 'job'], 202);
+            }
             self::assertSame('GET', $method);
 
-            return new MockResponse(json_encode(
-                str_contains($url, 'Tomsk')
-                    ? [['display_name' => 'Tomsk, Russia', 'lat' => '56.4977', 'lon' => '84.9744']]
-                    : [['display_name' => 'Novosibirsk, Russia', 'lat' => '55.0302', 'lon' => '82.9204']],
-                JSON_THROW_ON_ERROR,
-            ));
-        }, 'https://nominatim.example.test');
-        $recognizer = new GedcomPlaceRecognizer(new NominatimGeocoder(
-            $client,
-            new ArrayAdapter(),
-            $this->acceptingLimiterFactory(2),
-        ));
+            return $this->response([
+                ['query' => ['text' => 'Novosibirsk'], 'city' => 'Novosibirsk', 'lat' => 55.0302, 'lon' => 82.9204],
+                ['query' => ['text' => 'Tomsk'], 'city' => 'Tomsk', 'lat' => 56.4977, 'lon' => 84.9744],
+            ]);
+        }, 'https://geoapify.example.test/v1');
+        $recognizer = new GedcomPlaceRecognizer($this->geocoder($client));
+
+        $recognition = $recognizer->recognize($document, 'en');
 
         self::assertSame([
-            'Novosibirsk' => ['name' => 'Novosibirsk, Russia', 'latitude' => 55.0302, 'longitude' => 82.9204],
-            'Tomsk'       => ['name' => 'Tomsk, Russia', 'latitude' => 56.4977, 'longitude' => 84.9744],
-        ], $recognizer->recognize($document, 'en'));
-        self::assertSame(2, $requestCount);
+            'Novosibirsk' => ['name' => 'Novosibirsk', 'latitude' => 55.0302, 'longitude' => 82.9204],
+            'Tomsk'       => ['name' => 'Tomsk', 'latitude' => 56.4977, 'longitude' => 84.9744],
+        ], $recognition->places);
+        self::assertSame(0, $recognition->unrecognizedPlaceCount);
+        self::assertSame(2, $calls);
     }
 
-    public function testKeepsImportPossibleWhenNominatimIsUnavailable(): void
+    public function testKeepsUnrecognizedPlacesAsTextWhenGeoapifyIsUnavailable(): void
     {
         $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
 0 HEAD
@@ -76,36 +81,44 @@ GEDCOM);
 2 PLAC Novosibirsk
 0 TRLR
 GEDCOM);
-        $recognizer = new GedcomPlaceRecognizer(new NominatimGeocoder(
-            new MockHttpClient(new MockResponse('', ['http_code' => 503]), 'https://nominatim.example.test'),
-            new ArrayAdapter(),
-            $this->acceptingLimiterFactory(1),
-        ));
+        $recognition = (new GedcomPlaceRecognizer($this->geocoder(
+            new MockHttpClient($this->response([], 503), 'https://geoapify.example.test/v1'),
+        )))->recognize($document, 'en');
 
-        self::assertSame([], $recognizer->recognize($document, 'en'));
+        self::assertSame([], $recognition->places);
+        self::assertSame(1, $recognition->unrecognizedPlaceCount);
     }
 
-    private function acceptingLimiterFactory(int $expectedReservations): RateLimiterFactoryInterface
+    private function geocoder(MockHttpClient $client): GeoapifyGeocoder
     {
-        $reservation = new Reservation(microtime(true) - 1, new \Symfony\Component\RateLimiter\RateLimit(
-            1,
+        return new GeoapifyGeocoder(
+            $client,
+            new ArrayAdapter(),
+            $this->factory(),
+            $this->factory(),
+            'geoapify-test-api-key',
+            new MockClock('2026-01-01T00:00:00+00:00'),
+        );
+    }
+
+    private function factory(): RateLimiterFactoryInterface
+    {
+        $factory = $this->createMock(RateLimiterFactoryInterface::class);
+        $limiter = $this->createMock(LimiterInterface::class);
+        $limiter->method('reserve')->willReturn(new Reservation(microtime(true) - 1, new RateLimit(
+            12000,
             new \DateTimeImmutable('2000-01-01T00:00:00+00:00'),
             true,
-            1,
-        ));
-        $limiter = $this->createMock(LimiterInterface::class);
-        $limiter
-            ->expects($this->exactly($expectedReservations))
-            ->method('reserve')
-            ->with(1, 3.0)
-            ->willReturn($reservation);
-        $factory = $this->createMock(RateLimiterFactoryInterface::class);
-        $factory
-            ->expects($this->exactly($expectedReservations))
-            ->method('create')
-            ->with('nominatim-public-api')
-            ->willReturn($limiter);
+            12000,
+        )));
+        $factory->method('create')->willReturn($limiter);
 
         return $factory;
+    }
+
+    /** @param array<mixed> $body */
+    private function response(array $body, int $status = 200): MockResponse
+    {
+        return new MockResponse(json_encode($body, JSON_THROW_ON_ERROR), ['http_code' => $status]);
     }
 }

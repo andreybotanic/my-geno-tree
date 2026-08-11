@@ -1,10 +1,9 @@
 framework:
     http_client:
         scoped_clients:
-            nominatim.client:
-                base_uri: '%env(NOMINATIM_BASE_URI)%'
+            geoapify.client:
+                base_uri: '%env(GEOAPIFY_BASE_URI)%'
                 headers:
                     Accept: 'application/json'
-                    User-Agent: '%env(NOMINATIM_USER_AGENT)%'
                 timeout: 10
                 max_duration: 15

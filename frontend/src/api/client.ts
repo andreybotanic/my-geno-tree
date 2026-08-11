@@ -150,7 +150,7 @@ export const treeApi = {
     form.set('file', file)
     form.set('name', name)
     form.set('recognizePlaces', String(recognizePlaces))
-    return request<import('./generated').FamilyTree>('/tree-imports', {
+    return request<import('./generated').TreeImportResult>('/tree-imports', {
       method: 'POST',
       body: form,
     })

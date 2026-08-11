@@ -2,35 +2,20 @@
 
 namespace App\Application\TreeExchange;
 
-use App\Api\ApiException;
-use App\Application\Map\NominatimGeocoder;
+use App\Application\Map\GeoapifyGeocoder;
 
 final readonly class GedcomPlaceRecognizer
 {
-    public function __construct(private NominatimGeocoder $geocoder)
+    public function __construct(private GeoapifyGeocoder $geocoder)
     {
     }
 
-    /** @return array<string, array{name: string, latitude: float, longitude: float}> */
-    public function recognize(GedcomImportDocument $document, string $language): array
+    public function recognize(GedcomImportDocument $document, string $language): GedcomPlaceRecognition
     {
+        $names = $document->unresolvedPlaceNames();
+        $matches = $this->geocoder->batchBestMatches($names, $language);
         $recognized = [];
-        foreach ($document->unresolvedPlaceNames() as $name) {
-            try {
-                $place = $this->geocoder->bestMatch($name, $language);
-            } catch (ApiException $exception) {
-                if (in_array($exception->getErrorCode(), ['GEOCODING_UNAVAILABLE', 'RATE_LIMIT_EXCEEDED'], true)) {
-                    return $recognized;
-                }
-                if ('GEOCODING_QUERY_INVALID' === $exception->getErrorCode()) {
-                    continue;
-                }
-
-                throw $exception;
-            }
-            if (null === $place) {
-                continue;
-            }
+        foreach ($matches as $name => $place) {
             $recognized[$name] = [
                 'name'      => $place['name'],
                 'latitude'  => $place['coordinates']['latitude'],
@@ -38,6 +23,6 @@ final readonly class GedcomPlaceRecognizer
             ];
         }
 
-        return $recognized;
+        return new GedcomPlaceRecognition($recognized, count($names) - count($recognized));
     }
 }

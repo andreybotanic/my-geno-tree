@@ -149,8 +149,15 @@ export function TreesPage() {
       {dialog?.type === 'import' && (
         <ImportTreeDialog
           onCancel={() => setDialog(null)}
-          onImported={(treeId) => {
+          onImported={(treeId, warnings) => {
             setDialog(null)
+            const incompletePlaces = warnings.find((warning) => warning.code === 'place_recognition_incomplete')
+            if (incompletePlaces) {
+              navigate(treeEditorPath(treeId, 'tree'), {
+                state: { placeRecognitionIncompleteCount: incompletePlaces.count },
+              })
+              return
+            }
             navigate(treeEditorPath(treeId, 'tree'))
           }}
           request={request}

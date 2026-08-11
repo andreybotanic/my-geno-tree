@@ -13,7 +13,7 @@ final class MapGeocodingApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(401);
     }
 
-    public function testInvalidSearchAndCoordinatesAreRejectedWithoutCallingNominatim(): void
+    public function testInvalidSearchAndCoordinatesAreRejectedWithoutCallingGeoapify(): void
     {
         $token = $this->register();
 

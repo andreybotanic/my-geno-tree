@@ -3,7 +3,7 @@
 namespace App\Controller\Api\Map;
 
 use App\Api\ApiException;
-use App\Application\Map\NominatimGeocoder;
+use App\Application\Map\GeoapifyGeocoder;
 use App\Entity\User;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,7 +12,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 final readonly class MapGeocodingController
 {
-    public function __construct(private NominatimGeocoder $geocoder)
+    public function __construct(private GeoapifyGeocoder $geocoder)
     {
     }
 
@@ -24,7 +24,7 @@ final readonly class MapGeocodingController
             $this->invalid('q', 'text_required');
         }
 
-        return new JsonResponse(['items' => $this->geocoder->search(
+        return new JsonResponse(['items' => $this->geocoder->autocomplete(
             $query,
             $user->getPreferredLanguage(),
         )]);

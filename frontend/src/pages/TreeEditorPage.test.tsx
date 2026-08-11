@@ -166,6 +166,7 @@ function graphSnapshot(
 function renderEditor(
   request: AuthorizedJsonRequest,
   user: User | null = null,
+  importWarningCount: number | null = null,
 ) {
   const value: AuthContextValue = {
     accessToken: 'access',
@@ -183,7 +184,7 @@ function renderEditor(
   return render(
     <AuthContext value={value}>
       <div id="header-breadcrumbs" />
-      <TreeEditorPage treeId={treeId} />
+      <TreeEditorPage importWarningCount={importWarningCount} treeId={treeId} />
     </AuthContext>,
   )
 }
@@ -213,6 +214,14 @@ describe('TreeEditorPage', () => {
     window.localStorage.clear()
     await i18n.changeLanguage('en')
     vi.unstubAllGlobals()
+  })
+
+  it('shows the import warning once when places remain text-only', async () => {
+    renderEditor(vi.fn(async () => snapshot()) as unknown as AuthorizedJsonRequest, null, 3)
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Places kept as text because they could not be recognized: 3',
+    )
   })
 
   it('creates the first fully unknown person from the empty editor', async () => {

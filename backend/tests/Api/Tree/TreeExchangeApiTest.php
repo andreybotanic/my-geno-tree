@@ -59,10 +59,13 @@ GEDCOM;
 
         $this->multipart('/api/v1/tree-imports', $token, self::GEDCOM, 'Imported family');
         self::assertResponseStatusCodeSame(201);
-        $tree = $this->responseData();
+        $import = $this->responseData();
+        self::assertSame([], $import['warnings']);
+        $tree = $import['tree'];
+        self::assertIsArray($tree);
         self::assertSame(3, $tree['personCount']);
         self::assertSame('Imported family', $tree['name']);
-        $treeId = $this->responseString('id');
+        $treeId = $this->responseString('tree', 'id');
 
         $this->jsonRequest('GET', '/api/v1/trees/' . $treeId . '/snapshot', headers: [
             'Authorization' => 'Bearer ' . $token,
@@ -89,9 +92,10 @@ GEDCOM;
 
         $this->multipart('/api/v1/tree-imports', $token, $export, 'Round trip');
         self::assertResponseStatusCodeSame(201);
-        $roundTrip = $this->responseData();
+        $roundTrip = $this->responseData()['tree'];
+        self::assertIsArray($roundTrip);
         self::assertSame(3, $roundTrip['personCount']);
-        $roundTripId = $this->responseString('id');
+        $roundTripId = $this->responseString('tree', 'id');
         $this->jsonRequest('GET', '/api/v1/trees/' . $roundTripId . '/snapshot', headers: [
             'Authorization' => 'Bearer ' . $token,
         ]);
@@ -130,7 +134,7 @@ GEDCOM;
         );
         $this->multipart('/api/v1/tree-imports', $token, $marriedGedcom, 'Marriage periods');
         self::assertResponseStatusCodeSame(201);
-        $treeId = $this->responseString('id');
+        $treeId = $this->responseString('tree', 'id');
 
         $this->jsonRequest('GET', '/api/v1/trees/' . $treeId . '/snapshot', headers: [
             'Authorization' => 'Bearer ' . $token,
@@ -200,7 +204,7 @@ GEDCOM;
 
         $this->multipart('/api/v1/tree-imports', $token, $gedcom, 'Places');
         self::assertResponseStatusCodeSame(201);
-        $treeId = $this->responseString('id');
+        $treeId = $this->responseString('tree', 'id');
         $snapshot = $this->snapshot($token, $treeId);
         self::assertCount(2, $snapshot['people']);
         self::assertCount(1, $snapshot['marriages']);
@@ -271,7 +275,7 @@ GEDCOM;
 
         $this->multipart('/api/v1/tree-imports', $token, $export, 'Places round trip');
         self::assertResponseStatusCodeSame(201);
-        $roundTrip = $this->snapshot($token, $this->responseString('id'));
+        $roundTrip = $this->snapshot($token, $this->responseString('tree', 'id'));
         self::assertCount(2, $roundTrip['people']);
         self::assertCount(1, $roundTrip['marriages']);
         self::assertIsArray($roundTrip['marriages'][0]['marriagePlace']);
@@ -287,7 +291,7 @@ GEDCOM;
 
         $firstToken = $this->register();
         $this->multipart('/api/v1/tree-imports', $firstToken, self::GEDCOM, 'Private import');
-        $treeId = $this->responseString('id');
+        $treeId = $this->responseString('tree', 'id');
         $secondToken = $this->register('second_exchange', 'second_exchange@example.test');
         $this->jsonRequest('POST', '/api/v1/trees/' . $treeId . '/exports', [
             'format'   => 'gedcom-5.5.1',

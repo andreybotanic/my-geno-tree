@@ -42,7 +42,10 @@ final readonly class TreeImportController
             $this->recognizePlaces($request),
         );
         $response = new JsonResponse(
-            $this->views->create($result->tree, $result->personCount),
+            [
+                'tree'     => $this->views->create($result->tree, $result->personCount),
+                'warnings' => $result->warnings,
+            ],
             JsonResponse::HTTP_CREATED,
         );
         $response->headers->set('ETag', $this->versions->etag($result->tree));

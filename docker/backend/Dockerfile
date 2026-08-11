@@ -28,3 +28,4 @@ CMD ["php-fpm"]
 WORKDIR /srv/backend
 
 COPY docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+COPY docker/backend/import-timeout.conf /usr/local/etc/php-fpm.d/zz-import-timeout.conf

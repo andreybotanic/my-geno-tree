@@ -55,12 +55,12 @@ final readonly class TreeImportService
         if ($this->trees->nameExistsForOwner($owner, $name)) {
             throw $this->nameConflict();
         }
-        $recognizedPlaces = $recognizePlaces
+        $recognition = $recognizePlaces
             ? $this->placeRecognizer->recognize($document, $owner->getPreferredLanguage())
-            : [];
+            : new GedcomPlaceRecognition([], 0);
 
         try {
-            return $this->entityManager->wrapInTransaction(function () use ($owner, $name, $document, $recognizedPlaces): ImportedTree {
+            return $this->entityManager->wrapInTransaction(function () use ($owner, $name, $document, $recognition): ImportedTree {
                 $createdAt = $this->clock->now();
                 $tree = new FamilyTree($owner, $name, $createdAt);
                 $this->entityManager->persist($tree);
@@ -80,11 +80,11 @@ final readonly class TreeImportService
                     );
                     $people[$data['id']] = $person;
                     $this->entityManager->persist($person);
-                    $birthPlace = $this->importedPlace($data['birthPlace'], $recognizedPlaces);
+                    $birthPlace = $this->importedPlace($data['birthPlace'], $recognition->places);
                     if (null !== $birthPlace) {
                         $person->changeBirthPlace($birthPlace, $createdAt);
                     }
-                    $deathPlace = $this->importedPlace($data['deathPlace'], $recognizedPlaces);
+                    $deathPlace = $this->importedPlace($data['deathPlace'], $recognition->places);
                     if (null !== $deathPlace) {
                         $person->changeDeathPlace($deathPlace, $createdAt);
                     }
@@ -121,7 +121,7 @@ final readonly class TreeImportService
                             $event['description'],
                             ['gedcomTag' => $event['gedcomTag']],
                             $createdAt,
-                            $this->importedPlace($event['place'], $recognizedPlaces),
+                            $this->importedPlace($event['place'], $recognition->places),
                         ));
                     }
                 }
@@ -161,11 +161,11 @@ final readonly class TreeImportService
                         $createdAt,
                     );
                     $this->entityManager->persist($marriage);
-                    $marriagePlace = $this->importedPlace($family['marriagePlace'], $recognizedPlaces);
+                    $marriagePlace = $this->importedPlace($family['marriagePlace'], $recognition->places);
                     if (null !== $marriagePlace) {
                         $marriage->changeMarriagePlace($marriagePlace, $createdAt);
                     }
-                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace'], $recognizedPlaces);
+                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace'], $recognition->places);
                     if (null !== $dissolutionPlace) {
                         $marriage->changeDissolutionPlace($dissolutionPlace, $createdAt);
                     }
@@ -198,7 +198,13 @@ final readonly class TreeImportService
 
                 $tree->referencePerson(array_values($people)[0]);
 
-                return new ImportedTree($tree, count($people));
+                return new ImportedTree(
+                    $tree,
+                    count($people),
+                    $recognition->unrecognizedPlaceCount > 0
+                        ? [['code' => 'place_recognition_incomplete', 'count' => $recognition->unrecognizedPlaceCount]]
+                        : [],
+                );
             });
         } catch (UniqueConstraintViolationException $exception) {
             throw $this->nameConflict($exception);

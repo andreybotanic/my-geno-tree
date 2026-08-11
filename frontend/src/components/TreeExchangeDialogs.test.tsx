@@ -62,7 +62,7 @@ describe('TreeExchangeDialogs', () => {
       }
       expect(init.body.get('recognizePlaces')).toBe('true')
 
-      return { id: 'imported-tree' } as T
+      return { tree: { id: 'imported-tree' }, warnings: [] } as T
     }) as AuthorizedJsonRequest
     const onImported = vi.fn()
 
@@ -71,13 +71,15 @@ describe('TreeExchangeDialogs', () => {
     await userEvent.type(screen.getByLabelText('Tree name'), 'Imported family')
     await userEvent.upload(screen.getByLabelText('GEDCOM file'), new File(['0 HEAD'], 'family.ged'))
 
-    const recognizePlaces = await screen.findByRole('checkbox', { name: 'Recognize places with OpenStreetMap' })
+    const recognizePlaces = await screen.findByRole('checkbox', { name: 'Recognize settlements with Geoapify' })
     expect(recognizePlaces).not.toBeChecked()
+    expect(screen.getByRole('link', { name: 'Powered by Geoapify' })).toHaveAttribute('href', 'https://www.geoapify.com/')
+    expect(screen.getByRole('link', { name: 'OpenStreetMap contributors' })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
     expect(screen.getByRole('button', { name: 'About place recognition' })).not.toHaveClass('icon-button')
     await userEvent.click(recognizePlaces)
     await userEvent.click(screen.getByRole('button', { name: 'Import' }))
 
-    await waitFor(() => expect(onImported).toHaveBeenCalledWith('imported-tree'))
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith('imported-tree', []))
   })
 
   it('does not show place recognition when every GEDCOM place has coordinates', async () => {
@@ -93,6 +95,6 @@ describe('TreeExchangeDialogs', () => {
 
     await userEvent.upload(screen.getByLabelText('GEDCOM file'), new File(['0 HEAD'], 'family.ged'))
 
-    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Recognize places with OpenStreetMap' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Recognize settlements with Geoapify' })).not.toBeInTheDocument())
   })
 })

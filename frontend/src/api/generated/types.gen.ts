@@ -79,6 +79,11 @@ export type TreeImportWarning = {
     count: number;
 };
 
+export type TreeImportResult = {
+    tree: FamilyTree;
+    warnings: Array<TreeImportWarning>;
+};
+
 export type TreeImportInspection = {
     format: 'GEDCOM 5.5' | 'GEDCOM 5.5.1';
     personCount: number;
@@ -950,9 +955,9 @@ export type ImportTreeError = ImportTreeErrors[keyof ImportTreeErrors];
 
 export type ImportTreeResponses = {
     /**
-     * Imported family tree
+     * Imported family tree and non-fatal import warnings
      */
-    201: FamilyTree;
+    201: TreeImportResult;
 };
 
 export type ImportTreeResponse = ImportTreeResponses[keyof ImportTreeResponses];

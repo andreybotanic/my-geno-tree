@@ -79,6 +79,7 @@ import { EventDialog } from '../components/EventDialog'
 import { PlaceDialog } from '../components/PlaceDialog'
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { PhotoViewerDialog } from '../components/PhotoViewerDialog'
+import { ToastNotice } from '../components/ToastNotice'
 import { ExportTreeDialog } from '../components/TreeExchangeDialogs'
 import {
   matchTreeEditorPath,
@@ -114,6 +115,7 @@ import {
 } from '../bloodNetwork'
 
 type TreeEditorPageProps = {
+  importWarningCount?: number | null
   treeId: string
 }
 
@@ -1740,7 +1742,7 @@ function personDetailsCacheKey(personId: string, etag: string) {
   return `${etag}:${personId}`
 }
 
-export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
+export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
   const { request, requestBlob, updateUser, user } = useAuth()
   const path = usePath()
@@ -1754,6 +1756,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const [status, setStatus] = useState<'error' | 'loading' | 'missing' | 'ready'>(
     'loading',
   )
+  const [placeRecognitionNotice, setPlaceRecognitionNotice] = useState(importWarningCount)
+
+  useEffect(() => {
+    setPlaceRecognitionNotice(importWarningCount)
+    if (importWarningCount) {
+      window.history.replaceState({}, '', window.location.href)
+    }
+  }, [importWarningCount])
   const [creating, setCreating] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -2441,6 +2451,13 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
 
   return (
     <main className="tree-editor-page">
+      {placeRecognitionNotice && (
+        <ToastNotice
+          closeLabel={t('common.close')}
+          message={t('treeImport.warning.place_recognition_incomplete', { count: placeRecognitionNotice })}
+          onClose={() => setPlaceRecognitionNotice(null)}
+        />
+      )}
       <EditorBreadcrumbs
         status={status}
         treeName={snapshot?.tree.name}

@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 
 export type TreeEditorView = 'network' | 'tree'
 
+export type ImportNavigationState = {
+  placeRecognitionIncompleteCount: number
+}
+
 export function treeEditorPath(treeId: string, view: TreeEditorView): string {
   return `/trees/${treeId}/${view}`
 }
@@ -21,16 +25,29 @@ export function matchTreeEditorPath(path: string): {
   }
 }
 
-export function navigate(path: string, options: { replace?: boolean } = {}): void {
-  if (window.location.pathname === path) {
+export function navigate(path: string, options: { replace?: boolean; state?: ImportNavigationState } = {}): void {
+  if (window.location.pathname === path && !options.state) {
     return
   }
   if (options.replace) {
-    window.history.replaceState({}, '', path)
+    window.history.replaceState(options.state ?? {}, '', path)
   } else {
-    window.history.pushState({}, '', path)
+    window.history.pushState(options.state ?? {}, '', path)
   }
   window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+export function importNavigationState(): ImportNavigationState | null {
+  const state = window.history.state
+  if (
+    !state
+    || typeof state.placeRecognitionIncompleteCount !== 'number'
+    || state.placeRecognitionIncompleteCount <= 0
+  ) {
+    return null
+  }
+
+  return { placeRecognitionIncompleteCount: state.placeRecognitionIncompleteCount }
 }
 
 export function usePath(): string {

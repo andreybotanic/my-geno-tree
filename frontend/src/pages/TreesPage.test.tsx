@@ -109,7 +109,9 @@ describe('TreesPage', () => {
           warnings: [{ code: 'unsupported_place', count: 2 }],
         }
       }
-      if (path === '/tree-imports' && init?.method === 'POST') return imported
+      if (path === '/tree-imports' && init?.method === 'POST') {
+        return { tree: imported, warnings: [{ code: 'place_recognition_incomplete', count: 2 }] }
+      }
       return { items: [] }
     }) as unknown as AuthorizedJsonRequest
     renderPage(request)
@@ -133,6 +135,7 @@ describe('TreesPage', () => {
     await userEvent.click(importButton)
 
     await waitFor(() => expect(window.location.pathname).toBe(`/trees/${imported.id}/tree`))
+    expect(window.history.state).toEqual({ placeRecognitionIncompleteCount: 2 })
     expect(request).toHaveBeenCalledWith('/tree-imports', expect.objectContaining({ method: 'POST' }))
   })
 
