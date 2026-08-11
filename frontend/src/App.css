@@ -2781,7 +2781,7 @@
   min-width: 0;
 }
 
-.date-controls > label:first-child {
+.date-controls > label:nth-child(2) {
   flex: 1.4 1 80px;
 }
 
