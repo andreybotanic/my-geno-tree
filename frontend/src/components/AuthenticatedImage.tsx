@@ -2,16 +2,27 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
 
 const pendingBlobRequests = new Map<string, Promise<Blob>>()
+const cachedBlobs = new Map<string, Blob>()
 
 function loadBlob(url: string, requestBlob: (url: string) => Promise<Blob>) {
+  const cached = cachedBlobs.get(url)
+  if (cached) {
+    return Promise.resolve(cached)
+  }
+
   const pending = pendingBlobRequests.get(url)
   if (pending) {
     return pending
   }
 
-  const request = requestBlob(url).finally(() => {
-    pendingBlobRequests.delete(url)
-  })
+  const request = requestBlob(url)
+    .then((blob) => {
+      cachedBlobs.set(url, blob)
+      return blob
+    })
+    .finally(() => {
+      pendingBlobRequests.delete(url)
+    })
   pendingBlobRequests.set(url, request)
 
   return request

@@ -32,7 +32,7 @@ describe('AuthenticatedImage', () => {
         <AuthenticatedImage
           alt="Portrait"
           fallback={<span>No image</span>}
-          url="/private"
+          url="/private-first"
         />
       </AuthContext>,
     )
@@ -40,7 +40,7 @@ describe('AuthenticatedImage', () => {
     expect(screen.getByText('No image')).toBeInTheDocument()
     expect(await screen.findByRole('img', { name: 'Portrait' }))
       .toHaveAttribute('src', 'blob:test-image')
-    expect(requestBlob).toHaveBeenCalledWith('/private')
+    expect(requestBlob).toHaveBeenCalledWith('/private-first')
 
     rerender(
       <AuthContext value={context(requestBlob)}>
@@ -66,12 +66,12 @@ describe('AuthenticatedImage', () => {
         <AuthenticatedImage
           alt="First portrait"
           fallback={<span>First placeholder</span>}
-          url="/private"
+          url="/private-pending"
         />
         <AuthenticatedImage
           alt="Second portrait"
           fallback={<span>Second placeholder</span>}
-          url="/private"
+          url="/private-pending"
         />
       </AuthContext>,
     )
@@ -83,5 +83,37 @@ describe('AuthenticatedImage', () => {
       .toBeInTheDocument()
     expect(await screen.findByRole('img', { name: 'Second portrait' }))
       .toBeInTheDocument()
+  })
+
+  it('reuses a successful blob after the image component is remounted', async () => {
+    const requestBlob = vi.fn(async () => new Blob(['image']))
+    const first = render(
+      <AuthContext value={context(requestBlob)}>
+        <AuthenticatedImage
+          alt="Cached portrait"
+          fallback={<span>No image</span>}
+          url="/private-cached"
+        />
+      </AuthContext>,
+    )
+
+    expect(await screen.findByRole('img', { name: 'Cached portrait' }))
+      .toBeInTheDocument()
+    expect(requestBlob).toHaveBeenCalledOnce()
+    first.unmount()
+
+    render(
+      <AuthContext value={context(requestBlob)}>
+        <AuthenticatedImage
+          alt="Cached portrait"
+          fallback={<span>No image</span>}
+          url="/private-cached"
+        />
+      </AuthContext>,
+    )
+
+    expect(await screen.findByRole('img', { name: 'Cached portrait' }))
+      .toBeInTheDocument()
+    expect(requestBlob).toHaveBeenCalledOnce()
   })
 })
