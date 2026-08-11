@@ -221,6 +221,9 @@ describe('semantic design contracts', () => {
       /\.react-flow__edge-path\.tree-edge\s*\{[^}]*stroke:\s*var\(--color-graph-line\);[^}]*stroke-linejoin:\s*round;[^}]*stroke-width:\s*2\.4;/s,
     )
     expect(appStyles).not.toMatch(/\.tree-edge-child\s*\{[^}]*stroke-/s)
+    expect(appStyles).not.toMatch(
+      /\.react-flow__edge-path\.tree-edge-reference\s*\{[^}]*filter:/s,
+    )
   })
 
   it('uses a distinct drag cursor only over movable blood-map nodes', () => {

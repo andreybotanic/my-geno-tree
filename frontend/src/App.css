@@ -1232,7 +1232,6 @@
 }
 
 .react-flow__edge-path.tree-edge-reference {
-  filter: drop-shadow(0 0 4px var(--color-state-warning));
   stroke: var(--color-state-warning-strong);
   stroke-width: 4;
 }
