@@ -110,6 +110,9 @@ describe('semantic design contracts', () => {
 
   it('aligns the first event line with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
+      /\.event-timeline li\s*\{[^}]*min-height:\s*50px;/s,
+    )
+    expect(appStyles).toMatch(
       /\.event-timeline li::before\s*\{[^}]*left:\s*0\.5px;[^}]*top:\s*0;[^}]*transform:\s*translateX\(-50%\);/s,
     )
     expect(appStyles).toMatch(
@@ -126,6 +129,9 @@ describe('semantic design contracts', () => {
     )
     expect(appStyles).toMatch(
       /\.event-timeline li:last-child\s*\{[^}]*padding-bottom:\s*18px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-order-actions\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*row;[^}]*gap:\s*5px;[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s,
     )
   })
 
