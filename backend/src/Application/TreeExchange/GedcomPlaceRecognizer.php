@@ -17,7 +17,7 @@ final readonly class GedcomPlaceRecognizer
         $recognized = [];
         foreach ($matches as $name => $place) {
             $recognized[$name] = [
-                'name'      => $place['name'],
+                'name'      => $name,
                 'latitude'  => $place['coordinates']['latitude'],
                 'longitude' => $place['coordinates']['longitude'],
             ];

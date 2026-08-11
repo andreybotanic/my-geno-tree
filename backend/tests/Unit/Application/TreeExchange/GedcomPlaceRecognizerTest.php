@@ -52,8 +52,8 @@ GEDCOM);
             self::assertSame('GET', $method);
 
             return $this->response([
-                ['query' => ['text' => 'Novosibirsk'], 'city' => 'Novosibirsk', 'lat' => 55.0302, 'lon' => 82.9204],
-                ['query' => ['text' => 'Tomsk'], 'city' => 'Tomsk', 'lat' => 56.4977, 'lon' => 84.9744],
+                ['query' => ['text' => 'Novosibirsk'], 'city' => 'Novosibirsk, Novosibirsk Oblast, Russia', 'lat' => 55.0302, 'lon' => 82.9204],
+                ['query' => ['text' => 'Tomsk'], 'city' => 'Tomsk, Tomsk Oblast, Russia', 'lat' => 56.4977, 'lon' => 84.9744],
             ]);
         }, 'https://geoapify.example.test/v1');
         $recognizer = new GedcomPlaceRecognizer($this->geocoder($client));
