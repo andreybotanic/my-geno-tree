@@ -1,6 +1,22 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
 
+const pendingBlobRequests = new Map<string, Promise<Blob>>()
+
+function loadBlob(url: string, requestBlob: (url: string) => Promise<Blob>) {
+  const pending = pendingBlobRequests.get(url)
+  if (pending) {
+    return pending
+  }
+
+  const request = requestBlob(url).finally(() => {
+    pendingBlobRequests.delete(url)
+  })
+  pendingBlobRequests.set(url, request)
+
+  return request
+}
+
 type AuthenticatedImageProps = {
   alt: string
   className?: string
@@ -22,7 +38,7 @@ export function AuthenticatedImage({
     let objectUrl: string | null = null
     setSource(null)
     if (url) {
-      void requestBlob(url)
+      void loadBlob(url, requestBlob)
         .then((blob) => {
           if (!active) {
             return

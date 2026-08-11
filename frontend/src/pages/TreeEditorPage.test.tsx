@@ -938,12 +938,6 @@ describe('TreeEditorPage', () => {
       if (path.endsWith('/events')) {
         return { items: [event] }
       }
-      if (path.endsWith(`/people/${father.id}`)) {
-        return father
-      }
-      if (path.endsWith(`/people/${person.id}`)) {
-        return person
-      }
       return tree
     }) as unknown as AuthorizedJsonRequest
     renderEditor(request)
@@ -956,9 +950,33 @@ describe('TreeEditorPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Petrov Ivan' }))
       .toBeInTheDocument()
-    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}`)
+    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}/events`)
+    expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}`)
     expect(screen.getByRole('article', { name: 'Petrov Ivan' })
       .closest('.react-flow__node')).toHaveClass('selected')
+  })
+
+  it('reuses cached person details while the snapshot ETag is unchanged', async () => {
+    const request = vi.fn(async (path: string) => {
+      if (path.endsWith('/events')) {
+        return { items: [event] }
+      }
+      return snapshot([person])
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.click(card)
+    await screen.findByRole('complementary', { name: 'Person details' })
+    fireEvent.click(document.querySelector('.react-flow__pane')!)
+    expect(screen.queryByRole('complementary', { name: 'Person details' }))
+      .not.toBeInTheDocument()
+
+    fireEvent.click(card)
+    expect(await screen.findByRole('complementary', { name: 'Person details' }))
+      .toBeInTheDocument()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${person.id}`)
   })
 
   it('closes person details when the empty tree canvas is clicked', async () => {

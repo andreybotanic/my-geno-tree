@@ -55,4 +55,33 @@ describe('AuthenticatedImage', () => {
       expect(screen.getByText('No image')).toBeInTheDocument()
     })
   })
+
+  it('shares one pending media request between matching images', async () => {
+    let resolveBlob: ((blob: Blob) => void) | undefined
+    const requestBlob = vi.fn(() => new Promise<Blob>((resolve) => {
+      resolveBlob = resolve
+    }))
+    render(
+      <AuthContext value={context(requestBlob)}>
+        <AuthenticatedImage
+          alt="First portrait"
+          fallback={<span>First placeholder</span>}
+          url="/private"
+        />
+        <AuthenticatedImage
+          alt="Second portrait"
+          fallback={<span>Second placeholder</span>}
+          url="/private"
+        />
+      </AuthContext>,
+    )
+
+    await waitFor(() => expect(requestBlob).toHaveBeenCalledOnce())
+    resolveBlob?.(new Blob(['image']))
+
+    expect(await screen.findByRole('img', { name: 'First portrait' }))
+      .toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Second portrait' }))
+      .toBeInTheDocument()
+  })
 })

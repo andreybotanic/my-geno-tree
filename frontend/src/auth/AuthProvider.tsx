@@ -23,17 +23,44 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isBooting, setIsBooting] = useState(true)
+  const accessTokenRef = useRef<string | null>(null)
   const bootRequest = useRef<ReturnType<typeof authApi.refresh> | null>(null)
   const refreshRequest = useRef<ReturnType<typeof authApi.refresh> | null>(null)
 
   const acceptAuth = useCallback(
     (response: Awaited<ReturnType<typeof authApi.refresh>>) => {
+      accessTokenRef.current = response.accessToken
       setAccessToken(response.accessToken)
       setUser(response.user)
       void i18n.changeLanguage(response.user.preferredLanguage)
     },
     [],
   )
+
+  const refreshAccessToken = useCallback(async (rejectedToken: string) => {
+    if (accessTokenRef.current && accessTokenRef.current !== rejectedToken) {
+      return accessTokenRef.current
+    }
+
+    refreshRequest.current ??= authApi
+      .refresh()
+      .finally(() => {
+        refreshRequest.current = null
+      })
+
+    try {
+      const refreshed = await refreshRequest.current
+      acceptAuth(refreshed)
+
+      return refreshed.accessToken
+    } catch (error) {
+      accessTokenRef.current = null
+      setAccessToken(null)
+      setUser(null)
+      await i18n.changeLanguage(currentGuestLanguage())
+      throw error
+    }
+  }, [acceptAuth])
 
   useEffect(() => {
     let active = true
@@ -58,6 +85,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const request = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+      const accessToken = accessTokenRef.current
       if (!accessToken) {
         throw new Error('An authenticated session is required')
       }
@@ -79,30 +107,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
           throw error
         }
 
-        refreshRequest.current ??= authApi
-          .refresh()
-          .finally(() => {
-            refreshRequest.current = null
-          })
-        let refreshed
-        try {
-          refreshed = await refreshRequest.current
-        } catch (refreshError) {
-          setAccessToken(null)
-          setUser(null)
-          await i18n.changeLanguage(currentGuestLanguage())
-          throw refreshError
-        }
-        acceptAuth(refreshed)
-
-        return withToken(refreshed.accessToken)
+        return withToken(await refreshAccessToken(accessToken))
       }
     },
-    [acceptAuth, accessToken],
+    [refreshAccessToken],
   )
 
   const requestBlob = useCallback(
     async (path: string, init: RequestInit = {}): Promise<Blob> => {
+      const accessToken = accessTokenRef.current
       if (!accessToken) {
         throw new Error('An authenticated session is required')
       }
@@ -118,26 +131,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!(error instanceof ApiRequestError) || error.status !== 401) {
           throw error
         }
-        refreshRequest.current ??= authApi
-          .refresh()
-          .finally(() => {
-            refreshRequest.current = null
-          })
-        let refreshed
-        try {
-          refreshed = await refreshRequest.current
-        } catch (refreshError) {
-          setAccessToken(null)
-          setUser(null)
-          await i18n.changeLanguage(currentGuestLanguage())
-          throw refreshError
-        }
-        acceptAuth(refreshed)
-
-        return withToken(refreshed.accessToken)
+        return withToken(await refreshAccessToken(accessToken))
       }
     },
-    [acceptAuth, accessToken],
+    [refreshAccessToken],
   )
 
   const value = useMemo<AuthContextValue>(
@@ -160,6 +157,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         try {
           await authApi.logout()
         } finally {
+          accessTokenRef.current = null
           setAccessToken(null)
           setUser(null)
           await i18n.changeLanguage(currentGuestLanguage())

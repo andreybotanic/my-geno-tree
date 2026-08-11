@@ -1731,6 +1731,15 @@ type RelativeDialogState = {
   initialSecondParentId?: string
 }
 
+type PersonDetailsCacheEntry = {
+  events: GenealogicalEvent[]
+  person: Person
+}
+
+function personDetailsCacheKey(personId: string, etag: string) {
+  return `${etag}:${personId}`
+}
+
 export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const { t } = useTranslation()
   const { request, requestBlob, updateUser, user } = useAuth()
@@ -1740,6 +1749,8 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   const routeView = isCurrentTreeRoute ? treeRoute.view : null
   const view: TreeEditorView = routeView ?? 'tree'
   const [snapshot, setSnapshot] = useState<TreeSnapshot | null>(null)
+  const snapshotRef = useRef<TreeSnapshot | null>(null)
+  const personDetailsCache = useRef(new Map<string, PersonDetailsCacheEntry>())
   const [status, setStatus] = useState<'error' | 'loading' | 'missing' | 'ready'>(
     'loading',
   )
@@ -1793,6 +1804,32 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     setPhotoViewing(false)
   }, [])
 
+  const replaceSnapshot = useCallback((
+    nextSnapshot: TreeSnapshot,
+    preserveIfUnchanged = false,
+  ) => {
+    if (preserveIfUnchanged && snapshotRef.current?.etag === nextSnapshot.etag) {
+      return false
+    }
+
+    snapshotRef.current = nextSnapshot
+    personDetailsCache.current.clear()
+    setSnapshot(nextSnapshot)
+
+    return true
+  }, [])
+
+  const cachePersonDetails = useCallback((
+    etag: string,
+    person: Person,
+    personEvents: GenealogicalEvent[],
+  ) => {
+    personDetailsCache.current.set(personDetailsCacheKey(person.id, etag), {
+      events: personEvents,
+      person,
+    })
+  }, [])
+
   const toggleNetworkView = () => {
     if (view === 'network') {
       navigate(treeEditorPath(treeId, 'tree'))
@@ -1802,24 +1839,28 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
     navigate(treeEditorPath(treeId, 'network'))
   }
 
-  const loadSnapshot = useCallback(async () => {
-    setStatus('loading')
+  const loadSnapshot = useCallback(async (resetUi = false) => {
+    if (!snapshotRef.current) {
+      setStatus('loading')
+    }
     try {
       const loaded = await treeApi.snapshot(request, treeId)
-      setSnapshot(loaded)
+      const changed = replaceSnapshot(loaded, true)
       setConflict(false)
-      setSelectedPerson(null)
-      setEvents([])
-      setRelativeDialog(null)
-      setParentsDialogChildId(null)
-      setMarriageEditing(null)
-      setPendingRemoval(null)
-      setEventEditing(null)
-      setEventPendingDeletion(null)
-      setPlaceEditing(null)
-      setPhotoEditing(false)
-      setPhotoDeleting(false)
-      setPhotoViewing(false)
+      if (changed || resetUi) {
+        setSelectedPerson(null)
+        setEvents([])
+        setRelativeDialog(null)
+        setParentsDialogChildId(null)
+        setMarriageEditing(null)
+        setPendingRemoval(null)
+        setEventEditing(null)
+        setEventPendingDeletion(null)
+        setPlaceEditing(null)
+        setPhotoEditing(false)
+        setPhotoDeleting(false)
+        setPhotoViewing(false)
+      }
       setStatus('ready')
     } catch (error) {
       setStatus(
@@ -1828,7 +1869,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           : 'error',
       )
     }
-  }, [request, treeId])
+  }, [replaceSnapshot, request, treeId])
 
   useEffect(() => {
     void loadSnapshot()
@@ -1845,7 +1886,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         person,
       )
-      setSnapshot(updated)
+      replaceSnapshot(updated)
       setCreating(false)
     } catch (error) {
       if (
@@ -1859,11 +1900,24 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
   }
 
   const selectPerson = async (personId: string) => {
+    if (!snapshot) {
+      return
+    }
+    const person = snapshot.people.find((item) => item.id === personId)
+    if (!person) {
+      return
+    }
+    const cacheKey = personDetailsCacheKey(personId, snapshot.etag)
+    const cached = personDetailsCache.current.get(cacheKey)
+    if (cached) {
+      setSelectedPerson(cached.person)
+      setEvents(cached.events)
+      return
+    }
+
     try {
-      const [person, timeline] = await Promise.all([
-        personApi.get(request, treeId, personId),
-        personApi.events(request, treeId, personId),
-      ])
+      const timeline = await personApi.events(request, treeId, personId)
+      cachePersonDetails(snapshot.etag, person, timeline.items)
       setSelectedPerson(person)
       setEvents(timeline.items)
     } catch (error) {
@@ -1888,19 +1942,21 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         patch,
       )
+      const timeline = await personApi.events(
+        request,
+        treeId,
+        selectedPerson.id,
+      )
       setSelectedPerson(result.person)
-      setSnapshot({
+      replaceSnapshot({
         ...snapshot,
         etag: result.etag,
         people: snapshot.people.map((person) => (
           person.id === result.person.id ? result.person : person
         )),
       })
-      setEvents((await personApi.events(
-        request,
-        treeId,
-        selectedPerson.id,
-      )).items)
+      setEvents(timeline.items)
+      cachePersonDetails(result.etag, result.person, timeline.items)
     } catch (error) {
       if (
         error instanceof ApiRequestError
@@ -1923,18 +1979,20 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         mutation,
       )
-      setSnapshot(updated)
+      replaceSnapshot(updated)
       const selectedId = selectedPerson?.id
       const nextSelected = selectedId
         ? updated.people.find((person) => person.id === selectedId) ?? null
         : null
       setSelectedPerson(nextSelected)
       if (nextSelected) {
-        setEvents((await personApi.events(
+        const timeline = await personApi.events(
           request,
           treeId,
           nextSelected.id,
-        )).items)
+        )
+        setEvents(timeline.items)
+        cachePersonDetails(updated.etag, nextSelected, timeline.items)
       } else {
         setEvents([])
       }
@@ -1962,7 +2020,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         state,
       )
-      setSnapshot(updated)
+      replaceSnapshot(updated)
     } catch (error) {
       if (
         error instanceof ApiRequestError
@@ -1983,7 +2041,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         reference,
       )
-      setSnapshot(updated)
+      replaceSnapshot(updated)
       if (
         selectedPerson
         && !focusedTreeSnapshot(updated).people.some((person) => person.id === selectedPerson.id)
@@ -2108,7 +2166,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         snapshot.etag,
         patch,
       )
-      setSnapshot({
+      replaceSnapshot({
         ...snapshot,
         etag: result.etag,
         marriages: snapshot.marriages.map((marriage) => (
@@ -2116,11 +2174,13 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         )),
       })
       if (selectedPerson) {
-        setEvents((await personApi.events(
+        const timeline = await personApi.events(
           request,
           treeId,
           selectedPerson.id,
-        )).items)
+        )
+        setEvents(timeline.items)
+        cachePersonDetails(result.etag, selectedPerson, timeline.items)
       }
       setMarriageEditing(null)
     } catch (error) {
@@ -2161,7 +2221,8 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         selectedPerson.id,
       )
       setEvents(timeline.items)
-      setSnapshot({ ...snapshot, etag: result.etag })
+      replaceSnapshot({ ...snapshot, etag: result.etag })
+      cachePersonDetails(result.etag, selectedPerson, timeline.items)
       setEventEditing(null)
     } catch (error) {
       if (
@@ -2190,12 +2251,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         treeApi.snapshot(request, treeId),
         personApi.events(request, treeId, selectedPerson.id),
       ])
-      setSnapshot(updated)
-      setSelectedPerson(
-        updated.people.find((person) => person.id === selectedPerson.id)
-          ?? null,
-      )
+      replaceSnapshot(updated)
+      const nextSelected = updated.people.find((person) => person.id === selectedPerson.id)
+        ?? null
+      setSelectedPerson(nextSelected)
       setEvents(timeline.items)
+      if (nextSelected) {
+        cachePersonDetails(updated.etag, nextSelected, timeline.items)
+      }
       setEventPendingDeletion(null)
     } catch (error) {
       if (
@@ -2214,17 +2277,20 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       treeApi.snapshot(request, treeId),
       personApi.events(request, treeId, selectedPerson.id),
     ])
-    setSnapshot(updated)
+    replaceSnapshot(updated)
     if (marriageEditing) {
       setMarriageEditing(
         updated.marriages.find((item) => item.id === marriageEditing.id)
           ?? null,
       )
     }
-    setSelectedPerson(
-      updated.people.find((person) => person.id === selectedPerson.id) ?? null,
-    )
+    const nextSelected = updated.people.find((person) => person.id === selectedPerson.id)
+      ?? null
+    setSelectedPerson(nextSelected)
     setEvents(timeline.items)
+    if (nextSelected) {
+      cachePersonDetails(updated.etag, nextSelected, timeline.items)
+    }
     setPlaceEditing(null)
   }
 
@@ -2288,7 +2354,8 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
         eventIds,
       )
       setEvents(result.items)
-      setSnapshot({ ...snapshot, etag: result.etag })
+      replaceSnapshot({ ...snapshot, etag: result.etag })
+      cachePersonDetails(result.etag, selectedPerson, result.items)
     } catch (error) {
       if (
         error instanceof ApiRequestError
@@ -2308,13 +2375,14 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
       return
     }
     setSelectedPerson(result.person)
-    setSnapshot({
+    replaceSnapshot({
       ...snapshot,
       etag: result.etag,
       people: snapshot.people.map((person) => (
         person.id === result.person.id ? result.person : person
       )),
     })
+    cachePersonDetails(result.etag, result.person, events)
   }
 
   const uploadPhoto = async (
@@ -2383,7 +2451,7 @@ export function TreeEditorPage({ treeId }: TreeEditorPageProps) {
           <span>{t('editor.versionConflict')}</span>
           <button
             className="secondary-button compact-button"
-            onClick={() => void loadSnapshot()}
+            onClick={() => void loadSnapshot(true)}
             type="button"
           >
             {t('editor.reload')}

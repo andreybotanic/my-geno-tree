@@ -1,7 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useEffect } from 'react'
 import type { AuthResponse, User } from '../api/generated'
+import type { AuthContextValue } from './AuthContext'
 import { ApiRequestError } from '../api/client'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { useAuth } from './AuthContext'
@@ -50,8 +52,16 @@ function auth(accessToken: string): AuthResponse {
   }
 }
 
-function Harness() {
+function Harness({
+  onRequestReferences,
+}: {
+  onRequestReferences?: (request: AuthContextValue['request'], requestBlob: AuthContextValue['requestBlob']) => void
+}) {
   const session = useAuth()
+
+  useEffect(() => {
+    onRequestReferences?.(session.request, session.requestBlob)
+  }, [onRequestReferences, session.request, session.requestBlob])
 
   return (
     <>
@@ -62,6 +72,21 @@ function Harness() {
       >
         Load image
       </button>
+      <button
+        onClick={() => void session.request('/private-data')}
+        type="button"
+      >
+        Load data
+      </button>
+      <button
+        onClick={() => void Promise.all([
+          session.request('/private-data'),
+          session.requestBlob('/private-image'),
+        ])}
+        type="button"
+      >
+        Load data and image
+      </button>
     </>
   )
 }
@@ -71,6 +96,7 @@ describe('AuthProvider protected blobs', () => {
     vi.clearAllMocks()
     api.refresh.mockResolvedValue(auth('initial-token'))
     api.blobRequest.mockResolvedValue(new Blob(['image']))
+    api.jsonRequest.mockResolvedValue({})
   })
 
   it('loads a protected blob with the in-memory access token', async () => {
@@ -104,5 +130,71 @@ describe('AuthProvider protected blobs', () => {
     const retried = api.blobRequest.mock.calls[1]?.[1] as RequestInit
     expect(new Headers(retried.headers).get('Authorization'))
       .toBe('Bearer refreshed-token')
+  })
+
+  it('retries a JSON request after one shared refresh without changing request identities', async () => {
+    const references: Array<readonly [AuthContextValue['request'], AuthContextValue['requestBlob']]> = []
+    api.refresh
+      .mockResolvedValueOnce(auth('expired-token'))
+      .mockResolvedValueOnce(auth('refreshed-token'))
+    api.jsonRequest
+      .mockRejectedValueOnce(new ApiRequestError(401, {
+        code: 'UNAUTHORIZED',
+        message: 'unauthorized',
+        fields: {},
+        details: {},
+      }))
+      .mockResolvedValueOnce({})
+
+    render(
+      <AuthProvider>
+        <Harness onRequestReferences={(request, requestBlob) => {
+          references.push([request, requestBlob])
+        }} />
+      </AuthProvider>,
+    )
+    expect(await screen.findByText('anna')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load data' }))
+    await waitFor(() => expect(api.jsonRequest).toHaveBeenCalledTimes(2))
+
+    expect(api.refresh).toHaveBeenCalledTimes(2)
+    const retried = api.jsonRequest.mock.calls[1]?.[1] as RequestInit
+    expect(new Headers(retried.headers).get('Authorization'))
+      .toBe('Bearer refreshed-token')
+    expect(references).toHaveLength(1)
+  })
+
+  it('shares one refresh between simultaneous JSON and blob retries', async () => {
+    api.refresh
+      .mockResolvedValueOnce(auth('expired-token'))
+      .mockResolvedValueOnce(auth('refreshed-token'))
+    const unauthorized = new ApiRequestError(401, {
+      code: 'UNAUTHORIZED',
+      message: 'unauthorized',
+      fields: {},
+      details: {},
+    })
+    api.jsonRequest
+      .mockRejectedValueOnce(unauthorized)
+      .mockResolvedValueOnce({})
+    api.blobRequest
+      .mockRejectedValueOnce(unauthorized)
+      .mockResolvedValueOnce(new Blob(['image']))
+
+    render(<AuthProvider><Harness /></AuthProvider>)
+    expect(await screen.findByText('anna')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load data and image' }))
+    await waitFor(() => {
+      expect(api.jsonRequest).toHaveBeenCalledTimes(2)
+      expect(api.blobRequest).toHaveBeenCalledTimes(2)
+    })
+
+    expect(api.refresh).toHaveBeenCalledTimes(2)
+    for (const init of [api.jsonRequest.mock.calls[1]?.[1], api.blobRequest.mock.calls[1]?.[1]]) {
+      expect(new Headers((init as RequestInit).headers).get('Authorization'))
+        .toBe('Bearer refreshed-token')
+    }
   })
 })
