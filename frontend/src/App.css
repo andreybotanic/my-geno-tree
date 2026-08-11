@@ -1125,15 +1125,11 @@
 
 .person-card-reference {
   border-color: var(--color-state-warning-strong);
-  box-shadow:
-    0 0 0 5px color-mix(in srgb, var(--color-state-warning) 38%, transparent),
-    0 16px 38px var(--color-shadow);
 }
 
 .person-card-selected.person-card-reference {
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--color-accent) 50%, transparent),
-    0 0 0 9px color-mix(in srgb, var(--color-state-warning) 38%, transparent),
     0 16px 38px var(--color-shadow);
 }
 

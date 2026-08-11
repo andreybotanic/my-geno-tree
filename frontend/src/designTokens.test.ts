@@ -40,6 +40,18 @@ describe('semantic design contracts', () => {
     )
   })
 
+  it('marks reference cards without an orange shadow', () => {
+    expect(appStyles).toMatch(
+      /(?:^|\n)\.person-card-reference\s*\{[^}]*border-color:\s*var\(--color-state-warning-strong\);/s,
+    )
+    expect(appStyles).not.toMatch(
+      /(?:^|\n)\.person-card-reference\s*\{[^}]*box-shadow:/s,
+    )
+    expect(appStyles).not.toMatch(
+      /\.person-card-selected\.person-card-reference\s*\{[^}]*var\(--color-state-warning\)/s,
+    )
+  })
+
   it('keeps the authenticated avatar inside the fixed-height header', () => {
     expect(appStyles).toMatch(
       /\.app-header\s*\{[^}]*height:\s*50px;/s,
