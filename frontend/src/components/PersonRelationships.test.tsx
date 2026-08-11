@@ -121,8 +121,8 @@ describe('PersonRelationships', () => {
     )
 
     expect(screen.getAllByText('Petrova')).toHaveLength(1)
-    expect(screen.getByText(/2000/)).toHaveTextContent('2000 — 2005')
-    expect(screen.getByText(/— — present/)).toBeInTheDocument()
+    expect(screen.getByText(/2000/)).toHaveTextContent('2000 - 2005')
+    expect(screen.getByText(/— - present/)).toBeInTheDocument()
     const family = screen.getByText('Petrova').closest('article')
     expect(family).not.toBeNull()
     const childrenBlock = within(family as HTMLElement)
@@ -244,6 +244,28 @@ describe('PersonRelationships', () => {
     expect(within(childrenBlock as HTMLElement).getByRole('button', {
       name: 'Add',
     })).toBeInTheDocument()
+  })
+
+  it('uses a status label for an ended marriage with two unknown dates', () => {
+    const endedWithUnknownDates: MarriagePeriod = {
+      ...periods[0]!,
+      marriageDate: { state: 'unknown' },
+      dissolutionDate: { state: 'unknown' },
+    }
+    render(
+      <PersonRelationships
+        onAdd={vi.fn()}
+        onEditMarriage={vi.fn()}
+        onRemoveMarriage={vi.fn()}
+        onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
+        person={selected}
+        snapshot={snapshot([], [endedWithUnknownDates], [selected, spouse])}
+      />,
+    )
+
+    expect(document.querySelector('.marriage-period-list li > span'))
+      .toHaveTextContent('Marriage ended')
   })
 
   it('uses the earliest known spouse death as the end of an undissolved marriage', () => {

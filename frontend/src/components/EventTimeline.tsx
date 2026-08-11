@@ -120,9 +120,11 @@ export function EventTimeline({
                         place={event.place}
                       />
                     </div>
-                    <span className="event-date">
-                      {formatGenealogicalDate(event.date, language, t)}
-                    </span>
+                    {event.date.state !== 'unknown' && (
+                      <span className="event-date">
+                        {formatGenealogicalDate(event.date, language, t)}
+                      </span>
+                    )}
                     {surname && (
                       <span>{t('events.newSurnameValue', { surname })}</span>
                     )}

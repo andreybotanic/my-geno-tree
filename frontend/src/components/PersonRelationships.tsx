@@ -138,15 +138,13 @@ export function PersonRelationships({
               <ul className="marriage-period-list">
                 {periods.map((marriage) => (
                   <li key={marriage.id}>
-                    <span>
-                      {formatGenealogicalDate(
-                        marriage.marriageDate,
-                        language,
-                        t,
-                      )}
-                      {' — '}
-                      {marriageEndLabel(marriage, person, spouse, language, t)}
-                    </span>
+                    <span>{marriagePeriodLabel(
+                      marriage,
+                      person,
+                      spouse,
+                      language,
+                      t,
+                    )}</span>
                     <div className="relationship-actions">
                       <button
                         className="relationship-edit-button"
@@ -334,6 +332,23 @@ function marriageEndLabel(
   ))
 
   return formatGenealogicalDate(earliestDeathDate, language, translate)
+}
+
+function marriagePeriodLabel(
+  marriage: MarriagePeriod,
+  person: Person,
+  spouse: Person | undefined,
+  language: string,
+  translate: (key: string) => string,
+) {
+  if (
+    marriage.marriageDate.state === 'unknown'
+    && marriage.dissolutionDate?.state === 'unknown'
+  ) {
+    return translate('relationships.dissolved')
+  }
+
+  return `${formatGenealogicalDate(marriage.marriageDate, language, translate)} - ${marriageEndLabel(marriage, person, spouse, language, translate)}`
 }
 
 function compareKnownDates(

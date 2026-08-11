@@ -1454,7 +1454,7 @@ describe('TreeEditorPage', () => {
         childId: person.id,
         role: 'father',
         relative: {
-          person: expect.objectContaining({ gender: 'unknown' }),
+          person: expect.objectContaining({ gender: 'male' }),
         },
       })
     })

@@ -361,6 +361,22 @@ describe('PersonDetailsPanel', () => {
     })
   })
 
+  it('labels unknown dates in the sidebar', () => {
+    renderPanel({
+      value: {
+        ...person,
+        birthDate: { state: 'unknown' },
+        deathDate: { state: 'unknown' },
+      },
+    })
+
+    for (const label of ['Birth date', 'Death date']) {
+      const row = screen.getByText(label).closest('.person-detail-row')
+      expect(row).not.toBeNull()
+      expect(within(row as HTMLElement).getByText('Unknown')).toBeInTheDocument()
+    }
+  })
+
   it('does not save a date with an invalid year while retaining its parts', async () => {
     const onPatch = vi.fn(async () => {})
     renderPanel({

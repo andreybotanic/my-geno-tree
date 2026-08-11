@@ -129,6 +129,23 @@ describe('RelativeDialog', () => {
     )
   })
 
+  it('preselects the gender for a new father or mother', () => {
+    const props = {
+      anchor,
+      onCancel: vi.fn(),
+      onSave: vi.fn(async () => {}),
+      snapshot,
+    }
+    const { unmount } = render(<RelativeDialog {...props} action="father" />)
+
+    expect(screen.getByRole('combobox', { name: 'Gender' })).toHaveValue('male')
+
+    unmount()
+    render(<RelativeDialog {...props} action="mother" />)
+
+    expect(screen.getByRole('combobox', { name: 'Gender' })).toHaveValue('female')
+  })
+
   it('links an existing child and keeps an explicitly selected co-parent', async () => {
     const onSave = vi.fn(async () => {})
     render(

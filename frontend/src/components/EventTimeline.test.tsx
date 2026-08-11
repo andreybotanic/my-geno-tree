@@ -90,6 +90,21 @@ describe('EventTimeline', () => {
     expect(content?.children[1]).toHaveTextContent('1900')
   })
 
+  it('omits the date block for events with an unknown date', () => {
+    render(
+      <EventTimeline
+        conflict={false}
+        events={[{ ...automatic, date: { state: 'unknown' } }]}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onReorder={vi.fn(async () => {})}
+      />,
+    )
+
+    expect(document.querySelector('.event-date')).toBeNull()
+  })
+
   it('opens places for automatic events and fills the icon for name-only imports', async () => {
     const onEditPlace = vi.fn()
     const imported = {

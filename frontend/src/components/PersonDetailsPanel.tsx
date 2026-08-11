@@ -296,7 +296,9 @@ export function PersonDetailsPanel({
 
   const dateLabel = (value: GenealogicalDate | null) => value === null
     ? t('person.present')
-    : formatGenealogicalDate(value, language, t)
+    : value.state === 'unknown'
+      ? t('person.unknown')
+      : formatGenealogicalDate(value, language, t)
 
   return (
     <aside className="person-details-panel" aria-label={t('person.details')}>

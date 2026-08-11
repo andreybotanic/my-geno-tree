@@ -155,7 +155,13 @@ export function RelativeDialog({
   if (mode === 'new' && !hasFixedRelative) {
     return (
       <PersonFormDialog
-        initialGender={action === 'spouse' ? spouseGender(anchor) : 'unknown'}
+        initialGender={action === 'father'
+          ? 'male'
+          : action === 'mother'
+            ? 'female'
+            : action === 'spouse'
+              ? spouseGender(anchor)
+              : 'unknown'}
         onCancel={onCancel}
         onSave={(person) => save({ person })}
         title={title}
