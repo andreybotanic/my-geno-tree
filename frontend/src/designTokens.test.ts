@@ -135,6 +135,12 @@ describe('semantic design contracts', () => {
     )
   })
 
+  it('keeps the person deletion action close to the panel edge', () => {
+    expect(appStyles).toMatch(
+      /\.danger-zone\s*\{[^}]*padding-bottom:\s*0;/s,
+    )
+  })
+
   it('uses one colored, interactive size for every addition action', () => {
     expect(appStyles).toMatch(
       /\.add-button\s*\{[^}]*background:\s*var\(--color-accent\);[^}]*font-family:\s*var\(--font-body\);[^}]*font-size:\s*0\.78rem;[^}]*height:\s*32px;[^}]*padding:\s*0 10px;[^}]*width:\s*110px;/s,
