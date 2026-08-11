@@ -139,6 +139,8 @@ describe('PlaceDialog', () => {
     })
     expect(screen.getByRole('link', { name: 'Powered by Geoapify' })).toHaveAttribute('href', 'https://www.geoapify.com/')
     expect(screen.getByRole('link', { name: 'OpenStreetMap contributors' })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
+    expect(screen.getByText('Settlement search').closest('.place-search-heading'))
+      .toContainElement(screen.getByRole('link', { name: 'Powered by Geoapify' }))
   })
 
   it('keeps an imported unresolved place until deletion or point selection', async () => {

@@ -18,7 +18,11 @@ final readonly class GeoapifyGeocoder
 {
     private const int CACHE_TTL = 7 * 24 * 60 * 60;
     private const int MAX_BATCH_SIZE = 1000;
-    private const int POLLING_INTERVAL_SECONDS = 15;
+    private const int SMALL_BATCH_POLLING_INTERVAL_SECONDS = 15;
+    private const int MEDIUM_BATCH_POLLING_INTERVAL_SECONDS = 30;
+    private const int LARGE_BATCH_POLLING_INTERVAL_SECONDS = 60;
+    private const int SMALL_BATCH_MAX_SIZE = 100;
+    private const int MEDIUM_BATCH_MAX_SIZE = 300;
     private const int QUARTER_CREDITS_PER_REQUEST = 4;
     private const int QUARTER_CREDITS_PER_BATCH_ITEM = 2;
 
@@ -141,7 +145,7 @@ final readonly class GeoapifyGeocoder
                 }
 
                 do {
-                    $this->clock->sleep(self::POLLING_INTERVAL_SECONDS);
+                    $this->clock->sleep($this->pollingInterval(count($batch)));
                     [$status, $payload] = $this->requestWithStatus('GET', 'batch/geocode/search', ['id' => $id]);
                 } while (202 === $status);
 
@@ -315,6 +319,15 @@ final readonly class GeoapifyGeocoder
         } catch (MaxWaitDurationExceededException $exception) {
             throw new ApiException(JsonResponse::HTTP_TOO_MANY_REQUESTS, 'GEOCODING_QUOTA_EXCEEDED', 'geocoding_quota_exceeded', previous: $exception);
         }
+    }
+
+    private function pollingInterval(int $batchSize): int
+    {
+        return match (true) {
+            $batchSize <= self::SMALL_BATCH_MAX_SIZE  => self::SMALL_BATCH_POLLING_INTERVAL_SECONDS,
+            $batchSize <= self::MEDIUM_BATCH_MAX_SIZE => self::MEDIUM_BATCH_POLLING_INTERVAL_SECONDS,
+            default                                   => self::LARGE_BATCH_POLLING_INTERVAL_SECONDS,
+        };
     }
 
     private function query(string $query): string

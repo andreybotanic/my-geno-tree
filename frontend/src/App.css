@@ -2622,6 +2622,13 @@
   gap: 6px;
 }
 
+.place-search-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .place-search input,
 .place-name-field input {
   background: var(--color-surface);
@@ -2680,7 +2687,8 @@
 }
 
 .place-geocoding-attribution {
-  margin: -8px 0 0;
+  font-weight: 400;
+  margin: 0;
 }
 
 .place-map-frame {

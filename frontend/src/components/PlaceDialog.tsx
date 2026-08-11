@@ -307,12 +307,20 @@ export function PlaceDialog({
         )}
         <div className="place-search">
           <label>
-            <span>{t('place.search')}</span>
+            <span className="place-search-heading">
+              <span>{t('place.search')}</span>
+              <span className="geocoding-attribution place-geocoding-attribution">
+                <a href="https://www.geoapify.com/" rel="noreferrer" target="_blank">{t('place.geoapifyAttribution')}</a>
+                {' · '}
+                <a href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">{t('place.openStreetMapAttribution')}</a>
+              </span>
+            </span>
             <div className="place-autocomplete-control">
               <input
                 aria-autocomplete="list"
                 aria-controls={searchResultsId}
                 aria-expanded={results.length > 0}
+                aria-label={t('place.search')}
                 maxLength={200}
                 onChange={(event) => {
                   setSearchTouched(true)
@@ -353,11 +361,6 @@ export function PlaceDialog({
             {searching ? t('place.searching') : searchMessage}
           </p>
         )}
-        <p className="geocoding-attribution place-geocoding-attribution">
-          <a href="https://www.geoapify.com/" rel="noreferrer" target="_blank">{t('place.geoapifyAttribution')}</a>
-          {' · '}
-          <a href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">{t('place.openStreetMapAttribution')}</a>
-        </p>
         <div className="place-map-frame">
           <div
             aria-label={t('place.map')}

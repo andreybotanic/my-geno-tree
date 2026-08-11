@@ -112,6 +112,29 @@ final class GeoapifyGeocoderTest extends TestCase
         self::assertSame('2026-01-01T00:00:30+00:00', $clock->now()->format(DATE_ATOM));
     }
 
+    public function testBatchPollingIntervalGrowsWithTheBatchSize(): void
+    {
+        foreach ([100 => 15, 101 => 30, 301 => 60] as $batchSize => $expectedInterval) {
+            $queries = array_map(static fn (int $number): string => 'Town ' . $number, range(1, $batchSize));
+            $clock = new MockClock('2026-01-01T00:00:00+00:00');
+            $client = new MockHttpClient([
+                $this->response(['id' => 'job-' . $batchSize], 202),
+                $this->response(array_map(static fn (string $query): array => [
+                    'query' => ['text' => $query], 'city' => $query, 'lat' => 1, 'lon' => 2,
+                ], $queries)),
+            ], 'https://geoapify.example.test/v1/');
+
+            $this->geocoder($client, clock: $clock)->batchBestMatches($queries, 'en');
+
+            self::assertSame(
+                (new \DateTimeImmutable('2026-01-01T00:00:00+00:00'))
+                    ->modify('+' . $expectedInterval . ' seconds')
+                    ->format(DATE_ATOM),
+                $clock->now()->format(DATE_ATOM),
+            );
+        }
+    }
+
     public function testBatchSplitsAtOneThousandAndPreservesPartialResultsWhenCreditsRunOut(): void
     {
         $firstBatch = array_map(static fn (int $number): string => 'Town ' . $number, range(1, 1000));
