@@ -81,10 +81,10 @@ final class PersonRepository extends ServiceEntityRepository
         int $maximumDistance,
         float $minimumSimilarity,
     ): array {
-        $fullName = 'NORMALIZED_FIO(person.birthSurname.value, person.givenName.value, person.patronymic.value)';
-        $birthSurname = 'NORMALIZE_TEXT(person.birthSurname.value)';
-        $givenName = 'NORMALIZE_TEXT(person.givenName.value)';
-        $patronymic = 'NORMALIZE_TEXT(person.patronymic.value)';
+        $fullName = $this->normalizedFullNameExpression();
+        $birthSurname = $this->normalizedTextExpression('person.birthSurname.value');
+        $givenName = $this->normalizedTextExpression('person.givenName.value');
+        $patronymic = $this->normalizedTextExpression('person.patronymic.value');
         $distance = sprintf(
             'LEAST_INTEGER(
                 LEVENSHTEIN_LESS_EQUAL(:query, %s, :maximumDistance),
@@ -92,7 +92,7 @@ final class PersonRepository extends ServiceEntityRepository
                 LEVENSHTEIN_LESS_EQUAL(:query, %s, :maximumDistance),
                 LEVENSHTEIN_LESS_EQUAL(:query, CONCAT(%s, \' \', %s), :maximumDistance),
                 LEVENSHTEIN_LESS_EQUAL(:query, CONCAT(%s, \' \', %s), :maximumDistance),
-                LEVENSHTEIN_LESS_EQUAL(:query, LEFT_TEXT(%s, 255), :maximumDistance)
+                LEVENSHTEIN_LESS_EQUAL(:query, SUBSTRING(%s, 1, 255), :maximumDistance)
             )',
             $birthSurname,
             $givenName,
@@ -125,5 +125,20 @@ final class PersonRepository extends ServiceEntityRepository
             ->getResult();
 
         return $people;
+    }
+
+    private function normalizedFullNameExpression(): string
+    {
+        return $this->normalizedTextExpression(
+            "CONCAT(CONCAT(CONCAT(CONCAT(COALESCE(person.birthSurname.value, ''), ' '), COALESCE(person.givenName.value, '')), ' '), COALESCE(person.patronymic.value, ''))",
+        );
+    }
+
+    private function normalizedTextExpression(string $value): string
+    {
+        return sprintf(
+            "TRIM(REGEXP_REPLACE_TEXT(LOWER(TRANSLATE_TEXT(COALESCE(%s, ''), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))",
+            $value,
+        );
     }
 }

@@ -7,9 +7,8 @@ doctrine:
         validate_xml_mapping: true
         dql:
             string_functions:
-                LEFT_TEXT: App\Infrastructure\Doctrine\Dql\LeftTextFunction
-                NORMALIZE_TEXT: App\Infrastructure\Doctrine\Dql\NormalizeTextFunction
-                NORMALIZED_FIO: App\Infrastructure\Doctrine\Dql\NormalizedFullNameFunction
+                REGEXP_REPLACE_TEXT: App\Infrastructure\Doctrine\Dql\RegexpReplaceTextFunction
+                TRANSLATE_TEXT: App\Infrastructure\Doctrine\Dql\TranslateTextFunction
             numeric_functions:
                 LEAST_INTEGER: App\Infrastructure\Doctrine\Dql\LeastIntegerFunction
                 LEVENSHTEIN_LESS_EQUAL: App\Infrastructure\Doctrine\Dql\LevenshteinLessEqualFunction

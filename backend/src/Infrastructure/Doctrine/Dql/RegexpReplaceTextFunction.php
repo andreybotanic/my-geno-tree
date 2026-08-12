@@ -8,17 +8,21 @@ use Doctrine\ORM\Query\Parser;
 use Doctrine\ORM\Query\SqlWalker;
 use Doctrine\ORM\Query\TokenType;
 
-final class LeftTextFunction extends FunctionNode
+final class RegexpReplaceTextFunction extends FunctionNode
 {
     private Node $value;
-    private Node|string $length;
+    private Node $pattern;
+    private Node $replacement;
+    private Node $flags;
 
     public function getSql(SqlWalker $sqlWalker): string
     {
         return sprintf(
-            'left(%s, %s)',
+            'regexp_replace(%s, %s, %s, %s)',
             $sqlWalker->walkStringPrimary($this->value),
-            $sqlWalker->walkSimpleArithmeticExpression($this->length),
+            $sqlWalker->walkStringPrimary($this->pattern),
+            $sqlWalker->walkStringPrimary($this->replacement),
+            $sqlWalker->walkStringPrimary($this->flags),
         );
     }
 
@@ -28,7 +32,11 @@ final class LeftTextFunction extends FunctionNode
         $parser->match(TokenType::T_OPEN_PARENTHESIS);
         $this->value = $parser->StringPrimary();
         $parser->match(TokenType::T_COMMA);
-        $this->length = $parser->SimpleArithmeticExpression();
+        $this->pattern = $parser->StringPrimary();
+        $parser->match(TokenType::T_COMMA);
+        $this->replacement = $parser->StringPrimary();
+        $parser->match(TokenType::T_COMMA);
+        $this->flags = $parser->StringPrimary();
         $parser->match(TokenType::T_CLOSE_PARENTHESIS);
     }
 }
