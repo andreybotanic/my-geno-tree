@@ -12,6 +12,8 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class PersonRepository extends ServiceEntityRepository
 {
+    public const float MINIMUM_STRICT_WORD_SIMILARITY = 0.2;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Person::class);
@@ -68,5 +70,60 @@ final class PersonRepository extends ServiceEntityRepository
             ->setParameter('tree', $tree)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * @return list<Person>
+     */
+    public function findFuzzyNameMatches(
+        FamilyTree $tree,
+        string $query,
+        int $maximumDistance,
+        float $minimumSimilarity,
+    ): array {
+        $fullName = 'NORMALIZED_FIO(person.birthSurname.value, person.givenName.value, person.patronymic.value)';
+        $birthSurname = 'NORMALIZE_TEXT(person.birthSurname.value)';
+        $givenName = 'NORMALIZE_TEXT(person.givenName.value)';
+        $patronymic = 'NORMALIZE_TEXT(person.patronymic.value)';
+        $distance = sprintf(
+            'LEAST_INTEGER(
+                LEVENSHTEIN_LESS_EQUAL(:query, %s, :maximumDistance),
+                LEVENSHTEIN_LESS_EQUAL(:query, %s, :maximumDistance),
+                LEVENSHTEIN_LESS_EQUAL(:query, %s, :maximumDistance),
+                LEVENSHTEIN_LESS_EQUAL(:query, CONCAT(%s, \' \', %s), :maximumDistance),
+                LEVENSHTEIN_LESS_EQUAL(:query, CONCAT(%s, \' \', %s), :maximumDistance),
+                LEVENSHTEIN_LESS_EQUAL(:query, LEFT_TEXT(%s, 255), :maximumDistance)
+            )',
+            $birthSurname,
+            $givenName,
+            $patronymic,
+            $birthSurname,
+            $givenName,
+            $givenName,
+            $patronymic,
+            $fullName,
+        );
+        $similarity = sprintf('STRICT_WORD_SIMILARITY(:query, %s)', $fullName);
+
+        /** @var list<Person> $people */
+        $people = $this->createQueryBuilder('person')
+            ->addSelect($distance . ' AS HIDDEN distance')
+            ->addSelect($similarity . ' AS HIDDEN similarity')
+            ->andWhere('person.tree = :tree')
+            ->andWhere(sprintf('STRICT_WORD_MATCH(:query, %s) = true', $fullName))
+            ->andWhere($similarity . ' >= :minimumSimilarity')
+            ->andWhere($distance . ' <= :maximumDistance')
+            ->setParameter('tree', $tree)
+            ->setParameter('query', $query)
+            ->setParameter('maximumDistance', $maximumDistance)
+            ->setParameter('minimumSimilarity', $minimumSimilarity)
+            ->orderBy('distance', 'ASC')
+            ->addOrderBy('similarity', 'DESC')
+            ->addOrderBy('person.id', 'ASC')
+            ->setMaxResults(5)
+            ->getQuery()
+            ->getResult();
+
+        return $people;
     }
 }

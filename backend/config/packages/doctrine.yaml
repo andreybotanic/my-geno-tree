@@ -5,6 +5,16 @@ doctrine:
         profiling_collect_backtrace: '%kernel.debug%'
     orm:
         validate_xml_mapping: true
+        dql:
+            string_functions:
+                LEFT_TEXT: App\Infrastructure\Doctrine\Dql\LeftTextFunction
+                NORMALIZE_TEXT: App\Infrastructure\Doctrine\Dql\NormalizeTextFunction
+                NORMALIZED_FIO: App\Infrastructure\Doctrine\Dql\NormalizedFullNameFunction
+            numeric_functions:
+                LEAST_INTEGER: App\Infrastructure\Doctrine\Dql\LeastIntegerFunction
+                LEVENSHTEIN_LESS_EQUAL: App\Infrastructure\Doctrine\Dql\LevenshteinLessEqualFunction
+                STRICT_WORD_MATCH: App\Infrastructure\Doctrine\Dql\StrictWordMatchFunction
+                STRICT_WORD_SIMILARITY: App\Infrastructure\Doctrine\Dql\StrictWordSimilarityFunction
         naming_strategy: doctrine.orm.naming_strategy.underscore
         identity_generation_preferences:
             Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity

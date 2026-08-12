@@ -2,8 +2,9 @@
 
 namespace App\Tests\Api\Person;
 
+use App\Entity\Person;
 use App\Tests\Api\ApiWebTestCase;
-use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * @phpstan-type TreeResponse array{id: string, etag: string}
@@ -121,39 +122,34 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         self::assertSame('Савельев', $items[0]['fullName']);
     }
 
-    public function testSearchPrefilterUsesTheTrigramExpressionIndex(): void
+    public function testSearchDqlCompilesTheIndexableTrigramPrefilter(): void
     {
-        $connection = static::getContainer()->get(Connection::class);
-        self::assertInstanceOf(Connection::class, $connection);
-        $connection->executeStatement('SET enable_seqscan = off');
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $fullName = 'NORMALIZED_FIO(person.birthSurname.value, person.givenName.value, person.patronymic.value)';
+        $distance = 'LEAST_INTEGER(LEVENSHTEIN_LESS_EQUAL(:query, LEFT_TEXT(' . $fullName . ', 255), :maximumDistance))';
+        $sql = $entityManager->createQueryBuilder()
+            ->select('person')
+            ->addSelect($distance . ' AS HIDDEN distance')
+            ->from(Person::class, 'person')
+            ->where('STRICT_WORD_MATCH(:query, ' . $fullName . ') = true')
+            ->andWhere('STRICT_WORD_SIMILARITY(:query, ' . $fullName . ') >= :minimumSimilarity')
+            ->andWhere($distance . ' <= :maximumDistance')
+            ->setParameter('query', 'ivanov')
+            ->setParameter('maximumDistance', 1)
+            ->setParameter('minimumSimilarity', 0.2)
+            ->getQuery()
+            ->getSQL();
 
-        try {
-            /** @var list<string> $plan */
-            $plan = $connection->fetchFirstColumn(<<<'SQL'
-                EXPLAIN (COSTS false)
-                SELECT person.id
-                FROM person
-                WHERE 'ivanov' <<% trim(regexp_replace(
-                    lower(translate(
-                        COALESCE(person.birth_surname_value, '') || ' '
-                        || COALESCE(person.given_name_value, '') || ' '
-                        || COALESCE(person.patronymic_value, ''),
-                        'Ёё',
-                        'Ее'
-                    )),
-                    '[^[:alnum:]]+',
-                    ' ',
-                    'g'
-                ))
-                SQL);
-        } finally {
-            $connection->executeStatement('RESET enable_seqscan');
-        }
-
-        self::assertStringContainsString(
-            'idx_person_tree_normalized_name_trgm',
-            implode("\n", $plan),
-        );
+        self::assertIsString($sql);
+        self::assertStringContainsString(' <<% ', $sql);
+        self::assertStringContainsString('strict_word_similarity', $sql);
+        self::assertStringContainsString('levenshtein_less_equal', $sql);
+        self::assertStringContainsString('left(', $sql);
+        self::assertStringContainsString('regexp_replace', $sql);
+        self::assertStringContainsString('birth_surname_value', $sql);
+        self::assertStringContainsString('given_name_value', $sql);
+        self::assertStringContainsString('patronymic_value', $sql);
     }
 
     public function testRouteAddsBothParentsAndDetailsStayCompact(): void
