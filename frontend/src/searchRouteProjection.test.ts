@@ -143,4 +143,31 @@ describe('projectSearchRoute', () => {
     )
     expect(father).not.toEqual(mother)
   })
+
+  it('follows parent links from the visible child instead of trusting route generations', () => {
+    const visible = [person('child')]
+    const base = new Map([['child', { x: 0, y: 0 }]])
+    const plan: SearchRoutePlan = {
+      etag: '"tree"',
+      targetPersonId: 'grandparent',
+      people: [...visible, person('parent'), person('grandparent')],
+      nodes: [
+        { personId: 'child', generation: 0, kind: 'route' },
+        { personId: 'parent', generation: 30, kind: 'route' },
+        { personId: 'grandparent', generation: 60, kind: 'route' },
+      ],
+      parentLinks: [
+        { id: 'parent-child', parentId: 'parent', childId: 'child', role: 'mother' },
+        { id: 'grandparent-parent', parentId: 'grandparent', childId: 'parent', role: 'mother' },
+      ],
+      marriages: [],
+      familyBlocks: [],
+    }
+
+    const projection = projectSearchRoute(plan, visible, base)
+    const parent = projection.positions.get('parent')!
+    const grandparent = projection.positions.get('grandparent')!
+    expect(parent.y).toBeLessThan(base.get('child')!.y)
+    expect(grandparent.y).toBeLessThan(parent.y)
+  })
 })

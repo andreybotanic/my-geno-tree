@@ -883,12 +883,12 @@ function TreeCanvas({
         ? {
             ...edge,
             id: `route:${edge.id}`,
-            data: { ...edge.data, visualState: 'highlight' as const },
+            data: { ...edge.data },
           }
         : {
             ...edge,
             id: `route:${edge.id}`,
-            data: { ...edge.data, visualState: 'highlight' as const },
+            data: { ...edge.data },
           }
     )) as TreeFlowEdge[]
 

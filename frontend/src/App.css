@@ -1401,14 +1401,22 @@
   gap: 6px;
 }
 
-.person-search-result-visible {
+.person-search-content li .person-search-result-visible {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-radius: 50%;
   color: var(--color-accent);
   display: inline-flex;
+  flex: 0 0 24px;
+  height: 24px;
+  justify-content: center;
+  order: -1;
+  width: 24px;
 }
 
-.person-search-result-visible svg {
+.person-search-content li .person-search-result-visible svg {
   fill: none;
-  height: 16px;
+  height: 17px;
   stroke: currentColor;
   stroke-width: 1.8;
   width: 16px;

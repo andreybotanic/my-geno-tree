@@ -1,5 +1,6 @@
 import type { XYPosition } from '@xyflow/react'
 import type {
+  ParentLink,
   Person,
   SearchRoutePlan,
 } from './api/generated'
@@ -48,9 +49,7 @@ class SpatialIndex {
           && rectangle.x + rectangle.width + GAP > candidate.x
           && rectangle.y < candidate.y + candidate.height + GAP
           && rectangle.y + rectangle.height + GAP > candidate.y
-        ) {
-          return true
-        }
+        ) return true
       }
     }
 
@@ -78,238 +77,290 @@ export function projectSearchRoute(
 ): SearchRouteProjection {
   const visibleIds = new Set(visiblePeople.map((person) => person.id))
   const people = new Map(plan.people.map((person) => [person.id, person]))
-  const routeNodes = new Map(plan.nodes.map((node) => [node.personId, node]))
+  const nodes = new Map(plan.nodes.map((node) => [node.personId, node]))
   const positions = new Map(visiblePositions)
-  const spatialIndex = new SpatialIndex()
-  for (const position of visiblePositions.values()) {
-    spatialIndex.add(rectangleAt(position))
+  const index = new SpatialIndex()
+  for (const position of visiblePositions.values()) index.add(rectangleAt(position))
+
+  const parentLinksByChild = new Map<string, ParentLink[]>()
+  for (const link of plan.parentLinks) {
+    const links = parentLinksByChild.get(link.childId) ?? []
+    links.push(link)
+    parentLinksByChild.set(link.childId, links)
+  }
+  for (const links of parentLinksByChild.values()) {
+    links.sort((left, right) => left.parentId.localeCompare(right.parentId))
   }
 
-  const parentIdsByChild = new Map<string, string[]>()
-  const relatedPeople = new Map<string, Set<string>>()
-  for (const link of plan.parentLinks) {
-    addRelation(relatedPeople, link.parentId, link.childId)
-    const parents = parentIdsByChild.get(link.childId) ?? []
-    if (!parents.includes(link.parentId)) parents.push(link.parentId)
-    parentIdsByChild.set(link.childId, parents.sort((left, right) => left.localeCompare(right)))
-  }
+  const marriagesByPerson = new Map<string, string[]>()
   for (const marriage of plan.marriages) {
-    addRelation(relatedPeople, marriage.malePersonId, marriage.femalePersonId)
+    addMarriageNeighbor(marriagesByPerson, marriage.malePersonId, marriage.femalePersonId)
+    addMarriageNeighbor(marriagesByPerson, marriage.femalePersonId, marriage.malePersonId)
   }
   for (const family of plan.familyBlocks) {
-    addRelation(relatedPeople, family.personIds[0], family.personIds[1])
+    addMarriageNeighbor(marriagesByPerson, family.personIds[0], family.personIds[1])
+    addMarriageNeighbor(marriagesByPerson, family.personIds[1], family.personIds[0])
   }
-  const pending = new Map(plan.nodes
+
+  const pending = new Set(plan.nodes
     .filter((node) => !visibleIds.has(node.personId))
-    .sort(nodeComparator)
-    .map((node) => [node.personId, node]))
+    .map((node) => node.personId))
 
   while (pending.size > 0) {
-    let placed = false
-    for (const node of [...pending.values()].sort(nodeComparator)) {
-      if (!pending.has(node.personId)) continue
-      const parents = parentIdsByChild.get(node.personId) ?? []
-      const parentPositions = parents
-        .map((parentId) => positions.get(parentId))
-        .filter((position): position is XYPosition => position !== undefined)
-      if (parents.length === 2 && parentPositions.length === 2) {
-        const position = firstFreeCenteredChildPosition(parentPositions, spatialIndex)
-        place(node.personId, position, positions, spatialIndex)
-        pending.delete(node.personId)
-        placed = true
-        continue
-      }
+    if (placePendingParentPairAbovePlacedChild(pending, parentLinksByChild, positions, index)) continue
+    if (placePendingChildBelowPlacedParentPair(pending, parentLinksByChild, positions, index)) continue
+    if (placePendingParentOppositePlacedParent(pending, parentLinksByChild, positions, index)) continue
+    if (placePendingSingleParent(pending, plan.parentLinks, positions, index)) continue
+    if (placePendingSingleChild(pending, plan.parentLinks, positions, index)) continue
+    if (placePendingSpouse(pending, marriagesByPerson, positions, index)) continue
 
-      const sibling = pairSiblingWithPositionedChild(node.personId, parentIdsByChild, pending, positions)
-      if (sibling) {
-        const pair = firstFreeParentPairPosition(sibling.childPosition, spatialIndex)
-        place(sibling.firstParentId, pair.first, positions, spatialIndex)
-        place(sibling.secondParentId, pair.second, positions, spatialIndex)
-        pending.delete(sibling.firstParentId)
-        pending.delete(sibling.secondParentId)
-        placed = true
-        continue
-      }
-
-      const anchor = nearestAnchor(
-        node.personId,
-        routeNodes,
-        positions,
-        relatedPeople,
-      )
-      const position = firstFreePosition({
-        x: anchor.position.x,
-        y: anchor.position.y + (node.generation - anchor.generation) * VERTICAL_STEP,
-      }, spatialIndex)
-      place(node.personId, position, positions, spatialIndex)
-      pending.delete(node.personId)
-      placed = true
-    }
-
-    if (!placed) break
+    const personId = [...pending].sort((left, right) => nodeComparator(nodes, left, right))[0]
+    if (!personId) break
+    const position = fallbackPosition(personId, nodes, positions, index)
+    place(personId, position, positions, index)
+    pending.delete(personId)
   }
-
-  const routePersonIds = new Set(plan.nodes.map((node) => node.personId))
 
   return {
     overlayPeople: plan.nodes
       .filter((node) => !visibleIds.has(node.personId))
-      .sort(nodeComparator)
+      .sort((left, right) => nodeComparator(nodes, left.personId, right.personId))
       .flatMap((node) => {
         const person = people.get(node.personId)
         return person ? [person] : []
       }),
     positions,
-    routePersonIds,
+    routePersonIds: new Set(plan.nodes.map((node) => node.personId)),
   }
 }
 
-function nodeComparator(
-  left: SearchRoutePlan['nodes'][number],
-  right: SearchRoutePlan['nodes'][number],
+function placePendingParentPairAbovePlacedChild(
+  pending: Set<string>,
+  byChild: ReadonlyMap<string, ParentLink[]>,
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
 ) {
-  return left.generation - right.generation
-    || left.kind.localeCompare(right.kind)
-    || left.personId.localeCompare(right.personId)
+  for (const [childId, links] of sortedFamilies(byChild)) {
+    if (links.length !== 2 || !positions.has(childId) || !links.every((link) => pending.has(link.parentId))) continue
+    const child = positions.get(childId)!
+    const pair = firstFreeParentPair(child, index)
+    place(links[0]!.parentId, pair.first, positions, index)
+    place(links[1]!.parentId, pair.second, positions, index)
+    pending.delete(links[0]!.parentId)
+    pending.delete(links[1]!.parentId)
+    return true
+  }
+
+  return false
 }
 
-function addRelation(relatedPeople: Map<string, Set<string>>, first: string, second: string) {
-  const relations: Array<readonly [string, string]> = [[first, second], [second, first]]
-  for (const [personId, relativeId] of relations) {
-    const relatives = relatedPeople.get(personId) ?? new Set<string>()
-    relatives.add(relativeId)
-    relatedPeople.set(personId, relatives)
+function placePendingChildBelowPlacedParentPair(
+  pending: Set<string>,
+  byChild: ReadonlyMap<string, ParentLink[]>,
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
+) {
+  for (const [childId, links] of sortedFamilies(byChild)) {
+    if (links.length !== 2 || !pending.has(childId) || !links.every((link) => positions.has(link.parentId))) continue
+    place(childId, firstFreeCenteredChild(links.map((link) => positions.get(link.parentId)!), index), positions, index)
+    pending.delete(childId)
+    return true
+  }
+
+  return false
+}
+
+function placePendingParentOppositePlacedParent(
+  pending: Set<string>,
+  byChild: ReadonlyMap<string, ParentLink[]>,
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
+) {
+  for (const [childId, links] of sortedFamilies(byChild)) {
+    if (links.length !== 2 || !positions.has(childId)) continue
+    const missing = links.find((link) => pending.has(link.parentId))
+    const placedParent = links.find((link) => positions.has(link.parentId))
+    if (!missing || !placedParent) continue
+    place(missing.parentId, firstFreeMirroredParent(positions.get(childId)!, positions.get(placedParent.parentId)!, index), positions, index)
+    pending.delete(missing.parentId)
+    return true
+  }
+
+  return false
+}
+
+function placePendingSingleParent(
+  pending: Set<string>,
+  links: readonly ParentLink[],
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
+) {
+  for (const link of [...links].sort(parentLinkComparator)) {
+    if (!pending.has(link.parentId) || !positions.has(link.childId)) continue
+    place(link.parentId, firstFreeParent(positions.get(link.childId)!, index), positions, index)
+    pending.delete(link.parentId)
+    return true
+  }
+
+  return false
+}
+
+function placePendingSingleChild(
+  pending: Set<string>,
+  links: readonly ParentLink[],
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
+) {
+  for (const link of [...links].sort(parentLinkComparator)) {
+    if (!pending.has(link.childId) || !positions.has(link.parentId)) continue
+    place(link.childId, firstFreeChild(positions.get(link.parentId)!, index), positions, index)
+    pending.delete(link.childId)
+    return true
+  }
+
+  return false
+}
+
+function placePendingSpouse(
+  pending: Set<string>,
+  byPerson: ReadonlyMap<string, string[]>,
+  positions: Map<string, XYPosition>,
+  index: SpatialIndex,
+) {
+  for (const personId of [...pending].sort()) {
+    const spouse = byPerson.get(personId)?.find((candidate) => positions.has(candidate))
+    if (!spouse) continue
+    place(personId, firstFreeSpouse(positions.get(spouse)!, index), positions, index)
+    pending.delete(personId)
+    return true
+  }
+
+  return false
+}
+
+function firstFreeParentPair(child: XYPosition, index: SpatialIndex) {
+  const childCenter = child.x + PERSON_CARD_WIDTH / 2
+  for (let row = 1; row <= 100; row += 1) {
+    const y = child.y - row * VERTICAL_STEP
+    const first = { x: childCenter - PERSON_CARD_WIDTH / 2 - HORIZONTAL_STEP / 2, y }
+    const second = { x: childCenter - PERSON_CARD_WIDTH / 2 + HORIZONTAL_STEP / 2, y }
+    if (!index.intersects(rectangleAt(first)) && !index.intersects(rectangleAt(second))) return { first, second }
+  }
+
+  return {
+    first: { x: childCenter - PERSON_CARD_WIDTH / 2 - HORIZONTAL_STEP / 2, y: child.y - VERTICAL_STEP },
+    second: { x: childCenter - PERSON_CARD_WIDTH / 2 + HORIZONTAL_STEP / 2, y: child.y - VERTICAL_STEP },
   }
 }
 
-function pairSiblingWithPositionedChild(
-  personId: string,
-  parentIdsByChild: ReadonlyMap<string, string[]>,
-  pending: ReadonlyMap<string, SearchRoutePlan['nodes'][number]>,
-  positions: ReadonlyMap<string, XYPosition>,
-) {
-  for (const [childId, parents] of parentIdsByChild) {
-    if (parents.length !== 2 || !parents.includes(personId)) continue
-    const firstParentId = parents[0]
-    const secondParentId = parents[1]
-    const childPosition = positions.get(childId)
-    if (
-      !childPosition
-      || !firstParentId
-      || !secondParentId
-      || !pending.has(firstParentId)
-      || !pending.has(secondParentId)
-    ) {
-      continue
+function firstFreeCenteredChild(parents: readonly XYPosition[], index: SpatialIndex) {
+  const center = parents.reduce((sum, parent) => sum + parent.x + PERSON_CARD_WIDTH / 2, 0) / parents.length
+  const startY = Math.max(...parents.map((parent) => parent.y)) + VERTICAL_STEP
+  for (let row = 0; row <= 100; row += 1) {
+    const position = { x: center - PERSON_CARD_WIDTH / 2, y: startY + row * VERTICAL_STEP }
+    if (!index.intersects(rectangleAt(position))) return position
+  }
+
+  return { x: center - PERSON_CARD_WIDTH / 2, y: startY }
+}
+
+function firstFreeMirroredParent(child: XYPosition, parent: XYPosition, index: SpatialIndex) {
+  const x = 2 * (child.x + PERSON_CARD_WIDTH / 2) - (parent.x + PERSON_CARD_WIDTH / 2) - PERSON_CARD_WIDTH / 2
+  for (let row = 0; row <= 100; row += 1) {
+    const position = { x, y: child.y - (row + 1) * VERTICAL_STEP }
+    if (!index.intersects(rectangleAt(position))) return position
+  }
+
+  return { x, y: child.y - VERTICAL_STEP }
+}
+
+function firstFreeParent(child: XYPosition, index: SpatialIndex) {
+  for (let row = 1; row <= 100; row += 1) {
+    const position = { x: child.x, y: child.y - row * VERTICAL_STEP }
+    if (!index.intersects(rectangleAt(position))) return position
+  }
+
+  return { x: child.x, y: child.y - VERTICAL_STEP }
+}
+
+function firstFreeChild(parent: XYPosition, index: SpatialIndex) {
+  for (let row = 1; row <= 100; row += 1) {
+    const position = { x: parent.x, y: parent.y + row * VERTICAL_STEP }
+    if (!index.intersects(rectangleAt(position))) return position
+  }
+
+  return { x: parent.x, y: parent.y + VERTICAL_STEP }
+}
+
+function firstFreeSpouse(person: XYPosition, index: SpatialIndex) {
+  for (let step = 1; step <= 100; step += 1) {
+    for (const direction of [1, -1]) {
+      const position = { x: person.x + direction * step * HORIZONTAL_STEP, y: person.y }
+      if (!index.intersects(rectangleAt(position))) return position
     }
-
-    return { childPosition, firstParentId, secondParentId }
   }
 
-  return null
+  return { x: person.x + HORIZONTAL_STEP, y: person.y }
 }
 
-function nearestAnchor(
+function fallbackPosition(
   personId: string,
   nodes: ReadonlyMap<string, SearchRoutePlan['nodes'][number]>,
   positions: ReadonlyMap<string, XYPosition>,
-  relatedPeople: ReadonlyMap<string, ReadonlySet<string>>,
+  index: SpatialIndex,
 ) {
   const node = nodes.get(personId)
-  const positioned = [...positions]
-    .map(([id, position]) => ({
-      generation: nodes.get(id)?.generation ?? 0,
-      id,
-      position,
-    }))
-  const related = relatedPeople.get(personId)
-  const relatedCandidates = related
-    ? positioned.filter((candidate) => related.has(candidate.id))
-    : []
-  const candidates = (relatedCandidates.length > 0 ? relatedCandidates : positioned)
-    .sort((left, right) => (
-      Math.abs(left.generation - (node?.generation ?? 0))
-      - Math.abs(right.generation - (node?.generation ?? 0))
-      || left.id.localeCompare(right.id)
-    ))
-  const first = candidates[0]
-  if (first) return first
-
-  return {
-    generation: 0,
-    id: personId,
-    position: { x: 0, y: 0 },
-  }
-}
-
-function firstFreeCenteredChildPosition(
-  parents: readonly XYPosition[],
-  spatialIndex: SpatialIndex,
-) {
-  const center = parents.reduce(
-    (sum, position) => sum + position.x + PERSON_CARD_WIDTH / 2,
-    0,
-  ) / parents.length
-  const top = Math.max(...parents.map((position) => position.y)) + VERTICAL_STEP
+  const anchor = [...positions]
+    .map(([id, position]) => ({ id, position, generation: nodes.get(id)?.generation ?? 0 }))
+    .sort((left, right) => Math.abs(left.generation - (node?.generation ?? 0)) - Math.abs(right.generation - (node?.generation ?? 0)) || left.id.localeCompare(right.id))[0]
+  const desired = anchor
+    ? { x: anchor.position.x, y: anchor.position.y + ((node?.generation ?? 0) - anchor.generation) * VERTICAL_STEP }
+    : { x: 0, y: 0 }
   for (let step = 0; step <= 100; step += 1) {
-    const position = { x: center - PERSON_CARD_WIDTH / 2, y: top + step * VERTICAL_STEP }
-    if (!spatialIndex.intersects(rectangleAt(position))) return position
-  }
-
-  return { x: center - PERSON_CARD_WIDTH / 2, y: top }
-}
-
-function firstFreeParentPairPosition(
-  childPosition: XYPosition,
-  spatialIndex: SpatialIndex,
-) {
-  const childCenter = childPosition.x + PERSON_CARD_WIDTH / 2
-  for (let step = 1; step <= 100; step += 1) {
-    const y = childPosition.y - step * VERTICAL_STEP
-    const first = { x: childCenter - PERSON_CARD_WIDTH / 2 - HORIZONTAL_STEP / 2, y }
-    const second = { x: childCenter - PERSON_CARD_WIDTH / 2 + HORIZONTAL_STEP / 2, y }
-    if (
-      !spatialIndex.intersects(rectangleAt(first))
-      && !spatialIndex.intersects(rectangleAt(second))
-    ) {
-      return { first, second }
-    }
-  }
-
-  return {
-    first: { x: childCenter - PERSON_CARD_WIDTH / 2 - HORIZONTAL_STEP / 2, y: childPosition.y - VERTICAL_STEP },
-    second: { x: childCenter - PERSON_CARD_WIDTH / 2 + HORIZONTAL_STEP / 2, y: childPosition.y - VERTICAL_STEP },
-  }
-}
-
-function firstFreePosition(desired: XYPosition, spatialIndex: SpatialIndex) {
-  const shifts = [0]
-  for (let step = 1; step <= 100; step += 1) {
-    shifts.push(step * HORIZONTAL_STEP, -step * HORIZONTAL_STEP)
-  }
-  for (const shift of shifts) {
-    const position = { x: desired.x + shift, y: desired.y }
-    if (!spatialIndex.intersects(rectangleAt(position))) return position
+    const position = { x: desired.x + step * HORIZONTAL_STEP, y: desired.y }
+    if (!index.intersects(rectangleAt(position))) return position
   }
 
   return desired
+}
+
+function sortedFamilies(byChild: ReadonlyMap<string, ParentLink[]>) {
+  return [...byChild].sort(([left], [right]) => left.localeCompare(right))
+}
+
+function parentLinkComparator(left: ParentLink, right: ParentLink) {
+  return left.childId.localeCompare(right.childId) || left.parentId.localeCompare(right.parentId)
+}
+
+function nodeComparator(
+  nodes: ReadonlyMap<string, SearchRoutePlan['nodes'][number]>,
+  leftId: string,
+  rightId: string,
+) {
+  const left = nodes.get(leftId)
+  const right = nodes.get(rightId)
+  return (left?.generation ?? 0) - (right?.generation ?? 0)
+    || (left?.kind ?? '').localeCompare(right?.kind ?? '')
+    || leftId.localeCompare(rightId)
+}
+
+function addMarriageNeighbor(byPerson: Map<string, string[]>, personId: string, spouseId: string) {
+  const spouses = byPerson.get(personId) ?? []
+  if (!spouses.includes(spouseId)) spouses.push(spouseId)
+  spouses.sort()
+  byPerson.set(personId, spouses)
 }
 
 function place(
   personId: string,
   position: XYPosition,
   positions: Map<string, XYPosition>,
-  spatialIndex: SpatialIndex,
+  index: SpatialIndex,
 ) {
   positions.set(personId, position)
-  spatialIndex.add(rectangleAt(position))
+  index.add(rectangleAt(position))
 }
 
 function rectangleAt(position: XYPosition): Rectangle {
-  return {
-    height: PERSON_CARD_HEIGHT,
-    width: PERSON_CARD_WIDTH,
-    x: position.x,
-    y: position.y,
-  }
+  return { height: PERSON_CARD_HEIGHT, width: PERSON_CARD_WIDTH, x: position.x, y: position.y }
 }
