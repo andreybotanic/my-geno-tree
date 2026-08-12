@@ -8,11 +8,13 @@ import { useTranslation } from 'react-i18next'
 import type { PersonSearchResult } from '../api/generated'
 
 type PersonSearchPanelProps = {
+  visiblePersonIds?: ReadonlySet<string>
   onSearch: (query: string, signal: AbortSignal) => Promise<PersonSearchResult[]>
   onSelect: (person: PersonSearchResult) => void
 }
 
 export function PersonSearchPanel({
+  visiblePersonIds = new Set<string>(),
   onSearch,
   onSelect,
 }: PersonSearchPanelProps) {
@@ -66,8 +68,10 @@ export function PersonSearchPanel({
       return undefined
     }
     const controller = new AbortController()
+    setItems([])
+    setActiveIndex(-1)
+    setStatus('loading')
     const timeout = window.setTimeout(() => {
-      setStatus('loading')
       void onSearch(value, controller.signal)
         .then((next) => {
           if (controller.signal.aborted) return
@@ -158,7 +162,21 @@ export function PersonSearchPanel({
                     role="option"
                     type="button"
                   >
-                    <strong>{person.fullName}</strong>
+                    <span className="person-search-result-name">
+                      <strong>{person.fullName}</strong>
+                      {visiblePersonIds.has(person.id) && (
+                        <span
+                          aria-label={t('editor.personSearchVisible')}
+                          className="person-search-result-visible"
+                          title={t('editor.personSearchVisible')}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M2.5 12s3.5-5.5 9.5-5.5S21.5 12 21.5 12s-3.5 5.5-9.5 5.5S2.5 12 2.5 12Z" />
+                            <circle cx="12" cy="12" r="2.5" />
+                          </svg>
+                        </span>
+                      )}
+                    </span>
                     <span>{formatYears(person.birthYear, person.deathYear, t('person.unknown'))}</span>
                   </button>
                 </li>

@@ -898,6 +898,10 @@ function TreeCanvas({
     personApi.search(request, snapshot.tree.id, query, signal)
       .then((result) => result.items)
   ), [request, snapshot.tree.id])
+  const visiblePersonIds = useMemo(
+    () => new Set(focusedSnapshot.people.map((person) => person.id)),
+    [focusedSnapshot.people],
+  )
   const selectSearchResult = useCallback(async (person: PersonSearchResult) => {
     if (focusedSnapshot.people.some((item) => item.id === person.id)) {
       onSelectPerson(person.id)
@@ -1451,6 +1455,7 @@ function TreeCanvas({
           <PersonSearchPanel
             onSearch={searchPeople}
             onSelect={(person) => void selectSearchResult(person)}
+            visiblePersonIds={visiblePersonIds}
           />
         </Panel>
       )}

@@ -99,7 +99,6 @@ export function projectSearchRoute(
   for (const family of plan.familyBlocks) {
     addRelation(relatedPeople, family.personIds[0], family.personIds[1])
   }
-
   const pending = new Map(plan.nodes
     .filter((node) => !visibleIds.has(node.personId))
     .sort(nodeComparator)
@@ -165,15 +164,6 @@ export function projectSearchRoute(
   }
 }
 
-function addRelation(relatedPeople: Map<string, Set<string>>, first: string, second: string) {
-  const relations: Array<readonly [string, string]> = [[first, second], [second, first]]
-  for (const [personId, relativeId] of relations) {
-    const relatives = relatedPeople.get(personId) ?? new Set<string>()
-    relatives.add(relativeId)
-    relatedPeople.set(personId, relatives)
-  }
-}
-
 function nodeComparator(
   left: SearchRoutePlan['nodes'][number],
   right: SearchRoutePlan['nodes'][number],
@@ -181,6 +171,15 @@ function nodeComparator(
   return left.generation - right.generation
     || left.kind.localeCompare(right.kind)
     || left.personId.localeCompare(right.personId)
+}
+
+function addRelation(relatedPeople: Map<string, Set<string>>, first: string, second: string) {
+  const relations: Array<readonly [string, string]> = [[first, second], [second, first]]
+  for (const [personId, relativeId] of relations) {
+    const relatives = relatedPeople.get(personId) ?? new Set<string>()
+    relatives.add(relativeId)
+    relatedPeople.set(personId, relatives)
+  }
 }
 
 function pairSiblingWithPositionedChild(
@@ -217,14 +216,17 @@ function nearestAnchor(
   relatedPeople: ReadonlyMap<string, ReadonlySet<string>>,
 ) {
   const node = nodes.get(personId)
-  const related = relatedPeople.get(personId) ?? new Set<string>()
-  const candidates = [...positions]
-    .filter(([id]) => related.size === 0 || related.has(id))
+  const positioned = [...positions]
     .map(([id, position]) => ({
       generation: nodes.get(id)?.generation ?? 0,
       id,
       position,
     }))
+  const related = relatedPeople.get(personId)
+  const relatedCandidates = related
+    ? positioned.filter((candidate) => related.has(candidate.id))
+    : []
+  const candidates = (relatedCandidates.length > 0 ? relatedCandidates : positioned)
     .sort((left, right) => (
       Math.abs(left.generation - (node?.generation ?? 0))
       - Math.abs(right.generation - (node?.generation ?? 0))

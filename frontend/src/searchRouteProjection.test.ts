@@ -50,6 +50,12 @@ describe('projectSearchRoute', () => {
     expect(projection.overlayPeople.map((item) => item.id).sort()).toEqual([
       'father', 'grandfather', 'grandmother', 'mother',
     ])
+    expect(projection.positions.get('mother')!.y).toBeLessThan(
+      projection.positions.get('reference')!.y,
+    )
+    expect(projection.positions.get('grandmother')!.y).toBeLessThan(
+      projection.positions.get('mother')!.y,
+    )
     const rectangles = [...projection.positions.values()].map((position) => ({
       ...position,
       height: PERSON_CARD_HEIGHT,

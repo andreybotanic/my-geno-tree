@@ -1360,7 +1360,7 @@
   height: 100%;
   min-width: 0;
   outline: 0;
-  padding: 0;
+  padding: 0 0 0 12px;
   width: 100%;
 }
 
@@ -1374,9 +1374,9 @@
   overflow: hidden;
   padding: 0;
   position: absolute;
-  right: 0;
+  left: 0;
   top: 100%;
-  width: 100%;
+  width: calc(100% + 42px);
 }
 
 .person-search-content li + li {
@@ -1393,6 +1393,25 @@
   padding: 9px 12px;
   text-align: left;
   width: 100%;
+}
+
+.person-search-result-name {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.person-search-result-visible {
+  color: var(--color-accent);
+  display: inline-flex;
+}
+
+.person-search-result-visible svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  width: 16px;
 }
 
 .person-search-content li button:hover,
@@ -1415,9 +1434,9 @@
   margin-top: 5px;
   padding: 9px 12px;
   position: absolute;
-  right: 0;
+  left: 0;
   top: 100%;
-  width: 100%;
+  width: calc(100% + 42px);
 }
 
 .path-display-panel {

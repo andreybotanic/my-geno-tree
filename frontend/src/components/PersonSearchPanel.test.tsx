@@ -21,7 +21,13 @@ describe('PersonSearchPanel', () => {
       birthYear: 1900,
       deathYear: 1980,
     }])
-    render(<PersonSearchPanel onSearch={onSearch} onSelect={onSelect} />)
+    render(
+      <PersonSearchPanel
+        onSearch={onSearch}
+        onSelect={onSelect}
+        visiblePersonIds={new Set(['technical-id'])}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Search people' }))
     const input = screen.getByRole('combobox', { name: 'Search by full name' })
@@ -32,6 +38,7 @@ describe('PersonSearchPanel', () => {
     expect(onSearch).toHaveBeenCalledWith('Ivan', expect.any(AbortSignal))
     expect(screen.getByRole('option', { name: /Ivanov Ivan/ })).toHaveTextContent('1900 — 1980')
     expect(screen.queryByText('technical-id')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Already shown in the tree')).toBeInTheDocument()
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'ArrowUp' })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -79,6 +86,7 @@ describe('PersonSearchPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search people' }))
     const input = screen.getByRole('combobox')
     fireEvent.change(input, { target: { value: 'Missing' } })
+    expect(screen.queryByText('No people found.')).not.toBeInTheDocument()
     await act(async () => vi.advanceTimersByTimeAsync(250))
     expect(screen.getByText('No people found.')).toBeInTheDocument()
 
