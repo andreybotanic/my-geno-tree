@@ -34,6 +34,8 @@
 - Keep controllers thin. Put use-case orchestration in application services and domain invariants in the domain layer.
 - All tree and person creation must go through application services so future quota policies can be added without rewriting controllers or handlers.
 - Direct database access from controllers is forbidden. Use Doctrine repositories, QueryBuilder, or dedicated read services.
+- In Doctrine repositories, access data only through the ORM QueryBuilder; do not inject or use `Doctrine\\DBAL\\Connection` there.
+- Any use of `Doctrine\\DBAL\\Connection` (including obtaining it from another Doctrine service) requires explicit user agreement before implementation.
 - Avoid the N+1 query problem. Review every collection-loading path and list endpoint for query count.
 - Use joins, explicit eager loading for the concrete use case, DTO projections, batched loading, or purpose-built repository queries when they avoid N+1 queries.
 - Do not solve N+1 problems by marking broad associations globally eager unless that loading behavior is correct for every use case.
