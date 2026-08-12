@@ -170,4 +170,32 @@ describe('projectSearchRoute', () => {
     expect(parent.y).toBeLessThan(base.get('child')!.y)
     expect(grandparent.y).toBeLessThan(parent.y)
   })
+
+  it('keeps an added sibling on the parents child row when its centred slot is occupied', () => {
+    const visible = [person('sibling')]
+    const base = new Map([['sibling', { x: 30, y: 0 }]])
+    const plan: SearchRoutePlan = {
+      etag: '"tree"',
+      targetPersonId: 'target',
+      people: [...visible, person('father'), person('mother'), person('target')],
+      nodes: [
+        { personId: 'father', generation: -1, kind: 'route' },
+        { personId: 'mother', generation: -1, kind: 'support' },
+        { personId: 'target', generation: 0, kind: 'route' },
+      ],
+      parentLinks: [
+        { id: 'father-sibling', parentId: 'father', childId: 'sibling', role: 'father' },
+        { id: 'mother-sibling', parentId: 'mother', childId: 'sibling', role: 'mother' },
+        { id: 'father-target', parentId: 'father', childId: 'target', role: 'father' },
+        { id: 'mother-target', parentId: 'mother', childId: 'target', role: 'mother' },
+      ],
+      marriages: [],
+      familyBlocks: [],
+    }
+
+    const projection = projectSearchRoute(plan, visible, base)
+    const target = projection.positions.get('target')!
+    expect(target.y).toBe(base.get('sibling')!.y)
+    expect(target.x).not.toBe(base.get('sibling')!.x)
+  })
 })

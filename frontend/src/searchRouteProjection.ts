@@ -256,12 +256,26 @@ function firstFreeParentPair(child: XYPosition, index: SpatialIndex) {
 function firstFreeCenteredChild(parents: readonly XYPosition[], index: SpatialIndex) {
   const center = parents.reduce((sum, parent) => sum + parent.x + PERSON_CARD_WIDTH / 2, 0) / parents.length
   const startY = Math.max(...parents.map((parent) => parent.y)) + VERTICAL_STEP
-  for (let row = 0; row <= 100; row += 1) {
+  for (const shift of horizontalShifts()) {
+    const position = { x: center - PERSON_CARD_WIDTH / 2 + shift, y: startY }
+    if (!index.intersects(rectangleAt(position))) return position
+  }
+
+  for (let row = 1; row <= 100; row += 1) {
     const position = { x: center - PERSON_CARD_WIDTH / 2, y: startY + row * VERTICAL_STEP }
     if (!index.intersects(rectangleAt(position))) return position
   }
 
   return { x: center - PERSON_CARD_WIDTH / 2, y: startY }
+}
+
+function horizontalShifts() {
+  const shifts = [0]
+  for (let step = 1; step <= 100; step += 1) {
+    shifts.push(step * HORIZONTAL_STEP, -step * HORIZONTAL_STEP)
+  }
+
+  return shifts
 }
 
 function firstFreeMirroredParent(child: XYPosition, parent: XYPosition, index: SpatialIndex) {
