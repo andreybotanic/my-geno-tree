@@ -130,7 +130,7 @@ final class PersonRepository extends ServiceEntityRepository
     private function normalizedFullNameExpression(): string
     {
         return $this->normalizedTextExpression(
-            "CONCAT(CONCAT(CONCAT(CONCAT(COALESCE(person.birthSurname.value, ''), ' '), COALESCE(person.givenName.value, '')), ' '), COALESCE(person.patronymic.value, ''))",
+            "CONCAT_WS(' ', person.birthSurname.value, person.givenName.value, person.patronymic.value)",
         );
     }
 

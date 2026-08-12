@@ -7,6 +7,7 @@ doctrine:
         validate_xml_mapping: true
         dql:
             string_functions:
+                CONCAT_WS: App\Infrastructure\Doctrine\Dql\ConcatWithSeparatorFunction
                 REGEXP_REPLACE_TEXT: App\Infrastructure\Doctrine\Dql\RegexpReplaceTextFunction
                 TRANSLATE_TEXT: App\Infrastructure\Doctrine\Dql\TranslateTextFunction
             numeric_functions:

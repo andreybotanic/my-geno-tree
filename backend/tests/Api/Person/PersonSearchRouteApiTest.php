@@ -126,7 +126,7 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
     {
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
-        $fullName = "TRIM(REGEXP_REPLACE_TEXT(LOWER(TRANSLATE_TEXT(CONCAT(CONCAT(CONCAT(CONCAT(COALESCE(person.birthSurname.value, ''), ' '), COALESCE(person.givenName.value, '')), ' '), COALESCE(person.patronymic.value, '')), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))";
+        $fullName = "TRIM(REGEXP_REPLACE_TEXT(LOWER(TRANSLATE_TEXT(CONCAT_WS(' ', person.birthSurname.value, person.givenName.value, person.patronymic.value), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))";
         $distance = 'LEAST_INTEGER(LEVENSHTEIN_LESS_EQUAL(:query, SUBSTRING(' . $fullName . ', 1, 255), :maximumDistance))';
         $sql = $entityManager->createQueryBuilder()
             ->select('person')
@@ -145,6 +145,7 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         self::assertStringContainsString(' <<% ', $sql);
         self::assertStringContainsString('strict_word_similarity', $sql);
         self::assertStringContainsString('levenshtein_less_equal', $sql);
+        self::assertStringContainsString('concat_ws', $sql);
         self::assertStringContainsString('SUBSTRING(', $sql);
         self::assertStringContainsString('regexp_replace', $sql);
         self::assertStringContainsString('birth_surname_value', $sql);
