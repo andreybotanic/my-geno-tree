@@ -1267,6 +1267,26 @@ function TreeCanvas({
         return target ? formatPersonName(target, t) : t('person.unknown')
       })()
     : null
+  const focusPathDisplayTarget = useCallback(() => {
+    if (!pathDisplay) {
+      return
+    }
+
+    const targetId = pathDisplay.targetPersonId
+    onSelectPerson(targetId)
+    const position = pathProjection?.positions.get(targetId) ?? treePositions.get(targetId)
+    const flow = instance.current
+    if (!position || !flow) {
+      return
+    }
+
+    centeredPersonId.current = targetId
+    void flow.setCenter(
+      position.x + PERSON_CARD_WIDTH / 2,
+      position.y + PERSON_CARD_HEIGHT / 2,
+      { duration: 150, zoom: flow.getViewport().zoom },
+    ).then(() => rememberCamera('tree', flow.getViewport()))
+  }, [onSelectPerson, pathDisplay, pathProjection?.positions, rememberCamera, treePositions])
 
   return (
     <>
@@ -1462,9 +1482,17 @@ function TreeCanvas({
       {view === 'tree' && pathDisplay && (
         <Panel className="path-display-panel" position="top-left">
           <span className="path-display-title">
-            {t('editor.pathDisplayTitle', {
-              name: pathDisplayTargetName,
-            })}
+            {t('editor.pathDisplayTitle', { name: '' }).trim()}&nbsp;
+            <button
+              aria-label={t('editor.pathDisplayTitle', {
+                name: pathDisplayTargetName ?? t('person.unknown'),
+              })}
+              className="path-display-target"
+              onClick={focusPathDisplayTarget}
+              type="button"
+            >
+              {pathDisplayTargetName}
+            </button>
           </span>
           <button
             aria-label={t('editor.closePathDisplay')}

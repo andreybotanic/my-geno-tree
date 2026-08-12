@@ -1412,10 +1412,12 @@
 }
 
 .person-search-content li .person-search-result-visible svg {
+  display: block;
   fill: none;
-  height: 18px;
+  height: 16px;
   stroke: currentColor;
   stroke-width: 1.8;
+  transform: translateY(1px);
   width: 16px;
 }
 
@@ -1456,10 +1458,33 @@
 }
 
 .path-display-title {
+  align-items: center;
   color: var(--color-text-strong);
+  display: flex;
   font-size: 0.86rem;
   padding: 0 12px;
   white-space: nowrap;
+}
+
+.path-display-target {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.path-display-target:hover {
+  color: var(--color-accent);
+}
+
+.path-display-target:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
 }
 
 .path-display-close {
