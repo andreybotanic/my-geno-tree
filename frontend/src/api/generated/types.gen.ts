@@ -226,6 +226,64 @@ export type PersonUpdateResult = {
     etag: string;
 };
 
+export type PersonSearchResult = {
+    id: string;
+    fullName: string;
+    birthYear: number | null;
+    deathYear: number | null;
+};
+
+export type PersonSearchResultList = {
+    items: Array<PersonSearchResult>;
+};
+
+export type PersonRelationshipContext = {
+    people: Array<Person>;
+    parentLinks: Array<ParentLink>;
+    marriages: Array<MarriagePeriod>;
+};
+
+export type PersonDetailsPermissions = {
+    canEdit: boolean;
+    canDelete: boolean;
+    removableParentLinkIds: Array<string>;
+    removableMarriageIds: Array<string>;
+};
+
+export type PersonDetails = {
+    etag: string;
+    person: Person;
+    relationships: PersonRelationshipContext;
+    events: Array<GenealogicalEvent>;
+    permissions: PersonDetailsPermissions;
+};
+
+export type SearchRouteNode = {
+    personId: string;
+    generation: number;
+    kind: 'route' | 'support';
+};
+
+export type SearchRouteFamilyBlock = {
+    id: string;
+    personIds: [
+        string,
+        string
+    ];
+    childIds: Array<string>;
+    married: boolean;
+};
+
+export type SearchRoutePlan = {
+    etag: string;
+    targetPersonId: string;
+    people: Array<Person>;
+    nodes: Array<SearchRouteNode>;
+    parentLinks: Array<ParentLink>;
+    marriages: Array<MarriagePeriod>;
+    familyBlocks: Array<SearchRouteFamilyBlock>;
+};
+
 export type ImageCropUpload = {
     image: Blob | File;
     cropX: number;
@@ -1347,6 +1405,79 @@ export type UpdateMarriagePeriodResponses = {
 
 export type UpdateMarriagePeriodResponse = UpdateMarriagePeriodResponses[keyof UpdateMarriagePeriodResponses];
 
+export type SearchTreePeopleData = {
+    body?: never;
+    path: {
+        treeId: string;
+    };
+    query: {
+        q: string;
+    };
+    url: '/trees/{treeId}/people/search';
+};
+
+export type SearchTreePeopleErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type SearchTreePeopleError = SearchTreePeopleErrors[keyof SearchTreePeopleErrors];
+
+export type SearchTreePeopleResponses = {
+    /**
+     * Up to five compact person search results
+     */
+    200: PersonSearchResultList;
+};
+
+export type SearchTreePeopleResponse = SearchTreePeopleResponses[keyof SearchTreePeopleResponses];
+
+export type GetRouteToTreeReferenceData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/route-to-reference/{personId}';
+};
+
+export type GetRouteToTreeReferenceErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+};
+
+export type GetRouteToTreeReferenceError = GetRouteToTreeReferenceErrors[keyof GetRouteToTreeReferenceErrors];
+
+export type GetRouteToTreeReferenceResponses = {
+    /**
+     * Route plan without presentation coordinates
+     */
+    200: SearchRoutePlan;
+};
+
+export type GetRouteToTreeReferenceResponse = GetRouteToTreeReferenceResponses[keyof GetRouteToTreeReferenceResponses];
+
 export type GetPersonData = {
     body?: never;
     path: {
@@ -1831,6 +1962,38 @@ export type ReorderPersonEventsResponses = {
 };
 
 export type ReorderPersonEventsResponse = ReorderPersonEventsResponses[keyof ReorderPersonEventsResponses];
+
+export type GetPersonDetailsData = {
+    body?: never;
+    path: {
+        treeId: string;
+        personId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/people/{personId}/details';
+};
+
+export type GetPersonDetailsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetPersonDetailsError = GetPersonDetailsErrors[keyof GetPersonDetailsErrors];
+
+export type GetPersonDetailsResponses = {
+    /**
+     * Person, direct relationship context, events and server permissions
+     */
+    200: PersonDetails;
+};
+
+export type GetPersonDetailsResponse = GetPersonDetailsResponses[keyof GetPersonDetailsResponses];
 
 export type DeleteEventPlaceData = {
     body?: never;

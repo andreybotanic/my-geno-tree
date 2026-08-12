@@ -13,6 +13,7 @@ import type {
   MarriagePeriod,
   ParentLink,
   Person,
+  PersonDetails,
   PersonPatchRequest,
   TreeSnapshot,
 } from '../api/generated'
@@ -68,7 +69,8 @@ type PersonDetailsPanelProps = {
   onRemoveParentLink: (link: ParentLink) => void
   onSelectPerson: (personId: string) => void
   person: Person
-  snapshot: TreeSnapshot
+  details?: PersonDetails
+  snapshot?: TreeSnapshot
 }
 
 type EditableRowProps = {
@@ -223,6 +225,7 @@ export function PersonDetailsPanel({
   onRemoveParentLink,
   onSelectPerson,
   person,
+  details,
   snapshot,
 }: PersonDetailsPanelProps) {
   const { t, i18n } = useTranslation()
@@ -506,13 +509,15 @@ export function PersonDetailsPanel({
       </section>
 
       <PersonRelationships
+        {...(details ? { context: details.relationships } : {})}
         onAdd={onAddRelative}
         onEditMarriage={onEditMarriage}
         onRemoveMarriage={onRemoveMarriage}
         onRemoveParentLink={onRemoveParentLink}
         onSelectPerson={onSelectPerson}
         person={person}
-        snapshot={snapshot}
+        {...(details ? { permissions: details.permissions } : {})}
+        {...(snapshot ? { snapshot } : {})}
       />
 
       <EventTimeline
@@ -525,7 +530,7 @@ export function PersonDetailsPanel({
         onReorder={onReorderEvents}
       />
 
-      {canDeletePerson(snapshot, person.id) && (
+      {(details?.permissions.canDelete ?? (snapshot && canDeletePerson(snapshot, person.id))) && (
         <section className="person-details-section danger-zone">
           <button
             className="danger-button"

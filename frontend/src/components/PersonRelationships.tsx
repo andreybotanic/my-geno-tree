@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   GenealogicalDate,
   MarriagePeriod,
   ParentLink,
   Person,
+  PersonDetailsPermissions,
+  PersonRelationshipContext,
   TreeSnapshot,
 } from '../api/generated'
 import {
@@ -19,13 +20,15 @@ import {
 import { AddButton } from './AddButton'
 
 type PersonRelationshipsProps = {
+  context?: PersonRelationshipContext
   onAdd: (action: RelativeAction, secondParentId?: string) => void
   onEditMarriage: (marriage: MarriagePeriod) => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
   onSelectPerson: (personId: string) => void
   person: Person
-  snapshot: TreeSnapshot
+  permissions?: PersonDetailsPermissions
+  snapshot?: TreeSnapshot
 }
 
 export function PersonRelationships({
@@ -35,22 +38,29 @@ export function PersonRelationships({
   onRemoveParentLink,
   onSelectPerson,
   person,
+  context,
+  permissions,
   snapshot,
 }: PersonRelationshipsProps) {
   const { t, i18n } = useTranslation()
-  const people = useMemo(
-    () => new Map(snapshot.people.map((item) => [item.id, item])),
-    [snapshot.people],
-  )
-  const parentLinks = snapshot.parentLinks.filter(
+  const relationshipContext = context ?? (snapshot ? {
+    marriages: snapshot.marriages,
+    parentLinks: snapshot.parentLinks,
+    people: snapshot.people,
+  } : null)
+  if (!relationshipContext) {
+    return null
+  }
+  const people = new Map(relationshipContext.people.map((item) => [item.id, item]))
+  const parentLinks = relationshipContext.parentLinks.filter(
     (link) => link.childId === person.id,
   )
-  const childLinks = snapshot.parentLinks.filter(
+  const childLinks = relationshipContext.parentLinks.filter(
     (link) => link.parentId === person.id,
   )
   const father = parentLinks.find((link) => link.role === 'father')
   const mother = parentLinks.find((link) => link.role === 'mother')
-  const marriages = snapshot.marriages.filter((marriage) => (
+  const marriages = relationshipContext.marriages.filter((marriage) => (
     marriage.malePersonId === person.id
     || marriage.femalePersonId === person.id
   ))
@@ -71,7 +81,7 @@ export function PersonRelationships({
     .map((link) => people.get(link.childId))
     .filter((child) => child !== undefined)
   const outsideMarriage = children.filter((child) => {
-    const otherParents = snapshot.parentLinks
+    const otherParents = relationshipContext.parentLinks
       .filter((link) => (
         link.childId === child.id && link.parentId !== person.id
       ))
@@ -92,7 +102,9 @@ export function PersonRelationships({
           onRemove={onRemoveParentLink}
           onSelectPerson={onSelectPerson}
           person={father ? people.get(father.parentId) : undefined}
-          removable={!father || canRemoveParentLink(snapshot, father)}
+          removable={!father || (permissions
+            ? permissions.removableParentLinkIds.includes(father.id)
+            : Boolean(snapshot && canRemoveParentLink(snapshot, father)))}
         />
         <RelativeRow
           action="mother"
@@ -101,7 +113,9 @@ export function PersonRelationships({
           onRemove={onRemoveParentLink}
           onSelectPerson={onSelectPerson}
           person={mother ? people.get(mother.parentId) : undefined}
-          removable={!mother || canRemoveParentLink(snapshot, mother)}
+          removable={!mother || (permissions
+            ? permissions.removableParentLinkIds.includes(mother.id)
+            : Boolean(snapshot && canRemoveParentLink(snapshot, mother)))}
         />
       </section>
 
@@ -118,7 +132,7 @@ export function PersonRelationships({
           const spouse = people.get(spouseId)
           const commonChildren = spouse
             ? children.filter((child) => hasParent(
-              snapshot,
+              relationshipContext,
               child.id,
               spouse.id,
             ))
@@ -153,7 +167,9 @@ export function PersonRelationships({
                       >
                         {t('common.edit')}
                       </button>
-                      {canRemoveMarriage(snapshot, marriage) && (
+                      {(permissions
+                        ? permissions.removableMarriageIds.includes(marriage.id)
+                        : Boolean(snapshot && canRemoveMarriage(snapshot, marriage))) && (
                         <button
                           className="danger-link"
                           onClick={() => onRemoveMarriage(marriage)}
@@ -292,11 +308,11 @@ function partnerId(marriage: MarriagePeriod, personId: string) {
 }
 
 function hasParent(
-  snapshot: Pick<TreeSnapshot, 'parentLinks'>,
+  context: Pick<PersonRelationshipContext, 'parentLinks'>,
   childId: string,
   parentId: string,
 ) {
-  return snapshot.parentLinks.some((link) => (
+  return context.parentLinks.some((link) => (
     link.childId === childId && link.parentId === parentId
   ))
 }

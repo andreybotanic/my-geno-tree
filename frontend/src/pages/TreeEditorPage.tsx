@@ -31,12 +31,15 @@ import type {
   ParentRole,
   ParentSpecification,
   Person,
+  PersonDetails,
+  PersonSearchResult,
   PersonInput,
   PersonPatchRequest,
   RelativePerson,
   ResolvedEventPlace,
   TreeSnapshot,
   TreeReference,
+  SearchRoutePlan,
   User,
 } from '../api/generated'
 import {
@@ -59,6 +62,7 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
+import { PersonSearchPanel } from '../components/PersonSearchPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
 import {
   ParentsFormDialog,
@@ -98,6 +102,8 @@ import {
 } from '../treeGraph'
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
 import { formatPersonName } from '../personFormatting'
+import { projectSearchRoute } from '../searchRouteProjection'
+import { canDeletePerson } from '../relationshipPermissions'
 import {
   BLOOD_NETWORK_FAMILY_SIZE,
   BLOOD_NETWORK_PERSON_SIZE,
@@ -682,6 +688,7 @@ type TreeCanvasProps = {
   bloodNetworkSidebarContainer: HTMLElement | null
   onAddParents: (childId: string) => Promise<void>
   onClearSelection: () => void
+  onClosePathDisplay: () => void
   onOpenRelativeDialog: (
     anchorId: string,
     action: RelativeAction,
@@ -691,7 +698,9 @@ type TreeCanvasProps = {
   onExport: () => void
   onChangeReference: (reference: TreeReference) => Promise<void>
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
+  onShowPathDisplay: (personId: string) => Promise<boolean>
   request: AuthorizedJsonRequest
+  pathDisplay: SearchRoutePlan | null
   onSelectPerson: (personId: string) => void
   onToggleNetworkView: () => void
   onUpdateUser: (user: User) => void
@@ -705,10 +714,13 @@ function TreeCanvas({
   bloodNetworkSidebarContainer,
   onAddParents,
   onClearSelection,
+  onClosePathDisplay,
   onExport,
   onChangeReference,
   onOpenRelativeDialog,
   onSaveBloodNetworkState,
+  onShowPathDisplay,
+  pathDisplay,
   request,
   onSelectPerson,
   onToggleNetworkView,
@@ -813,6 +825,9 @@ function TreeCanvas({
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const focusedSnapshot = useMemo(() => focusedTreeSnapshot(snapshot), [snapshot])
   const treePositions = useMemo(() => layoutTree(focusedSnapshot), [focusedSnapshot])
+  const pathProjection = useMemo(() => pathDisplay
+    ? projectSearchRoute(pathDisplay, focusedSnapshot.people, treePositions)
+    : null, [focusedSnapshot.people, pathDisplay, treePositions])
   const referencePersonIds = useMemo(() => {
     const reference = effectiveReference(snapshot)
     return new Set(reference?.type === 'person'
@@ -825,13 +840,70 @@ function TreeCanvas({
     position: treePositions.get(person.id) ?? { x: 0, y: 0 },
     height: PERSON_CARD_HEIGHT,
     width: PERSON_CARD_WIDTH,
-    data: { isReference: referencePersonIds.has(person.id), person },
+    data: {
+      isMuted: Boolean(pathDisplay && !pathProjection?.routePersonIds.has(person.id)),
+      isPath: Boolean(pathProjection?.routePersonIds.has(person.id)),
+      isReference: referencePersonIds.has(person.id),
+      person,
+    },
     selected: person.id === selectedPersonId,
-  })), [focusedSnapshot.people, referencePersonIds, selectedPersonId, treePositions])
-  const edges = useMemo<TreeFlowEdge[]>(
-    () => buildTreeEdges(focusedSnapshot, treePositions),
-    [focusedSnapshot, treePositions],
-  )
+  })), [focusedSnapshot.people, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions])
+  const pathNodes = useMemo<PersonFlowNode[]>(() => pathProjection?.overlayPeople.map((person) => ({
+    id: person.id,
+    type: 'person',
+    position: pathProjection.positions.get(person.id) ?? { x: 0, y: 0 },
+    height: PERSON_CARD_HEIGHT,
+    width: PERSON_CARD_WIDTH,
+    data: { isOverlay: true, isPath: true, isReference: false, person },
+    selected: person.id === selectedPersonId,
+  })) ?? [], [pathProjection, selectedPersonId])
+  const edges = useMemo<TreeFlowEdge[]>(() => {
+    const base = buildTreeEdges(focusedSnapshot, treePositions).map((edge) => (
+      edge.type === 'family'
+        ? {
+            ...edge,
+            data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
+          }
+        : {
+            ...edge,
+            data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
+          }
+    )) as TreeFlowEdge[]
+    if (!pathDisplay || !pathProjection) return base
+
+    const route = buildTreeEdges({
+      tree: snapshot.tree,
+      parentLinks: pathDisplay.parentLinks,
+      marriages: pathDisplay.marriages,
+    }, pathProjection.positions).map((edge) => (
+      edge.type === 'family'
+        ? {
+            ...edge,
+            id: `route:${edge.id}`,
+            data: { ...edge.data, visualState: 'highlight' as const },
+          }
+        : {
+            ...edge,
+            id: `route:${edge.id}`,
+            data: { ...edge.data, visualState: 'highlight' as const },
+          }
+    )) as TreeFlowEdge[]
+
+    return [...base, ...route]
+  }, [focusedSnapshot, pathDisplay, pathProjection, snapshot.tree, treePositions])
+  const searchPeople = useCallback((query: string, signal: AbortSignal) => (
+    personApi.search(request, snapshot.tree.id, query, signal)
+      .then((result) => result.items)
+  ), [request, snapshot.tree.id])
+  const selectSearchResult = useCallback(async (person: PersonSearchResult) => {
+    if (focusedSnapshot.people.some((item) => item.id === person.id)) {
+      onSelectPerson(person.id)
+      return
+    }
+    if (await onShowPathDisplay(person.id)) {
+      onSelectPerson(person.id)
+    }
+  }, [focusedSnapshot.people, onSelectPerson, onShowPathDisplay])
   const generatedBloodNetwork = useMemo(
     () => view === 'network'
       ? buildBloodNetwork(snapshot, networkGeneration)
@@ -862,7 +934,7 @@ function TreeCanvas({
         ...node,
         selected: node.id === bloodNetworkRotationPivotNodeId,
       }))
-    : treeNodes
+    : [...treeNodes, ...pathNodes]
   const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : edges
   const treeMenuSpouses = useMemo(() => {
     if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
@@ -974,7 +1046,8 @@ function TreeCanvas({
     ) {
       return
     }
-    const position = treePositions.get(selectedPersonId)
+    const position = pathProjection?.positions.get(selectedPersonId)
+      ?? treePositions.get(selectedPersonId)
     const flow = instance.current
     if (!position || !flow) {
       return
@@ -988,7 +1061,7 @@ function TreeCanvas({
       ).then(() => rememberCamera('tree', flow.getViewport()))
     })
     return () => cancelAnimationFrame(frame)
-  }, [cameraReady, rememberCamera, selectedPersonId, treePositions, view])
+  }, [cameraReady, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view])
 
   const resetCamera = useCallback(async (
     cameraView: TreeEditorView = view,
@@ -1363,6 +1436,25 @@ function TreeCanvas({
         />
       )}
       <Background color="var(--color-border)" gap={22} size={1} />
+      {view === 'tree' && (
+        <Panel position="top-right">
+          <PersonSearchPanel
+            onSearch={searchPeople}
+            onSelect={(person) => void selectSearchResult(person)}
+          />
+        </Panel>
+      )}
+      {view === 'tree' && pathDisplay && (
+        <Panel className="path-display-panel" position="top-left">
+          <button
+            className="secondary-button compact-button"
+            onClick={onClosePathDisplay}
+            type="button"
+          >
+            {t('editor.closePathDisplay')}
+          </button>
+        </Panel>
+      )}
       <LayoutToolbar
         isNetworkView={view === 'network'}
         onExport={onExport}
@@ -1734,12 +1826,45 @@ type RelativeDialogState = {
 }
 
 type PersonDetailsCacheEntry = {
+  details?: PersonDetails
   events: GenealogicalEvent[]
   person: Person
 }
 
 function personDetailsCacheKey(personId: string, etag: string) {
   return `${etag}:${personId}`
+}
+
+function fallbackPersonDetails(
+  snapshot: TreeSnapshot,
+  person: Person,
+  events: GenealogicalEvent[],
+): PersonDetails {
+  return {
+    etag: snapshot.etag,
+    person,
+    events,
+    relationships: {
+      people: snapshot.people,
+      parentLinks: snapshot.parentLinks,
+      marriages: snapshot.marriages,
+    },
+    permissions: {
+      canEdit: true,
+      canDelete: canDeletePerson(snapshot, person.id),
+      removableMarriageIds: snapshot.marriages.map((marriage) => marriage.id),
+      removableParentLinkIds: snapshot.parentLinks.map((link) => link.id),
+    },
+  }
+}
+
+function isPersonDetails(value: unknown): value is PersonDetails {
+  return typeof value === 'object'
+    && value !== null
+    && 'person' in value
+    && 'relationships' in value
+    && 'permissions' in value
+    && 'events' in value
 }
 
 export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditorPageProps) {
@@ -1767,6 +1892,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [creating, setCreating] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
+  const [selectedDetails, setSelectedDetails] = useState<PersonDetails | null>(null)
+  const [pathDisplay, setPathDisplay] = useState<SearchRoutePlan | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
   const [conflict, setConflict] = useState(false)
   const [relativeDialog, setRelativeDialog] = useState<RelativeDialogState | null>(
@@ -1805,6 +1932,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
   const closePersonDetails = useCallback(() => {
     setSelectedPerson(null)
+    setSelectedDetails(null)
     setEvents([])
     setEventEditing(null)
     setEventPendingDeletion(null)
@@ -1813,6 +1941,18 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     setPhotoDeleting(false)
     setPhotoViewing(false)
   }, [])
+
+  const closePathDisplay = useCallback(() => {
+    if (
+      pathDisplay
+      && selectedPerson
+      && snapshot
+      && !focusedTreeSnapshot(snapshot).people.some((person) => person.id === selectedPerson.id)
+    ) {
+      closePersonDetails()
+    }
+    setPathDisplay(null)
+  }, [closePersonDetails, pathDisplay, selectedPerson, snapshot])
 
   const replaceSnapshot = useCallback((
     nextSnapshot: TreeSnapshot,
@@ -1824,6 +1964,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
     snapshotRef.current = nextSnapshot
     personDetailsCache.current.clear()
+    setPathDisplay(null)
     setSnapshot(nextSnapshot)
 
     return true
@@ -1833,8 +1974,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     etag: string,
     person: Person,
     personEvents: GenealogicalEvent[],
+    details?: PersonDetails,
   ) => {
     personDetailsCache.current.set(personDetailsCacheKey(person.id, etag), {
+      ...(details ? { details } : {}),
       events: personEvents,
       person,
     })
@@ -1882,6 +2025,33 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   }, [replaceSnapshot, request, treeId])
 
   useEffect(() => {
+    if (conflict) {
+      setPathDisplay(null)
+    }
+  }, [conflict])
+
+  const showPathDisplay = useCallback(async (personId: string) => {
+    if (!snapshot || conflict) return false
+    try {
+      const route = await personApi.routeToReference(request, treeId, personId)
+      if (route.etag !== snapshot.etag) {
+        setPathDisplay(null)
+        await loadSnapshot(true)
+        return false
+      }
+      setPathDisplay(route)
+
+      return true
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
+        setConflict(true)
+      }
+
+      return false
+    }
+  }, [conflict, loadSnapshot, request, snapshot, treeId])
+
+  useEffect(() => {
     void loadSnapshot()
   }, [loadSnapshot])
 
@@ -1913,30 +2083,45 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     if (!snapshot) {
       return
     }
-    const person = snapshot.people.find((item) => item.id === personId)
-    if (!person) {
-      return
-    }
     const cacheKey = personDetailsCacheKey(personId, snapshot.etag)
     const cached = personDetailsCache.current.get(cacheKey)
-    if (cached) {
+    if (cached?.details) {
       setSelectedPerson(cached.person)
       setEvents(cached.events)
+      setSelectedDetails(cached.details)
       return
     }
 
-    try {
+    const person = snapshot.people.find((item) => item.id === personId)
+    const openSnapshotDetails = async () => {
+      if (!person) return
       const timeline = await personApi.events(request, treeId, personId)
-      cachePersonDetails(snapshot.etag, person, timeline.items)
+      const fallback = fallbackPersonDetails(snapshot, person, timeline.items)
+      cachePersonDetails(snapshot.etag, person, timeline.items, fallback)
       setSelectedPerson(person)
       setEvents(timeline.items)
+      setSelectedDetails(fallback)
+    }
+
+    try {
+      const details = await personApi.details(request, treeId, personId)
+      if (isPersonDetails(details)) {
+        cachePersonDetails(details.etag, details.person, details.events, details)
+        setSelectedPerson(details.person)
+        setEvents(details.events)
+        setSelectedDetails(details)
+        return
+      }
+      await openSnapshotDetails()
     } catch (error) {
       if (
         error instanceof ApiRequestError
         && error.body.code === 'TREE_VERSION_CONFLICT'
       ) {
         setConflict(true)
+        return
       }
+      await openSnapshotDetails().catch(() => undefined)
     }
   }
 
@@ -1966,6 +2151,16 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         )),
       })
       setEvents(timeline.items)
+      setSelectedDetails((current) => (
+        current?.person.id === result.person.id
+          ? {
+              ...current,
+              etag: result.etag,
+              events: timeline.items,
+              person: result.person,
+            }
+          : current
+      ))
       cachePersonDetails(result.etag, result.person, timeline.items)
     } catch (error) {
       if (
@@ -2002,8 +2197,11 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
           nextSelected.id,
         )
         setEvents(timeline.items)
-        cachePersonDetails(updated.etag, nextSelected, timeline.items)
+        const nextDetails = fallbackPersonDetails(updated, nextSelected, timeline.items)
+        setSelectedDetails(nextDetails)
+        cachePersonDetails(updated.etag, nextSelected, timeline.items, nextDetails)
       } else {
+        setSelectedDetails(null)
         setEvents([])
       }
 
@@ -2521,10 +2719,12 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   bloodNetworkSidebarContainer={bloodNetworkSidebarContainer}
                   onAddParents={addParents}
                   onClearSelection={closePersonDetails}
+                  onClosePathDisplay={closePathDisplay}
                   onExport={() => setExporting(true)}
                   onChangeReference={changeReference}
                   onOpenRelativeDialog={openRelativeDialog}
                   onSaveBloodNetworkState={saveBloodNetworkState}
+                  onShowPathDisplay={showPathDisplay}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
                   snapshot={snapshot}
@@ -2532,6 +2732,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onToggleNetworkView={toggleNetworkView}
                   onUpdateUser={updateUser}
                   request={request}
+                  pathDisplay={pathDisplay}
                   user={user}
                 />
               </ReactFlowProvider>
@@ -2539,7 +2740,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
           </div>
         )}
 
-        {view === 'tree' && selectedPerson && snapshot && (
+        {view === 'tree' && selectedPerson && selectedDetails && (
           <PersonDetailsPanel
             conflict={conflict}
             events={events}
@@ -2577,7 +2778,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             onSelectPerson={(personId) => void selectPerson(personId)}
             onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
-            snapshot={snapshot}
+            details={selectedDetails}
+            {...(snapshot ? { snapshot } : {})}
           />
         )}
         {view === 'network' && snapshot && (

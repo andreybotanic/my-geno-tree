@@ -46,21 +46,25 @@ export function FamilyEdge({
     pairY,
     children,
   )
+  const visualState = data?.visualState
+    ? ` tree-edge-${data.visualState}`
+    : ''
   const className = data?.married
-    ? `tree-edge tree-edge-marriage${data.reference ? ' tree-edge-reference' : ''}`
-    : 'tree-edge tree-edge-coparent'
+    ? `tree-edge tree-edge-marriage${data.reference ? ' tree-edge-reference' : ''}${visualState}`
+    : `tree-edge tree-edge-coparent${visualState}`
 
   return (
     <>
       <BaseEdge className={className} id={id} path={pairPath} />
       {childPath && (
-        <path className="tree-edge tree-edge-child" d={childPath} />
+        <path className={`tree-edge tree-edge-child${visualState}`} d={childPath} />
       )}
     </>
   )
 }
 
 export function SingleParentEdge({
+  data,
   id,
   sourcePosition,
   sourceX,
@@ -82,7 +86,7 @@ export function SingleParentEdge({
 
   return (
     <BaseEdge
-      className="tree-edge tree-edge-child"
+      className={`tree-edge tree-edge-child${data?.visualState ? ` tree-edge-${data.visualState}` : ''}`}
       id={id}
       path={path}
     />

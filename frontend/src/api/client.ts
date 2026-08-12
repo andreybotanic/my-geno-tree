@@ -261,6 +261,35 @@ export const personApi = {
       `/trees/${treeId}/people/${personId}`,
     )
   },
+  search(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    query: string,
+    signal?: AbortSignal,
+  ) {
+    return request<import('./generated').PersonSearchResultList>(
+      `/trees/${treeId}/people/search?q=${encodeURIComponent(query)}`,
+      signal ? { signal } : {},
+    )
+  },
+  details(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+  ) {
+    return request<import('./generated').PersonDetails>(
+      `/trees/${treeId}/people/${personId}/details`,
+    )
+  },
+  routeToReference(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    personId: string,
+  ) {
+    return request<import('./generated').SearchRoutePlan>(
+      `/trees/${treeId}/route-to-reference/${personId}`,
+    )
+  },
   update(
     request: AuthorizedJsonRequest,
     treeId: string,

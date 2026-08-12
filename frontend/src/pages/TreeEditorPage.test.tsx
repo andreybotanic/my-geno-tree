@@ -6,6 +6,7 @@ import type {
   MarriagePeriod,
   ParentLink,
   Person,
+  SearchRoutePlan,
   TreeSnapshot,
   User,
 } from '../api/generated'
@@ -959,6 +960,7 @@ describe('TreeEditorPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Petrov Ivan' }))
       .toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}/details`)
     expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}/events`)
     expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}`)
     expect(screen.getByRole('article', { name: 'Petrov Ivan' })
@@ -984,8 +986,89 @@ describe('TreeEditorPage', () => {
     fireEvent.click(card)
     expect(await screen.findByRole('complementary', { name: 'Person details' }))
       .toBeInTheDocument()
-    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(3)
+    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${person.id}/details`)
     expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${person.id}`)
+  })
+
+  it('opens a hidden search result as an editable route overlay and closes it', async () => {
+    const hiddenAncestor: Person = {
+      ...father,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e0',
+      birthSurname: { state: 'known', value: 'Hidden' },
+      givenName: { state: 'known', value: 'Ancestor' },
+    }
+    const routeLink: ParentLink = {
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e1',
+      parentId: hiddenAncestor.id,
+      childId: person.id,
+      role: 'father',
+    }
+    const route: SearchRoutePlan = {
+      etag: '"tree-current"',
+      targetPersonId: hiddenAncestor.id,
+      people: [person, hiddenAncestor],
+      nodes: [
+        { personId: person.id, generation: 0, kind: 'route' },
+        { personId: hiddenAncestor.id, generation: -1, kind: 'route' },
+      ],
+      parentLinks: [routeLink],
+      marriages: [],
+      familyBlocks: [],
+    }
+    const details = {
+      etag: '"tree-current"',
+      person: hiddenAncestor,
+      relationships: {
+        people: [person, hiddenAncestor],
+        parentLinks: [routeLink],
+        marriages: [],
+      },
+      events: [],
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        removableMarriageIds: [],
+        removableParentLinkIds: [routeLink.id],
+      },
+    }
+    const request = vi.fn(async (path: string) => {
+      if (path === `/trees/${treeId}/snapshot`) {
+        return graphSnapshot([person, father, hiddenAncestor], [parentLink])
+      }
+      if (path.startsWith(`/trees/${treeId}/people/search?`)) {
+        return {
+          items: [{
+            id: hiddenAncestor.id,
+            fullName: 'Hidden Ancestor',
+            birthYear: null,
+            deathYear: null,
+          }],
+        }
+      }
+      if (path === `/trees/${treeId}/route-to-reference/${hiddenAncestor.id}`) {
+        return route
+      }
+      if (path === `/trees/${treeId}/people/${hiddenAncestor.id}/details`) {
+        return details
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Search people' }))
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Hidden')
+    await userEvent.click(await screen.findByRole('option', { name: /Hidden Ancestor/ }))
+
+    const overlayCard = await screen.findByRole('article', { name: 'Hidden Ancestor' })
+    expect(overlayCard).toHaveClass('person-card-overlay')
+    expect(await screen.findByRole('complementary', { name: 'Person details' }))
+      .toHaveTextContent('Hidden Ancestor')
+    expect(screen.getByRole('article', { name: 'Petrov Ivan' })).toHaveClass('person-card-muted')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close route' }))
+    expect(screen.queryByRole('article', { name: 'Hidden Ancestor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Person details' })).not.toBeInTheDocument()
   })
 
   it('closes person details when the empty tree canvas is clicked', async () => {

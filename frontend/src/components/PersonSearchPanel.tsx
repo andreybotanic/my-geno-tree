@@ -1,0 +1,157 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import { useTranslation } from 'react-i18next'
+import type { PersonSearchResult } from '../api/generated'
+
+type PersonSearchPanelProps = {
+  onSearch: (query: string, signal: AbortSignal) => Promise<PersonSearchResult[]>
+  onSelect: (person: PersonSearchResult) => void
+}
+
+export function PersonSearchPanel({
+  onSearch,
+  onSelect,
+}: PersonSearchPanelProps) {
+  const { t } = useTranslation()
+  const input = useRef<HTMLInputElement | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [query, setQuery] = useState('')
+  const [items, setItems] = useState<PersonSearchResult[]>([])
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const [status, setStatus] = useState<'error' | 'idle' | 'loading'>('idle')
+
+  useEffect(() => {
+    if (expanded) input.current?.focus()
+  }, [expanded])
+
+  useEffect(() => {
+    const value = query.trim()
+    if (value.length < 2) {
+      setItems([])
+      setActiveIndex(-1)
+      setStatus('idle')
+      return undefined
+    }
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => {
+      setStatus('loading')
+      void onSearch(value, controller.signal)
+        .then((next) => {
+          if (controller.signal.aborted) return
+          setItems(next)
+          setActiveIndex(next.length === 0 ? -1 : 0)
+          setStatus('idle')
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+            return
+          }
+          setItems([])
+          setActiveIndex(-1)
+          setStatus('error')
+        })
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [onSearch, query])
+
+  const close = () => {
+    setExpanded(false)
+    setQuery('')
+    setItems([])
+    setActiveIndex(-1)
+    setStatus('idle')
+  }
+  const select = (person: PersonSearchResult) => {
+    close()
+    onSelect(person)
+  }
+
+  return (
+    <div className={`person-search-panel${expanded ? ' person-search-panel-expanded' : ''}`}>
+      <button
+        aria-expanded={expanded}
+        aria-label={t('editor.personSearch')}
+        className="editor-tool-button"
+        onClick={() => setExpanded((value) => !value)}
+        title={t('editor.personSearch')}
+        type="button"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="5.75" />
+          <path d="m15 15 5 5" />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="person-search-content">
+          <input
+            aria-autocomplete="list"
+            aria-controls="person-search-results"
+            aria-expanded={items.length > 0}
+            aria-label={t('editor.personSearchField')}
+            autoComplete="off"
+            maxLength={255}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' && items.length > 0) {
+                event.preventDefault()
+                setActiveIndex((index) => (index + 1) % items.length)
+              } else if (event.key === 'ArrowUp' && items.length > 0) {
+                event.preventDefault()
+                setActiveIndex((index) => (index - 1 + items.length) % items.length)
+              } else if (event.key === 'Enter' && activeIndex >= 0) {
+                event.preventDefault()
+                const item = items[activeIndex]
+                if (item) select(item)
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                close()
+              }
+            }}
+            placeholder={t('editor.personSearchField')}
+            ref={input}
+            role="combobox"
+            value={query}
+          />
+          {status === 'loading' && <span className="person-search-status">{t('common.loading')}</span>}
+          {status === 'error' && <span className="person-search-status" role="alert">{t('editor.personSearchFailed')}</span>}
+          {query.trim().length >= 2 && status === 'idle' && items.length === 0 && (
+            <span className="person-search-status">{t('editor.personSearchEmpty')}</span>
+          )}
+          {items.length > 0 && (
+            <ul id="person-search-results" role="listbox">
+              {items.map((person, index) => (
+                <li key={person.id}>
+                  <button
+                    aria-selected={activeIndex === index}
+                    className={activeIndex === index ? 'person-search-result-active' : undefined}
+                    onClick={() => select(person)}
+                    role="option"
+                    type="button"
+                  >
+                    <strong>{person.fullName}</strong>
+                    <span>{formatYears(person.birthYear, person.deathYear, t('person.unknown'))}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatYears(
+  birthYear: number | null,
+  deathYear: number | null,
+  unknown: string,
+) {
+  return `${birthYear ?? unknown} — ${deathYear ?? unknown}`
+}

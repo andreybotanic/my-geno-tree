@@ -66,6 +66,11 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     {
         /** @var list<MarriagePeriod> $marriages */
         $marriages = $this->createQueryBuilder('marriage')
+            ->addSelect('male', 'female', 'marriagePlace', 'dissolutionPlace')
+            ->join('marriage.malePerson', 'male')
+            ->join('marriage.femalePerson', 'female')
+            ->leftJoin('marriage.marriagePlace', 'marriagePlace')
+            ->leftJoin('marriage.dissolutionPlace', 'dissolutionPlace')
             ->andWhere(
                 'marriage.malePerson = :person OR marriage.femalePerson = :person',
             )

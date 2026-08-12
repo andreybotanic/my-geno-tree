@@ -300,6 +300,39 @@ final readonly class GraphInvariantPolicy
         $this->assertConnectedAfter($tree, removedPerson: $person);
     }
 
+    public function canRemoveParentLink(FamilyTree $tree, ParentLink $link): bool
+    {
+        try {
+            $this->assertConnectedAfter($tree, removedParentLink: $link);
+
+            return true;
+        } catch (ApiException) {
+            return false;
+        }
+    }
+
+    public function canRemoveMarriage(FamilyTree $tree, MarriagePeriod $marriage): bool
+    {
+        try {
+            $this->assertConnectedAfter($tree, removedMarriage: $marriage);
+
+            return true;
+        } catch (ApiException) {
+            return false;
+        }
+    }
+
+    public function canDeletePerson(FamilyTree $tree, Person $person): bool
+    {
+        try {
+            $this->assertPersonDeletionAllowed($tree, $person);
+
+            return true;
+        } catch (ApiException) {
+            return false;
+        }
+    }
+
     private function wouldCreateAncestorCycle(
         FamilyTree $tree,
         Person $parent,

@@ -1137,6 +1137,19 @@
   border-color: var(--color-state-warning-strong);
 }
 
+.person-card-muted {
+  filter: saturate(0.3);
+  opacity: 0.42;
+}
+
+.person-card-overlay {
+  box-shadow: 0 16px 38px var(--color-shadow);
+}
+
+.person-card-path {
+  border-color: var(--color-accent);
+}
+
 .person-card-selected.person-card-reference {
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--color-accent) 50%, transparent),
@@ -1250,6 +1263,15 @@
   stroke-dasharray: 8 7;
 }
 
+.tree-edge-muted {
+  opacity: 0.25;
+}
+
+.tree-edge-highlight {
+  stroke: var(--color-accent);
+  stroke-width: 4;
+}
+
 .camera-reset-controls,
 .zoom-controls,
 .editor-toolbar {
@@ -1310,6 +1332,93 @@
   stroke-linejoin: round;
   stroke-width: 1.6;
   width: 22px;
+}
+
+.person-search-panel {
+  align-items: center;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  box-shadow: 0 8px 24px var(--color-shadow);
+  display: flex;
+  margin-right: 96px;
+  min-height: 40px;
+}
+
+.person-search-panel-expanded {
+  overflow: visible;
+}
+
+.person-search-content {
+  min-width: min(320px, calc(100vw - 180px));
+  order: -1;
+  padding: 6px;
+  position: relative;
+}
+
+.person-search-content input {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text-strong);
+  min-width: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.person-search-content ul {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  box-shadow: 0 12px 28px var(--color-shadow);
+  list-style: none;
+  margin: 5px 0 0;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 100%;
+}
+
+.person-search-content li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.person-search-content li button {
+  background: transparent;
+  border: 0;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.person-search-content li button:hover,
+.person-search-result-active {
+  background: var(--color-background) !important;
+}
+
+.person-search-content li span,
+.person-search-status {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.person-search-status {
+  display: block;
+  padding: 7px 4px 0;
+}
+
+.path-display-panel {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  box-shadow: 0 8px 24px var(--color-shadow);
+  padding: 6px;
 }
 
 .blood-network-person,

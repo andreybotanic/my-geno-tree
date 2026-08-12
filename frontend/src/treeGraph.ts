@@ -21,10 +21,14 @@ export type FamilyEdgeData = {
   reference?: boolean
   sourceOffset: number
   targetOffset: number
+  visualState?: 'highlight' | 'muted'
 }
 
 export type FamilyFlowEdge = Edge<FamilyEdgeData, 'family'>
-export type SingleParentFlowEdge = Edge<Record<string, never>, 'singleParent'>
+export type SingleParentFlowEdge = Edge<{
+  bracketDepth?: never
+  visualState?: 'highlight' | 'muted'
+}, 'singleParent'>
 export type TreeFlowEdge = FamilyFlowEdge | SingleParentFlowEdge
 
 type Family = {
