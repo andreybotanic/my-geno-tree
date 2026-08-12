@@ -39,7 +39,7 @@ describe('PersonSearchPanel', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
-  it('cancels an obsolete request and closes with Escape', async () => {
+  it('cancels an obsolete request and clears state on Escape or outside click', async () => {
     let aborted = false
     const onSearch = vi.fn((_query: string, signal: AbortSignal) => new Promise<never>((_resolve, reject) => {
       signal.addEventListener('abort', () => {
@@ -57,6 +57,16 @@ describe('PersonSearchPanel', () => {
     expect(aborted).toBe(true)
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search people' }))
+    expect(screen.getByRole('combobox')).toHaveValue('')
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ivanov' } })
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search people' }))
+    expect(screen.getByRole('combobox')).toHaveValue('')
   })
 
   it('shows distinct empty and failed states', async () => {

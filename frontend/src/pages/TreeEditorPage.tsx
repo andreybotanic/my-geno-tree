@@ -841,8 +841,11 @@ function TreeCanvas({
     height: PERSON_CARD_HEIGHT,
     width: PERSON_CARD_WIDTH,
     data: {
-      isMuted: Boolean(pathDisplay && !pathProjection?.routePersonIds.has(person.id)),
-      isPath: Boolean(pathProjection?.routePersonIds.has(person.id)),
+      isMuted: Boolean(
+        pathDisplay
+        && person.id !== selectedPersonId
+        && !pathProjection?.routePersonIds.has(person.id),
+      ),
       isReference: referencePersonIds.has(person.id),
       person,
     },
@@ -854,7 +857,7 @@ function TreeCanvas({
     position: pathProjection.positions.get(person.id) ?? { x: 0, y: 0 },
     height: PERSON_CARD_HEIGHT,
     width: PERSON_CARD_WIDTH,
-    data: { isOverlay: true, isPath: true, isReference: false, person },
+    data: { isOverlay: true, isReference: false, person },
     selected: person.id === selectedPersonId,
   })) ?? [], [pathProjection, selectedPersonId])
   const edges = useMemo<TreeFlowEdge[]>(() => {
@@ -1254,6 +1257,13 @@ function TreeCanvas({
     void saveBloodNetworkState()
   }
 
+  const pathDisplayTargetName = pathDisplay
+    ? (() => {
+        const target = pathDisplay.people.find((person) => person.id === pathDisplay.targetPersonId)
+        return target ? formatPersonName(target, t) : t('person.unknown')
+      })()
+    : null
+
   return (
     <>
     <div
@@ -1446,12 +1456,21 @@ function TreeCanvas({
       )}
       {view === 'tree' && pathDisplay && (
         <Panel className="path-display-panel" position="top-left">
+          <span className="path-display-title">
+            {t('editor.pathDisplayTitle', {
+              name: pathDisplayTargetName,
+            })}
+          </span>
           <button
-            className="secondary-button compact-button"
+            aria-label={t('editor.closePathDisplay')}
+            className="editor-tool-button path-display-close"
             onClick={onClosePathDisplay}
+            title={t('editor.closePathDisplay')}
             type="button"
           >
-            {t('editor.closePathDisplay')}
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m7 7 10 10M17 7 7 17" />
+            </svg>
           </button>
         </Panel>
       )}

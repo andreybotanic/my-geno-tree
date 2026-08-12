@@ -66,4 +66,75 @@ describe('projectSearchRoute', () => {
       }
     }
   })
+
+  it('centres an added child under both displayed parents and emphasizes supporting parents', () => {
+    const visible = [person('father'), person('mother'), person('unrelated')]
+    const base = new Map([
+      ['father', { x: 0, y: -240 }],
+      ['mother', { x: 320, y: -240 }],
+      ['unrelated', { x: 960, y: 0 }],
+    ])
+    const plan: SearchRoutePlan = {
+      etag: '"tree"',
+      targetPersonId: 'child',
+      people: [...visible, person('child')],
+      nodes: [
+        { personId: 'father', generation: -1, kind: 'route' },
+        { personId: 'mother', generation: -1, kind: 'support' },
+        { personId: 'child', generation: 0, kind: 'route' },
+      ],
+      parentLinks: [
+        { id: 'father-child', parentId: 'father', childId: 'child', role: 'father' },
+        { id: 'mother-child', parentId: 'mother', childId: 'child', role: 'mother' },
+      ],
+      marriages: [],
+      familyBlocks: [{
+        id: 'parents',
+        personIds: ['father', 'mother'],
+        childIds: ['child'],
+        married: false,
+      }],
+    }
+
+    const projection = projectSearchRoute(plan, visible, base)
+    const child = projection.positions.get('child')!
+    expect(child.x + PERSON_CARD_WIDTH / 2).toBe(
+      ((base.get('father')!.x + PERSON_CARD_WIDTH / 2)
+        + (base.get('mother')!.x + PERSON_CARD_WIDTH / 2)) / 2,
+    )
+    expect(projection.routePersonIds).toEqual(new Set(['father', 'mother', 'child']))
+  })
+
+  it('keeps a displayed child centred under an added parent pair', () => {
+    const visible = [person('child')]
+    const base = new Map([['child', { x: 0, y: 0 }]])
+    const plan: SearchRoutePlan = {
+      etag: '"tree"',
+      targetPersonId: 'father',
+      people: [...visible, person('father'), person('mother')],
+      nodes: [
+        { personId: 'father', generation: -1, kind: 'route' },
+        { personId: 'mother', generation: -1, kind: 'support' },
+      ],
+      parentLinks: [
+        { id: 'father-child', parentId: 'father', childId: 'child', role: 'father' },
+        { id: 'mother-child', parentId: 'mother', childId: 'child', role: 'mother' },
+      ],
+      marriages: [],
+      familyBlocks: [{
+        id: 'parents',
+        personIds: ['father', 'mother'],
+        childIds: ['child'],
+        married: false,
+      }],
+    }
+
+    const projection = projectSearchRoute(plan, visible, base)
+    const father = projection.positions.get('father')!
+    const mother = projection.positions.get('mother')!
+    expect((father.x + mother.x + PERSON_CARD_WIDTH) / 2).toBe(
+      base.get('child')!.x + PERSON_CARD_WIDTH / 2,
+    )
+    expect(father).not.toEqual(mother)
+  })
 })

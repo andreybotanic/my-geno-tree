@@ -12,7 +12,6 @@ export type PersonNodeData = {
   isReference: boolean
   isMuted?: boolean
   isOverlay?: boolean
-  isPath?: boolean
   person: Person
 }
 
@@ -28,7 +27,7 @@ export function PersonCard({
   return (
     <article
       aria-label={name}
-      className={`person-card person-card-${data.person.gender}${selected ? ' person-card-selected' : ''}${data.isReference ? ' person-card-reference' : ''}${data.isMuted ? ' person-card-muted' : ''}${data.isOverlay ? ' person-card-overlay' : ''}${data.isPath ? ' person-card-path' : ''}`}
+      className={`person-card person-card-${data.person.gender}${selected ? ' person-card-selected' : ''}${data.isReference ? ' person-card-reference' : ''}${data.isMuted ? ' person-card-muted' : ''}${data.isOverlay ? ' person-card-overlay' : ''}`}
       title={name}
     >
       {data.isReference && (

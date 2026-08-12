@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -16,6 +17,7 @@ export function PersonSearchPanel({
   onSelect,
 }: PersonSearchPanelProps) {
   const { t } = useTranslation()
+  const panel = useRef<HTMLDivElement | null>(null)
   const input = useRef<HTMLInputElement | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [query, setQuery] = useState('')
@@ -23,9 +25,37 @@ export function PersonSearchPanel({
   const [activeIndex, setActiveIndex] = useState(-1)
   const [status, setStatus] = useState<'error' | 'idle' | 'loading'>('idle')
 
+  const close = useCallback(() => {
+    setExpanded(false)
+    setQuery('')
+    setItems([])
+    setActiveIndex(-1)
+    setStatus('idle')
+  }, [])
+
   useEffect(() => {
-    if (expanded) input.current?.focus()
-  }, [expanded])
+    if (!expanded) return undefined
+    input.current?.focus()
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!panel.current?.contains(event.target as Node)) {
+        close()
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [close, expanded])
 
   useEffect(() => {
     const value = query.trim()
@@ -61,20 +91,16 @@ export function PersonSearchPanel({
     }
   }, [onSearch, query])
 
-  const close = () => {
-    setExpanded(false)
-    setQuery('')
-    setItems([])
-    setActiveIndex(-1)
-    setStatus('idle')
-  }
   const select = (person: PersonSearchResult) => {
     close()
     onSelect(person)
   }
 
   return (
-    <div className={`person-search-panel${expanded ? ' person-search-panel-expanded' : ''}`}>
+    <div
+      className={`person-search-panel${expanded ? ' person-search-panel-expanded' : ''}`}
+      ref={panel}
+    >
       <button
         aria-expanded={expanded}
         aria-label={t('editor.personSearch')}
@@ -109,9 +135,6 @@ export function PersonSearchPanel({
                 event.preventDefault()
                 const item = items[activeIndex]
                 if (item) select(item)
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                close()
               }
             }}
             placeholder={t('editor.personSearchField')}

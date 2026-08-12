@@ -1071,6 +1071,126 @@ describe('TreeEditorPage', () => {
     expect(screen.queryByRole('complementary', { name: 'Person details' })).not.toBeInTheDocument()
   })
 
+  it('keeps both displayed parents and the selected muted card visible in a route display', async () => {
+    const mother: Person = {
+      ...person,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e5',
+      birthSurname: { state: 'known', value: 'Sidorova' },
+      givenName: { state: 'known', value: 'Maria' },
+    }
+    const hiddenChild: Person = {
+      ...person,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e6',
+      birthSurname: { state: 'known', value: 'Petrova' },
+      givenName: { state: 'known', value: 'Elena' },
+    }
+    const unrelated: Person = {
+      ...spouse,
+      gender: 'female',
+    }
+    const unrelatedMarriage: MarriagePeriod = {
+      ...marriage,
+      malePersonId: father.id,
+      femalePersonId: unrelated.id,
+    }
+    const fatherRouteLink: ParentLink = {
+      ...parentLink,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e7',
+      childId: hiddenChild.id,
+    }
+    const motherRouteLink: ParentLink = {
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e8',
+      parentId: mother.id,
+      childId: hiddenChild.id,
+      role: 'mother',
+    }
+    const route: SearchRoutePlan = {
+      etag: '"tree-current"',
+      targetPersonId: hiddenChild.id,
+      people: [father, mother, hiddenChild],
+      nodes: [
+        { personId: father.id, generation: -1, kind: 'route' },
+        { personId: mother.id, generation: -1, kind: 'support' },
+        { personId: hiddenChild.id, generation: 0, kind: 'route' },
+      ],
+      parentLinks: [fatherRouteLink, motherRouteLink],
+      marriages: [],
+      familyBlocks: [{
+        id: 'parents',
+        personIds: [father.id, mother.id],
+        childIds: [hiddenChild.id],
+        married: false,
+      }],
+    }
+    const childDetails = {
+      etag: '"tree-current"',
+      person: hiddenChild,
+      relationships: {
+        people: [father, mother, hiddenChild],
+        parentLinks: [fatherRouteLink, motherRouteLink],
+        marriages: [],
+      },
+      events: [],
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        removableMarriageIds: [],
+        removableParentLinkIds: [fatherRouteLink.id, motherRouteLink.id],
+      },
+    }
+    const request = vi.fn(async (path: string) => {
+      if (path === `/trees/${treeId}/snapshot`) {
+        return graphSnapshot([father, mother, unrelated], [], [unrelatedMarriage])
+      }
+      if (path.startsWith(`/trees/${treeId}/people/search?`)) {
+        return {
+          items: [{
+            id: hiddenChild.id,
+            fullName: 'Petrova Elena',
+            birthYear: null,
+            deathYear: null,
+          }],
+        }
+      }
+      if (path === `/trees/${treeId}/route-to-reference/${hiddenChild.id}`) {
+        return route
+      }
+      if (path === `/trees/${treeId}/people/${hiddenChild.id}/details`) {
+        return childDetails
+      }
+      if (path === `/trees/${treeId}/people/${unrelated.id}/details`) {
+        return {
+          ...childDetails,
+          person: unrelated,
+          relationships: {
+            people: [unrelated],
+            parentLinks: [],
+            marriages: [],
+          },
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Search people' }))
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Petrova')
+    await userEvent.click(await screen.findByRole('option', { name: /Petrova Elena/ }))
+
+    expect(await screen.findByRole('article', { name: 'Petrova Elena' }))
+      .not.toHaveClass('person-card-path')
+    expect(screen.getByRole('article', { name: 'Petrov Ivan' }))
+      .not.toHaveClass('person-card-muted')
+    expect(screen.getByRole('article', { name: 'Sidorova Maria' }))
+      .not.toHaveClass('person-card-muted')
+    expect(screen.getByRole('article', { name: 'Ivanov Petr' }))
+      .toHaveClass('person-card-muted')
+
+    fireEvent.click(screen.getByRole('article', { name: 'Ivanov Petr' }))
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Ivanov Petr' }))
+      .not.toHaveClass('person-card-muted'))
+  })
+
   it('closes person details when the empty tree canvas is clicked', async () => {
     const request = vi.fn(async (path: string) => {
       if (path.endsWith('/events')) {
