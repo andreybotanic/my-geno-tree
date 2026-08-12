@@ -1282,7 +1282,12 @@
 .camera-controls {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: var(--editor-floating-panel-gap);
+}
+
+.camera-controls,
+.person-search-panel {
+  --editor-floating-panel-gap: 8px;
 }
 
 .zoom-controls output {
@@ -1337,7 +1342,7 @@
   box-shadow: 0 8px 24px var(--color-shadow);
   display: flex;
   height: 42px;
-  margin-right: 96px;
+  margin-right: calc(82px + var(--editor-floating-panel-gap));
 }
 
 .person-search-panel-expanded {
