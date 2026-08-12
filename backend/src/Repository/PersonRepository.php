@@ -62,6 +62,30 @@ final class PersonRepository extends ServiceEntityRepository
         return $person;
     }
 
+    /**
+     * @param list<string> $ids
+     *
+     * @return list<Person>
+     */
+    public function findByTreeAndIds(FamilyTree $tree, array $ids): array
+    {
+        if ([] === $ids) {
+            return [];
+        }
+
+        /** @var list<Person> $people */
+        $people = $this->createQueryBuilder('person')
+            ->andWhere('person.tree = :tree')
+            ->andWhere('person.id IN (:ids)')
+            ->setParameter('tree', $tree)
+            ->setParameter('ids', $ids)
+            ->orderBy('person.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $people;
+    }
+
     public function countForTree(FamilyTree $tree): int
     {
         return (int)$this->createQueryBuilder('person')

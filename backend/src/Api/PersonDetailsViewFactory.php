@@ -20,6 +20,8 @@ final readonly class PersonDetailsViewFactory
         private ParentLinkRepository $parentLinks,
         private MarriagePeriodRepository $marriages,
         private PersonViewFactory $personViews,
+        private KnownTextViewFactory $texts,
+        private GenealogicalDateViewFactory $dates,
         private ParentLinkViewFactory $parentLinkViews,
         private MarriagePeriodViewFactory $marriageViews,
         private EventTimelineService $timeline,
@@ -34,19 +36,8 @@ final readonly class PersonDetailsViewFactory
      */
     public function create(FamilyTree $tree, Person $person): array
     {
-        $allLinks = $this->parentLinks->findAllForTree($tree);
+        $links = $this->parentLinks->findRelationshipContext($tree, $person);
         $personId = $person->getId()->toRfc4122();
-        $children = [];
-        foreach ($allLinks as $link) {
-            if ($link->getParent() === $person) {
-                $children[$link->getChild()->getId()->toRfc4122()] = true;
-            }
-        }
-        $links = array_values(array_filter($allLinks, static fn (ParentLink $link): bool => (
-            $link->getChild() === $person
-            || $link->getParent() === $person
-            || isset($children[$link->getChild()->getId()->toRfc4122()])
-        )));
         $marriages = $this->marriages->findForPerson($person);
         usort($links, static fn (ParentLink $left, ParentLink $right): int => (
             $left->getId()->toRfc4122() <=> $right->getId()->toRfc4122()
@@ -64,20 +55,20 @@ final readonly class PersonDetailsViewFactory
             $personIds[$marriage->getMalePerson()->getId()->toRfc4122()] = true;
             $personIds[$marriage->getFemalePerson()->getId()->toRfc4122()] = true;
         }
-        $allPeople = [];
-        foreach ($this->people->findAllForTree($tree) as $candidate) {
+        $relatedPeople = [];
+        foreach ($this->people->findByTreeAndIds($tree, array_keys($personIds)) as $candidate) {
             $candidateId = $candidate->getId()->toRfc4122();
-            if (isset($personIds[$candidateId])) {
-                $allPeople[$candidateId] = $candidate;
+            if ($candidateId !== $personId) {
+                $relatedPeople[$candidateId] = $candidate;
             }
         }
-        ksort($allPeople, SORT_STRING);
+        ksort($relatedPeople, SORT_STRING);
 
         return [
             'etag'          => $this->versions->etag($tree),
             'person'        => $this->personViews->create($person),
             'relationships' => [
-                'people'      => array_map($this->personViews->create(...), array_values($allPeople)),
+                'people'      => array_map($this->relationshipPerson(...), array_values($relatedPeople)),
                 'parentLinks' => array_map($this->parentLinkViews->create(...), $links),
                 'marriages'   => array_map($this->marriageViews->create(...), $marriages),
             ],
@@ -99,6 +90,22 @@ final readonly class PersonDetailsViewFactory
                     ),
                 )),
             ],
+        ];
+    }
+
+    /**
+     * @return array{id: string, birthSurname: array<string, mixed>, givenName: array<string, mixed>, patronymic: array<string, mixed>, deathDate: array<string, mixed>|null}
+     */
+    private function relationshipPerson(Person $person): array
+    {
+        $deathDate = $person->getDeathDate();
+
+        return [
+            'id'           => $person->getId()->toRfc4122(),
+            'birthSurname' => $this->texts->create($person->getBirthSurname()),
+            'givenName'    => $this->texts->create($person->getGivenName()),
+            'patronymic'   => $this->texts->create($person->getPatronymic()),
+            'deathDate'    => null === $deathDate ? null : $this->dates->create($deathDate),
         ];
     }
 }

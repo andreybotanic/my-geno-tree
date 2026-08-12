@@ -238,9 +238,17 @@ export type PersonSearchResultList = {
 };
 
 export type PersonRelationshipContext = {
-    people: Array<Person>;
+    people: Array<PersonRelationshipPerson>;
     parentLinks: Array<ParentLink>;
     marriages: Array<MarriagePeriod>;
+};
+
+export type PersonRelationshipPerson = {
+    id: string;
+    birthSurname: KnownText;
+    givenName: KnownText;
+    patronymic: KnownText;
+    deathDate: GenealogicalDate | null;
 };
 
 export type PersonDetailsPermissions = {

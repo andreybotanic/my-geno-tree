@@ -6,6 +6,7 @@ import type {
   Person,
   PersonDetailsPermissions,
   PersonRelationshipContext,
+  PersonRelationshipPerson,
   TreeSnapshot,
 } from '../api/generated'
 import {
@@ -43,10 +44,12 @@ export function PersonRelationships({
   snapshot,
 }: PersonRelationshipsProps) {
   const { t, i18n } = useTranslation()
-  const relationshipContext = context ?? (snapshot ? {
+  const relationshipContext: PersonRelationshipContext | null = context ?? (snapshot ? {
     marriages: snapshot.marriages,
     parentLinks: snapshot.parentLinks,
-    people: snapshot.people,
+    people: snapshot.people
+      .filter((candidate) => candidate.id !== person.id)
+      .map(relationshipPerson),
   } : null)
   if (!relationshipContext) {
     return null
@@ -252,7 +255,7 @@ type RelativeRowProps = {
   onAdd: (action: RelativeAction, secondParentId?: string) => void
   onRemove: (link: ParentLink) => void
   onSelectPerson: (personId: string) => void
-  person: Person | undefined
+  person: PersonRelationshipPerson | undefined
   removable: boolean
 }
 
@@ -320,7 +323,7 @@ function hasParent(
 function marriageEndLabel(
   marriage: MarriagePeriod,
   person: Person,
-  spouse: Person | undefined,
+  spouse: PersonRelationshipPerson | undefined,
   language: string,
   translate: (key: string) => string,
 ) {
@@ -353,7 +356,7 @@ function marriageEndLabel(
 function marriagePeriodLabel(
   marriage: MarriagePeriod,
   person: Person,
-  spouse: Person | undefined,
+  spouse: PersonRelationshipPerson | undefined,
   language: string,
   translate: (key: string) => string,
 ) {
@@ -381,4 +384,14 @@ function dateSortValue(
   const day = date.day ?? 1
 
   return Date.UTC(date.year, month - 1, day)
+}
+
+function relationshipPerson(person: Person): PersonRelationshipPerson {
+  return {
+    id: person.id,
+    birthSurname: person.birthSurname,
+    givenName: person.givenName,
+    patronymic: person.patronymic,
+    deathDate: person.deathDate,
+  }
 }

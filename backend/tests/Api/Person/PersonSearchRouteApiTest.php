@@ -223,12 +223,20 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
             headers: $this->authorization($token),
         );
         self::assertResponseIsSuccessful();
-        /** @var array{person: array{id: string}, permissions: array<string, mixed>, events: list<array<string, mixed>>, relationships: array<string, mixed>} $details */
+        /** @var array{person: array{id: string}, permissions: array<string, mixed>, events: list<array<string, mixed>>, relationships: array{people: list<array<string, mixed>>, parentLinks: list<array<string, mixed>>, marriages: list<array<string, mixed>>}} $details */
         $details = $this->responseData();
         self::assertSame($grandmotherId, $details['person']['id']);
         self::assertArrayHasKey('permissions', $details);
         self::assertArrayHasKey('events', $details);
         self::assertArrayHasKey('relationships', $details);
+        self::assertNotContains($grandmotherId, array_column($details['relationships']['people'], 'id'));
+        self::assertCount(2, $details['relationships']['people']);
+        foreach ($details['relationships']['people'] as $relatedPerson) {
+            self::assertSame(
+                ['id', 'birthSurname', 'givenName', 'patronymic', 'deathDate'],
+                array_keys($relatedPerson),
+            );
+        }
     }
 
     public function testMarriageReferenceUsesBothSpousesAndCollapsesRepeatedPeriods(): void

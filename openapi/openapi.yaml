@@ -1901,7 +1901,7 @@ components:
         people:
           type: array
           items:
-            $ref: "#/components/schemas/Person"
+            $ref: "#/components/schemas/PersonRelationshipPerson"
         parentLinks:
           type: array
           items:
@@ -1910,6 +1910,24 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MarriagePeriod"
+    PersonRelationshipPerson:
+      type: object
+      additionalProperties: false
+      required: [id, birthSurname, givenName, patronymic, deathDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        birthSurname:
+          $ref: "#/components/schemas/KnownText"
+        givenName:
+          $ref: "#/components/schemas/KnownText"
+        patronymic:
+          $ref: "#/components/schemas/KnownText"
+        deathDate:
+          oneOf:
+            - $ref: "#/components/schemas/GenealogicalDate"
+            - type: "null"
     PersonDetailsPermissions:
       type: object
       additionalProperties: false

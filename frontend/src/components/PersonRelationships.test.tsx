@@ -5,6 +5,8 @@ import type {
   MarriagePeriod,
   ParentLink,
   Person,
+  PersonRelationshipContext,
+  PersonRelationshipPerson,
   TreeSnapshot,
 } from '../api/generated'
 import i18n from '../i18n'
@@ -97,6 +99,16 @@ function snapshot(
   }
 }
 
+function relationshipPerson(person: Person): PersonRelationshipPerson {
+  return {
+    id: person.id,
+    birthSurname: person.birthSurname,
+    givenName: person.givenName,
+    patronymic: person.patronymic,
+    deathDate: person.deathDate,
+  }
+}
+
 describe('PersonRelationships', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en')
@@ -172,6 +184,30 @@ describe('PersonRelationships', () => {
       [commonChild.id],
       [outsideChild.id],
     ])
+  })
+
+  it('renders the compact relationship context without duplicating the selected person', () => {
+    const context: PersonRelationshipContext = {
+      people: [father, spouse, commonChild, outsideChild, oneParentChild]
+        .map(relationshipPerson),
+      parentLinks: links,
+      marriages: periods,
+    }
+    render(
+      <PersonRelationships
+        context={context}
+        onAdd={vi.fn()}
+        onEditMarriage={vi.fn()}
+        onRemoveMarriage={vi.fn()}
+        onRemoveParentLink={vi.fn()}
+        onSelectPerson={vi.fn()}
+        person={selected}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Senior' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Petrova' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Junior' })).toBeInTheDocument()
   })
 
   it('shows missing-parent and empty-family actions', async () => {
