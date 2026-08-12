@@ -69,8 +69,19 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         /** @var list<SearchItem> $items */
         $items = $this->responseData()['items'];
         self::assertCount(5, $items);
-        self::assertSame('Ivanov Ivan', $items[0]['fullName']);
+        self::assertSame('Ivanov Ivan Ivanovich', $items[0]['fullName']);
         self::assertArrayNotHasKey('uid', $items[0]);
+
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $tree['id'] . '/people/search?q=Ivonov',
+            headers: $this->authorization($token),
+        );
+        self::assertResponseIsSuccessful();
+        /** @var list<SearchItem> $items */
+        $items = $this->responseData()['items'];
+        self::assertNotSame([], $items);
+        self::assertSame('Ivanov Ivan Ivanovich', $items[0]['fullName']);
 
         $otherTree = $this->createTree($token, 'Other');
         $this->jsonRequest(
@@ -87,6 +98,27 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
             headers: $this->authorization($token),
         );
         self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testSearchMatchesAOneCharacterCyrillicPrefix(): void
+    {
+        $token = $this->register('cyrillic_search_owner');
+        $tree = $this->createTree($token, 'Cyrillic search');
+        $snapshot = $this->firstPerson($token, $tree, $this->person([
+            'birthSurname' => ['state' => 'known', 'value' => 'Савельев'],
+        ]));
+
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $tree['id'] . '/people/search?q=' . rawurlencode('Савелье'),
+            headers: $this->authorization($token),
+        );
+        self::assertResponseIsSuccessful();
+        /** @var list<SearchItem> $items */
+        $items = $this->responseData()['items'];
+        self::assertCount(1, $items);
+        self::assertSame($snapshot['people'][0]['id'], $items[0]['id']);
+        self::assertSame('Савельев', $items[0]['fullName']);
     }
 
     public function testSearchPrefilterUsesTheTrigramExpressionIndex(): void

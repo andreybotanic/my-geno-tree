@@ -27,6 +27,9 @@ final readonly class PersonSearchService
 
         $distance = $this->normalizer->maximumDistance($query);
         $name = $this->normalizedNameExpression();
+        $birthSurname = $this->normalizedValueExpression('person.birth_surname_value');
+        $givenName = $this->normalizedValueExpression('person.given_name_value');
+        $patronymic = $this->normalizedValueExpression('person.patronymic_value');
         $sql = <<<SQL
             WITH candidates AS (
                 SELECT
@@ -38,11 +41,11 @@ final readonly class PersonSearchService
                     person.death_date_year AS death_year,
                     strict_word_similarity(:query, {$name}) AS similarity,
                     LEAST(
-                        levenshtein_less_equal(:query, COALESCE(person.birth_surname_value, ''), :distance),
-                        levenshtein_less_equal(:query, COALESCE(person.given_name_value, ''), :distance),
-                        levenshtein_less_equal(:query, COALESCE(person.patronymic_value, ''), :distance),
-                        levenshtein_less_equal(:query, trim(COALESCE(person.birth_surname_value, '') || ' ' || COALESCE(person.given_name_value, '')), :distance),
-                        levenshtein_less_equal(:query, trim(COALESCE(person.given_name_value, '') || ' ' || COALESCE(person.patronymic_value, '')), :distance),
+                        levenshtein_less_equal(:query, {$birthSurname}, :distance),
+                        levenshtein_less_equal(:query, {$givenName}, :distance),
+                        levenshtein_less_equal(:query, {$patronymic}, :distance),
+                        levenshtein_less_equal(:query, trim({$birthSurname} || ' ' || {$givenName}), :distance),
+                        levenshtein_less_equal(:query, trim({$givenName} || ' ' || {$patronymic}), :distance),
                         levenshtein_less_equal(:query, left({$name}, 255), :distance)
                     ) AS distance
                 FROM person
@@ -56,12 +59,23 @@ final readonly class PersonSearchService
             LIMIT 5
             SQL;
 
-        /** @var list<array<string, int|string|null>> $rows */
-        $rows = $this->connection->fetchAllAssociative($sql, [
-            'query'    => $query,
-            'distance' => $distance,
-            'treeId'   => $tree->getId()->toRfc4122(),
-        ]);
+        $this->connection->beginTransaction();
+        try {
+            $this->connection->executeStatement(
+                'SET LOCAL pg_trgm.strict_word_similarity_threshold = 0.2',
+            );
+            /** @var list<array<string, int|string|null>> $rows */
+            $rows = $this->connection->fetchAllAssociative($sql, [
+                'query'    => $query,
+                'distance' => $distance,
+                'treeId'   => $tree->getId()->toRfc4122(),
+            ]);
+            $this->connection->commit();
+        } catch (\Throwable $exception) {
+            $this->connection->rollBack();
+
+            throw $exception;
+        }
 
         return array_map(static function (array $row): array {
             $name = trim(implode(' ', array_filter([
@@ -82,5 +96,10 @@ final readonly class PersonSearchService
     private function normalizedNameExpression(): string
     {
         return "trim(regexp_replace(lower(translate(COALESCE(person.birth_surname_value, '') || ' ' || COALESCE(person.given_name_value, '') || ' ' || COALESCE(person.patronymic_value, ''), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))";
+    }
+
+    private function normalizedValueExpression(string $column): string
+    {
+        return "trim(regexp_replace(lower(translate(COALESCE({$column}, ''), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))";
     }
 }
