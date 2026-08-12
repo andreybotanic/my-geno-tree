@@ -1142,7 +1142,7 @@
   opacity: 0.42;
 }
 
-.person-card-overlay {
+.person-card-overlay:not(.person-card-selected) {
   box-shadow: 0 16px 38px var(--color-shadow);
 }
 
