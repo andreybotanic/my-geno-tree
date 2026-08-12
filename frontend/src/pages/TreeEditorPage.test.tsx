@@ -1065,7 +1065,7 @@ describe('TreeEditorPage', () => {
     expect(await screen.findByRole('complementary', { name: 'Person details' }))
       .toHaveTextContent('Hidden Ancestor')
     expect(screen.getByRole('article', { name: 'Petrov Ivan' })).toHaveClass('person-card-muted')
-    expect(screen.getByRole('button', { name: 'Route to Hidden Ancestor' }))
+    expect(screen.getByRole('button', { name: 'Tree for Hidden Ancestor' }))
       .toHaveClass('path-display-target')
 
     expect(document.querySelector('.tree-edge-highlight')).not.toBeInTheDocument()
