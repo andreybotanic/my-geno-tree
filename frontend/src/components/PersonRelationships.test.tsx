@@ -105,6 +105,8 @@ function relationshipPerson(person: Person): PersonRelationshipPerson {
     birthSurname: person.birthSurname,
     givenName: person.givenName,
     patronymic: person.patronymic,
+    gender: person.gender,
+    birthDate: person.birthDate,
     deathDate: person.deathDate,
   }
 }

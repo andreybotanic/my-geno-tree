@@ -248,6 +248,8 @@ export type PersonRelationshipPerson = {
     birthSurname: KnownText;
     givenName: KnownText;
     patronymic: KnownText;
+    gender: Gender;
+    birthDate: GenealogicalDate;
     deathDate: GenealogicalDate | null;
 };
 

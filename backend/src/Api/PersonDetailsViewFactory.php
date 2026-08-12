@@ -94,7 +94,7 @@ final readonly class PersonDetailsViewFactory
     }
 
     /**
-     * @return array{id: string, birthSurname: array<string, mixed>, givenName: array<string, mixed>, patronymic: array<string, mixed>, deathDate: array<string, mixed>|null}
+     * @return array{id: string, birthSurname: array<string, mixed>, givenName: array<string, mixed>, patronymic: array<string, mixed>, gender: string, birthDate: array<string, mixed>, deathDate: array<string, mixed>|null}
      */
     private function relationshipPerson(Person $person): array
     {
@@ -105,6 +105,8 @@ final readonly class PersonDetailsViewFactory
             'birthSurname' => $this->texts->create($person->getBirthSurname()),
             'givenName'    => $this->texts->create($person->getGivenName()),
             'patronymic'   => $this->texts->create($person->getPatronymic()),
+            'gender'       => $person->getGender()->value,
+            'birthDate'    => $this->dates->create($person->getBirthDate()),
             'deathDate'    => null === $deathDate ? null : $this->dates->create($deathDate),
         ];
     }
