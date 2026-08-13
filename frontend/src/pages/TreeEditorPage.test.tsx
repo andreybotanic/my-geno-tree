@@ -517,7 +517,7 @@ describe('TreeEditorPage', () => {
     expect(screen.queryByRole('menuitem', { name: 'Set as reference' })).not.toBeInTheDocument()
   })
 
-  it('switches to a temporary blood-only network without opening person editing', async () => {
+  it('switches to a temporary relationship network without opening person editing', async () => {
     const tree = graphSnapshot([father, person, spouse], [parentLink], [marriage])
     const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
     renderEditor(request)
@@ -541,8 +541,9 @@ describe('TreeEditorPage', () => {
     expect(anna).toHaveClass('blood-network-person')
     expect(anna.closest('.react-flow__node')).toHaveClass('draggable')
     expect(document.querySelector('.blood-network-family')).toBeInTheDocument()
+    expect(screen.getByLabelText('Shared parents of 0 children')).toBeInTheDocument()
     await waitFor(() => {
-      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(4)
     })
     expect(screen.queryByText('Blood links')).not.toBeInTheDocument()
     expect(screen.queryByText('Connected points attract. All points repel.')).not.toBeInTheDocument()
@@ -553,14 +554,14 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('button', { name: 'Regenerate blood network' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Regenerate blood network' }))
     await waitFor(() => {
-      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(4)
     })
     const parentPairSpring = screen.getByRole('slider', { name: 'Parent-pair spring' })
     expect(parentPairSpring).toHaveValue('0.2')
     await userEvent.click(parentPairSpring)
     await userEvent.keyboard('{ArrowRight}')
     await waitFor(() => {
-      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(2)
+      expect(document.querySelectorAll('.blood-network-edge-overlay line')).toHaveLength(4)
     })
     expect(screen.getByRole('slider', { name: 'Parent hinge target angle (°)' })).toHaveValue('45')
     expect(screen.getByRole('slider', { name: 'Parent hinge spring' })).toHaveValue('4')

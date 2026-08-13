@@ -2,6 +2,7 @@ import { MarkerType, type Edge, type Node } from '@xyflow/react'
 import type {
   BloodNetworkMapState,
   BloodNetworkPreset,
+  MarriagePeriod,
   Person,
   TreeSnapshot,
 } from './api/generated'
@@ -1145,9 +1146,11 @@ export function createBloodNetworkSimulation(
   return { getNodes, moveNode, setNodeDragging, tick }
 }
 
-function buildBloodFamilies(
-  snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
-): BloodFamily[] {
+type BloodNetworkSnapshot = Pick<TreeSnapshot, 'people' | 'parentLinks'> & {
+  marriages?: MarriagePeriod[]
+}
+
+function buildBloodFamilies(snapshot: BloodNetworkSnapshot): BloodFamily[] {
   const people = new Set(snapshot.people.map((person) => person.id))
   const parentIdsByChild = new Map<string, Set<string>>()
   for (const link of snapshot.parentLinks) {
@@ -1167,6 +1170,19 @@ function buildBloodFamilies(
     childIdsByParents.set(key, childIds)
   }
 
+  for (const marriage of snapshot.marriages ?? []) {
+    if (
+      !people.has(marriage.malePersonId)
+      || !people.has(marriage.femalePersonId)
+      || marriage.malePersonId === marriage.femalePersonId
+    ) {
+      continue
+    }
+
+    const key = [marriage.malePersonId, marriage.femalePersonId].sort().join(':')
+    childIdsByParents.set(key, childIdsByParents.get(key) ?? [])
+  }
+
   return [...childIdsByParents]
     .map(([parentKey, childIds]) => ({
       childIds: childIds.sort(),
@@ -1177,11 +1193,12 @@ function buildBloodFamilies(
 }
 
 /**
- * Builds a temporary, blood-only projection. A small neutral node represents
- * a shared parent set, so siblings meet at one point without implying marriage.
+ * Builds a temporary blood-relationship projection. A small neutral node
+ * represents a shared parent set or a childless married pair, so the latter
+ * stays connected without introducing another node type.
  */
 export function buildBloodNetwork(
-  snapshot: Pick<TreeSnapshot, 'people' | 'parentLinks'>,
+  snapshot: BloodNetworkSnapshot,
   generation = 0,
 ): {
   edges: BloodNetworkFlowEdge[]
@@ -1190,7 +1207,11 @@ export function buildBloodNetwork(
   const people = [...snapshot.people].sort((first, second) => (
     first.id.localeCompare(second.id)
   ))
-  const families = buildBloodFamilies({ people, parentLinks: snapshot.parentLinks })
+  const families = buildBloodFamilies({
+    marriages: snapshot.marriages ?? [],
+    people,
+    parentLinks: snapshot.parentLinks,
+  })
   const forceNodes: ForceNode[] = []
   const nodeCount = people.length + families.length
   const initialArea = Math.max(nodeCount, 1) * INITIAL_AREA_PER_NODE

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ParentLink, Person } from './api/generated'
+import type { MarriagePeriod, ParentLink, Person } from './api/generated'
 import {
   bloodNetworkAverageNodeMovement,
   bloodNetworkChargeRepulsionMagnitude,
@@ -41,6 +41,24 @@ function person(id: string): Person {
 
 function parentLink(parentId: string, childId: string, id: string): ParentLink {
   return { id, parentId, childId, role: 'father' }
+}
+
+function marriage(
+  malePersonId: string,
+  femalePersonId: string,
+  id: string,
+): MarriagePeriod {
+  return {
+    id,
+    malePersonId,
+    femalePersonId,
+    marriageDate: { state: 'unknown' },
+    dissolutionDate: null,
+    marriagePlace: null,
+    dissolutionPlace: null,
+    createdAt: '',
+    updatedAt: '',
+  }
 }
 
 describe('buildBloodNetwork', () => {
@@ -311,6 +329,69 @@ describe('buildBloodNetwork', () => {
         target: 'blood-family:father:mother',
       }),
     ]))
+  })
+
+  it('connects childless spouses through the same neutral family node', () => {
+    const husband = person('husband')
+    const wife = person('wife')
+    const network = buildBloodNetwork({
+      marriages: [
+        marriage(husband.id, wife.id, 'first-period'),
+        marriage(husband.id, wife.id, 'second-period'),
+      ],
+      people: [husband, wife],
+      parentLinks: [],
+    })
+
+    expect(network.nodes.filter((node) => node.id === 'blood-family:husband:wife'))
+      .toEqual([
+        expect.objectContaining({
+          data: { childIds: [], parentIds: ['husband', 'wife'] },
+          height: 18,
+          type: 'bloodFamily',
+          width: 18,
+        }),
+      ])
+    expect(network.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        data: {
+          relation: 'parentToFamily',
+          sourceRadius: 36,
+          targetRadius: 9,
+        },
+        source: husband.id,
+        target: 'blood-family:husband:wife',
+      }),
+      expect.objectContaining({
+        data: {
+          relation: 'parentToFamily',
+          sourceRadius: 36,
+          targetRadius: 9,
+        },
+        source: wife.id,
+        target: 'blood-family:husband:wife',
+      }),
+    ]))
+    expect(network.edges).toHaveLength(2)
+  })
+
+  it('reuses a common-parent node for a married pair with children', () => {
+    const father = person('father')
+    const mother = person('mother')
+    const child = person('child')
+    const network = buildBloodNetwork({
+      marriages: [marriage(father.id, mother.id, 'marriage')],
+      people: [father, mother, child],
+      parentLinks: [
+        parentLink(father.id, child.id, 'father-child'),
+        parentLink(mother.id, child.id, 'mother-child'),
+      ],
+    })
+
+    expect(network.nodes.filter((node) => node.id === 'blood-family:father:mother'))
+      .toHaveLength(1)
+    expect(network.nodes.find((node) => node.id === 'blood-family:father:mother'))
+      .toMatchObject({ data: { childIds: [child.id] } })
   })
 
   it('uses only parent links and starts each temporary layout from random positions', () => {
