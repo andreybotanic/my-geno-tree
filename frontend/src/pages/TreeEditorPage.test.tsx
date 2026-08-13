@@ -321,6 +321,29 @@ describe('TreeEditorPage', () => {
     })
   })
 
+  it('fits the blood network with its simulated node bounds', async () => {
+    const request = vi.fn(async () => graphSnapshot([father, person], [parentLink])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(screen.getByRole('button', { name: 'Show blood network' }))
+    await screen.findByRole('button', { name: 'Show family tree' })
+    await userEvent.click(screen.getByRole('button', { name: 'Current zoom' }))
+    const zoomInput = screen.getByRole('textbox', { name: 'Current zoom' })
+    await userEvent.clear(zoomInput)
+    await userEvent.type(zoomInput, '200{Enter}')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('200%')
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Fit graph to view' }))
+    await waitFor(() => {
+      const zoom = Number(screen.getByRole('button', { name: 'Current zoom' })
+        .textContent?.replace('%', ''))
+      expect(zoom).toBeGreaterThanOrEqual(10)
+      expect(zoom).toBeLessThanOrEqual(100)
+    })
+  })
+
   it('sets a deduplicated spouse pair as reference from the person menu', async () => {
     const repeatedMarriage = { ...marriage, id: 'second-period' }
     const initial = {

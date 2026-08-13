@@ -287,7 +287,6 @@ function ZoomControls({
         >
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
-            <path d="m9 4-5 5m11-5 5 5m-5 6 5-5M9 20l-5-5" />
           </svg>
         </button>
       </div>
@@ -1192,14 +1191,32 @@ function TreeCanvas({
     if (!flow || nodes.length === 0) {
       return
     }
-    await flow.fitView({
-      duration: 150,
-      maxZoom: 1,
-      minZoom: 0.1,
-      padding: 0,
-    })
+    if (view === 'network') {
+      const networkNodes = latestBloodNodes.current.length > 0
+        ? latestBloodNodes.current
+        : bloodNetwork.nodes
+      if (networkNodes.length === 0) {
+        return
+      }
+      const bounds = bloodNetworkBounds(networkNodes)
+      await flow.fitBounds(bounds, { duration: 150, padding: 0 })
+      if (flow.getViewport().zoom > 1) {
+        await flow.setCenter(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2,
+          { duration: 0, zoom: 1 },
+        )
+      }
+    } else {
+      await flow.fitView({
+        duration: 150,
+        maxZoom: 1,
+        minZoom: 0.1,
+        padding: 0,
+      })
+    }
     rememberCamera(view, flow.getViewport())
-  }, [nodes.length, rememberCamera, view])
+  }, [bloodNetwork.nodes, nodes.length, rememberCamera, view])
   const referenceKey = JSON.stringify(snapshot.tree.reference)
   const previousReferenceKey = useRef(referenceKey)
 
