@@ -21,7 +21,8 @@ async function snapshotDirectory(directory, relativePath = '') {
 
     if (entry.isFile()) {
       const content = await readFile(entryPath)
-      snapshot.push(`${entryRelativePath}:${createHash('sha256').update(content).digest('hex')}`)
+      const normalizedContent = content.toString('utf8').replaceAll('\r\n', '\n')
+      snapshot.push(`${entryRelativePath}:${createHash('sha256').update(normalizedContent).digest('hex')}`)
     }
   }
 

@@ -17,6 +17,7 @@ services:
 
   frontend:
     image: node:24.18.0-alpine
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     working_dir: /srv/frontend
     command: npm run dev -- --host 0.0.0.0
     environment:
