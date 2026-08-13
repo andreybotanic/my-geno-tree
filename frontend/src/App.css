@@ -1290,16 +1290,32 @@
   --editor-floating-panel-gap: 8px;
 }
 
-.zoom-controls output {
+.zoom-level-button,
+.zoom-level-input {
   align-items: center;
   align-self: stretch;
+  background: transparent;
+  border: 0;
   color: var(--color-text-muted);
-  display: flex;
+  display: inline-flex;
   font-size: 0.75rem;
   justify-content: center;
   min-width: 56px;
   padding: 0 8px;
   text-align: center;
+}
+
+.zoom-level-button {
+  cursor: pointer;
+}
+
+.zoom-level-button:hover {
+  background: var(--color-background);
+}
+
+.zoom-level-input {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
 }
 
 .editor-tool-button {

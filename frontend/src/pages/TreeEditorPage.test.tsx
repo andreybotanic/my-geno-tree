@@ -260,14 +260,18 @@ describe('TreeEditorPage', () => {
       height: '160px',
       width: '260px',
     })
-    for (const name of ['Zoom out', 'Zoom in', 'Reset camera']) {
+    for (const name of ['Zoom out', 'Zoom in', 'Reset camera', 'Fit graph to view']) {
       expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
     }
     const resetPanel = screen.getByRole('button', { name: 'Reset camera' })
       .closest('.camera-reset-controls')
     const zoomPanel = screen.getByRole('button', { name: 'Zoom out' })
       .closest('.zoom-controls')
-    expect(resetPanel).not.toBeNull()
+    if (!(resetPanel instanceof HTMLElement)) {
+      throw new Error('The camera reset panel was not found.')
+    }
+    expect(within(resetPanel).getByRole('button', { name: 'Fit graph to view' }))
+      .toBeInTheDocument()
     expect(resetPanel?.nextElementSibling).toBe(zoomPanel)
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/graph-mutations`,
@@ -276,6 +280,45 @@ describe('TreeEditorPage', () => {
         headers: { 'If-Match': '"tree-current"' },
       }),
     )
+  })
+
+  it('edits the zoom as an integer percentage within the available range', async () => {
+    const request = vi.fn(async () => graphSnapshot([person])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const zoom = await screen.findByRole('button', { name: 'Current zoom' })
+    expect(zoom).toHaveTextContent('100%')
+    await userEvent.click(zoom)
+    const zoomInput = screen.getByRole('textbox', { name: 'Current zoom' })
+    expect(zoomInput).toHaveValue('100')
+    await userEvent.clear(zoomInput)
+    await userEvent.type(zoomInput, '150{Enter}')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('150%')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Current zoom' }))
+    const invalidInput = screen.getByRole('textbox', { name: 'Current zoom' })
+    await userEvent.clear(invalidInput)
+    await userEvent.type(invalidInput, '201{Enter}')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('150%')
+    })
+  })
+
+  it('fits the complete graph without zooming in past 100%', async () => {
+    const request = vi.fn(async () => graphSnapshot([person])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    await screen.findByRole('article', { name: 'Ivanova Anna' })
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('120%')
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Fit graph to view' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('100%')
+    })
   })
 
   it('sets a deduplicated spouse pair as reference from the person menu', async () => {

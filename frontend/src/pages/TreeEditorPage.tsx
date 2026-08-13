@@ -220,10 +220,48 @@ function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   }
 }
 
-function ZoomControls({ onReset }: { onReset: () => void }) {
+function ZoomControls({
+  onFitView,
+  onReset,
+}: {
+  onFitView: () => void
+  onReset: () => void
+}) {
   const { t } = useTranslation()
-  const { zoomIn, zoomOut } = useReactFlow()
+  const { zoomIn, zoomOut, zoomTo } = useReactFlow()
   const { zoom } = useViewport()
+  const zoomInput = useRef<HTMLInputElement>(null)
+  const skipZoomApply = useRef(false)
+  const [isZoomEditing, setIsZoomEditing] = useState(false)
+  const [zoomValue, setZoomValue] = useState('')
+  const currentZoom = Math.round(zoom * 100)
+
+  useEffect(() => {
+    if (!isZoomEditing) {
+      return
+    }
+    zoomInput.current?.focus()
+    zoomInput.current?.select()
+  }, [isZoomEditing])
+
+  const cancelZoomEditing = () => {
+    setIsZoomEditing(false)
+    setZoomValue(String(currentZoom))
+  }
+
+  const applyZoom = () => {
+    if (skipZoomApply.current) {
+      skipZoomApply.current = false
+      return
+    }
+    const value = Number(zoomValue)
+    if (!Number.isInteger(value) || value < 10 || value > 200) {
+      cancelZoomEditing()
+      return
+    }
+    void zoomTo(value / 100, { duration: 150 })
+    setIsZoomEditing(false)
+  }
 
   return (
     <Panel className="camera-controls" position="bottom-right">
@@ -240,6 +278,18 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
             <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
           </svg>
         </button>
+        <button
+          aria-label={t('editor.fitView')}
+          className="editor-tool-button"
+          onClick={onFitView}
+          title={t('editor.fitView')}
+          type="button"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+            <path d="m9 4-5 5m11-5 5 5m-5 6 5-5M9 20l-5-5" />
+          </svg>
+        </button>
       </div>
       <div className="zoom-controls">
         <button
@@ -253,9 +303,46 @@ function ZoomControls({ onReset }: { onReset: () => void }) {
             <path d="M5 12h14" />
           </svg>
         </button>
-        <output aria-label={t('editor.zoomLevel')}>
-          {Math.round(zoom * 100)}%
-        </output>
+        {isZoomEditing ? (
+          <input
+            aria-label={t('editor.zoomLevel')}
+            className="zoom-level-input"
+            inputMode="numeric"
+            max="200"
+            min="10"
+            onBlur={applyZoom}
+            onChange={(event) => {
+              if (/^\d*$/.test(event.target.value)) {
+                setZoomValue(event.target.value)
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.currentTarget.blur()
+              } else if (event.key === 'Escape') {
+                skipZoomApply.current = true
+                cancelZoomEditing()
+                event.currentTarget.blur()
+              }
+            }}
+            ref={zoomInput}
+            step="1"
+            type="text"
+            value={zoomValue}
+          />
+        ) : (
+          <button
+            aria-label={t('editor.zoomLevel')}
+            className="zoom-level-button"
+            onClick={() => {
+              setZoomValue(String(currentZoom))
+              setIsZoomEditing(true)
+            }}
+            type="button"
+          >
+            {currentZoom}%
+          </button>
+        )}
         <button
           aria-label={t('editor.zoomIn')}
           className="editor-tool-button"
@@ -1100,6 +1187,19 @@ function TreeCanvas({
     }
     rememberCamera(cameraView, flow.getViewport())
   }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, view])
+  const fitCamera = useCallback(async () => {
+    const flow = instance.current
+    if (!flow || nodes.length === 0) {
+      return
+    }
+    await flow.fitView({
+      duration: 150,
+      maxZoom: 1,
+      minZoom: 0.1,
+      padding: 0,
+    })
+    rememberCamera(view, flow.getViewport())
+  }, [nodes.length, rememberCamera, view])
   const referenceKey = JSON.stringify(snapshot.tree.reference)
   const previousReferenceKey = useRef(referenceKey)
 
@@ -1597,7 +1697,10 @@ function TreeCanvas({
         />,
         bloodNetworkSidebarContainer,
       )}
-      <ZoomControls onReset={() => void resetCamera()} />
+      <ZoomControls
+        onFitView={() => void fitCamera()}
+        onReset={() => void resetCamera()}
+      />
     </ReactFlow>
     </div>
     {treeContextMenu && createPortal(
