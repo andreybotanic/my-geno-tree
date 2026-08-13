@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "api:generate": "openapi-ts",
-    "build": "npm run api:generate && tsc -b && vite build",
+    "api:check": "node scripts/verify-api-generation.mjs",
+    "build": "npm run api:check && tsc -b && vite build",
     "lint": "oxlint && eslint .",
-    "quality": "npm run lint && npm run typecheck",
+    "quality": "npm run api:check && npm run lint && npm run typecheck",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
