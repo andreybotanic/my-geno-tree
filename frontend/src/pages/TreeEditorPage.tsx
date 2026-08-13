@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom'
 import {
   Background,
+  getViewportForBounds,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -139,6 +140,7 @@ const edgeTypes = {
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
+const FIT_VIEW_PADDING = 0.1
 
 type BloodNetworkNodeContextMenu = {
   nodeId: string
@@ -827,6 +829,7 @@ function TreeCanvas({
   const instance = useRef<
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
   >(null)
+  const canvas = useRef<HTMLDivElement>(null)
   const cameras = useRef<Record<TreeEditorView, Viewport | null>>({
     network: null,
     tree: null,
@@ -1199,7 +1202,19 @@ function TreeCanvas({
         return
       }
       const bounds = bloodNetworkBounds(networkNodes)
-      await flow.fitBounds(bounds, { duration: 150, padding: 0 })
+      const dimensions = canvas.current?.getBoundingClientRect()
+      if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+        await flow.setViewport(getViewportForBounds(
+          bounds,
+          dimensions.width,
+          dimensions.height,
+          0.1,
+          1,
+          FIT_VIEW_PADDING,
+        ), { duration: 150 })
+      } else {
+        await flow.fitBounds(bounds, { duration: 0, padding: FIT_VIEW_PADDING })
+      }
       if (flow.getViewport().zoom > 1) {
         await flow.setCenter(
           bounds.x + bounds.width / 2,
@@ -1212,7 +1227,7 @@ function TreeCanvas({
         duration: 150,
         maxZoom: 1,
         minZoom: 0.1,
-        padding: 0,
+        padding: FIT_VIEW_PADDING,
       })
     }
     rememberCamera(view, flow.getViewport())
@@ -1420,6 +1435,7 @@ function TreeCanvas({
       className={`blood-network-canvas${cameraReady ? '' : ' editor-camera-pending'}${bloodNetworkRotationPivotNodeId
         ? ' blood-network-rotation-mode'
         : ''}`}
+      ref={canvas}
       onPointerDownCapture={(event) => {
         if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
           return

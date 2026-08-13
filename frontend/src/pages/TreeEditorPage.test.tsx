@@ -317,7 +317,10 @@ describe('TreeEditorPage', () => {
     })
     await userEvent.click(screen.getByRole('button', { name: 'Fit graph to view' }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Current zoom' })).toHaveTextContent('100%')
+      const zoom = Number(screen.getByRole('button', { name: 'Current zoom' })
+        .textContent?.replace('%', ''))
+      expect(zoom).toBeGreaterThanOrEqual(10)
+      expect(zoom).toBeLessThanOrEqual(100)
     })
   })
 
