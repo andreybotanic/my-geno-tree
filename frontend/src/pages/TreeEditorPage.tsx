@@ -140,7 +140,7 @@ const edgeTypes = {
   family: FamilyEdge,
   singleParent: SingleParentEdge,
 }
-const FIT_VIEW_PADDING = 0.1
+const FIT_VIEW_PADDING = 1 / 15
 
 type BloodNetworkNodeContextMenu = {
   nodeId: string
