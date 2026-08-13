@@ -8,6 +8,7 @@ import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDial
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { LanguagePicker } from '../components/LanguagePicker'
 import { AddButton } from '../components/AddButton'
+import { formatUnbreakableDateText } from '../personFormatting'
 
 export function ProfilePage() {
   const { t, i18n } = useTranslation()
@@ -87,9 +88,9 @@ export function ProfilePage() {
           <div>
             <dt>{t('profile.createdAt')}</dt>
             <dd>
-              {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+              {formatUnbreakableDateText(new Intl.DateTimeFormat(i18n.resolvedLanguage, {
                 dateStyle: 'long',
-              }).format(new Date(user.createdAt))}
+              }).format(new Date(user.createdAt)))}
             </dd>
           </div>
         </dl>

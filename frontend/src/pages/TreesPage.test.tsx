@@ -64,6 +64,8 @@ describe('TreesPage', () => {
 
     expect(await screen.findByText('Family history')).toBeInTheDocument()
     expect(screen.getByText(/3 people/)).toBeInTheDocument()
+    expect(screen.getByText(/updated/).textContent)
+      .toContain('updated Jul\u00a031,\u00a02026')
     await userEvent.click(screen.getByRole('button', { name: 'Open' }))
     expect(window.location.pathname).toBe(`/trees/${tree.id}/tree`)
   })

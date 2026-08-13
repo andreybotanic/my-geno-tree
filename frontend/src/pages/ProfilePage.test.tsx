@@ -70,6 +70,7 @@ describe('ProfilePage media', () => {
       </AuthContext>,
     )
 
+    expect(screen.getByText(/2026/).textContent).toBe('July\u00a031,\u00a02026')
     await userEvent.click(screen.getByRole('button', {
       name: 'Replace avatar',
     }))

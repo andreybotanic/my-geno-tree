@@ -6,6 +6,10 @@ import type {
 
 type Translate = (key: string) => string
 
+export function formatUnbreakableDateText(value: string): string {
+  return value.replaceAll(' ', '\u00a0')
+}
+
 function knownValue(text: KnownText): string | null {
   return text.state === 'known' ? text.value : null
 }
@@ -43,7 +47,7 @@ export function formatGenealogicalDate(
   }
   const value = formatParts(date)
 
-  return date.kind === 'approximate'
+  const formatted = date.kind === 'approximate'
     ? `${translate('person.approximatePrefix')} ${value}`
     : date.kind === 'before'
       ? `${translate('person.beforeDate')} ${value}`
@@ -52,6 +56,8 @@ export function formatGenealogicalDate(
         : date.kind === 'between' && date.end
           ? `${translate('person.betweenDate')} ${value} ${translate('person.andDate')} ${formatParts(date.end)}`
           : value
+
+  return formatUnbreakableDateText(formatted)
 }
 
 export function formatLifePeriod(
@@ -65,7 +71,7 @@ export function formatLifePeriod(
     translate,
   )
   const death = person.deathDate === null
-    ? translate('person.present')
+    ? formatUnbreakableDateText(translate('person.present'))
     : formatGenealogicalDate(person.deathDate, language, translate)
 
   return `${birth} – ${death}`

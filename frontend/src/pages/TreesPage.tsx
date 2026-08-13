@@ -8,6 +8,7 @@ import {
   TreeNameDialog,
 } from '../components/TreeDialogs'
 import { ImportTreeDialog } from '../components/TreeExchangeDialogs'
+import { formatUnbreakableDateText } from '../personFormatting'
 import { navigate, treeEditorPath } from '../routing'
 
 type DialogState =
@@ -105,9 +106,9 @@ export function TreesPage() {
                   {t('trees.peopleCount', { count: tree.personCount })}
                   {' · '}
                   {t('trees.updated', {
-                    date: new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+                    date: formatUnbreakableDateText(new Intl.DateTimeFormat(i18n.resolvedLanguage, {
                       dateStyle: 'medium',
-                    }).format(new Date(tree.updatedAt)),
+                    }).format(new Date(tree.updatedAt))),
                   })}
                 </p>
               </div>

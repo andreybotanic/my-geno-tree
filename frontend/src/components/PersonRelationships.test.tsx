@@ -136,8 +136,8 @@ describe('PersonRelationships', () => {
     )
 
     expect(screen.getAllByText('Petrova')).toHaveLength(1)
-    expect(screen.getByText(/2000/)).toHaveTextContent('2000 - 2005')
-    expect(screen.getByText(/— - present/)).toBeInTheDocument()
+    expect(screen.getByText(/2000/).textContent).toBe('2000 – 2005')
+    expect(screen.getByText(/—/).textContent).toBe('— – present')
     const family = screen.getByText('Petrova').closest('article')
     expect(family).not.toBeNull()
     const childrenBlock = within(family as HTMLElement)

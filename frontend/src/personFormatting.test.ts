@@ -59,7 +59,7 @@ describe('person formatting', () => {
       },
       'en',
       translate,
-    )).toBe('~ 1900')
+    )).toBe('~\u00a01900')
     expect(formatGenealogicalDate(
       {
         state: 'known',
@@ -69,7 +69,7 @@ describe('person formatting', () => {
       },
       'en',
       translate,
-    )).toBe('October 1994')
+    )).toBe('October\u00a01994')
     expect(formatGenealogicalDate(
       {
         state: 'known',
@@ -80,17 +80,17 @@ describe('person formatting', () => {
       },
       'en',
       translate,
-    )).toBe('October 25, 1994')
+    )).toBe('October\u00a025,\u00a01994')
     expect(formatGenealogicalDate(
       { state: 'known', kind: 'before', year: 1900 },
       'en',
       translate,
-    )).toBe('before 1900')
+    )).toBe('before\u00a01900')
     expect(formatGenealogicalDate(
       { state: 'known', kind: 'after', year: 1900 },
       'ru',
       translate,
-    )).toBe('after 1900 г.')
+    )).toBe('after\u00a01900\u00a0г.')
     expect(formatGenealogicalDate(
       {
         state: 'known',
@@ -100,15 +100,18 @@ describe('person formatting', () => {
       },
       'ru',
       translate,
-    )).toBe('between 1900 г. and 1901 г.')
+    )).toBe('between\u00a01900\u00a0г.\u00a0and\u00a01901\u00a0г.')
   })
 
   it('distinguishes a living person from unknown death', () => {
     expect(formatLifePeriod(person, 'en', translate))
-      .toBe('~ 1900 – present')
+      .toBe('~\u00a01900 – present')
     expect(formatLifePeriod({
       ...person,
       deathDate: { state: 'unknown' },
-    }, 'en', translate)).toBe('~ 1900 – —')
+    }, 'en', translate)).toBe('~\u00a01900 – —')
+    expect(formatLifePeriod(person, 'ru', (key) => (
+      key === 'person.present' ? 'по настоящее время' : translate(key)
+    ))).toBe('~\u00a01900\u00a0г. – по\u00a0настоящее\u00a0время')
   })
 })

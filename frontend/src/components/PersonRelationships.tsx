@@ -11,6 +11,7 @@ import type {
 } from '../api/generated'
 import {
   formatGenealogicalDate,
+  formatUnbreakableDateText,
   formatPersonName,
 } from '../personFormatting'
 import type { RelativeAction } from './RelativeDialog'
@@ -357,7 +358,7 @@ function marriageEndLabel(
   const deathDates = [person.deathDate, spouse?.deathDate]
     .filter((date): date is GenealogicalDate => date !== null && date !== undefined)
   if (deathDates.length === 0) {
-    return translate('relationships.currentMarriage')
+    return formatUnbreakableDateText(translate('relationships.currentMarriage'))
   }
 
   const knownDeathDates = deathDates.filter(
@@ -390,7 +391,7 @@ function marriagePeriodLabel(
     return translate('relationships.dissolved')
   }
 
-  return `${formatGenealogicalDate(marriage.marriageDate, language, translate)} - ${marriageEndLabel(marriage, person, spouse, language, translate)}`
+  return `${formatGenealogicalDate(marriage.marriageDate, language, translate)} – ${marriageEndLabel(marriage, person, spouse, language, translate)}`
 }
 
 function compareKnownDates(
