@@ -300,37 +300,164 @@ final readonly class GraphInvariantPolicy
         $this->assertConnectedAfter($tree, removedPerson: $person);
     }
 
-    public function canRemoveParentLink(FamilyTree $tree, ParentLink $link): bool
+    /**
+     * @return array{canDelete: bool, removableParentLinkIds: list<string>, removableMarriageIds: list<string>}
+     */
+    public function deletionPermissionsForPerson(FamilyTree $tree, Person $person): array
     {
-        try {
-            $this->assertConnectedAfter($tree, removedParentLink: $link);
-
-            return true;
-        } catch (ApiException) {
-            return false;
+        $people = $this->people->findAllForTree($tree);
+        $parentLinks = $this->parentLinks->findAllForTree($tree);
+        $marriages = $this->marriages->findAllForTree($tree);
+        $personId = $person->getId()->toRfc4122();
+        /** @var array<string, list<array{node: string, edgeId: string}>> $adjacency */
+        $adjacency = [];
+        foreach ($people as $candidate) {
+            $adjacency[$candidate->getId()->toRfc4122()] = [];
         }
+
+        $hasParent = false;
+        $hasChild = false;
+        $children = [];
+        foreach ($parentLinks as $link) {
+            $parentId = $link->getParent()->getId()->toRfc4122();
+            $childId = $link->getChild()->getId()->toRfc4122();
+            $edgeId = 'parent:' . $link->getId()->toRfc4122();
+            $this->connectEdge($adjacency, $parentId, $childId, $edgeId);
+            $hasParent = $hasParent || $childId === $personId;
+            $hasChild = $hasChild || $parentId === $personId;
+            if ($parentId === $personId) {
+                $children[$childId] = true;
+            }
+        }
+
+        $currentPartners = [];
+        foreach ($marriages as $marriage) {
+            $maleId = $marriage->getMalePerson()->getId()->toRfc4122();
+            $femaleId = $marriage->getFemalePerson()->getId()->toRfc4122();
+            $edgeId = 'marriage:' . $marriage->getId()->toRfc4122();
+            $this->connectEdge($adjacency, $maleId, $femaleId, $edgeId);
+            if (null === $marriage->getDissolutionDate()) {
+                if ($maleId === $personId) {
+                    $currentPartners[$femaleId] = true;
+                }
+                if ($femaleId === $personId) {
+                    $currentPartners[$maleId] = true;
+                }
+            }
+        }
+
+        $hasCurrentSpouseCommonChild = false;
+        foreach ($parentLinks as $link) {
+            if (
+                isset($children[$link->getChild()->getId()->toRfc4122()])
+                && isset($currentPartners[$link->getParent()->getId()->toRfc4122()])
+            ) {
+                $hasCurrentSpouseCommonChild = true;
+                break;
+            }
+        }
+
+        [$bridgeEdgeIds, $articulationPersonIds] = $this->criticalGraphParts($adjacency);
+        $removableParentLinkIds = [];
+        foreach ($parentLinks as $link) {
+            $edgeId = 'parent:' . $link->getId()->toRfc4122();
+            if (!isset($bridgeEdgeIds[$edgeId])) {
+                $removableParentLinkIds[] = $link->getId()->toRfc4122();
+            }
+        }
+        $removableMarriageIds = [];
+        foreach ($marriages as $marriage) {
+            $edgeId = 'marriage:' . $marriage->getId()->toRfc4122();
+            if (!isset($bridgeEdgeIds[$edgeId])) {
+                $removableMarriageIds[] = $marriage->getId()->toRfc4122();
+            }
+        }
+        sort($removableParentLinkIds, SORT_STRING);
+        sort($removableMarriageIds, SORT_STRING);
+
+        return [
+            'canDelete' => (!$hasParent || !$hasChild)
+                && !$hasCurrentSpouseCommonChild
+                && !isset($articulationPersonIds[$personId]),
+            'removableParentLinkIds' => $removableParentLinkIds,
+            'removableMarriageIds'   => $removableMarriageIds,
+        ];
     }
 
-    public function canRemoveMarriage(FamilyTree $tree, MarriagePeriod $marriage): bool
+    /**
+     * @param array<string, list<array{node: string, edgeId: string}>> $adjacency
+     */
+    private function connectEdge(array &$adjacency, string $firstId, string $secondId, string $edgeId): void
     {
-        try {
-            $this->assertConnectedAfter($tree, removedMarriage: $marriage);
-
-            return true;
-        } catch (ApiException) {
-            return false;
-        }
+        $adjacency[$firstId][] = ['node' => $secondId, 'edgeId' => $edgeId];
+        $adjacency[$secondId][] = ['node' => $firstId, 'edgeId' => $edgeId];
     }
 
-    public function canDeletePerson(FamilyTree $tree, Person $person): bool
+    /**
+     * @param array<string, list<array{node: string, edgeId: string}>> $adjacency
+     *
+     * @return array{array<string, true>, array<string, true>}
+     */
+    private function criticalGraphParts(array $adjacency): array
     {
-        try {
-            $this->assertPersonDeletionAllowed($tree, $person);
+        $time = 0;
+        $visited = [];
+        $depth = [];
+        $lowestReachableDepth = [];
+        $bridgeEdgeIds = [];
+        $articulationPersonIds = [];
+        $visit = null;
+        $visit = function (string $personId, ?string $incomingEdgeId) use (
+            &$visit,
+            &$time,
+            &$visited,
+            &$depth,
+            &$lowestReachableDepth,
+            &$bridgeEdgeIds,
+            &$articulationPersonIds,
+            $adjacency,
+        ): void {
+            $visited[$personId] = true;
+            $depth[$personId] = ++$time;
+            $lowestReachableDepth[$personId] = $depth[$personId];
+            $childCount = 0;
+            foreach ($adjacency[$personId] as $edge) {
+                if ($edge['edgeId'] === $incomingEdgeId) {
+                    continue;
+                }
+                $nextPersonId = $edge['node'];
+                if (!isset($visited[$nextPersonId])) {
+                    ++$childCount;
+                    $visit($nextPersonId, $edge['edgeId']);
+                    $lowestReachableDepth[$personId] = min(
+                        $lowestReachableDepth[$personId],
+                        $lowestReachableDepth[$nextPersonId],
+                    );
+                    if ($lowestReachableDepth[$nextPersonId] > $depth[$personId]) {
+                        $bridgeEdgeIds[$edge['edgeId']] = true;
+                    }
+                    if (
+                        (null !== $incomingEdgeId && $lowestReachableDepth[$nextPersonId] >= $depth[$personId])
+                        || (null === $incomingEdgeId && $childCount > 1)
+                    ) {
+                        $articulationPersonIds[$personId] = true;
+                    }
 
-            return true;
-        } catch (ApiException) {
-            return false;
+                    continue;
+                }
+                $lowestReachableDepth[$personId] = min(
+                    $lowestReachableDepth[$personId],
+                    $depth[$nextPersonId],
+                );
+            }
+        };
+        foreach (array_keys($adjacency) as $personId) {
+            if (!isset($visited[$personId])) {
+                $visit($personId, null);
+            }
         }
+
+        return [$bridgeEdgeIds, $articulationPersonIds];
     }
 
     private function wouldCreateAncestorCycle(

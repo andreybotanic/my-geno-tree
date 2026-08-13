@@ -229,6 +229,9 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         self::assertArrayHasKey('permissions', $details);
         self::assertArrayHasKey('events', $details);
         self::assertArrayHasKey('relationships', $details);
+        self::assertTrue($details['permissions']['canDelete']);
+        self::assertSame([], $details['permissions']['removableParentLinkIds']);
+        self::assertSame([], $details['permissions']['removableMarriageIds']);
         self::assertNotContains($grandmotherId, array_column($details['relationships']['people'], 'id'));
         self::assertCount(2, $details['relationships']['people']);
         foreach ($details['relationships']['people'] as $relatedPerson) {

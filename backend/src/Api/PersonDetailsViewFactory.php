@@ -56,13 +56,31 @@ final readonly class PersonDetailsViewFactory
             $personIds[$marriage->getFemalePerson()->getId()->toRfc4122()] = true;
         }
         $relatedPeople = [];
-        foreach ($this->people->findByTreeAndIds($tree, array_keys($personIds)) as $candidate) {
+        foreach ($this->people->findRelationshipPeopleByTreeAndIds($tree, array_keys($personIds)) as $candidate) {
             $candidateId = $candidate->getId()->toRfc4122();
             if ($candidateId !== $personId) {
                 $relatedPeople[$candidateId] = $candidate;
             }
         }
         ksort($relatedPeople, SORT_STRING);
+
+        $deletionPermissions = $this->invariants->deletionPermissionsForPerson($tree, $person);
+        $relationshipParentLinkIds = array_fill_keys(array_map(
+            static fn (ParentLink $link): string => $link->getId()->toRfc4122(),
+            $links,
+        ), true);
+        $relationshipMarriageIds = array_fill_keys(array_map(
+            static fn (MarriagePeriod $marriage): string => $marriage->getId()->toRfc4122(),
+            $marriages,
+        ), true);
+        $deletionPermissions['removableParentLinkIds'] = array_values(array_filter(
+            $deletionPermissions['removableParentLinkIds'],
+            static fn (string $id): bool => isset($relationshipParentLinkIds[$id]),
+        ));
+        $deletionPermissions['removableMarriageIds'] = array_values(array_filter(
+            $deletionPermissions['removableMarriageIds'],
+            static fn (string $id): bool => isset($relationshipMarriageIds[$id]),
+        ));
 
         return [
             'etag'          => $this->versions->etag($tree),
@@ -77,18 +95,8 @@ final readonly class PersonDetailsViewFactory
                 $this->timeline->forPerson($person),
             ),
             'permissions' => [
-                'canEdit'                => true,
-                'canDelete'              => $this->invariants->canDeletePerson($tree, $person),
-                'removableParentLinkIds' => array_values(array_map(
-                    static fn (ParentLink $link): string => $link->getId()->toRfc4122(),
-                    array_filter($links, fn (ParentLink $link): bool => $this->invariants->canRemoveParentLink($tree, $link)
-                    ),
-                )),
-                'removableMarriageIds' => array_values(array_map(
-                    static fn (MarriagePeriod $marriage): string => $marriage->getId()->toRfc4122(),
-                    array_filter($marriages, fn (MarriagePeriod $marriage): bool => $this->invariants->canRemoveMarriage($tree, $marriage)
-                    ),
-                )),
+                'canEdit' => true,
+                ...$deletionPermissions,
             ],
         ];
     }

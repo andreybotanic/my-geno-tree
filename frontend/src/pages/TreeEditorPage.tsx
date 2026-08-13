@@ -903,19 +903,22 @@ function TreeCanvas({
     personApi.search(request, snapshot.tree.id, query, signal)
       .then((result) => result.items)
   ), [request, snapshot.tree.id])
-  const visiblePersonIds = useMemo(
-    () => new Set(focusedSnapshot.people.map((person) => person.id)),
-    [focusedSnapshot.people],
+  const renderedPersonIds = useMemo(
+    () => new Set([
+      ...focusedSnapshot.people.map((person) => person.id),
+      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
+    ]),
+    [focusedSnapshot.people, pathDisplay],
   )
   const selectSearchResult = useCallback(async (person: PersonSearchResult) => {
-    if (focusedSnapshot.people.some((item) => item.id === person.id)) {
+    if (renderedPersonIds.has(person.id)) {
       onSelectPerson(person.id)
       return
     }
     if (await onShowPathDisplay(person.id)) {
       onSelectPerson(person.id)
     }
-  }, [focusedSnapshot.people, onSelectPerson, onShowPathDisplay])
+  }, [onSelectPerson, onShowPathDisplay, renderedPersonIds])
   const generatedBloodNetwork = useMemo(
     () => view === 'network'
       ? buildBloodNetwork(snapshot, networkGeneration)
@@ -1480,7 +1483,7 @@ function TreeCanvas({
           <PersonSearchPanel
             onSearch={searchPeople}
             onSelect={(person) => void selectSearchResult(person)}
-            visiblePersonIds={visiblePersonIds}
+            visiblePersonIds={renderedPersonIds}
           />
         </Panel>
       )}
@@ -2165,6 +2168,11 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     try {
       const details = await personApi.details(request, treeId, personId)
       if (isPersonDetails(details)) {
+        if (details.etag !== snapshotRef.current?.etag) {
+          setPathDisplay(null)
+          await loadSnapshot(true)
+          return
+        }
         cachePersonDetails(details.etag, details.person, details.events, details)
         setSelectedPerson(details.person)
         setEvents(details.events)

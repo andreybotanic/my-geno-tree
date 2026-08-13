@@ -27,6 +27,14 @@ type Rectangle = {
   y: number
 }
 
+type FamilyLinks = readonly [string, ParentLink[]]
+
+type FallbackAnchor = {
+  generation: number
+  id: string
+  position: XYPosition
+}
+
 class SpatialIndex {
   private readonly cells = new Map<string, Rectangle[]>()
 
@@ -91,6 +99,13 @@ export function projectSearchRoute(
   for (const links of parentLinksByChild.values()) {
     links.sort((left, right) => left.parentId.localeCompare(right.parentId))
   }
+  const sortedFamilies = [...parentLinksByChild.entries()]
+    .sort(([left], [right]) => left.localeCompare(right)) as FamilyLinks[]
+  const sortedParentLinks = plan.parentLinks.toSorted(parentLinkComparator)
+  const orderedNodeIds = plan.nodes
+    .map((node) => node.personId)
+    .toSorted((left, right) => nodeComparator(nodes, left, right))
+  const fallbackAnchors = createFallbackAnchors(visiblePositions, nodes)
 
   const marriagesByPerson = new Map<string, string[]>()
   for (const marriage of plan.marriages) {
@@ -107,16 +122,16 @@ export function projectSearchRoute(
     .map((node) => node.personId))
 
   while (pending.size > 0) {
-    if (placePendingParentPairAbovePlacedChild(pending, parentLinksByChild, positions, index)) continue
-    if (placePendingChildBelowPlacedParentPair(pending, parentLinksByChild, positions, index)) continue
-    if (placePendingParentOppositePlacedParent(pending, parentLinksByChild, positions, index)) continue
-    if (placePendingSingleParent(pending, plan.parentLinks, positions, index)) continue
-    if (placePendingSingleChild(pending, plan.parentLinks, positions, index)) continue
-    if (placePendingSpouse(pending, marriagesByPerson, positions, index)) continue
+    if (placePendingParentPairAbovePlacedChild(pending, sortedFamilies, positions, index)) continue
+    if (placePendingChildBelowPlacedParentPair(pending, sortedFamilies, positions, index)) continue
+    if (placePendingParentOppositePlacedParent(pending, sortedFamilies, positions, index)) continue
+    if (placePendingSingleParent(pending, sortedParentLinks, positions, index)) continue
+    if (placePendingSingleChild(pending, sortedParentLinks, positions, index)) continue
+    if (placePendingSpouse(pending, orderedNodeIds, marriagesByPerson, positions, index)) continue
 
-    const personId = [...pending].sort((left, right) => nodeComparator(nodes, left, right))[0]
+    const personId = orderedNodeIds.find((id) => pending.has(id))
     if (!personId) break
-    const position = fallbackPosition(personId, nodes, positions, index)
+    const position = fallbackPosition(personId, nodes, fallbackAnchors, index)
     place(personId, position, positions, index)
     pending.delete(personId)
   }
@@ -136,11 +151,11 @@ export function projectSearchRoute(
 
 function placePendingParentPairAbovePlacedChild(
   pending: Set<string>,
-  byChild: ReadonlyMap<string, ParentLink[]>,
+  families: readonly FamilyLinks[],
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const [childId, links] of sortedFamilies(byChild)) {
+  for (const [childId, links] of families) {
     if (links.length !== 2 || !positions.has(childId) || !links.every((link) => pending.has(link.parentId))) continue
     const child = positions.get(childId)!
     const pair = firstFreeParentPair(child, index)
@@ -156,11 +171,11 @@ function placePendingParentPairAbovePlacedChild(
 
 function placePendingChildBelowPlacedParentPair(
   pending: Set<string>,
-  byChild: ReadonlyMap<string, ParentLink[]>,
+  families: readonly FamilyLinks[],
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const [childId, links] of sortedFamilies(byChild)) {
+  for (const [childId, links] of families) {
     if (links.length !== 2 || !pending.has(childId) || !links.every((link) => positions.has(link.parentId))) continue
     place(childId, firstFreeCenteredChild(links.map((link) => positions.get(link.parentId)!), index), positions, index)
     pending.delete(childId)
@@ -172,11 +187,11 @@ function placePendingChildBelowPlacedParentPair(
 
 function placePendingParentOppositePlacedParent(
   pending: Set<string>,
-  byChild: ReadonlyMap<string, ParentLink[]>,
+  families: readonly FamilyLinks[],
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const [childId, links] of sortedFamilies(byChild)) {
+  for (const [childId, links] of families) {
     if (links.length !== 2 || !positions.has(childId)) continue
     const missing = links.find((link) => pending.has(link.parentId))
     const placedParent = links.find((link) => positions.has(link.parentId))
@@ -195,7 +210,7 @@ function placePendingSingleParent(
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const link of [...links].sort(parentLinkComparator)) {
+  for (const link of links) {
     if (!pending.has(link.parentId) || !positions.has(link.childId)) continue
     place(link.parentId, firstFreeParent(positions.get(link.childId)!, index), positions, index)
     pending.delete(link.parentId)
@@ -211,7 +226,7 @@ function placePendingSingleChild(
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const link of [...links].sort(parentLinkComparator)) {
+  for (const link of links) {
     if (!pending.has(link.childId) || !positions.has(link.parentId)) continue
     place(link.childId, firstFreeChild(positions.get(link.parentId)!, index), positions, index)
     pending.delete(link.childId)
@@ -223,11 +238,13 @@ function placePendingSingleChild(
 
 function placePendingSpouse(
   pending: Set<string>,
+  orderedNodeIds: readonly string[],
   byPerson: ReadonlyMap<string, string[]>,
   positions: Map<string, XYPosition>,
   index: SpatialIndex,
 ) {
-  for (const personId of [...pending].sort()) {
+  for (const personId of orderedNodeIds) {
+    if (!pending.has(personId)) continue
     const spouse = byPerson.get(personId)?.find((candidate) => positions.has(candidate))
     if (!spouse) continue
     place(personId, firstFreeSpouse(positions.get(spouse)!, index), positions, index)
@@ -320,13 +337,20 @@ function firstFreeSpouse(person: XYPosition, index: SpatialIndex) {
 function fallbackPosition(
   personId: string,
   nodes: ReadonlyMap<string, PathDisplayPlan['nodes'][number]>,
-  positions: ReadonlyMap<string, XYPosition>,
+  anchors: readonly FallbackAnchor[],
   index: SpatialIndex,
 ) {
   const node = nodes.get(personId)
-  const anchor = [...positions]
-    .map(([id, position]) => ({ id, position, generation: nodes.get(id)?.generation ?? 0 }))
-    .sort((left, right) => Math.abs(left.generation - (node?.generation ?? 0)) - Math.abs(right.generation - (node?.generation ?? 0)) || left.id.localeCompare(right.id))[0]
+  const anchor = anchors.reduce<FallbackAnchor | null>((closest, candidate) => {
+    if (!closest) return candidate
+    const generation = node?.generation ?? 0
+    const candidateDistance = Math.abs(candidate.generation - generation)
+    const closestDistance = Math.abs(closest.generation - generation)
+    return candidateDistance < closestDistance
+      || (candidateDistance === closestDistance && candidate.id.localeCompare(closest.id) < 0)
+      ? candidate
+      : closest
+  }, null)
   const desired = anchor
     ? { x: anchor.position.x, y: anchor.position.y + ((node?.generation ?? 0) - anchor.generation) * VERTICAL_STEP }
     : { x: 0, y: 0 }
@@ -338,12 +362,24 @@ function fallbackPosition(
   return desired
 }
 
-function sortedFamilies(byChild: ReadonlyMap<string, ParentLink[]>) {
-  return [...byChild].sort(([left], [right]) => left.localeCompare(right))
-}
-
 function parentLinkComparator(left: ParentLink, right: ParentLink) {
   return left.childId.localeCompare(right.childId) || left.parentId.localeCompare(right.parentId)
+}
+
+function createFallbackAnchors(
+  positions: ReadonlyMap<string, XYPosition>,
+  nodes: ReadonlyMap<string, PathDisplayPlan['nodes'][number]>,
+) {
+  const anchorsByGeneration = new Map<number, FallbackAnchor>()
+  for (const [id, position] of positions) {
+    const generation = nodes.get(id)?.generation ?? 0
+    const current = anchorsByGeneration.get(generation)
+    if (!current || id.localeCompare(current.id) < 0) {
+      anchorsByGeneration.set(generation, { generation, id, position })
+    }
+  }
+
+  return [...anchorsByGeneration.values()]
 }
 
 function nodeComparator(

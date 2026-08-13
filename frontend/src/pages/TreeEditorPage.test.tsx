@@ -1150,6 +1150,14 @@ describe('TreeEditorPage', () => {
 
     expect(document.querySelector('.tree-edge-highlight')).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByRole('button', { name: 'Search people' }))
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Hidden')
+    expect(await screen.findByLabelText('Already shown in the tree')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', { name: /Hidden Ancestor/ }))
+    expect((request as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([path]) => (
+      path === `/trees/${treeId}/route-to-reference/${hiddenAncestor.id}`
+    ))).toHaveLength(1)
+
     await userEvent.click(screen.getByRole('button', { name: 'Hidden Spouse' }))
     expect(await screen.findByRole('heading', { name: 'Hidden Spouse' }))
       .toBeInTheDocument()
@@ -1164,6 +1172,49 @@ describe('TreeEditorPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close route' }))
     expect(screen.queryByRole('article', { name: 'Hidden Spouse' })).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Person details' })).not.toBeInTheDocument()
+  })
+
+  it('reloads the snapshot instead of applying person details from another tree version', async () => {
+    const staleDetails = {
+      etag: '"tree-next"',
+      person,
+      events: [],
+      relationships: {
+        people: [],
+        parentLinks: [],
+        marriages: [],
+      },
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        removableMarriageIds: [],
+        removableParentLinkIds: [],
+      },
+    }
+    let snapshotRequests = 0
+    const request = vi.fn(async (path: string) => {
+      if (path === `/trees/${treeId}/snapshot`) {
+        ++snapshotRequests
+        return snapshotRequests === 1
+          ? snapshot([person])
+          : { ...snapshot([person]), etag: '"tree-next"' }
+      }
+      if (path === `/trees/${treeId}/people/${person.id}/details`) {
+        return staleDetails
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    }) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    fireEvent.click(await screen.findByRole('article', { name: 'Ivanova Anna' }))
+
+    await waitFor(() => {
+      expect((request as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([path]) => (
+        path === `/trees/${treeId}/snapshot`
+      ))).toHaveLength(2)
+    })
+    expect(screen.queryByRole('complementary', { name: 'Person details' }))
+      .not.toBeInTheDocument()
   })
 
   it('keeps both displayed parents and the selected muted card visible in a route display', async () => {

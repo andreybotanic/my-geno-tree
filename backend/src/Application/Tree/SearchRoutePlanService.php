@@ -34,12 +34,7 @@ final readonly class SearchRoutePlanService
      */
     public function create(FamilyTree $tree, string $personId): array
     {
-        $people = $this->people->findAllForTree($tree);
-        $peopleById = [];
-        foreach ($people as $person) {
-            $peopleById[$this->id($person)] = $person;
-        }
-        if (!Uuid::isValid($personId) || !isset($peopleById[$personId])) {
+        if (!Uuid::isValid($personId) || !$this->people->existsInTree($tree, $personId)) {
             throw new ApiException(JsonResponse::HTTP_NOT_FOUND, 'NOT_FOUND', 'not_found');
         }
 
@@ -105,6 +100,10 @@ final readonly class SearchRoutePlanService
         ksort($nodes, SORT_STRING);
         ksort($includedParents, SORT_STRING);
         ksort($includedMarriages, SORT_STRING);
+        $peopleById = [];
+        foreach ($this->people->findPresentationPeopleByTreeAndIds($tree, array_keys($nodes)) as $person) {
+            $peopleById[$this->id($person)] = $person;
+        }
         $includedPeople = array_map(
             fn (string $id): array => $this->personViews->create($peopleById[$id]),
             array_keys($nodes),

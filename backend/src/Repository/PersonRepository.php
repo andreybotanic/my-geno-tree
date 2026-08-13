@@ -67,7 +67,7 @@ final class PersonRepository extends ServiceEntityRepository
      *
      * @return list<Person>
      */
-    public function findByTreeAndIds(FamilyTree $tree, array $ids): array
+    public function findRelationshipPeopleByTreeAndIds(FamilyTree $tree, array $ids): array
     {
         if ([] === $ids) {
             return [];
@@ -75,6 +75,9 @@ final class PersonRepository extends ServiceEntityRepository
 
         /** @var list<Person> $people */
         $people = $this->createQueryBuilder('person')
+            ->addSelect('photoAttachment', 'photoMedia')
+            ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->leftJoin('photoAttachment.media', 'photoMedia')
             ->andWhere('person.tree = :tree')
             ->andWhere('person.id IN (:ids)')
             ->setParameter('tree', $tree)
@@ -84,6 +87,48 @@ final class PersonRepository extends ServiceEntityRepository
             ->getResult();
 
         return $people;
+    }
+
+    /**
+     * @param list<string> $ids
+     *
+     * @return list<Person>
+     */
+    public function findPresentationPeopleByTreeAndIds(FamilyTree $tree, array $ids): array
+    {
+        if ([] === $ids) {
+            return [];
+        }
+
+        /** @var list<Person> $people */
+        $people = $this->createQueryBuilder('person')
+            ->addSelect('photoAttachment', 'photoMedia', 'birthPlace', 'deathPlace')
+            ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->leftJoin('photoAttachment.media', 'photoMedia')
+            ->leftJoin('person.birthPlace', 'birthPlace')
+            ->leftJoin('person.deathPlace', 'deathPlace')
+            ->andWhere('person.tree = :tree')
+            ->andWhere('person.id IN (:ids)')
+            ->setParameter('tree', $tree)
+            ->setParameter('ids', $ids)
+            ->orderBy('person.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $people;
+    }
+
+    public function existsInTree(FamilyTree $tree, string $id): bool
+    {
+        return null !== $this->createQueryBuilder('person')
+            ->select('person.id')
+            ->andWhere('person.tree = :tree')
+            ->andWhere('person.id = :id')
+            ->setParameter('tree', $tree)
+            ->setParameter('id', $id)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     public function countForTree(FamilyTree $tree): int
