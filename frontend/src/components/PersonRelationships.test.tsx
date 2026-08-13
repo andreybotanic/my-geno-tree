@@ -108,6 +108,7 @@ function relationshipPerson(person: Person): PersonRelationshipPerson {
     gender: person.gender,
     birthDate: person.birthDate,
     deathDate: person.deathDate,
+    photoThumbnailUrl: person.photoThumbnailUrl,
   }
 }
 
@@ -181,10 +182,22 @@ describe('PersonRelationships', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Junior' }))
     await userEvent.click(screen.getByRole('button', { name: 'Outside' }))
     expect(onSelectPerson.mock.calls).toEqual([
-      [father.id],
-      [spouse.id],
-      [commonChild.id],
-      [outsideChild.id],
+      [{
+        person: relationshipPerson(father),
+        relationship: { type: 'parent', link: links[0] },
+      }],
+      [{
+        person: relationshipPerson(spouse),
+        relationship: { type: 'marriage', marriage: periods[0] },
+      }],
+      [{
+        person: relationshipPerson(commonChild),
+        relationship: { type: 'parent', link: links[1] },
+      }],
+      [{
+        person: relationshipPerson(outsideChild),
+        relationship: { type: 'parent', link: links[3] },
+      }],
     ])
   })
 

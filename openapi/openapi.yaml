@@ -1913,7 +1913,7 @@ components:
     PersonRelationshipPerson:
       type: object
       additionalProperties: false
-      required: [id, birthSurname, givenName, patronymic, gender, birthDate, deathDate]
+      required: [id, birthSurname, givenName, patronymic, gender, birthDate, deathDate, photoThumbnailUrl]
       properties:
         id:
           type: string
@@ -1932,6 +1932,11 @@ components:
           oneOf:
             - $ref: "#/components/schemas/GenealogicalDate"
             - type: "null"
+        photoThumbnailUrl:
+          type:
+            - string
+            - "null"
+          format: uri-reference
     PersonDetailsPermissions:
       type: object
       additionalProperties: false

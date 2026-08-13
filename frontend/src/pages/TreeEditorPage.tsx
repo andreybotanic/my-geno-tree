@@ -39,7 +39,6 @@ import type {
   ResolvedEventPlace,
   TreeSnapshot,
   TreeReference,
-  SearchRoutePlan,
   User,
 } from '../api/generated'
 import {
@@ -103,6 +102,12 @@ import {
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
 import { formatPersonName } from '../personFormatting'
 import { projectSearchRoute } from '../searchRouteProjection'
+import {
+  createLocalRelationshipPath,
+  relationshipPerson,
+  type PathDisplayPlan,
+  type RelationshipNavigation,
+} from '../pathDisplayPlan'
 import { canDeletePerson } from '../relationshipPermissions'
 import {
   BLOOD_NETWORK_FAMILY_SIZE,
@@ -700,7 +705,7 @@ type TreeCanvasProps = {
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
   onShowPathDisplay: (personId: string) => Promise<boolean>
   request: AuthorizedJsonRequest
-  pathDisplay: SearchRoutePlan | null
+  pathDisplay: PathDisplayPlan | null
   onSelectPerson: (personId: string) => void
   onToggleNetworkView: () => void
   onUpdateUser: (user: User) => void
@@ -1897,7 +1902,9 @@ function fallbackPersonDetails(
     person,
     events,
     relationships: {
-      people: snapshot.people,
+      people: snapshot.people
+        .filter((relative) => relative.id !== person.id)
+        .map(relationshipPerson),
       parentLinks: snapshot.parentLinks,
       marriages: snapshot.marriages,
     },
@@ -1945,7 +1952,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedDetails, setSelectedDetails] = useState<PersonDetails | null>(null)
-  const [pathDisplay, setPathDisplay] = useState<SearchRoutePlan | null>(null)
+  const [pathDisplay, setPathDisplay] = useState<PathDisplayPlan | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
   const [conflict, setConflict] = useState(false)
   const [relativeDialog, setRelativeDialog] = useState<RelativeDialogState | null>(
@@ -2175,6 +2182,40 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       }
       await openSnapshotDetails().catch(() => undefined)
     }
+  }
+
+  const navigateToRelationship = async (navigation: RelationshipNavigation) => {
+    if (!snapshot || !selectedPerson || !selectedDetails || conflict) {
+      return
+    }
+
+    const visibleTree = focusedTreeSnapshot(snapshot)
+    const visiblePersonIds = new Set(visibleTree.people.map((person) => person.id))
+    const renderedPersonIds = new Set([
+      ...visiblePersonIds,
+      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
+    ])
+    if (renderedPersonIds.has(navigation.person.id)) {
+      await selectPerson(navigation.person.id)
+      return
+    }
+
+    const selectedPersonIsOverlay = pathDisplay !== null
+      && !visiblePersonIds.has(selectedPerson.id)
+      && pathDisplay.nodes.some((node) => node.personId === selectedPerson.id)
+    if (selectedPersonIsOverlay) {
+      if (await showPathDisplay(navigation.person.id)) {
+        await selectPerson(navigation.person.id)
+      }
+      return
+    }
+
+    setPathDisplay(createLocalRelationshipPath(
+      selectedPerson,
+      selectedDetails,
+      navigation,
+    ))
+    await selectPerson(navigation.person.id)
   }
 
   const patchPerson = async (patch: PersonPatchRequest) => {
@@ -2827,7 +2868,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
               kind: 'parent',
               link,
             })}
-            onSelectPerson={(personId) => void selectPerson(personId)}
+            onSelectPerson={(navigation) => void navigateToRelationship(navigation)}
             onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
             details={selectedDetails}

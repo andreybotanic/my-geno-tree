@@ -233,7 +233,7 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         self::assertCount(2, $details['relationships']['people']);
         foreach ($details['relationships']['people'] as $relatedPerson) {
             self::assertSame(
-                ['id', 'birthSurname', 'givenName', 'patronymic', 'gender', 'birthDate', 'deathDate'],
+                ['id', 'birthSurname', 'givenName', 'patronymic', 'gender', 'birthDate', 'deathDate', 'photoThumbnailUrl'],
                 array_keys($relatedPerson),
             );
         }

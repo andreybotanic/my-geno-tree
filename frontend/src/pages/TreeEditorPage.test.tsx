@@ -942,13 +942,56 @@ describe('TreeEditorPage', () => {
     )
   })
 
-  it('opens a related person from the panel and updates the selected card', async () => {
-    const tree = graphSnapshot([father, person], [parentLink])
+  it('adds a hidden parent and co-parent as a local overlay without BFS', async () => {
+    const mother: Person = {
+      ...person,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4b2',
+      birthSurname: { state: 'known', value: 'Petrova' },
+      givenName: { state: 'known', value: 'Maria' },
+    }
+    const motherLink: ParentLink = {
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4c1',
+      parentId: mother.id,
+      childId: person.id,
+      role: 'mother',
+    }
+    const tree = graphSnapshot([person])
+    const details = {
+      etag: tree.etag,
+      person,
+      events: [event],
+      relationships: {
+        people: [father, mother].map((relative) => ({
+          id: relative.id,
+          birthSurname: relative.birthSurname,
+          givenName: relative.givenName,
+          patronymic: relative.patronymic,
+          gender: relative.gender,
+          birthDate: relative.birthDate,
+          deathDate: relative.deathDate,
+          photoThumbnailUrl: relative.photoThumbnailUrl,
+        })),
+        parentLinks: [parentLink, motherLink],
+        marriages: [],
+      },
+      permissions: {
+        canEdit: true,
+        canDelete: true,
+        removableMarriageIds: [],
+        removableParentLinkIds: [parentLink.id, motherLink.id],
+      },
+    }
     const request = vi.fn(async (path: string) => {
-      if (path.endsWith('/events')) {
-        return { items: [event] }
+      if (path === '/trees/' + treeId + '/snapshot') {
+        return tree
       }
-      return tree
+      if (path === '/trees/' + treeId + '/people/' + person.id + '/details') {
+        return details
+      }
+      if (path === '/trees/' + treeId + '/people/' + father.id + '/details') {
+        return { ...details, person: father }
+      }
+      throw new Error('Unexpected request: ' + path)
     }) as unknown as AuthorizedJsonRequest
     renderEditor(request)
 
@@ -960,9 +1003,16 @@ describe('TreeEditorPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Petrov Ivan' }))
       .toBeInTheDocument()
-    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}/details`)
-    expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}/events`)
-    expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${father.id}`)
+    expect(screen.getByRole('article', { name: 'Petrova Maria' }))
+      .toHaveClass('person-card-overlay')
+    expect(screen.getByRole('article', { name: 'Petrov Ivan' }))
+      .toHaveClass('person-card-overlay')
+    expect(request).toHaveBeenCalledWith(
+      '/trees/' + treeId + '/people/' + father.id + '/details',
+    )
+    expect(request).not.toHaveBeenCalledWith(
+      '/trees/' + treeId + '/route-to-reference/' + father.id,
+    )
     expect(screen.getByRole('article', { name: 'Petrov Ivan' })
       .closest('.react-flow__node')).toHaveClass('selected')
   })
@@ -1004,6 +1054,18 @@ describe('TreeEditorPage', () => {
       childId: person.id,
       role: 'father',
     }
+    const hiddenSpouse: Person = {
+      ...spouse,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e2',
+      birthSurname: { state: 'known', value: 'Hidden' },
+      givenName: { state: 'known', value: 'Spouse' },
+    }
+    const hiddenMarriage: MarriagePeriod = {
+      ...marriage,
+      id: '019861c4-6a93-7a2e-8ca8-51813740d4e3',
+      malePersonId: hiddenAncestor.id,
+      femalePersonId: hiddenSpouse.id,
+    }
     const route: SearchRoutePlan = {
       etag: '"tree-current"',
       targetPersonId: hiddenAncestor.id,
@@ -1016,13 +1078,25 @@ describe('TreeEditorPage', () => {
       marriages: [],
       familyBlocks: [],
     }
+    const replacementRoute: SearchRoutePlan = {
+      etag: '"tree-current"',
+      targetPersonId: hiddenSpouse.id,
+      people: [person, hiddenSpouse],
+      nodes: [
+        { personId: person.id, generation: 0, kind: 'route' },
+        { personId: hiddenSpouse.id, generation: 0, kind: 'route' },
+      ],
+      parentLinks: [],
+      marriages: [hiddenMarriage],
+      familyBlocks: [],
+    }
     const details = {
       etag: '"tree-current"',
       person: hiddenAncestor,
       relationships: {
-        people: [person, hiddenAncestor],
+        people: [person, hiddenSpouse],
         parentLinks: [routeLink],
-        marriages: [],
+        marriages: [hiddenMarriage],
       },
       events: [],
       permissions: {
@@ -1049,8 +1123,14 @@ describe('TreeEditorPage', () => {
       if (path === `/trees/${treeId}/route-to-reference/${hiddenAncestor.id}`) {
         return route
       }
+      if (path === '/trees/' + treeId + '/route-to-reference/' + hiddenSpouse.id) {
+        return replacementRoute
+      }
       if (path === `/trees/${treeId}/people/${hiddenAncestor.id}/details`) {
         return details
+      }
+      if (path === '/trees/' + treeId + '/people/' + hiddenSpouse.id + '/details') {
+        return { ...details, person: hiddenSpouse }
       }
       throw new Error(`Unexpected request: ${path}`)
     }) as unknown as AuthorizedJsonRequest
@@ -1070,8 +1150,19 @@ describe('TreeEditorPage', () => {
 
     expect(document.querySelector('.tree-edge-highlight')).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByRole('button', { name: 'Hidden Spouse' }))
+    expect(await screen.findByRole('heading', { name: 'Hidden Spouse' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Hidden Spouse' }))
+      .toHaveClass('person-card-overlay')
+    expect(screen.queryByRole('article', { name: 'Hidden Ancestor' }))
+      .not.toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith(
+      '/trees/' + treeId + '/route-to-reference/' + hiddenSpouse.id,
+    )
+
     await userEvent.click(screen.getByRole('button', { name: 'Close route' }))
-    expect(screen.queryByRole('article', { name: 'Hidden Ancestor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Hidden Spouse' })).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Person details' })).not.toBeInTheDocument()
   })
 

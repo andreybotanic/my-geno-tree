@@ -1,18 +1,18 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
-import type { Person } from '../api/generated'
 import {
   formatLifePeriod,
   formatPersonName,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
 import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
+import type { PersonCardPerson } from '../pathDisplayPlan'
 
 export type PersonNodeData = {
   isReference: boolean
   isMuted?: boolean
   isOverlay?: boolean
-  person: Person
+  person: PersonCardPerson
 }
 
 export type PersonFlowNode = Node<PersonNodeData, 'person'>

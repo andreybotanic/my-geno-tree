@@ -38,6 +38,7 @@ import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 import { UnknownToggleButton } from './UnknownToggleButton'
 import { AddButton } from './AddButton'
 import { PlaceTextButton } from './PlaceDialog'
+import type { RelationshipNavigation } from '../pathDisplayPlan'
 
 type PersonField = keyof Pick<
   Person,
@@ -67,7 +68,7 @@ type PersonDetailsPanelProps = {
   onUploadPhoto: () => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
-  onSelectPerson: (personId: string) => void
+  onSelectPerson: (navigation: RelationshipNavigation) => void
   person: Person
   details?: PersonDetails
   snapshot?: TreeSnapshot

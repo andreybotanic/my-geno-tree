@@ -2,8 +2,8 @@ import type { XYPosition } from '@xyflow/react'
 import type {
   ParentLink,
   Person,
-  SearchRoutePlan,
 } from './api/generated'
+import type { PathDisplayPlan, PersonCardPerson } from './pathDisplayPlan'
 import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
@@ -15,7 +15,7 @@ const GAP = 24
 const CELL = 320
 
 export type SearchRouteProjection = {
-  overlayPeople: Person[]
+  overlayPeople: PersonCardPerson[]
   positions: Map<string, XYPosition>
   routePersonIds: Set<string>
 }
@@ -71,7 +71,7 @@ class SpatialIndex {
 }
 
 export function projectSearchRoute(
-  plan: SearchRoutePlan,
+  plan: PathDisplayPlan,
   visiblePeople: readonly Person[],
   visiblePositions: ReadonlyMap<string, XYPosition>,
 ): SearchRouteProjection {
@@ -319,7 +319,7 @@ function firstFreeSpouse(person: XYPosition, index: SpatialIndex) {
 
 function fallbackPosition(
   personId: string,
-  nodes: ReadonlyMap<string, SearchRoutePlan['nodes'][number]>,
+  nodes: ReadonlyMap<string, PathDisplayPlan['nodes'][number]>,
   positions: ReadonlyMap<string, XYPosition>,
   index: SpatialIndex,
 ) {
@@ -347,7 +347,7 @@ function parentLinkComparator(left: ParentLink, right: ParentLink) {
 }
 
 function nodeComparator(
-  nodes: ReadonlyMap<string, SearchRoutePlan['nodes'][number]>,
+  nodes: ReadonlyMap<string, PathDisplayPlan['nodes'][number]>,
   leftId: string,
   rightId: string,
 ) {

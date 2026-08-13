@@ -36,19 +36,24 @@ final readonly class PersonViewFactory
             'deathPlace' => null === $person->getDeathPlace()
                 ? null
                 : $this->places->create($person->getDeathPlace()),
-            'photoThumbnailUrl' => null === $person->getPhotoAttachment()
-                ? null
-                : sprintf(
-                    '/trees/%s/people/%s/photo/thumbnail?media=%s',
-                    $person->getTree()->getId()->toRfc4122(),
-                    $person->getId()->toRfc4122(),
-                    $person->getPhotoAttachment()
-                        ->getMedia()
-                        ->getId()
-                        ->toRfc4122(),
-                ),
-            'createdAt' => $person->getCreatedAt()->format(DATE_ATOM),
-            'updatedAt' => $person->getUpdatedAt()->format(DATE_ATOM),
+            'photoThumbnailUrl' => $this->photoThumbnailUrl($person),
+            'createdAt'         => $person->getCreatedAt()->format(DATE_ATOM),
+            'updatedAt'         => $person->getUpdatedAt()->format(DATE_ATOM),
         ];
+    }
+
+    public function photoThumbnailUrl(Person $person): ?string
+    {
+        return null === $person->getPhotoAttachment()
+            ? null
+            : sprintf(
+                '/trees/%s/people/%s/photo/thumbnail?media=%s',
+                $person->getTree()->getId()->toRfc4122(),
+                $person->getId()->toRfc4122(),
+                $person->getPhotoAttachment()
+                    ->getMedia()
+                    ->getId()
+                    ->toRfc4122(),
+            );
     }
 }

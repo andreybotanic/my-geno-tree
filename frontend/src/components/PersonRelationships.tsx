@@ -19,6 +19,10 @@ import {
   canRemoveParentLink,
 } from '../relationshipPermissions'
 import { AddButton } from './AddButton'
+import {
+  relationshipPerson,
+  type RelationshipNavigation,
+} from '../pathDisplayPlan'
 
 type PersonRelationshipsProps = {
   context?: PersonRelationshipContext
@@ -26,7 +30,7 @@ type PersonRelationshipsProps = {
   onEditMarriage: (marriage: MarriagePeriod) => void
   onRemoveMarriage: (marriage: MarriagePeriod) => void
   onRemoveParentLink: (link: ParentLink) => void
-  onSelectPerson: (personId: string) => void
+  onSelectPerson: (navigation: RelationshipNavigation) => void
   person: Person
   permissions?: PersonDetailsPermissions
   snapshot?: TreeSnapshot
@@ -79,14 +83,18 @@ export function PersonRelationships({
       marriage,
     ])
   })
-  const families = Array.from(familyMap)
-  const children = childLinks
-    .map((link) => people.get(link.childId))
-    .filter((child) => child !== undefined)
+  const families = Array.from(familyMap, ([spouseId, periods]) => [
+    spouseId,
+    periods.toSorted((left, right) => left.id.localeCompare(right.id)),
+  ] as const)
+  const children = childLinks.flatMap((link) => {
+    const child = people.get(link.childId)
+    return child ? [{ link, person: child }] : []
+  })
   const outsideMarriage = children.filter((child) => {
     const otherParents = relationshipContext.parentLinks
       .filter((link) => (
-        link.childId === child.id && link.parentId !== person.id
+        link.childId === child.person.id && link.parentId !== person.id
       ))
       .map((link) => link.parentId)
 
@@ -136,7 +144,7 @@ export function PersonRelationships({
           const commonChildren = spouse
             ? children.filter((child) => hasParent(
               relationshipContext,
-              child.id,
+              child.person.id,
               spouse.id,
             ))
             : []
@@ -146,7 +154,13 @@ export function PersonRelationships({
               {spouse ? (
                 <button
                   className="relationship-person-button"
-                  onClick={() => onSelectPerson(spouse.id)}
+                  onClick={() => onSelectPerson({
+                    person: spouse,
+                    relationship: {
+                      type: 'marriage',
+                      marriage: periods[0]!,
+                    },
+                  })}
                   type="button"
                 >
                   {formatPersonName(spouse, t)}
@@ -199,13 +213,16 @@ export function PersonRelationships({
                 ) : (
                   <ul className="relationship-list">
                     {commonChildren.map((child) => (
-                      <li key={child.id}>
+                      <li key={child.person.id}>
                         <button
                           className="relationship-person-button"
-                          onClick={() => onSelectPerson(child.id)}
+                          onClick={() => onSelectPerson({
+                            person: child.person,
+                            relationship: { type: 'parent', link: child.link },
+                          })}
                           type="button"
                         >
-                          {formatPersonName(child, t)}
+                          {formatPersonName(child.person, t)}
                         </button>
                       </li>
                     ))}
@@ -231,13 +248,16 @@ export function PersonRelationships({
         ) : (
           <ul className="relationship-list">
             {outsideMarriage.map((child) => (
-              <li key={child.id}>
+              <li key={child.person.id}>
                 <button
                   className="relationship-person-button"
-                  onClick={() => onSelectPerson(child.id)}
+                  onClick={() => onSelectPerson({
+                    person: child.person,
+                    relationship: { type: 'parent', link: child.link },
+                  })}
                   type="button"
                 >
-                  {formatPersonName(child, t)}
+                  {formatPersonName(child.person, t)}
                 </button>
               </li>
             ))}
@@ -254,7 +274,7 @@ type RelativeRowProps = {
   link: ParentLink | undefined
   onAdd: (action: RelativeAction, secondParentId?: string) => void
   onRemove: (link: ParentLink) => void
-  onSelectPerson: (personId: string) => void
+  onSelectPerson: (navigation: RelationshipNavigation) => void
   person: PersonRelationshipPerson | undefined
   removable: boolean
 }
@@ -277,7 +297,10 @@ function RelativeRow({
         <>
           <button
             className="relationship-person-button"
-            onClick={() => onSelectPerson(person.id)}
+            onClick={() => onSelectPerson({
+              person,
+              relationship: { type: 'parent', link },
+            })}
             type="button"
           >
             {formatPersonName(person, t)}
@@ -384,16 +407,4 @@ function dateSortValue(
   const day = date.day ?? 1
 
   return Date.UTC(date.year, month - 1, day)
-}
-
-function relationshipPerson(person: Person): PersonRelationshipPerson {
-  return {
-    id: person.id,
-    birthSurname: person.birthSurname,
-    givenName: person.givenName,
-    patronymic: person.patronymic,
-    gender: person.gender,
-    birthDate: person.birthDate,
-    deathDate: person.deathDate,
-  }
 }

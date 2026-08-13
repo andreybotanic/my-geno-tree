@@ -251,6 +251,7 @@ export type PersonRelationshipPerson = {
     gender: Gender;
     birthDate: GenealogicalDate;
     deathDate: GenealogicalDate | null;
+    photoThumbnailUrl: string | null;
 };
 
 export type PersonDetailsPermissions = {
