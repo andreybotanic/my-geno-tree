@@ -291,6 +291,9 @@ describe('TreeEditorPage', () => {
     await userEvent.click(zoom)
     const zoomInput = screen.getByRole('textbox', { name: 'Current zoom' })
     expect(zoomInput).toHaveValue('100')
+    expect(zoomInput).toHaveFocus()
+    expect(zoomInput).toHaveProperty('selectionStart', 3)
+    expect(zoomInput).toHaveProperty('selectionEnd', 3)
     await userEvent.clear(zoomInput)
     await userEvent.type(zoomInput, '150{Enter}')
     await waitFor(() => {

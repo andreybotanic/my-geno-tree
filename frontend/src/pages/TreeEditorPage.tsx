@@ -242,8 +242,9 @@ function ZoomControls({
     if (!isZoomEditing) {
       return
     }
-    zoomInput.current?.focus()
-    zoomInput.current?.select()
+    const input = zoomInput.current
+    input?.focus()
+    input?.setSelectionRange(input.value.length, input.value.length)
   }, [isZoomEditing])
 
   const cancelZoomEditing = () => {
