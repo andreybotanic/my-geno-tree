@@ -164,26 +164,22 @@ export function EventTimeline({
                     )}
                   </div>
                   <div className="event-order-actions">
-                    {(canMoveUp || canMoveDown) && (
-                      <>
-                        <button
-                          aria-label={t('events.moveUp', { title })}
-                          disabled={conflict || reordering || !canMoveUp}
-                          onClick={() => void move(event, -1)}
-                          type="button"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          aria-label={t('events.moveDown', { title })}
-                          disabled={conflict || reordering || !canMoveDown}
-                          onClick={() => void move(event, 1)}
-                          type="button"
-                        >
-                          ↓
-                        </button>
-                      </>
-                    )}
+                    <button
+                      aria-label={t('events.moveUp', { title })}
+                      disabled={conflict || reordering || !canMoveUp}
+                      onClick={() => void move(event, -1)}
+                      type="button"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      aria-label={t('events.moveDown', { title })}
+                      disabled={conflict || reordering || !canMoveDown}
+                      onClick={() => void move(event, 1)}
+                      type="button"
+                    >
+                      ↓
+                    </button>
                   </div>
                 </li>
               )

@@ -146,9 +146,13 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(
-      screen.getByRole('button', { name: 'Move Birth up' }),
-    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Birth up' }))
+      .toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move Birth down' }))
+      .toBeEnabled()
+    expect(screen.getByRole('button', {
+      name: 'Move Moved to Novosibirsk down',
+    })).toBeDisabled()
     await userEvent.click(
       screen.getByRole('button', {
         name: 'Move Moved to Novosibirsk up',
@@ -200,8 +204,8 @@ describe('EventTimeline', () => {
       />,
     )
 
-    expect(screen.queryByRole('button', { name: 'Move Earlier down' }))
-      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Earlier down' }))
+      .toBeDisabled()
     await userEvent.click(
       screen.getByRole('button', { name: 'Move Uncertain up' }),
     )
@@ -280,7 +284,9 @@ describe('EventTimeline', () => {
     expect(items[0]).not.toHaveClass('event-after-death')
     expect(items[1]).toHaveClass('event-after-death')
     expect(items[2]).toHaveClass('event-after-death')
-    expect(items[2]?.querySelector('.event-order-actions')).not.toBeNull()
-    expect(items[2]?.querySelectorAll('.event-order-actions button')).toHaveLength(0)
+    const orderButtons = items[2]?.querySelectorAll('.event-order-actions button')
+    expect(orderButtons).toHaveLength(2)
+    expect(orderButtons?.[0]).toBeDisabled()
+    expect(orderButtons?.[1]).toBeDisabled()
   })
 })

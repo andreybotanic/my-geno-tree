@@ -131,7 +131,13 @@ describe('semantic design contracts', () => {
       /\.event-timeline li:last-child\s*\{[^}]*padding-bottom:\s*18px;/s,
     )
     expect(appStyles).toMatch(
-      /\.event-order-actions\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*row;[^}]*gap:\s*5px;[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s,
+      /\.event-order-actions\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*row;[^}]*gap:\s*5px;[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-timeline li:hover \.event-order-actions,[^{]*\.event-timeline li:focus-within \.event-order-actions\s*\{[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.event-order-actions button:disabled\s*\{[^}]*color:\s*var\(--color-text-muted\);[^}]*cursor:\s*not-allowed;[^}]*opacity:\s*0\.45;/s,
     )
   })
 
