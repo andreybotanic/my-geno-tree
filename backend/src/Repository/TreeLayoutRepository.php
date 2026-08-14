@@ -3,8 +3,11 @@
 namespace App\Repository;
 
 use App\Entity\FamilyTree;
+use App\Entity\Person;
 use App\Entity\TreeLayout;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\LockMode;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
 
@@ -20,18 +23,70 @@ final class TreeLayoutRepository extends ServiceEntityRepository
     public function findAllForTree(FamilyTree $tree): array
     {
         /** @var list<TreeLayout> $layouts */
-        $layouts = $this->createQueryBuilder('layout')
-            ->addSelect('primaryPerson', 'secondaryPerson')
-            ->join('layout.primaryPerson', 'primaryPerson')
-            ->leftJoin('layout.secondaryPerson', 'secondaryPerson')
-            ->andWhere('layout.tree = :tree')
-            ->setParameter('tree', $tree)
-            ->orderBy('layout.lastUsedAt', 'ASC')
-            ->addOrderBy('layout.id', 'ASC')
+        $layouts = $this->allForTreeQuery($tree, fetchAnchorPeople: true)
             ->getQuery()
             ->getResult();
 
         return $layouts;
+    }
+
+    /**
+     * Reads every layout under row locks so LRU selection cannot race a concurrent touch.
+     *
+     * @return list<TreeLayout>
+     */
+    public function findAllForTreeForUpdate(FamilyTree $tree): array
+    {
+        /** @var list<TreeLayout> $layouts */
+        $layouts = $this->allForTreeQuery($tree, fetchAnchorPeople: false)
+            ->getQuery()
+            ->setLockMode(LockMode::PESSIMISTIC_WRITE)
+            ->getResult();
+
+        return $layouts;
+    }
+
+    public function findForAnchor(
+        FamilyTree $tree,
+        Person $primary,
+        ?Person $secondary,
+    ): ?TreeLayout {
+        $query = $this->createQueryBuilder('layout')
+            ->andWhere('layout.tree = :tree')
+            ->andWhere('layout.primaryPerson = :primary')
+            ->setParameter('tree', $tree)
+            ->setParameter('primary', $primary);
+        if (null === $secondary) {
+            $query->andWhere('layout.secondaryPerson IS NULL');
+        } else {
+            $query
+                ->andWhere('layout.secondaryPerson = :secondary')
+                ->setParameter('secondary', $secondary);
+        }
+
+        /** @var TreeLayout|null $layout */
+        $layout = $query->getQuery()->getOneOrNullResult();
+
+        return $layout;
+    }
+
+    private function allForTreeQuery(
+        FamilyTree $tree,
+        bool $fetchAnchorPeople,
+    ): QueryBuilder {
+        $query = $this->createQueryBuilder('layout')
+            ->andWhere('layout.tree = :tree')
+            ->setParameter('tree', $tree)
+            ->orderBy('layout.lastUsedAt', 'ASC')
+            ->addOrderBy('layout.id', 'ASC');
+        if ($fetchAnchorPeople) {
+            $query
+                ->addSelect('primaryPerson', 'secondaryPerson')
+                ->join('layout.primaryPerson', 'primaryPerson')
+                ->leftJoin('layout.secondaryPerson', 'secondaryPerson');
+        }
+
+        return $query;
     }
 
     public function touchLastUsedAt(Uuid $id, \DateTimeImmutable $usedAt): void

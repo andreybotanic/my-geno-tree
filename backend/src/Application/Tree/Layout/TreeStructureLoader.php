@@ -19,9 +19,9 @@ final readonly class TreeStructureLoader
     public function load(FamilyTree $tree): TreeStructure
     {
         return new TreeStructure(
-            $this->people->findAllForTree($tree),
-            $this->parentLinks->findAllForTree($tree),
-            $this->marriages->findAllForTree($tree),
+            $this->people->findAllStructuralForTree($tree),
+            $this->parentLinks->findAllStructuralForTree($tree),
+            $this->marriages->findAllStructuralForTree($tree),
         );
     }
 }

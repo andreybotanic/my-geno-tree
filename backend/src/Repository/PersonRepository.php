@@ -42,6 +42,28 @@ final class PersonRepository extends ServiceEntityRepository
         return $people;
     }
 
+    /**
+     * Loads only person rows required by structural graph algorithms.
+     *
+     * Presentation-only media and places must not be joined here: revision calculation
+     * and layout invalidation use only identifiers and creation timestamps.
+     *
+     * @return list<Person>
+     */
+    public function findAllStructuralForTree(FamilyTree $tree): array
+    {
+        /** @var list<Person> $people */
+        $people = $this->createQueryBuilder('person')
+            ->andWhere('person.tree = :tree')
+            ->setParameter('tree', $tree)
+            ->orderBy('person.createdAt', 'ASC')
+            ->addOrderBy('person.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $people;
+    }
+
     public function findInTree(FamilyTree $tree, string $id): ?Person
     {
         /** @var Person|null $person */

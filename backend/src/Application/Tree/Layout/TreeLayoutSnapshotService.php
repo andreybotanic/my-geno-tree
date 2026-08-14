@@ -3,8 +3,6 @@
 namespace App\Application\Tree\Layout;
 
 use App\Entity\FamilyTree;
-use App\Entity\Person;
-use App\Entity\TreeLayout;
 use App\Repository\TreeLayoutRepository;
 use Symfony\Component\Clock\ClockInterface;
 
@@ -33,11 +31,7 @@ final readonly class TreeLayoutSnapshotService
         }
         [$primary, $secondary] = $anchor;
         $revision = $structure->revision($primary, $secondary);
-        $layout = $this->matchingLayout(
-            $this->layouts->findAllForTree($tree),
-            $primary,
-            $secondary,
-        );
+        $layout = $this->layouts->findForAnchor($tree, $primary, $secondary);
         if (null === $layout) {
             return ['layoutRevision' => $revision, 'layout' => null];
         }
@@ -56,27 +50,5 @@ final readonly class TreeLayoutSnapshotService
                 'positions'        => $layout->getPositions(),
             ],
         ];
-    }
-
-    /**
-     * @param list<TreeLayout> $layouts
-     */
-    private function matchingLayout(
-        array $layouts,
-        Person $primary,
-        ?Person $secondary,
-    ): ?TreeLayout {
-        $primaryId = $primary->getId()->toRfc4122();
-        $secondaryId = $secondary?->getId()->toRfc4122();
-        foreach ($layouts as $layout) {
-            if (
-                $layout->getPrimaryPerson()->getId()->toRfc4122() === $primaryId
-                && $layout->getSecondaryPerson()?->getId()->toRfc4122() === $secondaryId
-            ) {
-                return $layout;
-            }
-        }
-
-        return null;
     }
 }

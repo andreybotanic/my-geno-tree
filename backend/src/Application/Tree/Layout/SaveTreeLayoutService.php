@@ -65,7 +65,7 @@ final readonly class SaveTreeLayoutService
                 $payload['positions'],
                 $structure->visiblePersonIds($primary, $secondary),
             );
-            $savedLayouts = $this->layouts->findAllForTree($tree);
+            $savedLayouts = $this->layouts->findAllForTreeForUpdate($tree);
             $existing = $this->matchingLayout($savedLayouts, $primary, $secondary);
             $now = $this->clock->now();
             if (null !== $existing) {
