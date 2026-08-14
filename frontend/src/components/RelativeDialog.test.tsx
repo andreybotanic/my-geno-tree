@@ -35,6 +35,8 @@ const second = person('second', 'Second', 'female')
 const snapshot: TreeSnapshot = {
   tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
   etag: '"tree"',
+  layoutRevision: null,
+  layout: null,
   people: [anchor, candidate, second],
   parentLinks: [],
   marriages: [],

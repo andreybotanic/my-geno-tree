@@ -458,6 +458,35 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /trees/{treeId}/layout:
+    parameters:
+      - $ref: "#/components/parameters/TreeId"
+    put:
+      operationId: saveTreeLayout
+      summary: Save the derived ordinary-tree layout for the current reference
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveTreeLayoutRequest"
+      responses:
+        "204":
+          description: Layout saved without changing the tree version
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees/{treeId}/reference:
     parameters:
       - $ref: "#/components/parameters/TreeId"
@@ -2094,6 +2123,8 @@ components:
       required:
         - tree
         - etag
+        - layoutRevision
+        - layout
         - people
         - parentLinks
         - marriages
@@ -2102,6 +2133,15 @@ components:
           $ref: "#/components/schemas/TreeMetadata"
         etag:
           type: string
+        layoutRevision:
+          type:
+            - string
+            - "null"
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        layout:
+          oneOf:
+            - $ref: "#/components/schemas/TreeLayout"
+            - type: "null"
         bloodNetworkState:
           oneOf:
             - $ref: "#/components/schemas/BloodNetworkMapState"
@@ -2118,6 +2158,47 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MarriagePeriod"
+    TreeLayoutCoordinates:
+      type: array
+      minItems: 2
+      maxItems: 2
+      prefixItems:
+        - type: number
+          minimum: -1000000
+          maximum: 1000000
+        - type: number
+          minimum: -1000000
+          maximum: 1000000
+      items: false
+    TreeLayoutPositions:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/TreeLayoutCoordinates"
+    TreeLayout:
+      type: object
+      additionalProperties: false
+      required: [algorithmVersion, positions]
+      properties:
+        algorithmVersion:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        positions:
+          $ref: "#/components/schemas/TreeLayoutPositions"
+    SaveTreeLayoutRequest:
+      type: object
+      additionalProperties: false
+      required: [layoutRevision, algorithmVersion, positions]
+      properties:
+        layoutRevision:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        algorithmVersion:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        positions:
+          $ref: "#/components/schemas/TreeLayoutPositions"
     BloodNetworkMapNode:
       type: object
       additionalProperties: false

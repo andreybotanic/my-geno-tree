@@ -2,6 +2,8 @@
 
 namespace App\Api;
 
+use App\Application\Tree\Layout\TreeLayoutSnapshotService;
+use App\Application\Tree\Layout\TreeStructure;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Repository\MarriagePeriodRepository;
@@ -19,6 +21,7 @@ final readonly class TreeSnapshotViewFactory
         private MarriagePeriodViewFactory $marriageViews,
         private TreeReferenceViewFactory $referenceViews,
         private TreeVersion $versions,
+        private TreeLayoutSnapshotService $layouts,
     ) {
     }
 
@@ -27,6 +30,14 @@ final readonly class TreeSnapshotViewFactory
      */
     public function create(FamilyTree $tree): array
     {
+        $people = $this->people->findAllForTree($tree);
+        $parentLinks = $this->parentLinks->findAllForTree($tree);
+        $marriages = $this->marriages->findAllForTree($tree);
+        $layout = $this->layouts->create(
+            $tree,
+            new TreeStructure($people, $parentLinks, $marriages),
+        );
+
         return [
             'tree' => [
                 'id'        => $tree->getId()->toRfc4122(),
@@ -36,18 +47,20 @@ final readonly class TreeSnapshotViewFactory
                 'reference' => $this->referenceViews->create($tree),
             ],
             'etag'              => $this->versions->etag($tree),
+            'layoutRevision'    => $layout['layoutRevision'],
+            'layout'            => $layout['layout'],
             'bloodNetworkState' => $tree->getBloodNetworkState(),
             'people'            => array_map(
                 $this->personViews->create(...),
-                $this->people->findAllForTree($tree),
+                $people,
             ),
             'parentLinks' => array_map(
                 $this->parentLinkViews->create(...),
-                $this->parentLinks->findAllForTree($tree),
+                $parentLinks,
             ),
             'marriages' => array_map(
                 $this->marriageViews->create(...),
-                $this->marriages->findAllForTree($tree),
+                $marriages,
             ),
         ];
     }

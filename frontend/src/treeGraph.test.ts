@@ -44,6 +44,8 @@ const snapshot = (
 ): TreeSnapshot => ({
   tree: { id: 'tree', name: 'Tree', reference, createdAt, updatedAt: createdAt },
   etag: '"tree"',
+  layoutRevision: null,
+  layout: null,
   people,
   parentLinks,
   marriages,

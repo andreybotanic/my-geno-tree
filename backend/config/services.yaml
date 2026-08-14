@@ -27,3 +27,6 @@ when@test:
         app.test_media_storage:
             alias: media.storage
             public: true
+        App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware:
+            public: true
+            tags: ['doctrine.middleware']

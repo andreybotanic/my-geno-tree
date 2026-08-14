@@ -104,6 +104,8 @@ const renderPanel = ({
           updatedAt: person.updatedAt,
         },
         etag: '"tree"',
+        layoutRevision: null,
+        layout: null,
         people: [value],
         parentLinks: [],
         marriages: [],

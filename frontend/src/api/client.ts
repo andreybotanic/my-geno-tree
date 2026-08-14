@@ -193,6 +193,16 @@ export const treeApi = {
       `/trees/${treeId}/snapshot`,
     )
   },
+  saveLayout(
+    request: AuthorizedJsonRequest,
+    treeId: string,
+    layout: import('./generated').SaveTreeLayoutRequest,
+  ) {
+    return request<void>(`/trees/${treeId}/layout`, {
+      method: 'PUT',
+      body: JSON.stringify(layout),
+    })
+  },
   saveBloodNetworkState(
     request: AuthorizedJsonRequest,
     treeId: string,

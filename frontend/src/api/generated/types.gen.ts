@@ -314,10 +314,32 @@ export type TreeMetadata = {
 export type TreeSnapshot = {
     tree: TreeMetadata;
     etag: string;
+    layoutRevision: string | null;
+    layout: TreeLayout | null;
     bloodNetworkState?: BloodNetworkMapState | null;
     people: Array<Person>;
     parentLinks: Array<ParentLink>;
     marriages: Array<MarriagePeriod>;
+};
+
+export type TreeLayoutCoordinates = [
+    number,
+    number
+];
+
+export type TreeLayoutPositions = {
+    [key: string]: TreeLayoutCoordinates;
+};
+
+export type TreeLayout = {
+    algorithmVersion: number;
+    positions: TreeLayoutPositions;
+};
+
+export type SaveTreeLayoutRequest = {
+    layoutRevision: string;
+    algorithmVersion: number;
+    positions: TreeLayoutPositions;
 };
 
 export type BloodNetworkMapNode = {
@@ -1198,6 +1220,53 @@ export type GetTreeSnapshotResponses = {
 };
 
 export type GetTreeSnapshotResponse = GetTreeSnapshotResponses[keyof GetTreeSnapshotResponses];
+
+export type SaveTreeLayoutData = {
+    body: SaveTreeLayoutRequest;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/layout';
+};
+
+export type SaveTreeLayoutErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type SaveTreeLayoutError = SaveTreeLayoutErrors[keyof SaveTreeLayoutErrors];
+
+export type SaveTreeLayoutResponses = {
+    /**
+     * Layout saved without changing the tree version
+     */
+    204: void;
+};
+
+export type SaveTreeLayoutResponse = SaveTreeLayoutResponses[keyof SaveTreeLayoutResponses];
 
 export type ChangeTreeReferenceData = {
     body: TreeReference;

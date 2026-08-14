@@ -45,6 +45,8 @@ function family(reference: TreeSnapshot['tree']['reference']): TreeSnapshot {
   return {
     tree: { id: 'tree', name: 'Tree', reference, createdAt: at, updatedAt: at },
     etag: '"tree"',
+    layoutRevision: null,
+    layout: null,
     people: ids.map(person),
     parentLinks: [
       parent('grandparent', 'parent'),

@@ -53,6 +53,8 @@ const snapshot = (
 ): TreeSnapshot => ({
   tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
   etag: '"tree"',
+  layoutRevision: null,
+  layout: null,
   people: ['a', 'b', 'c'].map(person),
   parentLinks,
   marriages,

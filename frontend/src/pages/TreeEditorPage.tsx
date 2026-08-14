@@ -38,6 +38,7 @@ import type {
   PersonPatchRequest,
   RelativePerson,
   ResolvedEventPlace,
+  SaveTreeLayoutRequest,
   TreeSnapshot,
   TreeReference,
   User,
@@ -94,7 +95,6 @@ import {
 } from '../routing'
 import {
   buildTreeEdges,
-  layoutTree,
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
   type FamilyFlowEdge,
@@ -125,6 +125,11 @@ import {
   type BloodNetworkFlowNode,
   type BloodNetworkSimulation,
 } from '../bloodNetwork'
+import {
+  resolveTreeLayout,
+  treeLayoutCacheKey,
+  type TreeLayoutResolution,
+} from '../treeLayoutPersistence'
 
 type TreeEditorPageProps = {
   importWarningCount?: number | null
@@ -792,6 +797,10 @@ type TreeCanvasProps = {
   onExport: () => void
   onChangeReference: (reference: TreeReference) => Promise<void>
   onSaveBloodNetworkState: (state: BloodNetworkMapState) => Promise<void>
+  onSaveTreeLayout: (
+    layout: SaveTreeLayoutRequest,
+    referenceKey: string,
+  ) => Promise<void>
   onShowPathDisplay: (personId: string) => Promise<boolean>
   request: AuthorizedJsonRequest
   pathDisplay: PathDisplayPlan | null
@@ -813,6 +822,7 @@ function TreeCanvas({
   onChangeReference,
   onOpenRelativeDialog,
   onSaveBloodNetworkState,
+  onSaveTreeLayout,
   onShowPathDisplay,
   pathDisplay,
   request,
@@ -919,7 +929,31 @@ function TreeCanvas({
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const focusedSnapshot = useMemo(() => focusedTreeSnapshot(snapshot), [snapshot])
-  const treePositions = useMemo(() => layoutTree(focusedSnapshot), [focusedSnapshot])
+  const currentLayoutKey = treeLayoutCacheKey(snapshot)
+  const [layoutResolution, setLayoutResolution] = useState<{
+    key: string
+    value: TreeLayoutResolution
+  }>(() => ({
+    key: currentLayoutKey,
+    value: resolveTreeLayout(snapshot, focusedSnapshot),
+  }))
+  let currentLayoutResolution = layoutResolution
+  if (layoutResolution.key !== currentLayoutKey) {
+    currentLayoutResolution = {
+      key: currentLayoutKey,
+      value: resolveTreeLayout(snapshot, focusedSnapshot),
+    }
+    setLayoutResolution(currentLayoutResolution)
+  }
+  const treePositions = currentLayoutResolution.value.positions
+  const pendingLayoutSave = currentLayoutResolution.value.saveRequest
+  const layoutReferenceKey = JSON.stringify(snapshot.tree.reference)
+
+  useEffect(() => {
+    if (pendingLayoutSave) {
+      void onSaveTreeLayout(pendingLayoutSave, layoutReferenceKey)
+    }
+  }, [layoutReferenceKey, onSaveTreeLayout, pendingLayoutSave])
   const pathProjection = useMemo(() => pathDisplay
     ? projectSearchRoute(pathDisplay, focusedSnapshot.people, treePositions)
     : null, [focusedSnapshot.people, pathDisplay, treePositions])
@@ -2077,6 +2111,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [snapshot, setSnapshot] = useState<TreeSnapshot | null>(null)
   const snapshotRef = useRef<TreeSnapshot | null>(null)
   const personDetailsCache = useRef(new Map<string, PersonDetailsCacheEntry>())
+  const layoutSaveRequests = useRef(new Set<string>())
   const [status, setStatus] = useState<'error' | 'loading' | 'missing' | 'ready'>(
     'loading',
   )
@@ -2168,6 +2203,27 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
     return true
   }, [])
+
+  const saveTreeLayout = useCallback(async (
+    layout: SaveTreeLayoutRequest,
+    referenceKey: string,
+  ) => {
+    const key = [
+      treeId,
+      referenceKey,
+      layout.layoutRevision,
+      layout.algorithmVersion,
+    ].join(':')
+    if (layoutSaveRequests.current.has(key)) return
+    layoutSaveRequests.current.add(key)
+    try {
+      await treeApi.saveLayout(request, treeId, layout)
+    } catch (error) {
+      if (!(error instanceof ApiRequestError && error.body.code === 'LAYOUT_REVISION_CONFLICT')) {
+        layoutSaveRequests.current.delete(key)
+      }
+    }
+  }, [request, treeId])
 
   const cachePersonDetails = useCallback((
     etag: string,
@@ -2962,6 +3018,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onChangeReference={changeReference}
                   onOpenRelativeDialog={openRelativeDialog}
                   onSaveBloodNetworkState={saveBloodNetworkState}
+                  onSaveTreeLayout={saveTreeLayout}
                   onShowPathDisplay={showPathDisplay}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}

@@ -93,6 +93,8 @@ function snapshot(
   return {
     tree: { id: 'tree', name: 'Tree', reference: null, createdAt, updatedAt: createdAt },
     etag: '"tree"',
+    layoutRevision: null,
+    layout: null,
     people,
     parentLinks,
     marriages,

@@ -9,6 +9,7 @@ use App\Application\Event\EventPlaceDataPolicy;
 use App\Application\Media\MediaService;
 use App\Application\Person\PersonDataPolicy;
 use App\Application\Person\PersonLookup;
+use App\Application\Tree\Layout\TreeLayoutInvalidator;
 use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
@@ -40,6 +41,7 @@ final readonly class StructuralGraphMutationService
         private AutomaticEventSynchronizer $events,
         private GenealogicalEventRepository $eventRepository,
         private MediaService $media,
+        private TreeLayoutInvalidator $layoutInvalidator,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
     ) {
@@ -107,6 +109,8 @@ final readonly class StructuralGraphMutationService
                 ),
             };
             $tree->touch($changedAt);
+            $this->entityManager->flush();
+            $this->layoutInvalidator->invalidateChanged($tree);
         });
         $this->media->deleteStored($removedMedia);
     }

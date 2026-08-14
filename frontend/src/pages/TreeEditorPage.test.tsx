@@ -144,6 +144,8 @@ function snapshot(people: Person[] = []): TreeSnapshot {
       updatedAt: '2026-07-31T00:00:00+00:00',
     },
     etag: '"tree-current"',
+    layoutRevision: people.length > 0 ? people.map((person) => person.id).join(':') : null,
+    layout: null,
     people,
     parentLinks: [],
     marriages: [],
