@@ -137,7 +137,7 @@ describe('semantic design contracts', () => {
       /\.event-timeline li:hover \.event-order-actions,[^{]*\.event-timeline li:focus-within \.event-order-actions\s*\{[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/s,
     )
     expect(appStyles).toMatch(
-      /\.event-order-actions button:disabled\s*\{[^}]*color:\s*var\(--color-text-muted\);[^}]*cursor:\s*not-allowed;[^}]*opacity:\s*0\.45;/s,
+      /\.event-order-actions button:disabled\s*\{[^}]*color:\s*var\(--color-text-muted\);[^}]*cursor:\s*default;[^}]*opacity:\s*0\.45;/s,
     )
   })
 
