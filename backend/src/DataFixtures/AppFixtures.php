@@ -28,6 +28,7 @@ final class AppFixtures extends Fixture
     private const string DEEP_ANCESTORS_TREE_NAME = 'Шесть поколений предков';
     private const string WIDE_TREE_NAME = 'Широкая семья Семёновых';
     private const string COMPLEX_TREE_NAME = 'Горем';
+    private const string LAYOUT_STRESS_TREE_NAME = 'Стресс-тест раскладки';
 
     public function __construct(
         private readonly AutomaticEventSynchronizer $events,
@@ -63,6 +64,7 @@ final class AppFixtures extends Fixture
         $this->createDeepAncestorsTree($manager, $user, $createdAt);
         $this->createWideTree($manager, $user, $createdAt);
         $this->createComplexTree($manager, $user, $createdAt);
+        $this->createLayoutStressTree($manager, $user, $createdAt);
 
         $manager->flush();
     }
@@ -249,8 +251,107 @@ final class AppFixtures extends Fixture
         $builder->addChild($oleg, $irina, $this->data('Романов', 'Тимофей', 'Олегович', Gender::MALE, $this->year(2012), null));
     }
 
-    private function createTreeBuilder(ObjectManager $manager, User $user, string $name, \DateTimeImmutable $createdAt): ?FixtureTreeBuilder
+    private function createLayoutStressTree(ObjectManager $manager, User $user, \DateTimeImmutable $createdAt): void
     {
+        // The graph benchmark does not read automatic timeline events, so omit their
+        // derived fixture data and keep the large fixture inexpensive to load.
+        $builder = $this->createTreeBuilder($manager, $user, self::LAYOUT_STRESS_TREE_NAME, $createdAt, synchronizeEvents: false);
+        if (!$builder instanceof FixtureTreeBuilder) {
+            return;
+        }
+
+        // This deliberately wide, nested family graph exercises row ordering, sibling
+        // block separation and repeated Kiwi constraint solving for several references.
+        $founder = $builder->firstPerson($this->data('Стрессов', 'Александр', 'Иванович', Gender::MALE, $this->year(1940), null));
+        $founderSpouse = $builder->addSpouse($founder, $this->data('Стрессова', 'Екатерина', 'Павловна', Gender::FEMALE, $this->year(1944), null));
+        $builder->marry($founder, $founderSpouse, $this->year(1963));
+
+        for ($family = 1; $family <= 12; ++$family) {
+            $gender = 0 === $family % 2 ? Gender::FEMALE : Gender::MALE;
+            $child = $builder->addChild(
+                $founder,
+                $founderSpouse,
+                $this->data(
+                    Gender::FEMALE === $gender ? 'Стрессова' : 'Стрессов',
+                    'Ветка ' . $family,
+                    'Александров' . (Gender::FEMALE === $gender ? 'на' : 'ич'),
+                    $gender,
+                    $this->year(1964 + $family),
+                    null,
+                ),
+            );
+            $spouseGender = Gender::FEMALE === $gender ? Gender::MALE : Gender::FEMALE;
+            $spouse = $builder->addSpouse(
+                $child,
+                $this->data(
+                    Gender::FEMALE === $spouseGender ? 'Партнёрская' : 'Партнёрский',
+                    'Партнёр ' . $family,
+                    null,
+                    $spouseGender,
+                    $this->year(1965 + $family),
+                    null,
+                ),
+            );
+            $father = Gender::MALE === $gender ? $child : $spouse;
+            $mother = Gender::FEMALE === $gender ? $child : $spouse;
+            $builder->marry($father, $mother, $this->year(1985 + $family % 8));
+
+            for ($branch = 1; $branch <= 6; ++$branch) {
+                $descendantGender = 0 === ($family + $branch) % 2 ? Gender::FEMALE : Gender::MALE;
+                $descendant = $builder->addChild(
+                    $father,
+                    $mother,
+                    $this->data(
+                        Gender::FEMALE === $descendantGender ? 'Стрессова' : 'Стрессов',
+                        sprintf('Поколение 2-%02d-%02d', $family, $branch),
+                        null,
+                        $descendantGender,
+                        $this->year(1988 + $family % 10 + $branch),
+                        null,
+                    ),
+                );
+                $descendantSpouseGender = Gender::FEMALE === $descendantGender ? Gender::MALE : Gender::FEMALE;
+                $descendantSpouse = $builder->addSpouse(
+                    $descendant,
+                    $this->data(
+                        Gender::FEMALE === $descendantSpouseGender ? 'Сложная' : 'Сложный',
+                        sprintf('Партнёр 2-%02d-%02d', $family, $branch),
+                        null,
+                        $descendantSpouseGender,
+                        $this->year(1989 + $family % 10 + $branch),
+                        null,
+                    ),
+                );
+                $descendantFather = Gender::MALE === $descendantGender ? $descendant : $descendantSpouse;
+                $descendantMother = Gender::FEMALE === $descendantGender ? $descendant : $descendantSpouse;
+                $builder->marry($descendantFather, $descendantMother, $this->year(2010 + ($family + $branch) % 10));
+
+                for ($leaf = 1; $leaf <= 1; ++$leaf) {
+                    $leafGender = 0 === ($family + $branch + $leaf) % 2 ? Gender::FEMALE : Gender::MALE;
+                    $builder->addChild(
+                        $descendantFather,
+                        $descendantMother,
+                        $this->data(
+                            Gender::FEMALE === $leafGender ? 'Стрессова' : 'Стрессов',
+                            sprintf('Поколение 3-%02d-%02d-%02d', $family, $branch, $leaf),
+                            null,
+                            $leafGender,
+                            $this->year(2012 + $leaf + $branch % 5),
+                            null,
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    private function createTreeBuilder(
+        ObjectManager $manager,
+        User $user,
+        string $name,
+        \DateTimeImmutable $createdAt,
+        bool $synchronizeEvents = true,
+    ): ?FixtureTreeBuilder {
         if ($this->trees->findOneBy(['owner' => $user, 'name' => $name]) instanceof FamilyTree) {
             return null;
         }
@@ -258,7 +359,7 @@ final class AppFixtures extends Fixture
         $tree = new FamilyTree($user, $name, $createdAt);
         $manager->persist($tree);
 
-        return new FixtureTreeBuilder($manager, $tree, $this->events, $createdAt);
+        return new FixtureTreeBuilder($manager, $tree, $this->events, $createdAt, $synchronizeEvents);
     }
 
     private function deepAncestorData(int $generation, int $index, Gender $gender): FixturePersonData
@@ -317,6 +418,7 @@ final class FixtureTreeBuilder
         private readonly FamilyTree $tree,
         private readonly AutomaticEventSynchronizer $events,
         private readonly \DateTimeImmutable $createdAt,
+        private readonly bool $synchronizeEvents,
     ) {
     }
 
@@ -336,7 +438,9 @@ final class FixtureTreeBuilder
         $parent = $this->createPerson($data);
         $link = new ParentLink($this->tree, $parent, $child, $role);
         $this->manager->persist($link);
-        $this->events->synchronizeParentLink($link, $this->createdAt);
+        if ($this->synchronizeEvents) {
+            $this->events->synchronizeParentLink($link, $this->createdAt);
+        }
 
         return $parent;
     }
@@ -359,7 +463,9 @@ final class FixtureTreeBuilder
             new ParentLink($this->tree, $mother, $child, ParentRole::MOTHER),
         ] as $link) {
             $this->manager->persist($link);
-            $this->events->synchronizeParentLink($link, $this->createdAt);
+            if ($this->synchronizeEvents) {
+                $this->events->synchronizeParentLink($link, $this->createdAt);
+            }
         }
 
         return $child;
@@ -379,12 +485,14 @@ final class FixtureTreeBuilder
             $this->createdAt,
         );
         $this->manager->persist($marriage);
-        $this->events->synchronizeMarriage(
-            $marriage,
-            null,
-            null,
-            $this->createdAt,
-        );
+        if ($this->synchronizeEvents) {
+            $this->events->synchronizeMarriage(
+                $marriage,
+                null,
+                null,
+                $this->createdAt,
+            );
+        }
     }
 
     private function createPerson(FixturePersonData $data): Person
@@ -400,7 +508,9 @@ final class FixtureTreeBuilder
             $this->createdAt,
         );
         $this->manager->persist($person);
-        $this->events->synchronizePersonLifecycle($person, $this->createdAt);
+        if ($this->synchronizeEvents) {
+            $this->events->synchronizePersonLifecycle($person, $this->createdAt);
+        }
 
         return $person;
     }
