@@ -8,6 +8,7 @@ import { ConfirmRelationshipDialog } from '../components/ConfirmRelationshipDial
 import { ImageCropDialog } from '../components/ImageCropDialog'
 import { LanguagePicker } from '../components/LanguagePicker'
 import { AddButton } from '../components/AddButton'
+import { ActionIcon } from '../components/ActionIcon'
 import { formatUnbreakableDateText } from '../personFormatting'
 
 export function ProfilePage() {
@@ -67,11 +68,13 @@ export function ProfilePage() {
             )}
             {user.avatarUrl && (
               <button
+                aria-label={t('media.deleteAvatar')}
                 className="danger-link"
                 onClick={() => setAvatarDeleting(true)}
+                title={t('media.deleteAvatar')}
                 type="button"
               >
-                {t('media.deleteAvatar')}
+                <ActionIcon name="delete" />
               </button>
             )}
           </div>

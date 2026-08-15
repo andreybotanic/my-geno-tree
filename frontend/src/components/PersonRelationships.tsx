@@ -20,6 +20,7 @@ import {
   canRemoveParentLink,
 } from '../relationshipPermissions'
 import { AddButton } from './AddButton'
+import { ActionIcon } from './ActionIcon'
 import {
   relationshipPerson,
   type RelationshipNavigation,
@@ -179,21 +180,25 @@ export function PersonRelationships({
                     )}</span>
                     <div className="relationship-actions">
                       <button
+                        aria-label={t('common.edit')}
                         className="relationship-edit-button"
                         onClick={() => onEditMarriage(marriage)}
+                        title={t('common.edit')}
                         type="button"
                       >
-                        {t('common.edit')}
+                        <ActionIcon name="edit" />
                       </button>
                       {(permissions
                         ? permissions.removableMarriageIds.includes(marriage.id)
                         : Boolean(snapshot && canRemoveMarriage(snapshot, marriage))) && (
                         <button
+                          aria-label={t('common.remove')}
                           className="danger-link"
                           onClick={() => onRemoveMarriage(marriage)}
+                          title={t('common.remove')}
                           type="button"
                         >
-                          {t('common.remove')}
+                          <ActionIcon name="delete" />
                         </button>
                       )}
                     </div>
@@ -313,9 +318,12 @@ function RelativeRow({
               })}
               className="danger-link"
               onClick={() => onRemove(link)}
+              title={t('relationships.removeParent', {
+                role: t(`relationships.${action}`),
+              })}
               type="button"
             >
-              {t('common.remove')}
+              <ActionIcon name="delete" />
             </button>
           )}
         </>

@@ -174,6 +174,11 @@
   color: var(--color-accent-contrast);
 }
 
+.danger-button:has(.action-icon) {
+  min-width: 34px;
+  padding: 0 8px;
+}
+
 .link-danger-button {
   background: transparent;
   border: 0;
@@ -2186,6 +2191,25 @@
   height: 28px;
   padding: 0;
   width: 28px;
+}
+
+.action-icon {
+  fill: none;
+  height: 16px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 16px;
+}
+
+.edit-field-button .action-icon,
+.relationship-actions .action-icon,
+.event-actions .action-icon,
+.danger-link .action-icon,
+.link-danger-button .action-icon,
+.danger-button .action-icon {
+  display: block;
 }
 
 .inline-person-editor {

@@ -33,6 +33,7 @@ import { canDeletePerson } from '../relationshipPermissions'
 import { PersonRelationships } from './PersonRelationships'
 import type { RelativeAction } from './RelativeDialog'
 import { EventTimeline } from './EventTimeline'
+import { ActionIcon } from './ActionIcon'
 import { AuthenticatedImage } from './AuthenticatedImage'
 import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
 import { UnknownToggleButton } from './UnknownToggleButton'
@@ -104,7 +105,7 @@ function EditableRow({
             title={t('person.edit')}
             type="button"
           >
-            ✎
+            <ActionIcon name="edit" />
           </button>
         </>
       )}
@@ -357,12 +358,14 @@ export function PersonDetailsPanel({
               {t('media.replacePhoto')}
             </button>
             <button
+              aria-label={t('media.deletePhoto')}
               className="danger-link"
               disabled={conflict}
               onClick={onDeletePhoto}
+              title={t('media.deletePhoto')}
               type="button"
             >
-              {t('media.deletePhoto')}
+              <ActionIcon name="delete" />
             </button>
           </div>
         </div>
@@ -534,11 +537,13 @@ export function PersonDetailsPanel({
       {(details?.permissions.canDelete ?? (snapshot && canDeletePerson(snapshot, person.id))) && (
         <section className="person-details-section danger-zone">
           <button
+            aria-label={t('relationships.deletePerson')}
             className="danger-button"
             onClick={onDeletePerson}
+            title={t('relationships.deletePerson')}
             type="button"
           >
-            {t('relationships.deletePerson')}
+            <ActionIcon name="delete" />
           </button>
         </section>
       )}

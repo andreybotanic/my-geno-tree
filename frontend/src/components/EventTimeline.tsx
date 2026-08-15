@@ -4,6 +4,7 @@ import type { GenealogicalEvent } from '../api/generated'
 import { canMoveEvent } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
 import { AddButton } from './AddButton'
+import { ActionIcon } from './ActionIcon'
 import { PlaceIconButton } from './PlaceDialog'
 
 type EventTimelineProps = {
@@ -146,19 +147,23 @@ export function EventTimeline({
                     {event.source === 'manual' && (
                       <div className="event-actions">
                         <button
+                          aria-label={t('common.edit')}
                           disabled={conflict}
                           onClick={() => onEdit(event)}
+                          title={t('common.edit')}
                           type="button"
                         >
-                          {t('common.edit')}
+                          <ActionIcon name="edit" />
                         </button>
                         <button
+                          aria-label={t('common.remove')}
                           className="danger-link"
                           disabled={conflict}
                           onClick={() => onDelete(event)}
+                          title={t('common.remove')}
                           type="button"
                         >
-                          {t('common.remove')}
+                          <ActionIcon name="delete" />
                         </button>
                       </div>
                     )}

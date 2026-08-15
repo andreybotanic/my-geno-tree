@@ -63,6 +63,7 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
+import { ActionIcon } from '../components/ActionIcon'
 import { PersonSearchPanel } from '../components/PersonSearchPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
 import {
@@ -620,10 +621,7 @@ function BloodNetworkSidebar({
                 })}
                 type="button"
               >
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5z" />
-                  <path d="m13.8 6.7 3.5 3.5" />
-                </svg>
+                <ActionIcon name="edit" />
               </button>
             </div>
           </div>

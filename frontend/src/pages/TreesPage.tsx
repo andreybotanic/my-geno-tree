@@ -8,6 +8,7 @@ import {
   TreeNameDialog,
 } from '../components/TreeDialogs'
 import { ImportTreeDialog } from '../components/TreeExchangeDialogs'
+import { ActionIcon } from '../components/ActionIcon'
 import { formatUnbreakableDateText } from '../personFormatting'
 import { navigate, treeEditorPath } from '../routing'
 
@@ -128,11 +129,13 @@ export function TreesPage() {
                   {t('trees.rename')}
                 </button>
                 <button
+                  aria-label={t('trees.delete')}
                   className="link-danger-button"
                   onClick={() => setDialog({ type: 'delete', tree })}
+                  title={t('trees.delete')}
                   type="button"
                 >
-                  {t('trees.delete')}
+                  <ActionIcon name="delete" />
                 </button>
               </div>
             </article>

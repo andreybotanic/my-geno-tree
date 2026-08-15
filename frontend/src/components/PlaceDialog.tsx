@@ -11,6 +11,7 @@ import type {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
+import { ActionIcon } from './ActionIcon'
 import type {
   EventPlace,
   GeoCoordinates,
@@ -402,12 +403,14 @@ export function PlaceDialog({
           </button>
           {onDelete && (
             <button
+              aria-label={t('place.delete')}
               className="danger-link place-delete-button"
               disabled={busy}
               onClick={() => void remove()}
+              title={t('place.delete')}
               type="button"
             >
-              {deleting ? t('common.removing') : t('place.delete')}
+              {deleting ? t('common.removing') : <ActionIcon name="delete" />}
             </button>
           )}
           <button
