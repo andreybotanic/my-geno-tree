@@ -146,6 +146,7 @@ const edgeTypes = {
   singleParent: SingleParentEdge,
 }
 const FIT_VIEW_PADDING = 1 / 15
+const CONTEXT_MENU_VIEWPORT_GAP = 8
 
 type BloodNetworkNodeContextMenu = {
   nodeId: string
@@ -170,8 +171,14 @@ function constrainContextMenuPosition<T extends { x: number; y: number }>(
 
   return {
     ...menu,
-    x: Math.max(0, Math.min(menu.x, window.innerWidth - width)),
-    y: Math.max(0, Math.min(menu.y, window.innerHeight - height)),
+    x: Math.max(
+      CONTEXT_MENU_VIEWPORT_GAP,
+      Math.min(menu.x, window.innerWidth - width - CONTEXT_MENU_VIEWPORT_GAP),
+    ),
+    y: Math.max(
+      CONTEXT_MENU_VIEWPORT_GAP,
+      Math.min(menu.y, window.innerHeight - height - CONTEXT_MENU_VIEWPORT_GAP),
+    ),
   }
 }
 

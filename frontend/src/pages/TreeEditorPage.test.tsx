@@ -352,7 +352,7 @@ describe('TreeEditorPage', () => {
     })
   })
 
-  it('keeps the person context menu inside the viewport', async () => {
+  it('keeps the person context menu inside the viewport with an edge gap', async () => {
     vi.stubGlobal('innerWidth', 320)
     vi.stubGlobal('innerHeight', 240)
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
@@ -378,7 +378,7 @@ describe('TreeEditorPage', () => {
     })
 
     const menu = screen.getByRole('menu', { name: 'Person actions' })
-    expect(menu).toHaveStyle({ left: '120px', top: '60px' })
+    expect(menu).toHaveStyle({ left: '112px', top: '52px' })
   })
 
   it('sets a deduplicated spouse pair as reference from the person menu', async () => {
