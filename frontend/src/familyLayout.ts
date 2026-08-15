@@ -13,9 +13,8 @@ import {
   selectAnchorGeneration,
   type GenerationCandidate,
 } from './layeredGenerationPolicy'
+import { HORIZONTAL_STEP, PERSON_CARD_WIDTH } from './treeLayoutDimensions'
 
-const PERSON_CARD_WIDTH = 260
-const HORIZONTAL_STEP = 320
 const SPOUSE_CARD_GAP = 60
 const HALF_SIBLING_CARD_GAP = 60
 const SIBLING_CARD_GAP = 40

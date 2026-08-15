@@ -109,7 +109,12 @@ describe('tree layout persistence', () => {
     expect(slow.saveRequest).toEqual({
       layoutRevision: tree.layoutRevision,
       algorithmVersion: TREE_LAYOUT_ALGORITHM_VERSION,
-      positions: { [person.id]: [-130, -80] },
+      positions: {
+        [person.id]: [
+          -treeGraph.PERSON_CARD_WIDTH / 2,
+          -treeGraph.PERSON_CARD_HEIGHT / 2,
+        ],
+      },
     })
   })
 

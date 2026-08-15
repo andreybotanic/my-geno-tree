@@ -5,11 +5,11 @@ import type {
 } from './api/generated'
 import type { PathDisplayPlan, PersonCardPerson } from './pathDisplayPlan'
 import {
+  HORIZONTAL_STEP,
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
-} from './treeGraph'
+} from './treeLayoutDimensions'
 
-const HORIZONTAL_STEP = 320
 const VERTICAL_STEP = 240
 const GAP = 24
 const CELL = 320

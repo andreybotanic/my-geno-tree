@@ -236,13 +236,25 @@ describe('semantic design contracts', () => {
 
   it('uses a larger portrait card with a divider after every field', () => {
     expect(appStyles).toMatch(
-      /\.person-card\s*\{[^}]*gap:\s*10px;[^}]*grid-template-columns:\s*105px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*padding:\s*8px;[^}]*width:\s*260px;/s,
+      /\.person-card\s*\{[^}]*gap:\s*10px;[^}]*grid-template-columns:\s*105px minmax\(0, 1fr\);[^}]*height:\s*160px;[^}]*padding:\s*8px;[^}]*width:\s*286px;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.person-card-details strong span\s*\{[^}]*color:\s*inherit;[^}]*font-size:\s*inherit;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     )
     expect(appStyles).toMatch(
       /\.person-photo-placeholder\s*\{[^}]*border:\s*1px solid var\(--color-accent\);[^}]*border-radius:\s*9px;[^}]*height:\s*140px;[^}]*width:\s*105px;/s,
     )
     expect(appStyles).not.toMatch(
       /\.person-details-section > \.person-detail-row:last-child,[^{]*\{[^}]*border-bottom:\s*0;/s,
+    )
+  })
+
+  it('sizes relationship-map tooltips to their full name and life-period content', () => {
+    expect(appStyles).toMatch(
+      /\.blood-network-tooltip\s*\{[^}]*white-space:\s*nowrap;[^}]*width:\s*max-content;/s,
+    )
+    expect(appStyles).not.toMatch(
+      /\.blood-network-tooltip\s*\{[^}]*max-width:/s,
     )
   })
 

@@ -1,0 +1,4 @@
+export const PERSON_CARD_WIDTH = 286
+export const PERSON_CARD_HEIGHT = 160
+export const HORIZONTAL_STEP = PERSON_CARD_WIDTH + 60
+export const VERTICAL_STEP = 240

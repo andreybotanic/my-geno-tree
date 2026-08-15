@@ -260,7 +260,7 @@ describe('TreeEditorPage', () => {
     expect(createdCard).toBeInTheDocument()
     expect(createdCard.closest('.react-flow__node')).toHaveStyle({
       height: '160px',
-      width: '260px',
+      width: '286px',
     })
     for (const name of ['Zoom out', 'Zoom in', 'Reset camera', 'Fit graph to view']) {
       expect(screen.getByRole('button', { name }).querySelector('svg')).not.toBeNull()
@@ -1004,7 +1004,7 @@ describe('TreeEditorPage', () => {
     await userEvent.clear(input)
     await userEvent.type(input, 'Maria{Enter}')
 
-    expect(await screen.findByText('Maria')).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: 'Ivanova Maria' })).toBeInTheDocument()
     expect(request).toHaveBeenCalledWith(
       `/trees/${treeId}/people/${person.id}`,
       expect.objectContaining({
@@ -1909,7 +1909,8 @@ describe('TreeEditorPage', () => {
         },
       })
     })
-    expect(screen.getAllByText('Petrov Ivan')).toHaveLength(2)
+    expect(screen.getByRole('article', { name: 'Petrov Ivan' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Petrov Ivan' })).toBeInTheDocument()
   })
 
   it('links an existing spouse and edits the resulting marriage period', async () => {
@@ -1966,7 +1967,8 @@ describe('TreeEditorPage', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )
-    expect(await screen.findAllByText('Ivanov Petr')).toHaveLength(2)
+    expect(await screen.findByRole('article', { name: 'Ivanov Petr' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ivanov Petr' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     const editDialog = screen.getByRole('dialog', {
       name: 'Edit marriage',

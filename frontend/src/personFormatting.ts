@@ -14,17 +14,24 @@ function knownValue(text: KnownText): string | null {
   return text.state === 'known' ? text.value : null
 }
 
-export function formatPersonName(
+export function formatPersonNameParts(
   person: Pick<Person, 'birthSurname' | 'givenName' | 'patronymic'>,
   translate: Translate,
-): string {
+): string[] {
   const parts = [
     knownValue(person.birthSurname),
     knownValue(person.givenName),
     knownValue(person.patronymic),
   ].filter((part): part is string => part !== null)
 
-  return parts.length > 0 ? parts.join(' ') : translate('person.unknownPerson')
+  return parts.length > 0 ? parts : [translate('person.unknownPerson')]
+}
+
+export function formatPersonName(
+  person: Pick<Person, 'birthSurname' | 'givenName' | 'patronymic'>,
+  translate: Translate,
+): string {
+  return formatPersonNameParts(person, translate).join(' ')
 }
 
 export function formatGenealogicalDate(

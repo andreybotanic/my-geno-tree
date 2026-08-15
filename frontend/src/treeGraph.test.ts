@@ -6,6 +6,7 @@ import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
 } from './treeGraph'
+import { HORIZONTAL_STEP } from './treeLayoutDimensions'
 
 const createdAt = '2026-08-05T00:00:00+00:00'
 const person = (id: string): Person => ({
@@ -86,7 +87,7 @@ describe('deterministic tree layout', () => {
     const positions = layoutTree(tree)
     const first = positions.get('father')!
     const second = positions.get('mother')!
-    expect(Math.abs(first.x - second.x)).toBe(320)
+    expect(Math.abs(first.x - second.x)).toBe(HORIZONTAL_STEP)
     expect((first.x + second.x) / 2 + PERSON_CARD_WIDTH / 2).toBe(0)
     expect(first.y).toBe(second.y)
   })
@@ -466,7 +467,7 @@ describe('deterministic tree layout', () => {
           .sort((left, right) => left - right)
         expect(childCenters.slice(1).map((center, index) => (
           center - childCenters[index]!
-        ))).toEqual([300, 300, 300])
+        ))).toEqual(Array(3).fill(PERSON_CARD_WIDTH + 40))
       }
     }
     expect([...layoutTree(snapshot(
@@ -893,7 +894,7 @@ describe('deterministic tree layout', () => {
 
     expect(paternalRight).toBeLessThan(maternalLeft)
     expect(positions.get('father')!.x).toBeLessThan(positions.get('mother')!.x)
-    expect(positions.get('mother')!.x - positions.get('father')!.x).toBe(320)
+    expect(positions.get('mother')!.x - positions.get('father')!.x).toBe(HORIZONTAL_STEP)
   })
 
   it('balances one parent between several spouse families', () => {

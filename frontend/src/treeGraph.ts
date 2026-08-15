@@ -2,13 +2,16 @@ import type { Edge, XYPosition } from '@xyflow/react'
 import type { MarriagePeriod, ParentLink, TreeSnapshot } from './api/generated'
 import { refineFamilyLayout } from './familyLayout'
 import { effectiveReference } from './focusedTree'
+import {
+  HORIZONTAL_STEP,
+  PERSON_CARD_HEIGHT,
+  PERSON_CARD_WIDTH,
+  VERTICAL_STEP,
+} from './treeLayoutDimensions'
 
-export const PERSON_CARD_WIDTH = 260
-export const PERSON_CARD_HEIGHT = 160
+export { PERSON_CARD_HEIGHT, PERSON_CARD_WIDTH } from './treeLayoutDimensions'
 export const CHILD_BRANCH_OFFSET = 28
 export const PAIR_TO_CHILD_CLEARANCE = 12
-const HORIZONTAL_STEP = 320
-const VERTICAL_STEP = 240
 const PARTNER_OUTLET_SPACING = 32
 const MIN_BRACKET_DEPTH = 16
 const MIN_NESTED_BRACKET_SEPARATION = 12

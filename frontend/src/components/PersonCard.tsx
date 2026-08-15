@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   formatLifePeriod,
   formatPersonName,
+  formatPersonNameParts,
 } from '../personFormatting'
 import { AuthenticatedImage } from './AuthenticatedImage'
 import { PersonPortraitPlaceholder } from './PersonPortraitPlaceholder'
@@ -23,6 +24,7 @@ export function PersonCard({
 }: NodeProps<PersonFlowNode>) {
   const { t, i18n } = useTranslation()
   const name = formatPersonName(data.person, t)
+  const nameParts = formatPersonNameParts(data.person, t)
 
   return (
     <article
@@ -54,7 +56,11 @@ export function PersonCard({
         />
       </div>
       <div className="person-card-details">
-        <strong>{name}</strong>
+        <strong>
+          {nameParts.map((part, index) => (
+            <span key={`${part}-${index}`}>{part}</span>
+          ))}
+        </strong>
         <span>
           {formatLifePeriod(
             data.person,

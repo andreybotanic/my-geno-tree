@@ -4,6 +4,7 @@ import {
   formatGenealogicalDate,
   formatLifePeriod,
   formatPersonName,
+  formatPersonNameParts,
 } from './personFormatting'
 
 const translate = (key: string) => ({
@@ -38,11 +39,17 @@ const person = {
 describe('person formatting', () => {
   it('omits unknown name parts without decorative gaps', () => {
     expect(formatPersonName(person, translate)).toBe('Ivanov Petrovich')
+    expect(formatPersonNameParts(person, translate)).toEqual(['Ivanov', 'Petrovich'])
     expect(formatPersonName({
       birthSurname: { state: 'unknown' },
       givenName: { state: 'unknown' },
       patronymic: { state: 'unknown' },
     }, translate)).toBe('Unknown person')
+    expect(formatPersonNameParts({
+      birthSurname: { state: 'unknown' },
+      givenName: { state: 'unknown' },
+      patronymic: { state: 'unknown' },
+    }, translate)).toEqual(['Unknown person'])
   })
 
   it('formats date parts and every date kind', () => {
