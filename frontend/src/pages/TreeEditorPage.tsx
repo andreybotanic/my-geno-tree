@@ -162,6 +162,19 @@ type TreeContextMenu = {
   y: number
 }
 
+function constrainContextMenuPosition<T extends { x: number; y: number }>(
+  menu: T,
+  element: HTMLElement,
+): T {
+  const { height, width } = element.getBoundingClientRect()
+
+  return {
+    ...menu,
+    x: Math.max(0, Math.min(menu.x, window.innerWidth - width)),
+    y: Math.max(0, Math.min(menu.y, window.innerHeight - height)),
+  }
+}
+
 type BloodNetworkRotationSession = {
   initialAngle: number
   nodes: BloodNetworkFlowNode[]
@@ -863,6 +876,8 @@ function TreeCanvas({
     BloodNetworkNodeContextMenu | null
   >(null)
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null)
+  const bloodNetworkContextMenuElement = useRef<HTMLElement>(null)
+  const treeContextMenuElement = useRef<HTMLElement>(null)
   const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
     string | null
   >(null)
@@ -1302,6 +1317,34 @@ function TreeCanvas({
       void restoreCamera(flow, view)
     }
   }, [rememberCamera, restoreCamera, view])
+
+  useLayoutEffect(() => {
+    if (!treeContextMenu || !treeContextMenuElement.current) return
+    const positionedMenu = constrainContextMenuPosition(
+      treeContextMenu,
+      treeContextMenuElement.current,
+    )
+    if (
+      positionedMenu.x !== treeContextMenu.x
+      || positionedMenu.y !== treeContextMenu.y
+    ) {
+      setTreeContextMenu(positionedMenu)
+    }
+  }, [treeContextMenu])
+
+  useLayoutEffect(() => {
+    if (!bloodNetworkContextMenu || !bloodNetworkContextMenuElement.current) return
+    const positionedMenu = constrainContextMenuPosition(
+      bloodNetworkContextMenu,
+      bloodNetworkContextMenuElement.current,
+    )
+    if (
+      positionedMenu.x !== bloodNetworkContextMenu.x
+      || positionedMenu.y !== bloodNetworkContextMenu.y
+    ) {
+      setBloodNetworkContextMenu(positionedMenu)
+    }
+  }, [bloodNetworkContextMenu])
 
   useLayoutEffect(() => {
     if (view !== 'network') {
@@ -1775,6 +1818,7 @@ function TreeCanvas({
       <menu
         aria-label={t('editor.personContextMenu')}
         className="blood-network-node-menu tree-context-menu"
+        ref={treeContextMenuElement}
         role="menu"
         style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
       >
@@ -1968,6 +2012,7 @@ function TreeCanvas({
       <menu
         aria-label={t('editor.bloodNetworkNodeMenu')}
         className="blood-network-node-menu"
+        ref={bloodNetworkContextMenuElement}
         role="menu"
         style={{ left: bloodNetworkContextMenu.x, top: bloodNetworkContextMenu.y }}
       >

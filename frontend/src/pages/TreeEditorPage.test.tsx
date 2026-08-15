@@ -352,6 +352,35 @@ describe('TreeEditorPage', () => {
     })
   })
 
+  it('keeps the person context menu inside the viewport', async () => {
+    vi.stubGlobal('innerWidth', 320)
+    vi.stubGlobal('innerHeight', 240)
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.matches('menu.tree-context-menu')) {
+          return {
+            height: 180,
+            width: 200,
+          } as DOMRect
+        }
+
+        return originalGetBoundingClientRect.call(this)
+      },
+    )
+    const request = vi.fn(async () => graphSnapshot([person])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    fireEvent.contextMenu(card.closest('.react-flow__node')!, {
+      clientX: 300,
+      clientY: 220,
+    })
+
+    const menu = screen.getByRole('menu', { name: 'Person actions' })
+    expect(menu).toHaveStyle({ left: '120px', top: '60px' })
+  })
+
   it('sets a deduplicated spouse pair as reference from the person menu', async () => {
     const repeatedMarriage = { ...marriage, id: 'second-period' }
     const initial = {
