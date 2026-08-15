@@ -167,7 +167,7 @@ describe('semantic design contracts', () => {
       /\.person-photo-actions-empty \.add-button\s*\{[^}]*height:\s*36px;[^}]*width:\s*132px;/s,
     )
     expect(appStyles).toMatch(
-      /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*width:\s*15px;/s,
+      /\.add-button-icon\s*\{[^}]*stroke:\s*currentcolor;[^}]*stroke-width:\s*3;[^}]*width:\s*18px;/s,
     )
     expect(appStyles).toMatch(
       /\.add-button:hover:not\(:disabled\)\s*\{[^}]*background:\s*var\(--color-accent-hover\);[^}]*box-shadow:\s*0 5px 14px var\(--color-shadow\);/s,

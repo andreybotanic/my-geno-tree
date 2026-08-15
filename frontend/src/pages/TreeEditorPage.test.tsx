@@ -635,10 +635,10 @@ describe('TreeEditorPage', () => {
     expect(window.location.pathname).toBe(`/trees/${treeId}/network`)
     const showFamilyTree = screen.getByRole('button', { name: 'Show family tree' })
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
-    expect(showFamilyTree.querySelector('svg')).toHaveAttribute('viewBox', '0 0 16 16')
+    expect(showFamilyTree.querySelector('svg')).toHaveAttribute('viewBox', '0 0 24 24')
     expect(showFamilyTree.querySelector('path')).toHaveAttribute(
       'd',
-      'M8 2v4M4 14v-3h8v3M4 11V8h8v3',
+      'M12 7.25v4.75M5 12h14M5 12v4.75M12 12v4.75M19 12v4.75',
     )
     const anna = screen.getByRole('article', { name: 'Ivanova Anna' })
     expect(anna).toHaveClass('blood-network-person')

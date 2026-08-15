@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import HelpIcon from '../assets/icons/help.svg?react'
 import type { TreeImportInspection, TreeImportWarning } from '../api/generated'
 import {
   ApiRequestError,
@@ -130,11 +131,7 @@ export function ImportTreeDialog({ onCancel, onImported, request }: ImportTreeDi
                   className="import-place-recognition-help-button"
                   type="button"
                 >
-                  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
-                    <path d="M12 10.5v5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-                    <circle cx="12" cy="7.5" fill="currentColor" r="1" />
-                  </svg>
+                  <HelpIcon aria-hidden="true" />
                 </button>
                 <span className="import-place-recognition-tooltip" id="import-place-recognition-tooltip" role="tooltip">
                   {t('treeImport.recognizePlacesHelp')}

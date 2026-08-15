@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import CloseIcon from '../assets/icons/close.svg?react'
 
 type ToastNoticeProps = {
   closeLabel: string
@@ -22,7 +23,7 @@ export function ToastNotice({
     <div className="toast-notice" role="status">
       <span>{message}</span>
       <button aria-label={closeLabel} onClick={onClose} title={closeLabel} type="button">
-        ×
+        <CloseIcon aria-hidden="true" focusable="false" />
       </button>
     </div>
   )

@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import ChevronDownIcon from '../assets/icons/chevron-down.svg?react'
+import CheckIcon from '../assets/icons/check.svg?react'
+import EnglishFlagIcon from '../assets/flags/en.svg?react'
+import RussianFlagIcon from '../assets/flags/ru.svg?react'
 import type { Language } from '../i18n'
 
 const languages = [
@@ -10,56 +14,9 @@ const languages = [
 }>
 
 function LanguageFlag({ language }: { language: Language }) {
-  if (language === 'ru') {
-    return (
-      <svg
-        aria-hidden="true"
-        className="language-flag"
-        data-testid="language-flag-ru"
-        focusable="false"
-        viewBox="0 0 24 16"
-      >
-        <rect fill="#fff" height="16" width="24" />
-        <rect fill="#0039a6" height="5.334" width="24" y="5.333" />
-        <rect fill="#d52b1e" height="5.333" width="24" y="10.667" />
-      </svg>
-    )
-  }
+  const Icon = language === 'ru' ? RussianFlagIcon : EnglishFlagIcon
 
-  const stripeHeight = 16 / 13
-  const stars = [
-    [1.1, 1], [2.7, 1], [4.3, 1], [5.9, 1], [7.5, 1], [9.1, 1],
-    [1.9, 2.2], [3.5, 2.2], [5.1, 2.2], [6.7, 2.2], [8.3, 2.2],
-    [1.1, 3.4], [2.7, 3.4], [4.3, 3.4], [5.9, 3.4], [7.5, 3.4], [9.1, 3.4],
-    [1.9, 4.6], [3.5, 4.6], [5.1, 4.6], [6.7, 4.6], [8.3, 4.6],
-    [1.1, 5.8], [2.7, 5.8], [4.3, 5.8], [5.9, 5.8], [7.5, 5.8], [9.1, 5.8],
-    [1.9, 7], [3.5, 7], [5.1, 7], [6.7, 7], [8.3, 7],
-  ] as const
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="language-flag"
-      data-testid="language-flag-en"
-      focusable="false"
-      viewBox="0 0 24 16"
-    >
-      <rect fill="#fff" height="16" width="24" />
-      {Array.from({ length: 7 }, (_, index) => (
-        <rect
-          fill="#b22234"
-          height={stripeHeight}
-          key={index}
-          width="24"
-          y={index * stripeHeight * 2}
-        />
-      ))}
-      <rect fill="#3c3b6e" height={stripeHeight * 7} width="10.2" />
-      {stars.map(([x, y]) => (
-        <circle cx={x} cy={y} fill="#fff" key={`${x}-${y}`} r="0.22" />
-      ))}
-    </svg>
-  )
+  return <Icon aria-hidden="true" className="language-flag" data-testid={`language-flag-${language}`} focusable="false" />
 }
 
 interface LanguagePickerProps {
@@ -121,14 +78,7 @@ export function LanguagePicker({
       >
         <LanguageFlag language={selectedLanguage.code} />
         <span>{selectedLanguage.label}</span>
-        <svg
-          aria-hidden="true"
-          className="language-picker-chevron"
-          focusable="false"
-          viewBox="0 0 12 8"
-        >
-          <path d="M1 1.25 6 6.25l5-5" />
-        </svg>
+        <ChevronDownIcon aria-hidden="true" className="language-picker-chevron" focusable="false" />
       </button>
       {open && (
         <div aria-label={label} className="language-picker-menu" role="listbox">
@@ -148,7 +98,7 @@ export function LanguagePicker({
               <LanguageFlag language={language.code} />
               <span>{language.label}</span>
               <span aria-hidden="true" className="language-picker-check">
-                {language.code === value ? '✓' : ''}
+                {language.code === value && <CheckIcon focusable="false" />}
               </span>
             </button>
           ))}

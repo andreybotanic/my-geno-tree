@@ -254,15 +254,15 @@ describe('PersonDetailsPanel', () => {
     expect(row).not.toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Edit Given name' }))
     expect(row?.querySelector('.inline-person-editor-compact')).not.toBeNull()
-    expect(within(row as HTMLElement).getByRole('button', { name: 'Cancel' }))
-      .toHaveTextContent('×')
+    expect(within(row as HTMLElement).getByRole('button', { name: 'Cancel' })
+      .querySelector('svg')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(screen.getByRole('button', { name: 'Edit Gender' }))
     const genderRow = screen.getByText('Gender').closest('.person-detail-row')
     expect(genderRow?.querySelector('.inline-person-editor-compact')).not.toBeNull()
-    expect(within(genderRow as HTMLElement).getByRole('button', { name: 'Cancel' }))
-      .toHaveTextContent('×')
+    expect(within(genderRow as HTMLElement).getByRole('button', { name: 'Cancel' })
+      .querySelector('svg')).toBeInTheDocument()
   })
 
   it('saves gender and structured birth date changes', async () => {
@@ -287,8 +287,8 @@ describe('PersonDetailsPanel', () => {
     const dateRow = dateEditor.closest('.person-detail-row')
     expect(within(dateRow as HTMLElement).queryAllByText('Birth date')).toHaveLength(1)
     expect(dateRow?.querySelector('fieldset')).toBeNull()
-    expect(within(dateRow as HTMLElement).getByRole('button', { name: 'Cancel' }))
-      .toHaveTextContent('×')
+    expect(within(dateRow as HTMLElement).getByRole('button', { name: 'Cancel' })
+      .querySelector('svg')).toBeInTheDocument()
     await userEvent.selectOptions(
       within(dateEditor).getByRole('combobox', {
         name: 'Birth date: Month',

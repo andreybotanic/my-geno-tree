@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import CloseIcon from '../assets/icons/close.svg?react'
 import type {
   GenealogicalDate,
   GenealogicalEvent,
@@ -176,7 +177,7 @@ function InlineEditor<T>({
         title={t('common.cancel')}
         type="button"
       >
-        ×
+        <CloseIcon aria-hidden="true" focusable="false" />
       </button>
       {error && <small role="alert">{error}</small>}
     </form>
@@ -329,7 +330,7 @@ export function PersonDetailsPanel({
             onClick={onClose}
             type="button"
           >
-            <CloseIcon />
+            <CloseIcon aria-hidden="true" className="dialog-close-icon" focusable="false" />
           </button>
         </div>
       </div>
@@ -546,18 +547,5 @@ export function PersonDetailsPanel({
         </section>
       )}
     </aside>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="dialog-close-icon"
-      focusable="false"
-      viewBox="0 0 24 24"
-    >
-      <path d="m5 5 14 14M19 5 5 19" />
-    </svg>
   )
 }

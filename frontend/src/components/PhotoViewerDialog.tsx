@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import CloseIcon from '../assets/icons/close.svg?react'
 import { AuthenticatedImage } from './AuthenticatedImage'
 
 type PhotoViewerDialogProps = {
@@ -28,14 +29,7 @@ export function PhotoViewerDialog({
           onClick={onClose}
           type="button"
         >
-          <svg
-            aria-hidden="true"
-            className="dialog-close-icon"
-            focusable="false"
-            viewBox="0 0 24 24"
-          >
-            <path d="m5 5 14 14M19 5 5 19" />
-          </svg>
+          <CloseIcon aria-hidden="true" className="dialog-close-icon" focusable="false" />
         </button>
         <div className="photo-viewer-content">
           <AuthenticatedImage

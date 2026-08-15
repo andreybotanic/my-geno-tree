@@ -20,8 +20,9 @@ describe('AddButton', () => {
     )
     expect(button.querySelector('path')).toHaveAttribute(
       'd',
-      'M8 3v10M3 8h10',
+      'M12 4.5v15M4.5 12h15',
     )
+    expect(button.querySelector('svg')).toHaveAttribute('stroke-width', '3')
 
     await userEvent.click(button)
     expect(onClick).toHaveBeenCalledOnce()

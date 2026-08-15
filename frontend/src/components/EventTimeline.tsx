@@ -1,5 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import MoveDownIcon from '../assets/icons/move-down.svg?react'
+import MoveUpIcon from '../assets/icons/move-up.svg?react'
 import type { GenealogicalEvent } from '../api/generated'
 import { canMoveEvent } from '../eventTimeline'
 import { formatGenealogicalDate } from '../personFormatting'
@@ -175,7 +177,7 @@ export function EventTimeline({
                       onClick={() => void move(event, -1)}
                       type="button"
                     >
-                      ↑
+                      <MoveUpIcon aria-hidden="true" />
                     </button>
                     <button
                       aria-label={t('events.moveDown', { title })}
@@ -183,7 +185,7 @@ export function EventTimeline({
                       onClick={() => void move(event, 1)}
                       type="button"
                     >
-                      ↓
+                      <MoveDownIcon aria-hidden="true" />
                     </button>
                   </div>
                 </li>

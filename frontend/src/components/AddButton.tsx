@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
+import AddBoldIcon from '../assets/icons/add-bold.svg?react'
 
 type AddButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -24,14 +25,7 @@ export function AddButton({
       }`}
       type={type}
     >
-      <svg
-        aria-hidden="true"
-        className="add-button-icon"
-        focusable="false"
-        viewBox="0 0 16 16"
-      >
-        <path d="M8 3v10M3 8h10" />
-      </svg>
+      <AddBoldIcon aria-hidden="true" className="add-button-icon" focusable="false" />
       <span>{label ?? t('common.add')}</span>
     </button>
   )

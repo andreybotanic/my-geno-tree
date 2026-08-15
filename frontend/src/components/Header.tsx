@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ChevronDownIcon from '../assets/icons/chevron-down.svg?react'
+import LogoutIcon from '../assets/icons/logout.svg?react'
+import PersonOutlineIcon from '../assets/icons/person-outline.svg?react'
+import TreeIcon from '../assets/icons/tree.svg?react'
 import { useAuth } from '../auth/AuthContext'
 import { navigate } from '../routing'
 import { AuthDialog } from './AuthDialog'
@@ -94,14 +98,7 @@ export function Header() {
                   />
                 </span>
                 <span className="profile-trigger-login">{user.username}</span>
-                <svg
-                  aria-hidden="true"
-                  className="profile-trigger-chevron"
-                  focusable="false"
-                  viewBox="0 0 12 8"
-                >
-                  <path d="M1 1.25 6 6.25l5-5" />
-                </svg>
+                <ChevronDownIcon aria-hidden="true" className="profile-trigger-chevron" focusable="false" />
               </button>
               {menuOpen && (
                 <div className="profile-menu">
@@ -147,36 +144,11 @@ function ProfileMenuIcon({
 }: {
   type: 'logout' | 'profile' | 'trees'
 }) {
-  const path = type === 'profile'
-    ? (
-        <>
-          <circle cx="8" cy="5" r="2.5" />
-          <path d="M3.5 14c.4-3 2-4.5 4.5-4.5s4.1 1.5 4.5 4.5" />
-        </>
-      )
+  const Icon = type === 'profile'
+    ? PersonOutlineIcon
     : type === 'trees'
-      ? (
-          <>
-            <path d="M8 2v4M4 14v-3h8v3M4 11V8h8v3" />
-            <circle cx="8" cy="2" r="1.25" />
-            <circle cx="4" cy="14" r="1.25" />
-            <circle cx="12" cy="14" r="1.25" />
-          </>
-        )
-      : (
-          <>
-            <path d="M6.5 3H3v10h3.5M9.5 5l3 3-3 3M12.5 8h-7" />
-          </>
-        )
+      ? TreeIcon
+      : LogoutIcon
 
-  return (
-    <svg
-      aria-hidden="true"
-      className="profile-menu-icon"
-      focusable="false"
-      viewBox="0 0 16 16"
-    >
-      {path}
-    </svg>
-  )
+  return <Icon aria-hidden="true" className="profile-menu-icon" focusable="false" />
 }

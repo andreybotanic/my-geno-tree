@@ -5,6 +5,8 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import EyeIcon from '../assets/icons/eye.svg?react'
+import SearchIcon from '../assets/icons/search.svg?react'
 import type { PersonSearchResult } from '../api/generated'
 
 type PersonSearchPanelProps = {
@@ -113,10 +115,7 @@ export function PersonSearchPanel({
         title={t('editor.personSearch')}
         type="button"
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <circle cx="10.5" cy="10.5" r="5.75" />
-          <path d="m15 15 5 5" />
-        </svg>
+        <SearchIcon aria-hidden="true" />
       </button>
       {expanded && (
         <div className="person-search-content">
@@ -170,10 +169,7 @@ export function PersonSearchPanel({
                           className="person-search-result-visible"
                           title={t('editor.personSearchVisible')}
                         >
-                          <svg aria-hidden="true" viewBox="0 0 24 24">
-                            <path d="M2.5 12s3.5-5.5 9.5-5.5S21.5 12 21.5 12s-3.5 5.5-9.5 5.5S2.5 12 2.5 12Z" />
-                            <circle cx="12" cy="12" r="2.5" />
-                          </svg>
+                          <EyeIcon aria-hidden="true" />
                         </span>
                       )}
                     </span>

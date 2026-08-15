@@ -21,14 +21,8 @@ export function UnknownToggleButton({
       title={title}
       type="button"
     >
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        viewBox="0 0 18 18"
-      >
-        <rect height="10" rx="2" width="14" x="2" y="4" />
-        <path d="M5.5 9h7" />
-      </svg>
+      <UnknownIcon aria-hidden="true" focusable="false" />
     </button>
   )
 }
+import UnknownIcon from '../assets/icons/unknown.svg?react'

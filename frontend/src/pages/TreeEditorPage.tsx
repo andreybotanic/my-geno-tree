@@ -53,6 +53,16 @@ import {
   type AuthorizedJsonRequest,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import AddIcon from '../assets/icons/add.svg?react'
+import CloseIcon from '../assets/icons/close.svg?react'
+import ExportIcon from '../assets/icons/export.svg?react'
+import FitViewIcon from '../assets/icons/fit-view.svg?react'
+import MinusIcon from '../assets/icons/minus.svg?react'
+import NetworkIcon from '../assets/icons/network.svg?react'
+import ResetCameraIcon from '../assets/icons/reset-camera.svg?react'
+import RotateIcon from '../assets/icons/rotate.svg?react'
+import SaveIcon from '../assets/icons/save.svg?react'
+import TreeIcon from '../assets/icons/tree.svg?react'
 import {
   PersonCard,
   type PersonFlowNode,
@@ -302,10 +312,7 @@ function ZoomControls({
           title={t('editor.resetCamera')}
           type="button"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="5" />
-            <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
-          </svg>
+          <ResetCameraIcon aria-hidden="true" />
         </button>
         <button
           aria-label={t('editor.fitView')}
@@ -314,9 +321,7 @@ function ZoomControls({
           title={t('editor.fitView')}
           type="button"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
-          </svg>
+          <FitViewIcon aria-hidden="true" />
         </button>
       </div>
       <div className="zoom-controls">
@@ -327,9 +332,7 @@ function ZoomControls({
           title={t('editor.zoomOut')}
           type="button"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M5 12h14" />
-          </svg>
+          <MinusIcon aria-hidden="true" />
         </button>
         {isZoomEditing ? (
           <input
@@ -378,9 +381,7 @@ function ZoomControls({
           title={t('editor.zoomIn')}
           type="button"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M5 12h14M12 5v14" />
-          </svg>
+          <AddIcon aria-hidden="true" />
         </button>
       </div>
     </Panel>
@@ -413,9 +414,7 @@ function LayoutToolbar({
         title={t('treeExport.action')}
         type="button"
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
-        </svg>
+        <ExportIcon aria-hidden="true" />
       </button>
       <button
         aria-label={isNetworkView
@@ -429,25 +428,8 @@ function LayoutToolbar({
         type="button"
       >
         {isNetworkView
-          ? (
-              <svg aria-hidden="true" viewBox="0 0 16 16">
-                <path d="M8 2v4M4 14v-3h8v3M4 11V8h8v3" />
-                <circle cx="8" cy="2" r="1.25" />
-                <circle cx="4" cy="14" r="1.25" />
-                <circle cx="12" cy="14" r="1.25" />
-              </svg>
-            )
-          : (
-              <svg aria-hidden="true" viewBox="0 0 24 24">
-                <path d="M6 7 12 4l6 3M6 7l-2 8m8-11v8m6-5 2 8M4 15l8 5 8-5" />
-                <circle cx="6" cy="7" r="2.3" />
-                <circle cx="12" cy="4" r="2.3" />
-                <circle cx="18" cy="7" r="2.3" />
-                <circle cx="4" cy="15" r="2.3" />
-                <circle cx="12" cy="20" r="2.3" />
-                <circle cx="20" cy="15" r="2.3" />
-              </svg>
-            )}
+          ? <TreeIcon aria-hidden="true" />
+          : <NetworkIcon aria-hidden="true" />}
       </button>
       {isNetworkView && (
         <>
@@ -458,10 +440,7 @@ function LayoutToolbar({
             title={t('editor.saveBloodNetworkState')}
             type="button"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M5 4h12l2 2v14H5z" />
-              <path d="M8 4v6h8V4M8 18h8v-5H8z" />
-            </svg>
+            <SaveIcon aria-hidden="true" />
           </button>
           <button
             aria-label={t('editor.regenerateBloodNetwork')}
@@ -470,10 +449,7 @@ function LayoutToolbar({
             title={t('editor.regenerateBloodNetwork')}
             type="button"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M19 8a7.5 7.5 0 1 0 1 7" />
-              <path d="M19 4v4h-4" />
-            </svg>
+            <RotateIcon aria-hidden="true" />
           </button>
         </>
       )}
@@ -592,10 +568,7 @@ function BloodNetworkSidebar({
                 title={t('editor.saveBloodNetworkPreset')}
                 type="button"
               >
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M5 3h12l3 3v15H5z" />
-                  <path d="M8 3v6h8V3M8 21v-7h8v7" />
-                </svg>
+                <SaveIcon aria-hidden="true" />
               </button>
               <button
                 aria-label={t('editor.reloadBloodNetworkPreset')}
@@ -604,10 +577,7 @@ function BloodNetworkSidebar({
                 title={t('editor.reloadBloodNetworkPreset')}
                 type="button"
               >
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M19 8a7.5 7.5 0 1 0 1 7" />
-                  <path d="M19 4v4h-4" />
-                </svg>
+                <RotateIcon aria-hidden="true" />
               </button>
               <button
                 aria-label={t('person.editField', {
@@ -1735,9 +1705,7 @@ function TreeCanvas({
             title={t('editor.closePathDisplay')}
             type="button"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="m7 7 10 10M17 7 7 17" />
-            </svg>
+            <CloseIcon aria-hidden="true" />
           </button>
         </Panel>
       )}

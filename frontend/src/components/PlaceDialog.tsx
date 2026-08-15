@@ -11,6 +11,7 @@ import type {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
+import MapPinIcon from '../assets/icons/map-pin.svg?react'
 import { ActionIcon } from './ActionIcon'
 import type {
   EventPlace,
@@ -474,10 +475,7 @@ export function PlaceIconButton({
       title={label}
       type="button"
     >
-      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-        <path d="M12 21s6-5.6 6-12a6 6 0 1 0-12 0c0 6.4 6 12 6 12Z" />
-        <circle cx="12" cy="9" r="2.2" />
-      </svg>
+      <MapPinIcon aria-hidden="true" focusable="false" />
     </button>
   )
 }
