@@ -226,14 +226,7 @@ final class PersonApiTest extends ApiWebTestCase
                 ],
             ]),
             $this->person([
-                'birthDate' => [
-                    'state'       => 'known',
-                    'precision'   => 'day',
-                    'year'        => 1900,
-                    'month'       => 2,
-                    'day'         => 30,
-                    'approximate' => false,
-                ],
+                'birthDate' => $this->knownDate('day', 1900, month: 2, day: 30),
             ]),
             $this->person([
                 'birthDate' => $this->knownDate('year', 1581),

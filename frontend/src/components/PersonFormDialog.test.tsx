@@ -112,8 +112,8 @@ describe('PersonFormDialog', () => {
       '3',
     )
     await userEvent.type(
-      within(death).getByRole('spinbutton', { name: 'Death date: Day' }),
-      '4',
+      within(death).getByRole('textbox', { name: 'Death date: Day' }),
+      '04',
     )
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
@@ -149,6 +149,36 @@ describe('PersonFormDialog', () => {
       'Check the entered name and date values.',
     )
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('ignores invalid day edits and adjusts the day after changing the month or year', async () => {
+    render(<PersonFormDialog onCancel={vi.fn()} onSave={vi.fn(async () => {})} />)
+    const birth = within(screen.getByRole('dialog', {
+      name: 'Create the first person',
+    })).getByRole('group', { name: 'Birth date' })
+    const year = within(birth).getByRole('spinbutton', { name: 'Birth date: Year' })
+    const month = within(birth).getByRole('combobox', { name: 'Birth date: Month' })
+    const day = within(birth).getByRole('textbox', { name: 'Birth date: Day' })
+
+    await userEvent.type(year, '2000')
+    await userEvent.selectOptions(month, '2')
+    await userEvent.type(day, '4')
+    expect(day).toHaveValue('')
+    await userEvent.type(day, '29')
+    expect(day).toHaveValue('29')
+    await userEvent.type(day, '.')
+    expect(day).toHaveValue('29')
+    await userEvent.clear(year)
+    await userEvent.type(year, '1900')
+    expect(day).toHaveValue('')
+    await userEvent.selectOptions(month, '4')
+    await userEvent.type(day, '3')
+    expect(day).toHaveValue('3')
+    await userEvent.type(day, '1')
+    expect(day).toHaveValue('3')
+    await userEvent.clear(day)
+    await userEvent.type(day, '30')
+    expect(day).toHaveValue('30')
   })
 
   it('shows month names in the selected interface language', async () => {

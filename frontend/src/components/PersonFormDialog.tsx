@@ -2,7 +2,12 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonInput } from '../api/generated'
 import { ApiRequestError } from '../api/client'
-import { emptyDate, type DateInputState } from '../personFormValues'
+import {
+  dateDayInputValue,
+  emptyDate,
+  isValidDateDay,
+  type DateInputState,
+} from '../personFormValues'
 import {
   emptyPersonForm,
   personFormValue,
@@ -92,6 +97,12 @@ export function StructuredDateInput({
     const monthKey = prefix ? 'endMonth' : 'month'
     const dayKey = prefix ? 'endDay' : 'day'
 
+    const retainedDay = (year: string, month: string) => (
+      isValidDateDay(state[dayKey], year, month)
+        ? state[dayKey]
+        : ''
+    )
+
     return (
       <div
         aria-label={state.kind === 'between' ? rowLabel : undefined}
@@ -107,7 +118,11 @@ export function StructuredDateInput({
             inputMode="numeric"
             max="9999"
             min="1582"
-            onChange={(event) => onChange({ ...state, [yearKey]: event.target.value })}
+            onChange={(event) => onChange({
+              ...state,
+              [dayKey]: retainedDay(event.target.value, state[monthKey]),
+              [yearKey]: event.target.value,
+            })}
             type="number"
             value={state[yearKey]}
           />
@@ -119,7 +134,9 @@ export function StructuredDateInput({
             disabled={state.unknown}
             onChange={(event) => onChange({
               ...state,
-              [dayKey]: event.target.value === '' ? '' : state[dayKey],
+              [dayKey]: event.target.value === ''
+                ? ''
+                : retainedDay(state[yearKey], event.target.value),
               [monthKey]: event.target.value,
             })}
             value={state[monthKey]}
@@ -134,10 +151,22 @@ export function StructuredDateInput({
             aria-label={`${rowLabel}: ${t('person.day')}`}
             disabled={state.unknown || state[monthKey] === ''}
             inputMode="numeric"
-            max="31"
-            min="1"
-            onChange={(event) => onChange({ ...state, [dayKey]: event.target.value })}
-            type="number"
+            maxLength={2}
+            onChange={(event) => {
+              const value = dateDayInputValue(
+                event.target.value,
+                state[yearKey],
+                state[monthKey],
+              )
+              if (null === value) {
+                event.currentTarget.value = state[dayKey]
+
+                return
+              }
+              onChange({ ...state, [dayKey]: value })
+            }}
+            pattern="[0-9]*"
+            type="text"
             value={state[dayKey]}
           />
         </label>

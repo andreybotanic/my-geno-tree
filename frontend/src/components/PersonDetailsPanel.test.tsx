@@ -345,8 +345,8 @@ describe('PersonDetailsPanel', () => {
       '2',
     )
     await userEvent.type(
-      within(dateEditor).getByRole('spinbutton', { name: 'Birth date: Day' }),
-      '3',
+      within(dateEditor).getByRole('textbox', { name: 'Birth date: Day' }),
+      '03',
     )
     await userEvent.click(
       within(dateEditor.closest('form') as HTMLFormElement)
@@ -415,9 +415,9 @@ describe('PersonDetailsPanel', () => {
     expect(within(editor).getByRole('combobox', {
       name: 'Birth date: Month',
     })).toHaveValue('2')
-    expect(within(editor).getByRole('spinbutton', {
+    expect(within(editor).getByRole('textbox', {
       name: 'Birth date: Day',
-    })).toHaveValue(3)
+    })).toHaveValue('3')
   })
 
   it('distinguishes living from a deceased person with unknown date', async () => {

@@ -1,10 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import {
+  dateDayInputValue,
   dateValue,
   emptyDate,
+  isValidDateDay,
   unknownDate,
   type DateInputState,
 } from './personFormValues'
+
+describe('dateDayInputValue', () => {
+  it.each([
+    ['', '1900', '2', ''],
+    ['0', '1900', '2', '0'],
+    ['01', '1900', '2', '01'],
+    ['29', '2000', '2', '29'],
+    ['29', '1900', '2', null],
+    ['3', '1900', '2', null],
+    ['3', '1900', '4', '3'],
+    ['30', '1900', '4', '30'],
+    ['31', '1900', '4', null],
+    ['31', '1900', '1', '31'],
+    ['4', '1900', '1', null],
+    ['00', '1900', '1', null],
+    ['1.5', '1900', '1', '15'],
+    ['123', '1900', '1', null],
+  ])('keeps only a possible day input %s for %s-%s', (value, year, month, expected) => {
+    expect(dateDayInputValue(value, year, month)).toBe(expected)
+  })
+})
+
+describe('isValidDateDay', () => {
+  it('retains a complete one-digit day while changing date parts', () => {
+    expect(isValidDateDay('3', '1900', '2')).toBe(true)
+    expect(isValidDateDay('29', '1900', '2')).toBe(false)
+  })
+})
 
 const knownDate = (
   overrides: Partial<DateInputState> = {},

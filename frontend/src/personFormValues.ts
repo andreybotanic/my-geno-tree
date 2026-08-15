@@ -24,6 +24,59 @@ export const emptyDate = (): DateInputState => ({
 
 export const unknownDate = (): DateInputState => ({ ...emptyDate(), unknown: true })
 
+/**
+ * Returns the next display value for a day field, or null when the attempted
+ * edit cannot be a valid day prefix.
+ */
+export function dateDayInputValue(
+  value: string,
+  yearValue: string,
+  monthValue: string,
+): string | null {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length > 2 || monthValue === '') {
+    return null
+  }
+  if (digits === '') {
+    return ''
+  }
+
+  const month = Number(monthValue)
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return null
+  }
+  const maximum = daysInMonth(yearValue, month)
+  if (digits.length === 1) {
+    return Number(digits) <= Math.floor(maximum / 10) ? digits : null
+  }
+
+  const day = Number(digits)
+
+  return day >= 1 && day <= maximum ? digits : null
+}
+
+export function isValidDateDay(
+  value: string,
+  yearValue: string,
+  monthValue: string,
+) {
+  if (value === '') {
+    return true
+  }
+  if (!/^\d{1,2}$/.test(value) || monthValue === '') {
+    return false
+  }
+
+  const month = Number(monthValue)
+  const day = Number(value)
+
+  return Number.isInteger(month)
+    && month >= 1
+    && month <= 12
+    && day >= 1
+    && day <= daysInMonth(yearValue, month)
+}
+
 export function dateValue(state: DateInputState): GenealogicalDate | null {
   if (state.unknown) {
     return { state: 'unknown' }
@@ -72,6 +125,22 @@ function checkDate(year: number, month: number, day: number) {
   return value.getUTCFullYear() === year
     && value.getUTCMonth() === month - 1
     && value.getUTCDate() === day
+}
+
+function daysInMonth(yearValue: string, month: number) {
+  if (month === 2) {
+    const year = Number(yearValue)
+
+    return Number.isInteger(year) && year >= 1582 && year <= 9999 && !isLeapYear(year)
+      ? 28
+      : 29
+  }
+
+  return [4, 6, 9, 11].includes(month) ? 30 : 31
+}
+
+function isLeapYear(year: number) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
 }
 
 function compareStartToEnd(
