@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FamilyTree } from '../api/generated'
 import { ApiRequestError } from '../api/client'
-import { ActionIcon } from './ActionIcon'
 
 type TreeNameDialogProps = {
   initialName?: string
@@ -157,14 +156,12 @@ export function DeleteTreeDialog({
             {t('common.cancel')}
           </button>
           <button
-            aria-label={t('trees.delete')}
             className="danger-button"
             disabled={isDeleting}
             onClick={() => void remove()}
-            title={t('trees.delete')}
             type="button"
           >
-            {isDeleting ? t('trees.deleting') : <ActionIcon name="delete" />}
+            {isDeleting ? t('trees.deleting') : t('trees.delete')}
           </button>
         </div>
       </section>

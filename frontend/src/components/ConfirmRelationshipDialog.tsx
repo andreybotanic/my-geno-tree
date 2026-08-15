@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActionIcon } from './ActionIcon'
 
 type ConfirmRelationshipDialogProps = {
   confirmClassName?: string
@@ -56,16 +55,12 @@ export function ConfirmRelationshipDialog({
             {t('common.cancel')}
           </button>
           <button
-            aria-label={confirmLabel ?? t('common.remove')}
             className={confirmClassName ?? 'danger-button'}
             disabled={saving}
             onClick={() => void confirm()}
-            title={confirmLabel ?? t('common.remove')}
             type="button"
           >
-            {saving
-              ? t('common.saving')
-              : confirmLabel ?? <ActionIcon name="delete" />}
+            {saving ? t('common.saving') : (confirmLabel ?? t('common.remove'))}
           </button>
         </div>
       </section>

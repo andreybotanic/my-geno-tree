@@ -174,11 +174,6 @@
   color: var(--color-accent-contrast);
 }
 
-.danger-button:has(.action-icon) {
-  min-width: 34px;
-  padding: 0 8px;
-}
-
 .link-danger-button {
   background: transparent;
   border: 0;
@@ -2207,8 +2202,7 @@
 .relationship-actions .action-icon,
 .event-actions .action-icon,
 .danger-link .action-icon,
-.link-danger-button .action-icon,
-.danger-button .action-icon {
+.link-danger-button .action-icon {
   display: block;
 }
 
