@@ -537,13 +537,11 @@ export function PersonDetailsPanel({
       {(details?.permissions.canDelete ?? (snapshot && canDeletePerson(snapshot, person.id))) && (
         <section className="person-details-section danger-zone">
           <button
-            aria-label={t('relationships.deletePerson')}
             className="danger-button"
             onClick={onDeletePerson}
-            title={t('relationships.deletePerson')}
             type="button"
           >
-            <ActionIcon name="delete" />
+            {t('relationships.deletePerson')}
           </button>
         </section>
       )}
