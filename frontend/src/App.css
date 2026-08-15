@@ -1527,6 +1527,7 @@
   cursor: grab;
 }
 
+.blood-network-rotation-mode,
 .blood-network-rotation-mode .react-flow__pane,
 .blood-network-rotation-mode .react-flow__node,
 .blood-network-rotation-mode .blood-network-person,

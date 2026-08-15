@@ -847,7 +847,7 @@ describe('TreeEditorPage', () => {
     })
   })
 
-  it('activates rotation around a node from its context menu until Escape', async () => {
+  it('activates rotation around a node from its context menu until Escape or a right click', async () => {
     const tree = graphSnapshot([father, person], [parentLink])
     const request = vi.fn(async () => tree) as unknown as AuthorizedJsonRequest
     renderEditor(request)
@@ -882,6 +882,13 @@ describe('TreeEditorPage', () => {
     fireEvent.pointerUp(canvas, { button: 0, pointerId: 1 })
     expect(setPointerCapture).toHaveBeenCalledWith(1)
     expect(releasePointerCapture).toHaveBeenCalledWith(1)
+    expect(anna).toHaveClass('blood-network-rotation-pivot')
+    fireEvent.contextMenu(canvas, { clientX: 300, clientY: 300 })
+    expect(anna).not.toHaveClass('blood-network-rotation-pivot')
+    expect(document.querySelector('.blood-network-rotation-mode')).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(anna.closest('.react-flow__node')!, { clientX: 120, clientY: 140 })
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rotate' }))
     expect(anna).toHaveClass('blood-network-rotation-pivot')
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(anna).not.toHaveClass('blood-network-rotation-pivot')

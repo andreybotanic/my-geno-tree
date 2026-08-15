@@ -1521,6 +1521,16 @@ function TreeCanvas({
         ? ' blood-network-rotation-mode'
         : ''}`}
       ref={canvas}
+      onContextMenuCapture={(event) => {
+        if (!bloodNetworkRotationPivotNodeId) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        bloodNetworkRotationSession.current = null
+        setBloodNetworkContextMenu(null)
+        setBloodNetworkRotationPivotNodeId(null)
+      }}
       onPointerDownCapture={(event) => {
         if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
           return
