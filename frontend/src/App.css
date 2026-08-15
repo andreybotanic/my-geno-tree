@@ -2552,8 +2552,7 @@
   max-width: 680px;
 }
 
-.image-crop-dialog h2,
-.photo-viewer-dialog h2 {
+.image-crop-dialog h2 {
   color: var(--color-text-strong);
   font-family: var(--font-heading);
   margin: 0 0 18px;
@@ -2593,17 +2592,28 @@
 }
 
 .photo-viewer-dialog {
-  max-height: calc(100svh - 48px);
-  max-width: min(920px, calc(100vw - 48px));
-  overflow: auto;
+  display: flex;
+  height: min(720px, calc(100svh - 48px));
+  max-width: none;
+  overflow: hidden;
+  width: min(920px, calc(100vw - 48px));
+}
+
+.photo-viewer-content {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
 }
 
 .photo-viewer-dialog img {
   display: block;
   height: auto;
-  margin: 0 auto;
-  max-height: calc(100svh - 190px);
+  max-height: 100%;
   max-width: 100%;
+  object-fit: contain;
 }
 
 .person-dialog h2 {

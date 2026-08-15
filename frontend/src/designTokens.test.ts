@@ -108,6 +108,18 @@ describe('semantic design contracts', () => {
     )
   })
 
+  it('keeps the full-photo viewer fixed, centered, and scroll-free', () => {
+    expect(appStyles).toMatch(
+      /\.photo-viewer-dialog\s*\{[^}]*height:\s*min\(720px, calc\(100svh - 48px\)\);[^}]*overflow:\s*hidden;[^}]*width:\s*min\(920px, calc\(100vw - 48px\)\);/s,
+    )
+    expect(appStyles).toMatch(
+      /\.photo-viewer-content\s*\{[^}]*align-items:\s*center;[^}]*display:\s*flex;[^}]*justify-content:\s*center;/s,
+    )
+    expect(appStyles).toMatch(
+      /\.photo-viewer-dialog img\s*\{[^}]*max-height:\s*100%;[^}]*max-width:\s*100%;[^}]*object-fit:\s*contain;/s,
+    )
+  })
+
   it('aligns the first event line with its dot and connects only adjacent dots', () => {
     expect(appStyles).toMatch(
       /\.event-timeline li\s*\{[^}]*min-height:\s*50px;/s,
