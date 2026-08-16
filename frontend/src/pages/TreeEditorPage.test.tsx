@@ -238,8 +238,7 @@ describe('TreeEditorPage', () => {
     const breadcrumbs = await screen.findByRole('navigation', {
       name: 'Tree navigation',
     })
-    expect(breadcrumbs).toHaveTextContent('Total: 3 people')
-    expect(breadcrumbs).toHaveTextContent('Visible: 3 people')
+    expect(breadcrumbs).toHaveTextContent('People: 3')
   })
 
   it('does not show a visible-person count in the blood-network view', async () => {
@@ -250,8 +249,8 @@ describe('TreeEditorPage', () => {
     const breadcrumbs = await screen.findByRole('navigation', {
       name: 'Tree navigation',
     })
-    expect(breadcrumbs).toHaveTextContent('Total: 1 person')
-    expect(breadcrumbs).not.toHaveTextContent('Visible:')
+    expect(breadcrumbs).toHaveTextContent('People: 1')
+    expect(breadcrumbs).not.toHaveTextContent('total in tree')
   })
 
   it('creates the first fully unknown person from the empty editor', async () => {
@@ -270,7 +269,7 @@ describe('TreeEditorPage', () => {
     const breadcrumbs = await screen.findByRole('navigation', {
       name: 'Tree navigation',
     })
-    expect(breadcrumbs).toHaveTextContent('My trees/Family historyTotal: 0 peopleVisible: 0 people')
+    expect(breadcrumbs).toHaveTextContent('My trees/Family historyPeople: 0')
     expect(screen.getByText('This tree is empty.')).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Create person' }),
@@ -1274,6 +1273,9 @@ describe('TreeEditorPage', () => {
     }) as unknown as AuthorizedJsonRequest
     renderEditor(request)
 
+    expect(await screen.findByRole('navigation', { name: 'Tree navigation' }))
+      .toHaveTextContent('People: 2 (3 total in tree)')
+
     await userEvent.click(await screen.findByRole('button', { name: 'Search people' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Hidden')
     await userEvent.click(await screen.findByRole('option', { name: /Hidden Ancestor/ }))
@@ -1285,6 +1287,8 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('article', { name: 'Petrov Ivan' })).toHaveClass('person-card-muted')
     expect(screen.getByRole('button', { name: 'Tree for Hidden Ancestor' }))
       .toHaveClass('path-display-target')
+    expect(screen.getByRole('navigation', { name: 'Tree navigation' }))
+      .toHaveTextContent('People: 2+1 (3 total in tree)')
 
     expect(document.querySelector('.tree-edge-highlight')).not.toBeInTheDocument()
 

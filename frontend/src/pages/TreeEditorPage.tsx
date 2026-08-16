@@ -2034,17 +2034,19 @@ function TreeCanvas({
 }
 
 type EditorBreadcrumbsProps = {
-  personCount: number | undefined
+  personCounts: {
+    additionalFromPath: number
+    total: number
+    visible: number
+  } | undefined
   status: 'error' | 'loading' | 'missing' | 'ready'
   treeName: string | undefined
-  visiblePersonCount: number | undefined
 }
 
 function EditorBreadcrumbs({
-  personCount,
+  personCounts,
   status,
   treeName,
-  visiblePersonCount,
 }: EditorBreadcrumbsProps) {
   const { t } = useTranslation()
   const [container, setContainer] = useState<HTMLElement | null>(null)
@@ -2070,11 +2072,19 @@ function EditorBreadcrumbs({
         {treeName
           ?? (status === 'loading' ? t('trees.loading') : 'MyGenoTree')}
       </strong>
-      {personCount !== undefined && (
-        <span>{t('editor.totalPeople', { count: personCount })}</span>
-      )}
-      {visiblePersonCount !== undefined && (
-        <span>{t('editor.visiblePeople', { count: visiblePersonCount })}</span>
+      {personCounts !== undefined && (
+        <span>{personCounts.additionalFromPath > 0
+          ? t('editor.personCountWithPath', {
+              path: personCounts.additionalFromPath,
+              total: personCounts.total,
+              visible: personCounts.visible,
+            })
+          : personCounts.visible === personCounts.total
+            ? t('editor.personCount', { count: personCounts.visible })
+            : t('editor.personCountPartial', {
+                total: personCounts.total,
+                visible: personCounts.visible,
+              })}</span>
       )}
     </nav>,
     container,
@@ -2979,15 +2989,28 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
-  const visiblePersonCount = useMemo(() => {
-    if (view !== 'tree' || !snapshot) {
+  const personCounts = useMemo(() => {
+    if (!snapshot) {
       return undefined
     }
 
-    return new Set([
-      ...focusedTreeSnapshot(snapshot).people.map((person) => person.id),
-      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
-    ]).size
+    const total = snapshot.people.length
+    if (view === 'network') {
+      return { additionalFromPath: 0, total, visible: total }
+    }
+
+    const visiblePersonIds = new Set(focusedTreeSnapshot(snapshot).people.map((person) => person.id))
+    const additionalFromPath = new Set(
+      pathDisplay?.nodes
+        .map((node) => node.personId)
+        .filter((personId) => !visiblePersonIds.has(personId)) ?? [],
+    ).size
+
+    return {
+      additionalFromPath,
+      total,
+      visible: visiblePersonIds.size,
+    }
   }, [pathDisplay, snapshot, view])
 
   return (
@@ -3000,10 +3023,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         />
       )}
       <EditorBreadcrumbs
-        personCount={snapshot?.people.length}
+        personCounts={personCounts}
         status={status}
         treeName={snapshot?.tree.name}
-        visiblePersonCount={visiblePersonCount}
       />
 
       {conflict && (
