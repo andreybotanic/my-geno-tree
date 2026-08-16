@@ -2034,13 +2034,17 @@ function TreeCanvas({
 }
 
 type EditorBreadcrumbsProps = {
+  personCount: number | undefined
   status: 'error' | 'loading' | 'missing' | 'ready'
   treeName: string | undefined
+  visiblePersonCount: number | undefined
 }
 
 function EditorBreadcrumbs({
+  personCount,
   status,
   treeName,
+  visiblePersonCount,
 }: EditorBreadcrumbsProps) {
   const { t } = useTranslation()
   const [container, setContainer] = useState<HTMLElement | null>(null)
@@ -2066,6 +2070,12 @@ function EditorBreadcrumbs({
         {treeName
           ?? (status === 'loading' ? t('trees.loading') : 'MyGenoTree')}
       </strong>
+      {personCount !== undefined && (
+        <span>{t('editor.totalPeople', { count: personCount })}</span>
+      )}
+      {visiblePersonCount !== undefined && (
+        <span>{t('editor.visiblePeople', { count: visiblePersonCount })}</span>
+      )}
     </nav>,
     container,
   )
@@ -2969,6 +2979,17 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
+  const visiblePersonCount = useMemo(() => {
+    if (view !== 'tree' || !snapshot) {
+      return undefined
+    }
+
+    return new Set([
+      ...focusedTreeSnapshot(snapshot).people.map((person) => person.id),
+      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
+    ]).size
+  }, [pathDisplay, snapshot, view])
+
   return (
     <main className="tree-editor-page">
       {placeRecognitionNotice && (
@@ -2979,8 +3000,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         />
       )}
       <EditorBreadcrumbs
+        personCount={snapshot?.people.length}
         status={status}
         treeName={snapshot?.tree.name}
+        visiblePersonCount={visiblePersonCount}
       />
 
       {conflict && (

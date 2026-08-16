@@ -227,6 +227,33 @@ describe('TreeEditorPage', () => {
     )
   })
 
+  it('shows total and visible people in the tree editor header', async () => {
+    const request = vi.fn(async () => graphSnapshot(
+      [person, father, spouse],
+      [parentLink],
+      [marriage],
+    )) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const breadcrumbs = await screen.findByRole('navigation', {
+      name: 'Tree navigation',
+    })
+    expect(breadcrumbs).toHaveTextContent('Total: 3 people')
+    expect(breadcrumbs).toHaveTextContent('Visible: 3 people')
+  })
+
+  it('does not show a visible-person count in the blood-network view', async () => {
+    window.history.replaceState({}, '', `/trees/${treeId}/network`)
+    const request = vi.fn(async () => snapshot([person])) as unknown as AuthorizedJsonRequest
+    renderEditor(request)
+
+    const breadcrumbs = await screen.findByRole('navigation', {
+      name: 'Tree navigation',
+    })
+    expect(breadcrumbs).toHaveTextContent('Total: 1 person')
+    expect(breadcrumbs).not.toHaveTextContent('Visible:')
+  })
+
   it('creates the first fully unknown person from the empty editor', async () => {
     const created = snapshot([{
       ...person,
@@ -243,7 +270,7 @@ describe('TreeEditorPage', () => {
     const breadcrumbs = await screen.findByRole('navigation', {
       name: 'Tree navigation',
     })
-    expect(breadcrumbs).toHaveTextContent('My trees/Family history')
+    expect(breadcrumbs).toHaveTextContent('My trees/Family historyTotal: 0 peopleVisible: 0 people')
     expect(screen.getByText('This tree is empty.')).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Create person' }),

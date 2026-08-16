@@ -87,6 +87,11 @@
   white-space: nowrap;
 }
 
+.editor-breadcrumbs > span:not([aria-hidden="true"]) {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .brand {
   align-items: center;
   background: transparent;
