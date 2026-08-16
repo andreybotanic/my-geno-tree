@@ -17,17 +17,19 @@ final readonly class TreeExportService
         private ParentLinkRepository $parentLinks,
         private MarriagePeriodRepository $marriages,
         private GenealogicalEventRepository $events,
-        private Gedcom551Writer $writer,
+        private GedcomWriter $writer,
     ) {
     }
 
     public function export(FamilyTree $tree, string $format, string $requestedFileName): TreeExport
     {
-        if ('gedcom-5.5.1' !== $format) {
+        $gedcomFormat = GedcomFormat::tryFrom($format);
+        if (null === $gedcomFormat) {
             throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'TREE_EXPORT_FORMAT_UNSUPPORTED', 'tree_export_format_unsupported');
         }
         $fileName = $this->fileName($requestedFileName);
         $contents = $this->writer->write(
+            $gedcomFormat,
             $fileName,
             $this->people->findAllForTree($tree),
             $this->parentLinks->findAllForTree($tree),

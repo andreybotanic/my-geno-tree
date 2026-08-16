@@ -11,6 +11,7 @@ export const resources = {
         geoapifyAttribution: 'Powered by Geoapify', openStreetMapAttribution: 'OpenStreetMap contributors',
         warning: {
           additional_name: 'Additional names skipped: {{count}}', chronology_adjusted: 'Conflicting dates kept as unknown: {{count}}', non_birth_parentage: 'Non-birth parent relationships skipped: {{count}}',
+          legacy_charset_declaration: 'Legacy character-set declaration accepted: {{count}}',
           unsupported_date: 'Dates kept as unknown: {{count}}', unsupported_media: 'Media objects skipped: {{count}}', unsupported_note: 'Notes skipped: {{count}}',
           unsupported_place: 'Places skipped: {{count}}', unsupported_source: 'Sources skipped: {{count}}', unsupported_tag: 'Unsupported values skipped: {{count}}',
           value_truncated: 'Values shortened to application limits: {{count}}',
@@ -406,6 +407,7 @@ export const resources = {
         geoapifyAttribution: 'Работает на Geoapify', openStreetMapAttribution: 'Участники OpenStreetMap',
         warning: {
           additional_name: 'Пропущено дополнительных имён: {{count}}', chronology_adjusted: 'Конфликтующих дат сохранено как неизвестные: {{count}}', non_birth_parentage: 'Пропущено некровных родительских связей: {{count}}',
+          legacy_charset_declaration: 'Принято устаревшее объявление кодировки: {{count}}',
           unsupported_date: 'Дат сохранено как неизвестные: {{count}}', unsupported_media: 'Пропущено медиаобъектов: {{count}}', unsupported_note: 'Пропущено примечаний: {{count}}',
           unsupported_place: 'Пропущено мест: {{count}}', unsupported_source: 'Пропущено источников: {{count}}', unsupported_tag: 'Пропущено неподдерживаемых значений: {{count}}',
           value_truncated: 'Значений сокращено до лимита приложения: {{count}}',

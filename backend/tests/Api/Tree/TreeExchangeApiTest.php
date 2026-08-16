@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
  * @phpstan-type ExchangePlace array{name: string, coordinates: array{latitude: float, longitude: float}|null}
  * @phpstan-type ExchangePerson array{id: string, givenName: array{state: string, value?: string}, birthPlace: ExchangePlace|null}
  * @phpstan-type ExchangeMarriage array{marriagePlace: ExchangePlace|null, dissolutionPlace: ExchangePlace|null}
- * @phpstan-type ExchangeSnapshot array{people: list<ExchangePerson>, marriages: list<ExchangeMarriage>}
+ * @phpstan-type ExchangeSnapshot array{people: list<ExchangePerson>, parentLinks: list<array<string, mixed>>, marriages: list<ExchangeMarriage>}
  * @phpstan-type ExchangeEvent array{type: string, date: array<string, mixed>, place: ExchangePlace|null}
  */
 final class TreeExchangeApiTest extends ApiWebTestCase
@@ -45,6 +45,44 @@ final class TreeExchangeApiTest extends ApiWebTestCase
 1 WIFE @I2@
 1 CHIL @I3@
 1 _MGT_UNMARRIED Y
+0 TRLR
+GEDCOM;
+
+    private const string GEDCOM7 = <<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 7.0
+1 SOUR
+2 NAME MyGenoTree
+0 @I1@ INDI
+1 NAME Иван /Петров/
+2 GIVN Иван
+2 SURN Петров
+1 SEX M
+1 BIRT
+2 DATE 1900
+1 OCCU Столяр
+2 DATE 1930
+2 NOTE Семейная мастерская
+1 EVEN
+2 TYPE Private note
+2 NOTE @@Starts with an at sign
+0 @I2@ INDI
+1 NAME Анна /Сидорова/
+1 SEX F
+1 BIRT
+2 DATE MAR 1905
+0 @I3@ INDI
+1 NAME Пётр /Петров/
+1 SEX M
+1 BIRT
+2 DATE 12 APR 1932
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+1 NO MARR
 0 TRLR
 GEDCOM;
 
@@ -104,6 +142,39 @@ GEDCOM;
         self::assertIsArray($roundTripSnapshot['marriages']);
         self::assertCount(2, $roundTripSnapshot['parentLinks']);
         self::assertCount(0, $roundTripSnapshot['marriages']);
+    }
+
+    public function testImportsAndRoundTripsGedcom7(): void
+    {
+        $token = $this->register(language: 'ru');
+        $this->multipart('/api/v1/tree-imports/inspect', $token, self::GEDCOM7);
+        self::assertResponseIsSuccessful();
+        self::assertSame('GEDCOM 7.0', $this->responseString('format'));
+
+        $this->multipart('/api/v1/tree-imports', $token, self::GEDCOM7, 'GEDCOM 7 family');
+        self::assertResponseStatusCodeSame(201);
+        $treeId = $this->responseString('tree', 'id');
+
+        $this->jsonRequest('POST', '/api/v1/trees/' . $treeId . '/exports', [
+            'format'   => 'gedcom-7',
+            'fileName' => 'GEDCOM 7 family',
+        ], ['Authorization' => 'Bearer ' . $token]);
+        self::assertResponseIsSuccessful();
+        $export = $this->client->getResponse()->getContent();
+        self::assertIsString($export);
+        self::assertStringStartsWith("\xEF\xBB\xBF0 HEAD\r\n1 GEDC\r\n2 VERS 7.0\r\n", $export);
+        self::assertStringContainsString("1 SOUR\r\n2 NAME MyGenoTree\r\n", $export);
+        self::assertStringContainsString("1 NO MARR\r\n", $export);
+        self::assertStringContainsString("2 NOTE @@Starts with an at sign\r\n", $export);
+        self::assertStringNotContainsString('1 CHAR', $export);
+        self::assertStringNotContainsString(' CONC', $export);
+
+        $this->multipart('/api/v1/tree-imports', $token, $export, 'GEDCOM 7 round trip');
+        self::assertResponseStatusCodeSame(201);
+        $roundTripId = $this->responseString('tree', 'id');
+        $roundTrip = $this->snapshot($token, $roundTripId);
+        self::assertCount(2, $roundTrip['parentLinks']);
+        self::assertCount(0, $roundTrip['marriages']);
     }
 
     public function testImportIsAtomicAndDuplicateNameIsRejected(): void
@@ -303,7 +374,7 @@ GEDCOM;
     public function testInspectReportsUnsupportedDisconnectedAndOversizedFiles(): void
     {
         $token = $this->register();
-        $unsupported = str_replace('2 VERS 5.5.1', '2 VERS 7.0', self::GEDCOM);
+        $unsupported = str_replace('2 VERS 5.5.1', '2 VERS 6.0', self::GEDCOM);
         $this->multipart('/api/v1/tree-imports/inspect', $token, $unsupported);
         self::assertResponseStatusCodeSame(422);
         self::assertSame('TREE_IMPORT_FORMAT_UNSUPPORTED', $this->responseString('code'));

@@ -27,7 +27,7 @@ final readonly class TreeImportService
     private const int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     public function __construct(
-        private Gedcom55Parser $parser,
+        private GedcomParser $parser,
         private GedcomEventPlaceFactory $places,
         private GedcomPlaceRecognizer $placeRecognizer,
         private TreeNamePolicy $names,

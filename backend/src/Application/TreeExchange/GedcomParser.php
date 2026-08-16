@@ -8,13 +8,15 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
-final class Gedcom55Parser
+final class GedcomParser
 {
     /** @var array<string, int> */
     private array $warnings = [];
 
     /** @var array<string, GedcomNode> */
     private array $records = [];
+
+    private GedcomFormat $format;
 
     public function parse(string $contents): GedcomImportDocument
     {
@@ -32,23 +34,38 @@ final class Gedcom55Parser
             $this->fail('TREE_IMPORT_FORMAT_UNRECOGNIZED');
         }
         $version = $head->child('GEDC')?->child('VERS')->value ?? null;
-        if (!in_array($version, ['5.5', '5.5.1'], true)) {
+        $format = is_string($version) ? GedcomFormat::fromVersion($version) : null;
+        if (null === $format) {
             if (is_string($version) && '' !== $version) {
                 throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'TREE_IMPORT_FORMAT_UNSUPPORTED', 'tree_import_format_unsupported', details: ['format' => 'GEDCOM ' . $version]);
             }
             $this->fail('TREE_IMPORT_FORMAT_UNRECOGNIZED');
         }
+        $this->format = $format;
         $charset = strtoupper($head->child('CHAR')->value ?? '');
-        if (!in_array($charset, ['UTF-8', 'UTF8', 'ASCII'], true)) {
+        if (GedcomFormat::V551 === $format && !in_array($charset, ['UTF-8', 'UTF8', 'ASCII'], true)) {
             throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'TREE_IMPORT_ENCODING_UNSUPPORTED', 'tree_import_encoding_unsupported', details: ['encoding' => '' === $charset ? null : $charset]);
         }
         if (!mb_check_encoding($contents, 'UTF-8')) {
             $this->fail('TREE_IMPORT_ENCODING_INVALID');
         }
-        if ('ASCII' === $charset && preg_match('/[^\x00-\x7F]/', $contents)) {
+        if (GedcomFormat::V551 === $format && 'ASCII' === $charset && preg_match('/[^\x00-\x7F]/', $contents)) {
             $this->fail('TREE_IMPORT_ENCODING_INVALID');
         }
+        if (GedcomFormat::V7 === $format && '' !== $charset) {
+            if (!in_array($charset, ['UTF-8', 'UTF8'], true)) {
+                throw new ApiException(JsonResponse::HTTP_UNPROCESSABLE_ENTITY, 'TREE_IMPORT_ENCODING_UNSUPPORTED', 'tree_import_encoding_unsupported', details: ['encoding' => $charset]);
+            }
+            $this->warning('legacy_charset_declaration');
+        }
         if (null === $this->firstRoot($roots, 'TRLR')) {
+            $this->fail('TREE_IMPORT_INVALID');
+        }
+        $lastRoot = $roots[count($roots) - 1] ?? null;
+        if (
+            GedcomFormat::V7 === $format
+            && ('HEAD' !== ($roots[0]->tag ?? null) || 'TRLR' !== $lastRoot?->tag)
+        ) {
             $this->fail('TREE_IMPORT_INVALID');
         }
 
@@ -90,7 +107,7 @@ final class Gedcom55Parser
         [$people, $families] = $this->validateGraph($people, $families);
 
         return new GedcomImportDocument(
-            'GEDCOM ' . $version,
+            GedcomFormat::V551 === $format ? 'GEDCOM ' . $version : $format->inspectionName(),
             $people,
             $families,
             $this->warnings,
@@ -282,6 +299,7 @@ final class Gedcom55Parser
         $divorce = $node->child('DIV');
         $this->warnUnsupportedChildren($node, [
             'HUSB', 'WIFE', 'CHIL', 'MARR', 'DIV', '_MGT_UNMARRIED',
+            ...(GedcomFormat::V7 === $this->format ? ['NO'] : []),
         ]);
         if (null !== $marriage) {
             $this->warnUnsupportedChildren($marriage, ['DATE', 'PLAC']);
@@ -300,7 +318,8 @@ final class Gedcom55Parser
                 ? null
                 : $this->date($divorce->child('DATE')?->value),
             'dissolutionPlace' => null === $divorce ? null : $this->place($divorce),
-            'unmarried'        => null !== $node->child('_MGT_UNMARRIED'),
+            'unmarried'        => null !== $node->child('_MGT_UNMARRIED')
+                || (GedcomFormat::V7 === $this->format && 'MARR' === strtoupper($node->child('NO')->value ?? '')),
         ];
     }
 
@@ -677,13 +696,22 @@ final class Gedcom55Parser
 
     private function continued(GedcomNode $node): string
     {
-        $value = $node->value;
+        $value = $this->lineValue($node->value);
         foreach ($node->children as $child) {
-            if ('CONC' === $child->tag) {
+            if ('CONC' === $child->tag && GedcomFormat::V551 === $this->format) {
                 $value .= $child->value;
             } elseif ('CONT' === $child->tag) {
-                $value .= "\n" . $child->value;
+                $value .= "\n" . $this->lineValue($child->value);
             }
+        }
+
+        return $value;
+    }
+
+    private function lineValue(string $value): string
+    {
+        if (GedcomFormat::V7 === $this->format && str_starts_with($value, '@@')) {
+            return substr($value, 1);
         }
 
         return $value;

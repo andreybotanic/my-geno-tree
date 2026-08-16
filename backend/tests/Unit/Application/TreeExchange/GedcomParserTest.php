@@ -3,14 +3,14 @@
 namespace App\Tests\Unit\Application\TreeExchange;
 
 use App\Api\ApiException;
-use App\Application\TreeExchange\Gedcom55Parser;
+use App\Application\TreeExchange\GedcomParser;
 use PHPUnit\Framework\TestCase;
 
-final class Gedcom55ParserTest extends TestCase
+final class GedcomParserTest extends TestCase
 {
     public function testRecognizes55WithBomCrlfAndParsesContinuedEventsAndDates(): void
     {
-        $document = (new Gedcom55Parser())->parse("\xEF\xBB\xBF" . str_replace("\n", "\r\n", <<<'GEDCOM'
+        $document = (new GedcomParser())->parse("\xEF\xBB\xBF" . str_replace("\n", "\r\n", <<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5
@@ -44,7 +44,7 @@ GEDCOM));
 
     public function testUnsupportedValuesBecomeAggregatedWarnings(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1
@@ -70,7 +70,7 @@ GEDCOM);
 
     public function testParsesResolvedAndUnresolvedPlacesAndResidence(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1
@@ -115,7 +115,7 @@ GEDCOM);
 
     public function testAllowsBurialAfterDeath(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1
@@ -138,7 +138,7 @@ GEDCOM);
 
     public function testKeepsDivorceWithUnknownDateWhenItIsAfterADeath(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1
@@ -170,15 +170,57 @@ GEDCOM);
         self::assertFalse($document->families[0]['dissolutionDate']->isKnown());
     }
 
+    public function testRecognizesGedcom7WithUtf8AndNoMarriage(): void
+    {
+        $document = (new GedcomParser())->parse("\xEF\xBB\xBF" . <<<'GEDCOM'
+0 HEAD
+1 GEDC
+2 VERS 7.0.18
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME @@Ivan /Petrov/
+1 SEX M
+1 BIRT
+2 DATE BEF 1900
+1 EVEN
+2 TYPE Biography
+2 NOTE @@First line
+3 CONT @@Second line
+0 @I2@ INDI
+1 NAME Anna /Petrova/
+1 SEX F
+1 BIRT
+2 DATE 1905
+0 @I3@ INDI
+1 NAME Petr /Petrov/
+1 SEX M
+1 BIRT
+2 DATE 1932
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+1 NO MARR
+0 TRLR
+GEDCOM);
+
+        self::assertSame('GEDCOM 7.0', $document->format);
+        self::assertSame('@Ivan', $document->people[0]['givenName']);
+        self::assertSame('@First line' . "\n" . '@Second line', $document->people[0]['events'][0]['description']);
+        self::assertTrue($document->families[0]['unmarried']);
+        self::assertSame(1, $document->warnings['legacy_charset_declaration']);
+    }
+
     public function testRejectsUnsupportedVersionEncodingAndBrokenReference(): void
     {
         foreach ([
-            ["0 HEAD\n1 GEDC\n2 VERS 7.0\n1 CHAR UTF-8\n0 TRLR", 'TREE_IMPORT_FORMAT_UNSUPPORTED'],
+            ["0 HEAD\n1 GEDC\n2 VERS 6.0\n1 CHAR UTF-8\n0 TRLR", 'TREE_IMPORT_FORMAT_UNSUPPORTED'],
             ["0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR ANSEL\n0 TRLR", 'TREE_IMPORT_ENCODING_UNSUPPORTED'],
             ["0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME A /B/\n0 @F1@ FAM\n1 HUSB @I2@\n1 CHIL @I1@\n0 TRLR", 'TREE_IMPORT_BROKEN_REFERENCE'],
         ] as [$contents, $code]) {
             try {
-                (new Gedcom55Parser())->parse($contents);
+                (new GedcomParser())->parse($contents);
                 self::fail('Expected malformed GEDCOM to be rejected.');
             } catch (ApiException $exception) {
                 self::assertSame($code, $exception->getErrorCode());
@@ -194,7 +236,7 @@ GEDCOM);
             "0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME A /B/\n0 @I2@ INDI\n1 NAME C /D/\n0 TRLR"                                                                                               => 'TREE_IMPORT_DISCONNECTED',
         ] as $contents => $code) {
             try {
-                (new Gedcom55Parser())->parse($contents);
+                (new GedcomParser())->parse($contents);
                 self::fail('Expected invalid graph to be rejected.');
             } catch (ApiException $exception) {
                 self::assertSame($code, $exception->getErrorCode());

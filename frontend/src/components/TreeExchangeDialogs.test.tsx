@@ -32,12 +32,29 @@ describe('TreeExchangeDialogs', () => {
 
     await waitFor(() => expect(requestBlob).toHaveBeenCalledWith(
       '/trees/tree-id/exports',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ format: 'gedcom-7', fileName: 'Family- Smith-Ивановы' }),
+      }),
     ))
     expect(createObjectURL).toHaveBeenCalled()
     expect(click).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:gedcom')
     expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('lets the user choose GEDCOM 5.5.1 instead of the GEDCOM 7 default', async () => {
+    const requestBlob = vi.fn(async () => new Blob(['0 HEAD'])) as unknown as AuthorizedBlobRequest
+
+    render(<ExportTreeDialog onCancel={vi.fn()} requestBlob={requestBlob} treeId="tree-id" treeName="Family" />)
+
+    await userEvent.selectOptions(screen.getByLabelText('Format'), 'gedcom-5.5.1')
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => expect(requestBlob).toHaveBeenCalledWith(
+      '/trees/tree-id/exports',
+      expect.objectContaining({ body: JSON.stringify({ format: 'gedcom-5.5.1', fileName: 'Family' }) }),
+    ))
   })
 
   it('normalizes invalid and empty names', () => {

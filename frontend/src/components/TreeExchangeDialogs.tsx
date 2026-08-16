@@ -166,6 +166,7 @@ type ExportTreeDialogProps = {
 export function ExportTreeDialog({ onCancel, requestBlob, treeId, treeName }: ExportTreeDialogProps) {
   const { t } = useTranslation()
   const [fileName, setFileName] = useState(() => safeTreeFileName(treeName))
+  const [format, setFormat] = useState<'gedcom-5.5.1' | 'gedcom-7'>('gedcom-7')
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
 
@@ -176,7 +177,7 @@ export function ExportTreeDialog({ onCancel, requestBlob, treeId, treeName }: Ex
     setExporting(true)
     setError('')
     try {
-      const blob = await treeApi.export(requestBlob, treeId, normalizedName)
+      const blob = await treeApi.export(requestBlob, treeId, format, normalizedName)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -198,7 +199,10 @@ export function ExportTreeDialog({ onCancel, requestBlob, treeId, treeName }: Ex
         <form onSubmit={(event) => void submit(event)}>
           <label className="form-field">
             <span>{t('treeExport.format')}</span>
-            <select value="gedcom-5.5.1" disabled><option value="gedcom-5.5.1">GEDCOM 5.5.1</option></select>
+            <select onChange={(event) => setFormat(event.target.value as 'gedcom-5.5.1' | 'gedcom-7')} value={format}>
+              <option value="gedcom-7">GEDCOM 7.0</option>
+              <option value="gedcom-5.5.1">GEDCOM 5.5.1</option>
+            </select>
           </label>
           <label className="form-field">
             <span>{t('treeExport.fileName')}</span>

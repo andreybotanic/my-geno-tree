@@ -13,8 +13,10 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\ParentRole;
 
-final class Gedcom551Writer
+final class GedcomWriter
 {
+    private GedcomFormat $format;
+
     /**
      * @param list<Person>            $people
      * @param list<ParentLink>        $parentLinks
@@ -22,12 +24,14 @@ final class Gedcom551Writer
      * @param list<GenealogicalEvent> $events
      */
     public function write(
+        GedcomFormat $format,
         string $fileName,
         array $people,
         array $parentLinks,
         array $marriages,
         array $events,
     ): string {
+        $this->format = $format;
         /** @var array<string, string> $personXrefs */
         $personXrefs = [];
         foreach ($people as $index => $person) {
@@ -72,16 +76,26 @@ final class Gedcom551Writer
             }
         }
 
-        $lines = [
-            '0 HEAD',
-            '1 SOUR MyGenoTree',
-            '2 NAME MyGenoTree',
-            '1 GEDC',
-            '2 VERS 5.5.1',
-            '2 FORM LINEAGE-LINKED',
-            '1 CHAR UTF-8',
-        ];
-        $this->appendValue($lines, 1, 'FILE', $fileName . '.ged');
+        $lines = GedcomFormat::V7 === $format
+            ? [
+                '0 HEAD',
+                '1 GEDC',
+                '2 VERS 7.0',
+                '1 SOUR',
+                '2 NAME MyGenoTree',
+            ]
+            : [
+                '0 HEAD',
+                '1 SOUR MyGenoTree',
+                '2 NAME MyGenoTree',
+                '1 GEDC',
+                '2 VERS 5.5.1',
+                '2 FORM LINEAGE-LINKED',
+                '1 CHAR UTF-8',
+            ];
+        if (GedcomFormat::V551 === $format) {
+            $this->appendValue($lines, 1, 'FILE', $fileName . '.ged');
+        }
         foreach ($people as $person) {
             $personId = $this->id($person);
             $lines[] = '0 ' . $personXrefs[$personId] . ' INDI';
@@ -151,12 +165,12 @@ final class Gedcom551Writer
                     $this->appendPlace($lines, 2, ($marriageEvents[$marriageId][EventType::DIVORCE->value] ?? null)?->getPlace());
                 }
             } else {
-                $lines[] = '1 _MGT_UNMARRIED Y';
+                $lines[] = GedcomFormat::V7 === $format ? '1 NO MARR' : '1 _MGT_UNMARRIED Y';
             }
         }
         $lines[] = '0 TRLR';
 
-        return implode("\r\n", $lines) . "\r\n";
+        return (GedcomFormat::V7 === $format ? "\xEF\xBB\xBF" : '') . implode("\r\n", $lines) . "\r\n";
     }
 
     /**
@@ -307,6 +321,15 @@ final class Gedcom551Writer
     private function appendValue(array &$lines, int $level, string $tag, string $value): void
     {
         $logicalLines = explode("\n", str_replace("\r\n", "\n", $value));
+        if (GedcomFormat::V7 === $this->format) {
+            foreach ($logicalLines as $lineIndex => $logicalLine) {
+                $prefix = 0 === $lineIndex ? $level . ' ' . $tag : ($level + 1) . ' CONT';
+                $value = str_starts_with($logicalLine, '@') ? '@' . $logicalLine : $logicalLine;
+                $lines[] = $prefix . ('' === $value ? '' : ' ' . $value);
+            }
+
+            return;
+        }
         foreach ($logicalLines as $lineIndex => $logicalLine) {
             $prefix = 0 === $lineIndex ? $level . ' ' . $tag : ($level + 1) . ' CONT';
             $chunks = $this->chunks($logicalLine, 200);

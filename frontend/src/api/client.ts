@@ -158,12 +158,13 @@ export const treeApi = {
   export(
     request: AuthorizedBlobRequest,
     treeId: string,
+    format: 'gedcom-5.5.1' | 'gedcom-7',
     fileName: string,
   ) {
     return request(`/trees/${treeId}/exports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: 'gedcom-5.5.1', fileName }),
+      body: JSON.stringify({ format, fileName }),
     })
   },
   rename(

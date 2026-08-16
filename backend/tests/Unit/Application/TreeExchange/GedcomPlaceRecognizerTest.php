@@ -3,7 +3,7 @@
 namespace App\Tests\Unit\Application\TreeExchange;
 
 use App\Application\Map\GeoapifyGeocoder;
-use App\Application\TreeExchange\Gedcom55Parser;
+use App\Application\TreeExchange\GedcomParser;
 use App\Application\TreeExchange\GedcomPlaceRecognizer;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
@@ -19,7 +19,7 @@ final class GedcomPlaceRecognizerTest extends TestCase
 {
     public function testRecognizesAllDistinctTextOnlyPlacesInOneBatchAndLeavesCoordinatesUntouched(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1
@@ -70,7 +70,7 @@ GEDCOM);
 
     public function testKeepsUnrecognizedPlacesAsTextWhenGeoapifyIsUnavailable(): void
     {
-        $document = (new Gedcom55Parser())->parse(<<<'GEDCOM'
+        $document = (new GedcomParser())->parse(<<<'GEDCOM'
 0 HEAD
 1 GEDC
 2 VERS 5.5.1

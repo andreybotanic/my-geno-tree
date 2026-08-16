@@ -85,7 +85,7 @@ export type TreeImportResult = {
 };
 
 export type TreeImportInspection = {
-    format: 'GEDCOM 5.5' | 'GEDCOM 5.5.1';
+    format: 'GEDCOM 5.5' | 'GEDCOM 5.5.1' | 'GEDCOM 7.0';
     personCount: number;
     familyCount: number;
     hasUnresolvedPlaces: boolean;
@@ -93,7 +93,7 @@ export type TreeImportInspection = {
 };
 
 export type TreeExportRequest = {
-    format: 'gedcom-5.5.1';
+    format: 'gedcom-5.5.1' | 'gedcom-7';
     fileName: string;
 };
 
