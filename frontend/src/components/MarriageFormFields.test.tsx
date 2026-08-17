@@ -90,4 +90,38 @@ describe('MarriageFormFields', () => {
       marriagePlace: null,
     }))
   })
+
+  it('adopts and localizes each spouse surname into the matching field', async () => {
+    const onChange = vi.fn()
+    const onLocalizeSurname = vi.fn(async (
+      surname: string,
+      _sourceGender: 'female' | 'male',
+      targetGender: 'female' | 'male',
+    ) => targetGender === 'female' ? `${surname}a` : surname.slice(0, -1))
+    render(
+      <MarriageFormFields
+        femaleSurnameSource={{ gender: 'female', surname: 'Ivanova' }}
+        maleSurnameSource={{ gender: 'male', surname: 'Ivanov' }}
+        onChange={onChange}
+        onLocalizeSurname={onLocalizeSurname}
+        state={emptyMarriageForm()}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', {
+      name: "Take wife's surname",
+    }))
+    expect(onLocalizeSurname).toHaveBeenLastCalledWith('Ivanova', 'female', 'male')
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      maleNewSurname: 'Ivanov',
+    }))
+
+    await userEvent.click(screen.getByRole('button', {
+      name: "Take husband's surname",
+    }))
+    expect(onLocalizeSurname).toHaveBeenLastCalledWith('Ivanov', 'male', 'female')
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      femaleNewSurname: 'Ivanova',
+    }))
+  })
 })

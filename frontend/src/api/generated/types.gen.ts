@@ -147,6 +147,16 @@ export type KnownGenealogicalDate = {
 
 export type Gender = 'male' | 'female' | 'unknown';
 
+export type SurnameLocalizationRequest = {
+    surname: string;
+    sourceGender: 'male' | 'female';
+    targetGender: 'male' | 'female';
+};
+
+export type SurnameLocalizationResult = {
+    surname: string;
+};
+
 export type Coordinates = {
     x: number;
     y: number;
@@ -796,6 +806,43 @@ export type UpdateCurrentUserResponses = {
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];
+
+export type LocalizeSurnameData = {
+    body: SurnameLocalizationRequest;
+    path?: never;
+    query?: never;
+    url: '/surname-localization';
+};
+
+export type LocalizeSurnameErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type LocalizeSurnameError = LocalizeSurnameErrors[keyof LocalizeSurnameErrors];
+
+export type LocalizeSurnameResponses = {
+    /**
+     * Localized surname
+     */
+    200: SurnameLocalizationResult;
+};
+
+export type LocalizeSurnameResponse = LocalizeSurnameResponses[keyof LocalizeSurnameResponses];
 
 export type DeleteAvatarData = {
     body?: never;

@@ -231,7 +231,7 @@ export function StructuredDateInput({
 }
 
 type PersonFormDialogProps = {
-  children?: ReactNode
+  children?: ReactNode | ((person: PersonFormState) => ReactNode)
   initialGender?: PersonInput['gender'] | undefined
   onCancel: () => void
   onSave: (person: PersonInput) => Promise<void>
@@ -414,7 +414,7 @@ export function PersonFormDialog({
               onChange={setPerson}
               state={person}
             />
-            {children}
+            {typeof children === 'function' ? children(person) : children}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">

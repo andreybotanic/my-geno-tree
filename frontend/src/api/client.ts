@@ -463,6 +463,18 @@ export const mapApi = {
   },
 }
 
+export const surnameApi = {
+  localize(
+    request: AuthorizedJsonRequest,
+    input: import('./generated').SurnameLocalizationRequest,
+  ) {
+    return request<import('./generated').SurnameLocalizationResult>(
+      '/surname-localization',
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  },
+}
+
 export const profileMediaApi = {
   uploadAvatar(
     request: AuthorizedJsonRequest,

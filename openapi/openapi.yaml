@@ -156,6 +156,33 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /surname-localization:
+    post:
+      operationId: localizeSurname
+      summary: Convert a surname to the requested gender form in the current user's locale
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SurnameLocalizationRequest"
+      responses:
+        "200":
+          description: Localized surname
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurnameLocalizationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /me/avatar:
     get:
       operationId: getAvatar
@@ -1685,6 +1712,36 @@ components:
         - male
         - female
         - unknown
+    SurnameLocalizationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - surname
+        - sourceGender
+        - targetGender
+      properties:
+        surname:
+          type: string
+          minLength: 1
+          maxLength: 100
+        sourceGender:
+          type: string
+          enum:
+            - male
+            - female
+        targetGender:
+          type: string
+          enum:
+            - male
+            - female
+    SurnameLocalizationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - surname
+      properties:
+        surname:
+          type: string
     Coordinates:
       type: object
       additionalProperties: false

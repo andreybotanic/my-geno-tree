@@ -15,8 +15,12 @@ import {
   type MarriageFormState,
 } from '../marriageFormState'
 import { formatPersonName } from '../personFormatting'
-import { MarriageFormFields } from './MarriageFormFields'
+import {
+  MarriageFormFields,
+  type SurnameSource,
+} from './MarriageFormFields'
 import { PersonFormDialog } from './PersonFormDialog'
+import type { PersonFormState } from '../personFormState'
 
 export type RelativeAction = 'child' | 'father' | 'mother' | 'spouse'
 
@@ -38,6 +42,11 @@ type RelativeDialogProps = {
   fixedRelativeId?: string | undefined
   initialSecondParentId?: string | undefined
   onCancel: () => void
+  onLocalizeSurname?: ((
+    surname: string,
+    sourceGender: SurnameSource['gender'],
+    targetGender: SurnameSource['gender'],
+  ) => Promise<string>) | undefined
   onSave: (
     relative: RelativePerson,
     options: RelativeOptions,
@@ -56,6 +65,7 @@ export function RelativeDialog({
   fixedRelativeId,
   initialSecondParentId,
   onCancel,
+  onLocalizeSurname,
   onSave,
   snapshot,
 }: RelativeDialogProps) {
@@ -137,13 +147,18 @@ export function RelativeDialog({
     }
   }
 
-  const relationshipFields = (
+  const relationshipFields = (newPerson?: PersonFormState) => (
     <RelationshipFields
       action={action}
       anchor={anchor}
       candidates={candidates}
+      existingPerson={candidates.find((person) => (
+        person.id === (fixedRelativeId ?? existingPersonId)
+      ))}
       fixedParents={fixedParents}
       marriage={marriage}
+      newPerson={newPerson}
+      onLocalizeSurname={onLocalizeSurname}
       parentRole={parentRole}
       secondParentId={secondParentId}
       setMarriage={setMarriage}
@@ -166,12 +181,16 @@ export function RelativeDialog({
         onSave={(person) => save({ person })}
         title={title}
       >
-        <ModeSelector
-          candidatesAvailable={candidates.length > 0}
-          mode={mode}
-          setMode={setMode}
-        />
-        {relationshipFields}
+        {(newPerson) => (
+          <>
+            <ModeSelector
+              candidatesAvailable={candidates.length > 0}
+              mode={mode}
+              setMode={setMode}
+            />
+            {relationshipFields(newPerson)}
+          </>
+        )}
       </PersonFormDialog>
     )
   }
@@ -211,7 +230,7 @@ export function RelativeDialog({
                 </label>
               </>
             )}
-            {relationshipFields}
+            {relationshipFields()}
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">
@@ -275,8 +294,15 @@ type RelationshipFieldsProps = {
   action: RelativeAction
   anchor: Person
   candidates: Person[]
+  existingPerson: Person | undefined
   fixedParents: Person[] | undefined
   marriage: MarriageFormState
+  newPerson: PersonFormState | undefined
+  onLocalizeSurname?: ((
+    surname: string,
+    sourceGender: SurnameSource['gender'],
+    targetGender: SurnameSource['gender'],
+  ) => Promise<string>) | undefined
   parentRole: ParentRole
   secondParentId: string
   setMarriage: (value: MarriageFormState) => void
@@ -288,8 +314,11 @@ function RelationshipFields({
   action,
   anchor,
   candidates,
+  existingPerson,
   fixedParents,
   marriage,
+  newPerson,
+  onLocalizeSurname,
   parentRole,
   secondParentId,
   setMarriage,
@@ -344,9 +373,35 @@ function RelationshipFields({
     return null
   }
 
-  return (
-    <MarriageFormFields onChange={setMarriage} state={marriage} />
+  const spouse = existingPerson ?? newPerson
+  const surnames = [surnameSource(anchor), spouse && surnameSource(spouse)]
+  const femaleSurnameSource = surnames.find(
+    (source) => source?.gender === 'female',
   )
+  const maleSurnameSource = surnames.find(
+    (source) => source?.gender === 'male',
+  )
+
+  return (
+    <MarriageFormFields
+      {...(femaleSurnameSource ? { femaleSurnameSource } : {})}
+      {...(maleSurnameSource ? { maleSurnameSource } : {})}
+      onChange={setMarriage}
+      onLocalizeSurname={onLocalizeSurname}
+      state={marriage}
+    />
+  )
+}
+
+function surnameSource(person: Person | PersonFormState): SurnameSource | null {
+  if (person.gender === 'unknown') return null
+
+  const birthSurname = person.birthSurname
+  const surname = 'unknown' in birthSurname
+    ? birthSurname.unknown ? '' : birthSurname.value.trim()
+    : birthSurname.state === 'known' ? birthSurname.value : ''
+
+  return surname ? { gender: person.gender, surname } : null
 }
 
 function spouseGender(person: Person): Person['gender'] {

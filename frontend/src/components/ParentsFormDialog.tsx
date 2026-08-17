@@ -24,11 +24,17 @@ export type ParentsFormValue = {
 
 type ParentsFormDialogProps = {
   onCancel: () => void
+  onLocalizeSurname?: ((
+    surname: string,
+    sourceGender: 'female' | 'male',
+    targetGender: 'female' | 'male',
+  ) => Promise<string>) | undefined
   onSave: (value: ParentsFormValue) => Promise<void>
 }
 
 export function ParentsFormDialog({
   onCancel,
+  onLocalizeSurname,
   onSave,
 }: ParentsFormDialogProps) {
   const { t } = useTranslation()
@@ -119,8 +125,17 @@ export function ParentsFormDialog({
                 <div className="person-form-grid parents-marriage-fields">
                   <MarriageFormFields
                     femaleSurnameLabel={t('relationships.wifeNewSurname')}
+                    femaleSurnameSource={mother.birthSurname.unknown
+                      || !mother.birthSurname.value.trim()
+                      ? null
+                      : { gender: 'female', surname: mother.birthSurname.value.trim() }}
                     maleSurnameLabel={t('relationships.husbandNewSurname')}
+                    maleSurnameSource={father.birthSurname.unknown
+                      || !father.birthSurname.value.trim()
+                      ? null
+                      : { gender: 'male', surname: father.birthSurname.value.trim() }}
                     onChange={setMarriage}
+                    onLocalizeSurname={onLocalizeSurname}
                     state={marriage}
                   />
                 </div>

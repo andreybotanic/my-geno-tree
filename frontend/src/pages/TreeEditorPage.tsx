@@ -49,6 +49,7 @@ import {
   marriageApi,
   personPhotoApi,
   personApi,
+  surnameApi,
   treeApi,
   type AuthorizedJsonRequest,
 } from '../api/client'
@@ -2744,6 +2745,16 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
+  const localizeSurname = async (
+    surname: string,
+    sourceGender: 'female' | 'male',
+    targetGender: 'female' | 'male',
+  ) => (await surnameApi.localize(request, {
+    surname,
+    sourceGender,
+    targetGender,
+  })).surname
+
   const saveEvent = async (payload: ManualEventRequest) => {
     if (!snapshot || !selectedPerson || !eventEditing || conflict) {
       throw new Error('Event mutation is unavailable')
@@ -3183,12 +3194,14 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             setRelativeDialog(null)
           }}
           onSave={addRelative}
+          onLocalizeSurname={localizeSurname}
           snapshot={snapshot}
         />
       )}
       {parentsDialogChildId && (
         <ParentsFormDialog
           onCancel={() => setParentsDialogChildId(null)}
+          onLocalizeSurname={localizeSurname}
           onSave={saveParents}
         />
       )}
