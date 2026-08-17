@@ -298,7 +298,7 @@ export function PersonFormFields({
         {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
           <div className="patronymic-suggestion-control">
           <button
-            className="surname-adoption-button"
+            className="link-button surname-adoption-button"
             disabled={
               determiningPatronymic
               || state.gender === 'unknown'

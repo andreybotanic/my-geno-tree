@@ -593,7 +593,7 @@ function SecondParentField({
         <span>{t(`relationships.${role}`)}</span>
         <strong>{t('relationships.newPerson')}</strong>
         <button
-          className="surname-adoption-button"
+          className="link-button surname-adoption-button"
           onClick={() => {
             setSecondParentSource('unknown')
             setSecondParentId('')
@@ -644,7 +644,7 @@ function SecondParentField({
         ))}
       </select>
       <button
-        className="surname-adoption-button"
+        className="link-button surname-adoption-button"
         onClick={() => {
           setNewSecondParent(emptyPersonForm(genderForParentRole(role)))
           setSecondParentId('')

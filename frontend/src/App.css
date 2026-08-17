@@ -2697,6 +2697,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.person-form-grid > * {
+  align-self: start;
+}
+
 .parents-form-grid {
   display: grid;
   gap: 22px;
