@@ -2756,13 +2756,13 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     targetGender,
   })).surname
 
-  const determinePatronymic = async (
+  const determinePatronymic = useCallback(async (
     fatherGivenName: string,
     childGender: 'female' | 'male',
   ) => (await patronymicApi.localize(request, {
     fatherGivenName,
     childGender,
-  })).patronymic
+  })).patronymic, [request])
 
   const saveEvent = async (payload: ManualEventRequest) => {
     if (!snapshot || !selectedPerson || !eventEditing || conflict) {

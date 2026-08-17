@@ -587,73 +587,75 @@ function SecondParentField({
   const spouses = eligible.filter((candidate) => spouseIds.has(candidate.id))
   const otherPeople = eligible.filter((candidate) => !spouseIds.has(candidate.id))
 
-  if (secondParentSource === 'new') {
-    return (
-      <div className="child-parent-summary">
-        <span>{t(`relationships.${role}`)}</span>
-        <strong>{t('relationships.newPerson')}</strong>
-        <button
-          className="link-button surname-adoption-button"
-          onClick={() => {
-            setSecondParentSource('unknown')
-            setSecondParentId('')
-          }}
-          type="button"
-        >
-          {t('relationships.chooseExistingParent')}
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div className="child-parent-selector">
       <span>{t(`relationships.${role}`)}</span>
-      <select
-        aria-label={t(`relationships.${role}`)}
-        onChange={(event) => {
-          setSecondParentId(event.target.value)
-          setSecondParentSource(event.target.value ? 'existing' : 'unknown')
-        }}
-        value={secondParentSource === 'existing' ? person?.id ?? '' : ''}
-      >
-        <option value="">{t('relationships.unknownParent')}</option>
-        {spouses.length > 0 ? (
-          <>
-            <optgroup label={t('relationships.spouses')}>
-              {spouses.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {formatPersonName(candidate, t)}
-                </option>
-              ))}
-            </optgroup>
-            {otherPeople.length > 0 && (
-              <optgroup label={t('relationships.otherPeople')}>
-                {otherPeople.map((candidate) => (
+      <fieldset className="relationship-mode child-parent-source">
+        <legend>{t('relationships.parentSource')}</legend>
+        <label className="choice-control">
+          <input
+            aria-label={t('relationships.newParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
+            checked={secondParentSource === 'new'}
+            onChange={() => {
+              setNewSecondParent(emptyPersonForm(genderForParentRole(role)))
+              setSecondParentId('')
+              setSecondParentSource('new')
+            }}
+            type="radio"
+          />
+          <span>{t('relationships.newPerson')}</span>
+        </label>
+        <label className="choice-control">
+          <input
+            aria-label={t('relationships.existingParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
+            checked={secondParentSource !== 'new'}
+            onChange={() => {
+              setSecondParentId('')
+              setSecondParentSource('unknown')
+            }}
+            type="radio"
+          />
+          <span>{t('relationships.existingPerson')}</span>
+        </label>
+      </fieldset>
+      {secondParentSource === 'new' ? (
+        <strong>{t('relationships.newPerson')}</strong>
+      ) : (
+        <select
+          aria-label={t(`relationships.${role}`)}
+          onChange={(event) => {
+            setSecondParentId(event.target.value)
+            setSecondParentSource(event.target.value ? 'existing' : 'unknown')
+          }}
+          value={secondParentSource === 'existing' ? person?.id ?? '' : ''}
+        >
+          <option value="">{t('relationships.unknownParent')}</option>
+          {spouses.length > 0 ? (
+            <>
+              <optgroup label={t('relationships.spouses')}>
+                {spouses.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {formatPersonName(candidate, t)}
                   </option>
                 ))}
               </optgroup>
-            )}
-          </>
-        ) : eligible.map((candidate) => (
-          <option key={candidate.id} value={candidate.id}>
-            {formatPersonName(candidate, t)}
-          </option>
-        ))}
-      </select>
-      <button
-        className="link-button surname-adoption-button"
-        onClick={() => {
-          setNewSecondParent(emptyPersonForm(genderForParentRole(role)))
-          setSecondParentId('')
-          setSecondParentSource('new')
-        }}
-        type="button"
-      >
-        {t('relationships.createSecondParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
-      </button>
+              {otherPeople.length > 0 && (
+                <optgroup label={t('relationships.otherPeople')}>
+                  {otherPeople.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {formatPersonName(candidate, t)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </>
+          ) : eligible.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {formatPersonName(candidate, t)}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   )
 }

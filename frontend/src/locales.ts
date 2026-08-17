@@ -224,7 +224,7 @@ export const resources = {
         create: 'Create person',
         createTitle: 'Create the first person',
         day: 'Day',
-        determinePatronymic: 'Determine patronymic',
+        usePatronymic: 'Use: {{patronymic}}',
         dateKind: 'Date type',
         dateKindAfter: 'After',
         dateKindApproximate: 'Approximately',
@@ -334,6 +334,9 @@ export const resources = {
         chooseParentRole: 'Choose whether the selected person is the mother or father.',
         commonChildren: 'Children',
         createSecondParent: 'Create new {{role}}',
+        existingParent: 'Existing {{role}}',
+        newParent: 'New {{role}}',
+        parentSource: 'Parent source',
         confirm: {
           marriage: {
             description:
@@ -638,7 +641,7 @@ export const resources = {
         create: 'Создать персону',
         createTitle: 'Создание первой персоны',
         day: 'День',
-        determinePatronymic: 'Определить отчество',
+        usePatronymic: 'Использовать: {{patronymic}}',
         dateKind: 'Вид даты',
         dateKindAfter: 'После',
         dateKindApproximate: 'Приблизительно',
@@ -748,6 +751,9 @@ export const resources = {
         chooseParentRole: 'Выберите, кем является выбранная персона: матерью или отцом.',
         commonChildren: 'Общие дети',
         createSecondParent: 'Создать нового: {{role}}',
+        existingParent: 'Существующая персона: {{role}}',
+        newParent: 'Новая персона: {{role}}',
+        parentSource: 'Источник родителя',
         confirm: {
           marriage: {
             description:

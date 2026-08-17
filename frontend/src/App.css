@@ -3058,6 +3058,7 @@
 
 .surname-adoption-button {
   font-size: 0.78rem;
+  font-weight: 400;
   justify-self: start;
   padding: 0;
 }
@@ -3068,7 +3069,7 @@
   gap: 4px;
 }
 
-.patronymic-suggestion-control small {
+.patronymic-suggestion-error {
   color: var(--color-state-danger);
   font-size: 0.75rem;
 }
@@ -3121,6 +3122,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.child-parent-source {
+  gap: 12px;
+  padding: 10px 12px;
 }
 
 .child-new-parent-fields {

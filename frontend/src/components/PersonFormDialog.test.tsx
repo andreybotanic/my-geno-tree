@@ -211,13 +211,12 @@ describe('PersonFormDialog', () => {
     )
 
     const dialog = screen.getByRole('dialog', { name: 'Создание первой персоны' })
-    const button = within(dialog).getByRole('button', {
-      name: 'Определить отчество',
+    const button = await within(dialog).findByRole('button', {
+      name: 'Использовать: Иванович',
     })
-    expect(button).toBeEnabled()
+    expect(onDetermine).toHaveBeenCalledWith('Иван', 'male')
     await userEvent.click(button)
 
-    expect(onDetermine).toHaveBeenCalledWith('Иван', 'male')
     const patronymic = within(dialog).getByRole('textbox', { name: 'Отчество' })
     expect(patronymic).toHaveValue('Иванович')
     await userEvent.clear(patronymic)
@@ -239,7 +238,25 @@ describe('PersonFormDialog', () => {
     )
 
     expect(screen.queryByRole('button', {
-      name: 'Determine patronymic',
+      name: 'Use: Ivanovich',
+    })).not.toBeInTheDocument()
+  })
+
+  it('does not offer a patronymic until the necessary data is known', async () => {
+    await i18n.changeLanguage('ru')
+    render(
+      <PersonFormDialog
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        patronymicSuggestion={{
+          fatherGivenName: undefined,
+          onDetermine: vi.fn(async () => 'Иванович'),
+        }}
+      />,
+    )
+
+    expect(screen.queryByRole('button', {
+      name: 'Использовать: Иванович',
     })).not.toBeInTheDocument()
   })
 

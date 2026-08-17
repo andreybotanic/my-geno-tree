@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PersonInput } from '../api/generated'
 import { ApiRequestError } from '../api/client'
@@ -272,10 +272,42 @@ export function PersonFormFields({
     null,
   )
   const [patronymicError, setPatronymicError] = useState('')
-  const [determiningPatronymic, setDeterminingPatronymic] = useState(false)
+  const [suggestedPatronymic, setSuggestedPatronymic] = useState<string | null>(
+    null,
+  )
+  const fatherGivenName = patronymicSuggestion?.fatherGivenName
+  const determinePatronymic = patronymicSuggestion?.onDetermine
   const editingPlace = placeEditing === 'birth'
     ? state.birthPlace
     : state.deathPlace
+
+  useEffect(() => {
+    setSuggestedPatronymic(null)
+    setPatronymicError('')
+    if (
+      i18n.resolvedLanguage !== 'ru'
+      || !fatherGivenName
+      || state.gender === 'unknown'
+      || !determinePatronymic
+    ) {
+      return
+    }
+
+    let cancelled = false
+    void determinePatronymic(fatherGivenName, state.gender).then((patronymic) => {
+      if (!cancelled) {
+        setSuggestedPatronymic(patronymic)
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setPatronymicError(t('person.patronymicDeterminationFailed'))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [determinePatronymic, fatherGivenName, i18n.resolvedLanguage, state.gender, t])
 
   return (
     <>
@@ -295,46 +327,26 @@ export function PersonFormFields({
         onChange={(patronymic) => onChange({ ...state, patronymic })}
         state={state.patronymic}
       >
-        {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
+        {suggestedPatronymic && (
           <div className="patronymic-suggestion-control">
-          <button
-            className="link-button surname-adoption-button"
-            disabled={
-              determiningPatronymic
-              || state.gender === 'unknown'
-              || !patronymicSuggestion.fatherGivenName
-            }
+            <button
+              className="link-button surname-adoption-button"
             onClick={() => {
-              if (
-                !patronymicSuggestion.fatherGivenName
-                || state.gender === 'unknown'
-              ) {
-                return
-              }
-              setDeterminingPatronymic(true)
-              setPatronymicError('')
-              void patronymicSuggestion.onDetermine(
-                patronymicSuggestion.fatherGivenName,
-                state.gender,
-              ).then((patronymic) => {
-                if (patronymic) {
-                  onChange({
-                    ...state,
-                    patronymic: { unknown: false, value: patronymic },
-                  })
-                }
-              }).catch(() => {
-                setPatronymicError(t('person.patronymicDeterminationFailed'))
-              }).finally(() => {
-                setDeterminingPatronymic(false)
+              onChange({
+                ...state,
+                patronymic: { unknown: false, value: suggestedPatronymic },
               })
             }}
             type="button"
           >
-            {t('person.determinePatronymic')}
-          </button>
-          {patronymicError && <small role="alert">{patronymicError}</small>}
+              {t('person.usePatronymic', { patronymic: suggestedPatronymic })}
+            </button>
           </div>
+        )}
+        {patronymicError && (
+          <small className="patronymic-suggestion-error" role="alert">
+            {patronymicError}
+          </small>
         )}
       </KnownTextInput>
       <label className="person-select-field">

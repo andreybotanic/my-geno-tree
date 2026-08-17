@@ -216,8 +216,8 @@ describe('RelativeDialog', () => {
     const mother = within(dialog).getByRole('combobox', { name: 'Mother' })
     expect(mother.querySelector('optgroup')?.label).toBe('Spouses')
     expect(mother.querySelectorAll('optgroup')).toHaveLength(2)
-    await userEvent.click(within(dialog).getByRole('button', {
-      name: 'Create new mother',
+    await userEvent.click(within(dialog).getByRole('radio', {
+      name: 'New mother',
     }))
 
     const newParent = dialog.querySelector('.child-new-parent-fields')
