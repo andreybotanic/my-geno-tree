@@ -3067,6 +3067,7 @@
   align-self: end;
   display: grid;
   gap: 4px;
+  margin-top: -4px;
   min-height: 18px;
 }
 
@@ -3074,7 +3075,8 @@
   align-self: end;
   align-items: baseline;
   display: flex;
-  gap: 4px;
+  gap: 0;
+  margin-top: -4px;
   min-height: 18px;
 }
 

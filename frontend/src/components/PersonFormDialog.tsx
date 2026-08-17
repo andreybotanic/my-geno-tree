@@ -406,7 +406,7 @@ export function PersonFormFields({
                     {suggestedSurnames.father}
                   </button>
                 )}
-                {suggestedSurnames.father && suggestedSurnames.mother && <span>,</span>}
+                {suggestedSurnames.father && suggestedSurnames.mother && <span>, </span>}
                 {suggestedSurnames.mother && (
                   <button
                     className="link-button surname-adoption-button"
@@ -447,7 +447,7 @@ export function PersonFormFields({
                 }}
                 type="button"
               >
-                {t('person.usePatronymic', { patronymic: suggestedPatronymic })}
+                {suggestedPatronymic}
               </button>
             )}
           </div>

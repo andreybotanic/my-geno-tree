@@ -212,7 +212,7 @@ describe('PersonFormDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Создание первой персоны' })
     const button = await within(dialog).findByRole('button', {
-      name: 'Использовать: Иванович',
+      name: 'Иванович',
     })
     expect(onDetermine).toHaveBeenCalledWith('Иван', 'male')
     await userEvent.click(button)
@@ -238,7 +238,7 @@ describe('PersonFormDialog', () => {
     )
 
     expect(screen.queryByRole('button', {
-      name: 'Use: Ivanovich',
+      name: 'Ivanovich',
     })).not.toBeInTheDocument()
   })
 
@@ -256,7 +256,7 @@ describe('PersonFormDialog', () => {
     )
 
     expect(screen.queryByRole('button', {
-      name: 'Использовать: Иванович',
+      name: 'Иванович',
     })).not.toBeInTheDocument()
   })
 
