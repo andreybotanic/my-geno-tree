@@ -157,6 +157,15 @@ export type SurnameLocalizationResult = {
     surname: string;
 };
 
+export type PatronymicLocalizationRequest = {
+    fatherGivenName: string;
+    childGender: 'male' | 'female';
+};
+
+export type PatronymicLocalizationResult = {
+    patronymic: string | null;
+};
+
 export type Coordinates = {
     x: number;
     y: number;
@@ -410,10 +419,17 @@ export type NewRelative = {
 
 export type RelativePerson = ExistingRelative | NewRelative;
 
-export type ParentSpecification = {
+export type ExistingParentSpecification = {
     personId: string;
     role: ParentRole;
 };
+
+export type NewParentSpecification = {
+    person: PersonInput;
+    role: ParentRole;
+};
+
+export type ParentSpecification = ExistingParentSpecification | NewParentSpecification;
 
 export type GraphMutation = CreateFirstPersonMutation | AddParentsMutation | AddParentMutation | AddChildMutation | LinkParentChildMutation | AddMarriagePeriodMutation | RemoveParentLinkMutation | RemoveMarriagePeriodMutation | DeletePersonMutation;
 
@@ -843,6 +859,43 @@ export type LocalizeSurnameResponses = {
 };
 
 export type LocalizeSurnameResponse = LocalizeSurnameResponses[keyof LocalizeSurnameResponses];
+
+export type LocalizePatronymicData = {
+    body: PatronymicLocalizationRequest;
+    path?: never;
+    query?: never;
+    url: '/patronymic-localization';
+};
+
+export type LocalizePatronymicErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * A JSON request body is required
+     */
+    415: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type LocalizePatronymicError = LocalizePatronymicErrors[keyof LocalizePatronymicErrors];
+
+export type LocalizePatronymicResponses = {
+    /**
+     * Localized patronymic, when the locale has a supported convention
+     */
+    200: PatronymicLocalizationResult;
+};
+
+export type LocalizePatronymicResponse = LocalizePatronymicResponses[keyof LocalizePatronymicResponses];
 
 export type DeleteAvatarData = {
     body?: never;

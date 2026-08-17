@@ -8,11 +8,14 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 final readonly class SurnameLocalizationService
 {
     /**
-     * @param iterable<LocalizedSurnameLocalizer> $localizers
+     * @param iterable<LocalizedSurnameLocalizer>    $localizers
+     * @param iterable<LocalizedPatronymicLocalizer> $patronymicLocalizers
      */
     public function __construct(
         #[AutowireIterator(LocalizedSurnameLocalizer::class)]
         private iterable $localizers,
+        #[AutowireIterator(LocalizedPatronymicLocalizer::class)]
+        private iterable $patronymicLocalizers,
     ) {
     }
 
@@ -29,5 +32,19 @@ final readonly class SurnameLocalizationService
         }
 
         return $surname;
+    }
+
+    public function determinePatronymic(
+        string $fatherGivenName,
+        Gender $childGender,
+        string $locale,
+    ): ?string {
+        foreach ($this->patronymicLocalizers as $localizer) {
+            if ($localizer->supports($locale)) {
+                return $localizer->determine($fatherGivenName, $childGender);
+            }
+        }
+
+        return null;
     }
 }

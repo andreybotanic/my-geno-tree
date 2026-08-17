@@ -47,6 +47,7 @@ import {
   ApiRequestError,
   eventApi,
   marriageApi,
+  patronymicApi,
   personPhotoApi,
   personApi,
   surnameApi,
@@ -2630,8 +2631,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         : [{
             personId: anchor.id,
             role: options.parentRole,
-          }, ...(options.secondParentId ? [{
-            personId: options.secondParentId,
+          }, ...(options.secondParent ? [{
+            ...options.secondParent,
             role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
           }] : [])]
       : []
@@ -2754,6 +2755,14 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     sourceGender,
     targetGender,
   })).surname
+
+  const determinePatronymic = async (
+    fatherGivenName: string,
+    childGender: 'female' | 'male',
+  ) => (await patronymicApi.localize(request, {
+    fatherGivenName,
+    childGender,
+  })).patronymic
 
   const saveEvent = async (payload: ManualEventRequest) => {
     if (!snapshot || !selectedPerson || !eventEditing || conflict) {
@@ -3127,9 +3136,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
               openRelativeDialog(
                 selectedPerson.id,
                 action,
-                undefined,
-                undefined,
-                secondParentId,
+                action === 'child' && secondParentId
+                  ? [selectedPerson.id, secondParentId]
+                  : undefined,
               )
             }}
             onClose={closePersonDetails}
@@ -3194,6 +3203,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             setRelativeDialog(null)
           }}
           onSave={addRelative}
+          onDeterminePatronymic={determinePatronymic}
           onLocalizeSurname={localizeSurname}
           snapshot={snapshot}
         />

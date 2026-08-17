@@ -229,7 +229,7 @@ final readonly class StructuralGraphMutationService
             'parents',
             'relative',
         ]);
-        $parents = $this->parentSpecifications($tree, $payload['parents']);
+        $parents = $this->parentSpecifications($tree, $payload['parents'], $changedAt);
         $child = $this->relative(
             $tree,
             $payload['relative'],
@@ -691,6 +691,7 @@ final readonly class StructuralGraphMutationService
     private function parentSpecifications(
         FamilyTree $tree,
         mixed $value,
+        \DateTimeImmutable $changedAt,
     ): array {
         if (!is_array($value) || !array_is_list($value)) {
             $this->invalid('parents', 'array_required');
@@ -704,13 +705,19 @@ final readonly class StructuralGraphMutationService
         foreach ($value as $index => $specification) {
             $field = 'parents.' . $index;
             $payload = $this->object($specification, $field);
-            $this->assertExactKeys($payload, ['personId', 'role'], $field);
-            $person = $this->person(
-                $tree,
-                $payload['personId'],
-                $field . '.personId',
-            );
+            if (!array_key_exists('role', $payload)) {
+                $this->invalid($field . '.role', 'field_required');
+            }
             $role = $this->parentRole($payload['role'], $field . '.role');
+            $relative = $payload;
+            unset($relative['role']);
+            $person = $this->relative(
+                $tree,
+                $relative,
+                $changedAt,
+                $role->requiredGender(),
+                $field,
+            );
             $id = $person->getId()->toRfc4122();
             if (isset($ids[$id]) || isset($roles[$role->value])) {
                 $this->invalid('parents', 'parents_must_be_distinct');

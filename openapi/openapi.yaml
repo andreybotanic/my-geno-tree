@@ -183,6 +183,33 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /patronymic-localization:
+    post:
+      operationId: localizePatronymic
+      summary: Determine a patronymic from the father's given name in the current user's locale
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatronymicLocalizationRequest"
+      responses:
+        "200":
+          description: Localized patronymic, when the locale has a supported convention
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronymicLocalizationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /me/avatar:
     get:
       operationId: getAvatar
@@ -1742,6 +1769,32 @@ components:
       properties:
         surname:
           type: string
+    PatronymicLocalizationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - fatherGivenName
+        - childGender
+      properties:
+        fatherGivenName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        childGender:
+          type: string
+          enum:
+            - male
+            - female
+    PatronymicLocalizationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - patronymic
+      properties:
+        patronymic:
+          type:
+            - string
+            - "null"
     Coordinates:
       type: object
       additionalProperties: false
@@ -2401,7 +2454,7 @@ components:
       oneOf:
         - $ref: "#/components/schemas/ExistingRelative"
         - $ref: "#/components/schemas/NewRelative"
-    ParentSpecification:
+    ExistingParentSpecification:
       type: object
       additionalProperties: false
       required:
@@ -2413,6 +2466,21 @@ components:
           format: uuid
         role:
           $ref: "#/components/schemas/ParentRole"
+    NewParentSpecification:
+      type: object
+      additionalProperties: false
+      required:
+        - person
+        - role
+      properties:
+        person:
+          $ref: "#/components/schemas/PersonInput"
+        role:
+          $ref: "#/components/schemas/ParentRole"
+    ParentSpecification:
+      oneOf:
+        - $ref: "#/components/schemas/ExistingParentSpecification"
+        - $ref: "#/components/schemas/NewParentSpecification"
     GraphMutation:
       oneOf:
         - $ref: "#/components/schemas/CreateFirstPersonMutation"

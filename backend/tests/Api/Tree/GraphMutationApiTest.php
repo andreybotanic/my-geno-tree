@@ -846,6 +846,46 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
     }
 
+    public function testChildCanCreateItsSecondParentAtomically(): void
+    {
+        $accessToken = $this->register();
+        $tree = $this->createTree($accessToken);
+        $snapshot = $this->firstPerson(
+            $accessToken,
+            $tree,
+            $this->person(['gender' => 'male']),
+        );
+        $father = $snapshot['people'][0];
+
+        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
+            'type'    => 'add_child',
+            'parents' => [
+                ['personId' => $father['id'], 'role' => 'father'],
+                [
+                    'person' => $this->person([
+                        'givenName' => ['state' => 'known', 'value' => 'Anna'],
+                        'gender'    => 'female',
+                    ]),
+                    'role' => 'mother',
+                ],
+            ],
+            'relative' => ['person' => $this->person(['gender' => 'female'])],
+        ]);
+
+        self::assertCount(3, $snapshot['people']);
+        self::assertCount(2, $snapshot['parentLinks']);
+        $motherLink = array_values(array_filter(
+            $snapshot['parentLinks'],
+            static fn (array $link): bool => 'mother' === $link['role'],
+        ))[0];
+        $mother = $this->personById($snapshot, $motherLink['parentId']);
+        self::assertSame('female', $mother['gender']);
+        self::assertSame(
+            ['state' => 'known', 'value' => 'Anna'],
+            $mother['givenName'],
+        );
+    }
+
     public function testCurrentSpouseWithCommonChildCannotBeDeleted(): void
     {
         [$accessToken, $tree, $snapshot, $male, $female] =

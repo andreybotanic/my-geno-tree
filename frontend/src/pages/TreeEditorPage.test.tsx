@@ -622,7 +622,10 @@ describe('TreeEditorPage', () => {
     expect(screen.getByRole('menuitem', { name: 'Create marriage' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('menuitem', { name: 'Add child' }))
     expect(screen.getByRole('dialog', { name: 'Add child' })).toBeInTheDocument()
-    expect(screen.getByText('Ivanova Anna, Petrov Ivan')).toBeInTheDocument()
+    expect(screen.getByText('Mother')).toBeInTheDocument()
+    expect(screen.getByText('Ivanova Anna')).toBeInTheDocument()
+    expect(screen.getByText('Father')).toBeInTheDocument()
+    expect(screen.getByText('Petrov Ivan')).toBeInTheDocument()
     expect(screen.queryByText('Second parent')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 

@@ -2245,7 +2245,8 @@
 .person-select-field textarea,
 .person-text-field input,
 .person-fieldset input:not([type="checkbox"]),
-.date-controls select {
+.date-controls select,
+.child-parent-selector select {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -3057,6 +3058,17 @@
   padding: 0;
 }
 
+.patronymic-suggestion-control {
+  align-self: end;
+  display: grid;
+  gap: 4px;
+}
+
+.patronymic-suggestion-control small {
+  color: var(--color-state-danger);
+  font-size: 0.75rem;
+}
+
 .marriage-surname-localization-error {
   grid-column: 1 / -1;
 }
@@ -3083,6 +3095,36 @@
 
 .relationship-wide-field {
   grid-column: 1 / -1;
+}
+
+.child-parent-summary,
+.child-parent-selector {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.child-parent-summary > span,
+.child-parent-selector > span,
+.child-new-parent-fields > legend {
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.child-parent-summary strong {
+  min-height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.child-new-parent-fields {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin: 0;
+  min-width: 0;
+  padding: 12px;
 }
 
 .marriage-period-dialog {

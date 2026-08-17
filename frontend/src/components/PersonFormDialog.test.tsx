@@ -195,6 +195,54 @@ describe('PersonFormDialog', () => {
     ).toHaveValue('1')
   })
 
+  it('determines a Russian patronymic and keeps it editable', async () => {
+    await i18n.changeLanguage('ru')
+    const onDetermine = vi.fn(async () => 'Иванович')
+    render(
+      <PersonFormDialog
+        initialGender="male"
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        patronymicSuggestion={{
+          fatherGivenName: 'Иван',
+          onDetermine,
+        }}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Создание первой персоны' })
+    const button = within(dialog).getByRole('button', {
+      name: 'Определить отчество',
+    })
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
+
+    expect(onDetermine).toHaveBeenCalledWith('Иван', 'male')
+    const patronymic = within(dialog).getByRole('textbox', { name: 'Отчество' })
+    expect(patronymic).toHaveValue('Иванович')
+    await userEvent.clear(patronymic)
+    await userEvent.type(patronymic, 'Петрович')
+    expect(patronymic).toHaveValue('Петрович')
+  })
+
+  it('does not show patronymic determination in English', () => {
+    render(
+      <PersonFormDialog
+        initialGender="male"
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        patronymicSuggestion={{
+          fatherGivenName: 'Ivan',
+          onDetermine: vi.fn(async () => 'Ivanovich'),
+        }}
+      />,
+    )
+
+    expect(screen.queryByRole('button', {
+      name: 'Determine patronymic',
+    })).not.toBeInTheDocument()
+  })
+
   it.each([
     [
       new ApiRequestError(412, {

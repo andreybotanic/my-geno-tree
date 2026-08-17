@@ -126,7 +126,7 @@ describe('RelativeDialog', () => {
         maleNewSurname: 'Newman',
         femaleNewSurname: 'Newwoman',
         parentRole: 'father',
-        secondParentId: null,
+        secondParent: null,
       },
     )
   })
@@ -148,7 +148,7 @@ describe('RelativeDialog', () => {
     expect(screen.getByRole('combobox', { name: 'Gender' })).toHaveValue('female')
   })
 
-  it('links an existing child and keeps an explicitly selected co-parent', async () => {
+  it('shows parents first and links an existing child with its selected co-parent', async () => {
     const onSave = vi.fn(async () => {})
     render(
       <RelativeDialog
@@ -169,15 +169,11 @@ describe('RelativeDialog', () => {
       within(dialog).getByRole('combobox', { name: 'Person' }),
       candidate.id,
     )
-    expect(
-      within(dialog).getByRole('combobox', { name: 'Second parent' }),
-    ).toHaveValue(second.id)
-    await userEvent.selectOptions(
-      within(dialog).getByRole('combobox', {
-        name: 'Selected person is the',
-      }),
-      'mother',
-    )
+    expect(within(dialog).getByRole('combobox', { name: 'Mother' }))
+      .toHaveValue(second.id)
+    expect(within(dialog).getByText('Father')).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Mother' }))
+      .toHaveValue(second.id)
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Save' }),
     )
@@ -185,10 +181,96 @@ describe('RelativeDialog', () => {
     expect(onSave).toHaveBeenCalledWith(
       { personId: candidate.id },
       expect.objectContaining({
-        parentRole: 'mother',
-        secondParentId: second.id,
+        parentRole: 'father',
+        secondParent: { personId: second.id },
       }),
     )
+  })
+
+  it('groups eligible spouses first and creates a fixed-gender second parent', async () => {
+    const spouseSnapshot: TreeSnapshot = {
+      ...snapshot,
+      marriages: [{
+        id: 'marriage',
+        malePersonId: anchor.id,
+        femalePersonId: second.id,
+        marriageDate: { state: 'unknown' },
+        marriagePlace: null,
+        dissolutionDate: null,
+        dissolutionPlace: null,
+        createdAt,
+        updatedAt: createdAt,
+      }],
+    }
+    render(
+      <RelativeDialog
+        action="child"
+        anchor={anchor}
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        snapshot={spouseSnapshot}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Add child' })
+    const mother = within(dialog).getByRole('combobox', { name: 'Mother' })
+    expect(mother.querySelector('optgroup')?.label).toBe('Spouses')
+    expect(mother.querySelectorAll('optgroup')).toHaveLength(2)
+    await userEvent.click(within(dialog).getByRole('button', {
+      name: 'Create new mother',
+    }))
+
+    const newParent = dialog.querySelector('.child-new-parent-fields')
+    expect(newParent).not.toBeNull()
+    expect(within(newParent as HTMLElement).getByRole('combobox', { name: 'Gender' }))
+      .toHaveValue('female')
+    expect(within(newParent as HTMLElement).getByRole('combobox', { name: 'Gender' }))
+      .toBeDisabled()
+  })
+
+  it('shows mother and father as separate fixed blocks for a family child', () => {
+    render(
+      <RelativeDialog
+        action="child"
+        anchor={anchor}
+        fixedParentIds={[anchor.id, second.id]}
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        snapshot={snapshot}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Add child' })
+    const parents = dialog.querySelectorAll('.child-parent-summary')
+    expect(parents).toHaveLength(2)
+    expect(parents[0]).toHaveTextContent('Mother')
+    expect(parents[0]).toHaveTextContent('Second')
+    expect(parents[1]).toHaveTextContent('Father')
+    expect(parents[1]).toHaveTextContent('Petrov')
+    expect(
+      parents[1]!.compareDocumentPosition(
+        within(dialog).getByRole('textbox', { name: 'Surname' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0)
+  })
+
+  it('asks for a parent role when the selected person has an unknown gender', async () => {
+    render(
+      <RelativeDialog
+        action="child"
+        anchor={person('unknown', 'Unknown', 'unknown')}
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        snapshot={snapshot}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Add child' })
+    const role = within(dialog).getByRole('combobox', {
+      name: 'Selected person is the',
+    })
+    expect(role).toHaveValue('')
+    await userEvent.selectOptions(role, 'mother')
+    expect(within(dialog).getByRole('combobox', { name: 'Father' }))
+      .toBeInTheDocument()
   })
 
   it('validates existing selection and reports ETag conflicts', async () => {

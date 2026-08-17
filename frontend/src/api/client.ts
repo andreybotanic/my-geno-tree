@@ -475,6 +475,18 @@ export const surnameApi = {
   },
 }
 
+export const patronymicApi = {
+  localize(
+    request: AuthorizedJsonRequest,
+    input: import('./generated').PatronymicLocalizationRequest,
+  ) {
+    return request<import('./generated').PatronymicLocalizationResult>(
+      '/patronymic-localization',
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  },
+}
+
 export const profileMediaApi = {
   uploadAvatar(
     request: AuthorizedJsonRequest,

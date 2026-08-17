@@ -19,6 +19,7 @@ import { PlaceDialog, PlaceTextButton } from './PlaceDialog'
 
 type KnownTextInputProps = {
   autoFocus?: boolean
+  children?: ReactNode | undefined
   label: string
   onChange: (state: TextInputState) => void
   state: TextInputState
@@ -26,6 +27,7 @@ type KnownTextInputProps = {
 
 function KnownTextInput({
   autoFocus = false,
+  children,
   label,
   onChange,
   state,
@@ -57,6 +59,7 @@ function KnownTextInput({
           title={t('person.unknown')}
         />
       </div>
+      {children}
     </div>
   )
 }
@@ -231,10 +234,13 @@ export function StructuredDateInput({
 }
 
 type PersonFormDialogProps = {
+  beforeFields?: ReactNode | undefined
   children?: ReactNode | ((person: PersonFormState) => ReactNode)
+  fixedGender?: boolean
   initialGender?: PersonInput['gender'] | undefined
   onCancel: () => void
   onSave: (person: PersonInput) => Promise<void>
+  patronymicSuggestion?: PatronymicSuggestion | undefined
   title?: string
 }
 
@@ -242,19 +248,31 @@ type PersonFormFieldsProps = {
   autoFocus?: boolean
   fixedGender?: boolean
   onChange: (state: PersonFormState) => void
+  patronymicSuggestion?: PatronymicSuggestion | undefined
   state: PersonFormState
+}
+
+export type PatronymicSuggestion = {
+  fatherGivenName: string | undefined
+  onDetermine: (
+    fatherGivenName: string,
+    childGender: 'female' | 'male',
+  ) => Promise<string | null>
 }
 
 export function PersonFormFields({
   autoFocus = false,
   fixedGender = false,
   onChange,
+  patronymicSuggestion,
   state,
 }: PersonFormFieldsProps) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const [placeEditing, setPlaceEditing] = useState<'birth' | 'death' | null>(
     null,
   )
+  const [patronymicError, setPatronymicError] = useState('')
+  const [determiningPatronymic, setDeterminingPatronymic] = useState(false)
   const editingPlace = placeEditing === 'birth'
     ? state.birthPlace
     : state.deathPlace
@@ -276,7 +294,49 @@ export function PersonFormFields({
         label={t('person.patronymic')}
         onChange={(patronymic) => onChange({ ...state, patronymic })}
         state={state.patronymic}
-      />
+      >
+        {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
+          <div className="patronymic-suggestion-control">
+          <button
+            className="surname-adoption-button"
+            disabled={
+              determiningPatronymic
+              || state.gender === 'unknown'
+              || !patronymicSuggestion.fatherGivenName
+            }
+            onClick={() => {
+              if (
+                !patronymicSuggestion.fatherGivenName
+                || state.gender === 'unknown'
+              ) {
+                return
+              }
+              setDeterminingPatronymic(true)
+              setPatronymicError('')
+              void patronymicSuggestion.onDetermine(
+                patronymicSuggestion.fatherGivenName,
+                state.gender,
+              ).then((patronymic) => {
+                if (patronymic) {
+                  onChange({
+                    ...state,
+                    patronymic: { unknown: false, value: patronymic },
+                  })
+                }
+              }).catch(() => {
+                setPatronymicError(t('person.patronymicDeterminationFailed'))
+              }).finally(() => {
+                setDeterminingPatronymic(false)
+              })
+            }}
+            type="button"
+          >
+            {t('person.determinePatronymic')}
+          </button>
+          {patronymicError && <small role="alert">{patronymicError}</small>}
+          </div>
+        )}
+      </KnownTextInput>
       <label className="person-select-field">
         <span>{t('person.gender')}</span>
         <select
@@ -361,10 +421,13 @@ export function PersonFormFields({
 }
 
 export function PersonFormDialog({
+  beforeFields,
   children,
+  fixedGender = false,
   initialGender = 'unknown',
   onCancel,
   onSave,
+  patronymicSuggestion,
   title,
 }: PersonFormDialogProps) {
   const { t } = useTranslation()
@@ -409,9 +472,12 @@ export function PersonFormDialog({
         <h2 id="person-dialog-title">{title ?? t('person.createTitle')}</h2>
         <form onSubmit={submit}>
           <div className="person-form-grid">
+            {beforeFields}
             <PersonFormFields
               autoFocus
+              fixedGender={fixedGender}
               onChange={setPerson}
+              patronymicSuggestion={patronymicSuggestion}
               state={person}
             />
             {typeof children === 'function' ? children(person) : children}
