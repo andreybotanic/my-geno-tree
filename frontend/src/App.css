@@ -3067,6 +3067,15 @@
   align-self: end;
   display: grid;
   gap: 4px;
+  min-height: 18px;
+}
+
+.surname-suggestion-control {
+  align-self: end;
+  align-items: baseline;
+  display: flex;
+  gap: 4px;
+  min-height: 18px;
 }
 
 .patronymic-suggestion-error {

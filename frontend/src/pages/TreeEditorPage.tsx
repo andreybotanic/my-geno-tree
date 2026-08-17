@@ -2746,7 +2746,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
-  const localizeSurname = async (
+  const localizeSurname = useCallback(async (
     surname: string,
     sourceGender: 'female' | 'male',
     targetGender: 'female' | 'male',
@@ -2754,7 +2754,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     surname,
     sourceGender,
     targetGender,
-  })).surname
+  })).surname, [request])
 
   const determinePatronymic = useCallback(async (
     fatherGivenName: string,

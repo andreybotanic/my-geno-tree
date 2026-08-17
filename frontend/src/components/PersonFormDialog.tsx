@@ -241,6 +241,7 @@ type PersonFormDialogProps = {
   onCancel: () => void
   onSave: (person: PersonInput) => Promise<void>
   patronymicSuggestion?: PatronymicSuggestion | undefined
+  surnameSuggestions?: SurnameSuggestions | undefined
   title?: string
 }
 
@@ -249,6 +250,7 @@ type PersonFormFieldsProps = {
   fixedGender?: boolean
   onChange: (state: PersonFormState) => void
   patronymicSuggestion?: PatronymicSuggestion | undefined
+  surnameSuggestions?: SurnameSuggestions | undefined
   state: PersonFormState
 }
 
@@ -260,11 +262,27 @@ export type PatronymicSuggestion = {
   ) => Promise<string | null>
 }
 
+export type SurnameSuggestionSource = {
+  gender: 'female' | 'male'
+  surname: string
+}
+
+export type SurnameSuggestions = {
+  father: SurnameSuggestionSource | undefined
+  mother: SurnameSuggestionSource | undefined
+  onLocalize: (
+    surname: string,
+    sourceGender: 'female' | 'male',
+    targetGender: 'female' | 'male',
+  ) => Promise<string>
+}
+
 export function PersonFormFields({
   autoFocus = false,
   fixedGender = false,
   onChange,
   patronymicSuggestion,
+  surnameSuggestions,
   state,
 }: PersonFormFieldsProps) {
   const { i18n, t } = useTranslation()
@@ -275,8 +293,17 @@ export function PersonFormFields({
   const [suggestedPatronymic, setSuggestedPatronymic] = useState<string | null>(
     null,
   )
+  const [suggestedSurnames, setSuggestedSurnames] = useState<Partial<Record<
+    'father' | 'mother',
+    string
+  >>>({})
   const fatherGivenName = patronymicSuggestion?.fatherGivenName
   const determinePatronymic = patronymicSuggestion?.onDetermine
+  const fatherSurname = surnameSuggestions?.father?.surname
+  const fatherSurnameGender = surnameSuggestions?.father?.gender
+  const motherSurname = surnameSuggestions?.mother?.surname
+  const motherSurnameGender = surnameSuggestions?.mother?.gender
+  const localizeSurname = surnameSuggestions?.onLocalize
   const editingPlace = placeEditing === 'birth'
     ? state.birthPlace
     : state.deathPlace
@@ -309,6 +336,52 @@ export function PersonFormFields({
     }
   }, [determinePatronymic, fatherGivenName, i18n.resolvedLanguage, state.gender, t])
 
+  useEffect(() => {
+    setSuggestedSurnames({})
+    const childGender = state.gender
+    if (
+      childGender === 'unknown'
+      || !localizeSurname
+    ) {
+      return
+    }
+
+    const sources = [
+      fatherSurname && fatherSurnameGender
+        ? { gender: fatherSurnameGender, role: 'father' as const, surname: fatherSurname }
+        : null,
+      motherSurname && motherSurnameGender
+        ? { gender: motherSurnameGender, role: 'mother' as const, surname: motherSurname }
+        : null,
+    ].filter((source): source is SurnameSuggestionSource & {
+      role: 'father' | 'mother'
+    } => source !== null)
+    if (sources.length === 0) {
+      return
+    }
+
+    let cancelled = false
+    void Promise.all(sources.map(async (source) => [
+      source.role,
+      await localizeSurname(source.surname, source.gender, childGender),
+    ] as const)).then((localized) => {
+      if (!cancelled) {
+        setSuggestedSurnames(Object.fromEntries(localized))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    fatherSurname,
+    fatherSurnameGender,
+    localizeSurname,
+    motherSurname,
+    motherSurnameGender,
+    state.gender,
+  ])
+
   return (
     <>
       <KnownTextInput
@@ -316,7 +389,41 @@ export function PersonFormFields({
         label={t('person.birthSurname')}
         onChange={(birthSurname) => onChange({ ...state, birthSurname })}
         state={state.birthSurname}
-      />
+      >
+        {surnameSuggestions && (
+          <div className="surname-suggestion-control">
+            {state.gender !== 'unknown' && (
+              <>
+                {suggestedSurnames.father && (
+                  <button
+                    className="link-button surname-adoption-button"
+                    onClick={() => onChange({
+                      ...state,
+                      birthSurname: { unknown: false, value: suggestedSurnames.father! },
+                    })}
+                    type="button"
+                  >
+                    {suggestedSurnames.father}
+                  </button>
+                )}
+                {suggestedSurnames.father && suggestedSurnames.mother && <span>,</span>}
+                {suggestedSurnames.mother && (
+                  <button
+                    className="link-button surname-adoption-button"
+                    onClick={() => onChange({
+                      ...state,
+                      birthSurname: { unknown: false, value: suggestedSurnames.mother! },
+                    })}
+                    type="button"
+                  >
+                    {suggestedSurnames.mother}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </KnownTextInput>
       <KnownTextInput
         label={t('person.givenName')}
         onChange={(givenName) => onChange({ ...state, givenName })}
@@ -327,20 +434,22 @@ export function PersonFormFields({
         onChange={(patronymic) => onChange({ ...state, patronymic })}
         state={state.patronymic}
       >
-        {suggestedPatronymic && (
+        {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
           <div className="patronymic-suggestion-control">
-            <button
-              className="link-button surname-adoption-button"
-            onClick={() => {
-              onChange({
-                ...state,
-                patronymic: { unknown: false, value: suggestedPatronymic },
-              })
-            }}
-            type="button"
-          >
-              {t('person.usePatronymic', { patronymic: suggestedPatronymic })}
-            </button>
+            {suggestedPatronymic && (
+              <button
+                className="link-button surname-adoption-button"
+                onClick={() => {
+                  onChange({
+                    ...state,
+                    patronymic: { unknown: false, value: suggestedPatronymic },
+                  })
+                }}
+                type="button"
+              >
+                {t('person.usePatronymic', { patronymic: suggestedPatronymic })}
+              </button>
+            )}
           </div>
         )}
         {patronymicError && (
@@ -440,6 +549,7 @@ export function PersonFormDialog({
   onCancel,
   onSave,
   patronymicSuggestion,
+  surnameSuggestions,
   title,
 }: PersonFormDialogProps) {
   const { t } = useTranslation()
@@ -490,6 +600,7 @@ export function PersonFormDialog({
               fixedGender={fixedGender}
               onChange={setPerson}
               patronymicSuggestion={patronymicSuggestion}
+              surnameSuggestions={surnameSuggestions}
               state={person}
             />
             {typeof children === 'function' ? children(person) : children}

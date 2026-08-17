@@ -260,6 +260,52 @@ describe('PersonFormDialog', () => {
     })).not.toBeInTheDocument()
   })
 
+  it('localizes parent surname suggestions after the child gender is selected', async () => {
+    await i18n.changeLanguage('ru')
+    const onLocalize = vi.fn(async (
+      surname: string,
+      _sourceGender: 'female' | 'male',
+      targetGender: 'female' | 'male',
+    ) => `${surname}-${targetGender}`)
+    render(
+      <PersonFormDialog
+        onCancel={vi.fn()}
+        onSave={vi.fn(async () => {})}
+        surnameSuggestions={{
+          father: { gender: 'male', surname: 'Иванов' },
+          mother: { gender: 'female', surname: 'Петрова' },
+          onLocalize,
+        }}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Создание первой персоны' })
+    expect(within(dialog).queryByRole('button', {
+      name: 'Иванов-male',
+    })).not.toBeInTheDocument()
+
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Пол' }),
+      'male',
+    )
+    const fatherSuggestion = await within(dialog).findByRole('button', {
+      name: 'Иванов-male',
+    })
+    expect(onLocalize).toHaveBeenCalledWith('Иванов', 'male', 'male')
+    expect(onLocalize).toHaveBeenCalledWith('Петрова', 'female', 'male')
+    await userEvent.click(fatherSuggestion)
+    expect(within(dialog).getByRole('textbox', { name: 'Фамилия' }))
+      .toHaveValue('Иванов-male')
+
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Пол' }),
+      'female',
+    )
+    expect(await within(dialog).findByRole('button', {
+      name: 'Петрова-female',
+    })).toBeInTheDocument()
+  })
+
   it.each([
     [
       new ApiRequestError(412, {

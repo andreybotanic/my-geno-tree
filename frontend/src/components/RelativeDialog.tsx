@@ -24,7 +24,11 @@ import {
   MarriageFormFields,
   type SurnameSource,
 } from './MarriageFormFields'
-import { PersonFormDialog, PersonFormFields } from './PersonFormDialog'
+import {
+  PersonFormDialog,
+  PersonFormFields,
+  type SurnameSuggestions,
+} from './PersonFormDialog'
 
 export type RelativeAction = 'child' | 'father' | 'mother' | 'spouse'
 
@@ -228,6 +232,26 @@ export function RelativeDialog({
     return undefined
   }
 
+  const childSurnameSuggestions = (): SurnameSuggestions | undefined => {
+    if (action !== 'child' || !onLocalizeSurname) {
+      return undefined
+    }
+
+    const secondParent = secondParentSource === 'new'
+      ? newSecondParent
+      : candidates.find((person) => person.id === secondParentId)
+    const father = fixedParents?.find((person) => person.gender === 'male')
+      ?? (parentRole === 'father' ? anchor : secondParent)
+    const mother = fixedParents?.find((person) => person.gender === 'female')
+      ?? (parentRole === 'mother' ? anchor : secondParent)
+
+    return {
+      father: father ? surnameSource(father) ?? undefined : undefined,
+      mother: mother ? surnameSource(mother) ?? undefined : undefined,
+      onLocalize: onLocalizeSurname,
+    }
+  }
+
   const relationshipFields = (newPerson?: PersonFormState) => (
     <RelationshipFields
       action={action}
@@ -279,6 +303,7 @@ export function RelativeDialog({
           fatherGivenName: fatherGivenName(),
           onDetermine: onDeterminePatronymic,
         } : undefined}
+        surnameSuggestions={childSurnameSuggestions()}
         title={title}
       >
         {action === 'child' ? undefined : (newPerson) => (
