@@ -4,37 +4,33 @@ namespace App\Application\Person;
 
 use App\Entity\Value\Gender;
 
-final class SurnameLocalizer
+final class RussianSurnameLocalizer implements LocalizedSurnameLocalizer
 {
+    public function supports(string $locale): bool
+    {
+        return 'ru' === $locale;
+    }
+
     public function localize(
         string $surname,
         Gender $sourceGender,
         Gender $targetGender,
-        string $locale,
     ): string {
-        if ($sourceGender === $targetGender || 'ru' !== $locale) {
+        if ($sourceGender === $targetGender) {
             return $surname;
         }
 
-        return $this->russianGenderForm($surname, $sourceGender, $targetGender);
-    }
-
-    private function russianGenderForm(
-        string $surname,
-        Gender $sourceGender,
-        Gender $targetGender,
-    ): string {
         $parts = [];
         foreach (explode('-', $surname) as $part) {
             $parts[] = Gender::FEMALE === $targetGender
-                ? $this->toRussianFemaleForm($part)
-                : $this->toRussianMaleForm($part);
+                ? $this->toFemaleForm($part)
+                : $this->toMaleForm($part);
         }
 
         return implode('-', $parts);
     }
 
-    private function toRussianFemaleForm(string $surname): string
+    private function toFemaleForm(string $surname): string
     {
         return $this->replaceEnding($surname, [
             'ский' => 'ская',
@@ -50,7 +46,7 @@ final class SurnameLocalizer
         ]);
     }
 
-    private function toRussianMaleForm(string $surname): string
+    private function toMaleForm(string $surname): string
     {
         return $this->replaceEnding($surname, [
             'ская' => 'ский',

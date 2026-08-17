@@ -3,7 +3,7 @@
 namespace App\Controller\Api\Person;
 
 use App\Api\RequestBodyMapper;
-use App\Application\Person\SurnameLocalizer;
+use App\Application\Person\SurnameLocalizationService;
 use App\Entity\User;
 use App\Entity\Value\Gender;
 use App\Request\Person\LocalizeSurnameRequest;
@@ -18,7 +18,7 @@ final readonly class SurnameLocalizationController
 {
     public function __construct(
         private RequestBodyMapper $requestBody,
-        private SurnameLocalizer $localizer,
+        private SurnameLocalizationService $localizationService,
     ) {
     }
 
@@ -30,7 +30,7 @@ final readonly class SurnameLocalizationController
         /** @var LocalizeSurnameRequest $input */
         $input = $this->requestBody->map($request, LocalizeSurnameRequest::class);
 
-        return new JsonResponse(['surname' => $this->localizer->localize(
+        return new JsonResponse(['surname' => $this->localizationService->localize(
             trim($input->surname),
             Gender::from($input->sourceGender),
             Gender::from($input->targetGender),

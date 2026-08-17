@@ -124,4 +124,21 @@ describe('MarriageFormFields', () => {
       femaleNewSurname: 'Ivanova',
     }))
   })
+
+  it('keeps the surname adoption links visible until a spouse surname is available', () => {
+    render(
+      <MarriageFormFields
+        onChange={vi.fn()}
+        onLocalizeSurname={vi.fn(async (surname: string) => surname)}
+        state={emptyMarriageForm()}
+      />,
+    )
+
+    expect(screen.getByRole('button', {
+      name: "Take wife's surname",
+    })).toBeDisabled()
+    expect(screen.getByRole('button', {
+      name: "Take husband's surname",
+    })).toBeDisabled()
+  })
 })

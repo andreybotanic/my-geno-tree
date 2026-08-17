@@ -93,10 +93,10 @@ export function MarriageFormFields({
           })}
           value={state.maleNewSurname}
         />
-        {femaleSurnameSource && onLocalizeSurname && (
+        {onLocalizeSurname && (
           <button
             className="link-button surname-adoption-button"
-            disabled={localizing !== null}
+            disabled={!femaleSurnameSource || localizing !== null}
             onClick={() => void adoptSurname('male', femaleSurnameSource)}
             type="button"
           >
@@ -114,10 +114,10 @@ export function MarriageFormFields({
           })}
           value={state.femaleNewSurname}
         />
-        {maleSurnameSource && onLocalizeSurname && (
+        {onLocalizeSurname && (
           <button
             className="link-button surname-adoption-button"
-            disabled={localizing !== null}
+            disabled={!maleSurnameSource || localizing !== null}
             onClick={() => void adoptSurname('female', maleSurnameSource)}
             type="button"
           >
