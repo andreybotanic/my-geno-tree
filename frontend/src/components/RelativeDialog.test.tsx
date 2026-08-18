@@ -214,14 +214,22 @@ describe('RelativeDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Add child' })
     const mother = within(dialog).getByRole('combobox', { name: 'Mother' })
+    const father = dialog.querySelector('.child-parent-summary')
+    const selector = dialog.querySelector('.child-parent-selector')
+    expect(father).toHaveTextContent('Father')
+    expect(selector).toHaveClass('relationship-wide-field')
+    expect(father!.compareDocumentPosition(selector!) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(selector!.querySelector('.child-second-parent-controls select')).toBe(mother)
     expect(mother.querySelector('optgroup')?.label).toBe('Spouses')
     expect(mother.querySelectorAll('optgroup')).toHaveLength(2)
     await userEvent.click(within(dialog).getByRole('radio', {
       name: 'New mother',
     }))
 
-    const newParent = dialog.querySelector('.child-new-parent-fields')
-    expect(newParent).not.toBeNull()
+    const newParent = dialog.querySelector('.child-second-parent-group')
+    expect(newParent).toHaveTextContent('Mother')
+    expect(newParent?.querySelector('.child-new-parent-form')).not.toBeNull()
     expect(within(newParent as HTMLElement).getByRole('combobox', { name: 'Gender' }))
       .toHaveValue('female')
     expect(within(newParent as HTMLElement).getByRole('combobox', { name: 'Gender' }))

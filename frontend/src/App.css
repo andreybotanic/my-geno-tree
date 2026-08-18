@@ -3146,8 +3146,7 @@
 }
 
 .child-parent-summary > span,
-.child-parent-selector > span,
-.child-new-parent-fields > legend {
+.child-parent-selector > legend {
   color: var(--color-text);
   font-size: 0.78rem;
   font-weight: 700;
@@ -3165,12 +3164,29 @@
   padding: 10px 12px;
 }
 
-.child-new-parent-fields {
+.child-second-parent-controls {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.child-second-parent-controls > strong {
+  align-self: center;
+}
+
+.child-second-parent-group {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   margin: 0;
   min-width: 0;
   padding: 12px;
+}
+
+.child-new-parent-form {
+  border-top: 1px solid var(--color-border);
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .marriage-period-dialog {
@@ -3379,6 +3395,10 @@ select:not([multiple]) {
   }
 
   .person-name-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .child-second-parent-controls {
     grid-template-columns: 1fr;
   }
 
