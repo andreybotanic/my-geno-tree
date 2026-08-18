@@ -588,7 +588,7 @@ function SecondParentField({
   return (
     <fieldset className="child-parent-selector child-second-parent-group relationship-wide-field">
       <legend>{t(`relationships.${role}`)}</legend>
-      <div className="child-second-parent-controls">
+      <div className={`child-second-parent-controls${secondParentSource === 'new' ? ' child-second-parent-controls-new' : ''}`}>
         <fieldset className="relationship-mode child-parent-source">
           <legend>{t('relationships.parentSource')}</legend>
           <div className="child-parent-source-options">
@@ -619,12 +619,7 @@ function SecondParentField({
             </label>
           </div>
         </fieldset>
-        {secondParentSource === 'new' ? (
-          <div className="child-parent-select-field">
-            <span>{t('relationships.person')}</span>
-            <strong>{t('relationships.newPerson')}</strong>
-          </div>
-        ) : (
+        {secondParentSource !== 'new' && (
           <label className="child-parent-select-field">
             <span>{t('relationships.person')}</span>
             <select

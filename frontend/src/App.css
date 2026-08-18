@@ -3185,6 +3185,10 @@
   grid-template-columns: max-content minmax(0, 1fr);
 }
 
+.child-second-parent-controls-new {
+  grid-template-columns: 1fr;
+}
+
 .child-parent-select-field {
   display: grid;
   gap: 8px;
@@ -3195,11 +3199,6 @@
   color: var(--color-text);
   font-size: 0.78rem;
   font-weight: 700;
-}
-
-.child-parent-select-field > strong {
-  align-self: end;
-  min-height: 36px;
 }
 
 .child-second-parent-group {

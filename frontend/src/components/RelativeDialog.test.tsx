@@ -229,6 +229,7 @@ describe('RelativeDialog', () => {
 
     const newParent = dialog.querySelector('.child-second-parent-group')
     expect(newParent).toHaveTextContent('Mother')
+    expect(newParent?.querySelector('.child-parent-select-field')).toBeNull()
     expect(newParent?.querySelector('.child-new-parent-form')).not.toBeNull()
     expect(within(newParent as HTMLElement).getByRole('combobox', { name: 'Gender' }))
       .toHaveValue('female')
