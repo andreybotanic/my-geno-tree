@@ -2716,6 +2716,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.person-name-fields > * {
+  align-self: start;
+}
+
 .parents-form-grid {
   display: grid;
   gap: 22px;
