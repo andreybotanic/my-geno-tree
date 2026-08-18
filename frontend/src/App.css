@@ -2701,6 +2701,21 @@
   align-self: start;
 }
 
+.person-gender-field,
+.person-name-fields {
+  grid-column: 1 / -1;
+}
+
+.person-gender-field {
+  max-width: calc((100% - 28px) / 3);
+}
+
+.person-name-fields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .parents-form-grid {
   display: grid;
   gap: 22px;
@@ -3060,6 +3075,7 @@
   font-size: 0.78rem;
   font-weight: 400;
   justify-self: start;
+  line-height: 18px;
   padding: 0;
 }
 
@@ -3067,8 +3083,8 @@
   align-self: end;
   display: grid;
   gap: 4px;
+  height: 18px;
   margin-top: -4px;
-  min-height: 18px;
 }
 
 .surname-suggestion-control {
@@ -3076,8 +3092,13 @@
   align-items: baseline;
   display: flex;
   gap: 0;
+  height: 18px;
   margin-top: -4px;
-  min-height: 18px;
+}
+
+.surname-suggestion-separator {
+  color: var(--color-text);
+  margin-right: 4px;
 }
 
 .patronymic-suggestion-error {
@@ -3346,6 +3367,14 @@ select:not([multiple]) {
   }
 
   .person-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .person-gender-field {
+    max-width: none;
+  }
+
+  .person-name-fields {
     grid-template-columns: 1fr;
   }
 

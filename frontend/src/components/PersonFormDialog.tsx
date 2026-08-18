@@ -384,81 +384,7 @@ export function PersonFormFields({
 
   return (
     <>
-      <KnownTextInput
-        autoFocus={autoFocus}
-        label={t('person.birthSurname')}
-        onChange={(birthSurname) => onChange({ ...state, birthSurname })}
-        state={state.birthSurname}
-      >
-        {surnameSuggestions && (
-          <div className="surname-suggestion-control">
-            {state.gender !== 'unknown' && (
-              <>
-                {suggestedSurnames.father && (
-                  <button
-                    className="link-button surname-adoption-button"
-                    onClick={() => onChange({
-                      ...state,
-                      birthSurname: { unknown: false, value: suggestedSurnames.father! },
-                    })}
-                    type="button"
-                  >
-                    {suggestedSurnames.father}
-                  </button>
-                )}
-                {suggestedSurnames.father && suggestedSurnames.mother && <span>, </span>}
-                {suggestedSurnames.mother && (
-                  <button
-                    className="link-button surname-adoption-button"
-                    onClick={() => onChange({
-                      ...state,
-                      birthSurname: { unknown: false, value: suggestedSurnames.mother! },
-                    })}
-                    type="button"
-                  >
-                    {suggestedSurnames.mother}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </KnownTextInput>
-      <KnownTextInput
-        label={t('person.givenName')}
-        onChange={(givenName) => onChange({ ...state, givenName })}
-        state={state.givenName}
-      />
-      <KnownTextInput
-        label={t('person.patronymic')}
-        onChange={(patronymic) => onChange({ ...state, patronymic })}
-        state={state.patronymic}
-      >
-        {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
-          <div className="patronymic-suggestion-control">
-            {suggestedPatronymic && (
-              <button
-                className="link-button surname-adoption-button"
-                onClick={() => {
-                  onChange({
-                    ...state,
-                    patronymic: { unknown: false, value: suggestedPatronymic },
-                  })
-                }}
-                type="button"
-              >
-                {suggestedPatronymic}
-              </button>
-            )}
-          </div>
-        )}
-        {patronymicError && (
-          <small className="patronymic-suggestion-error" role="alert">
-            {patronymicError}
-          </small>
-        )}
-      </KnownTextInput>
-      <label className="person-select-field">
+      <label className="person-select-field person-gender-field">
         <span>{t('person.gender')}</span>
         <select
           disabled={fixedGender}
@@ -473,6 +399,84 @@ export function PersonFormFields({
           <option value="female">{t('person.female')}</option>
         </select>
       </label>
+      <div className="person-name-fields">
+        <KnownTextInput
+          autoFocus={autoFocus}
+          label={t('person.birthSurname')}
+          onChange={(birthSurname) => onChange({ ...state, birthSurname })}
+          state={state.birthSurname}
+        >
+          {surnameSuggestions && (
+            <div className="surname-suggestion-control">
+              {state.gender !== 'unknown' && (
+                <>
+                  {suggestedSurnames.father && (
+                    <button
+                      className="link-button surname-adoption-button"
+                      onClick={() => onChange({
+                        ...state,
+                        birthSurname: { unknown: false, value: suggestedSurnames.father! },
+                      })}
+                      type="button"
+                    >
+                      {suggestedSurnames.father}
+                    </button>
+                  )}
+                  {suggestedSurnames.father && suggestedSurnames.mother && (
+                    <span className="surname-suggestion-separator">,</span>
+                  )}
+                  {suggestedSurnames.mother && (
+                    <button
+                      className="link-button surname-adoption-button"
+                      onClick={() => onChange({
+                        ...state,
+                        birthSurname: { unknown: false, value: suggestedSurnames.mother! },
+                      })}
+                      type="button"
+                    >
+                      {suggestedSurnames.mother}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </KnownTextInput>
+        <KnownTextInput
+          label={t('person.givenName')}
+          onChange={(givenName) => onChange({ ...state, givenName })}
+          state={state.givenName}
+        />
+        <KnownTextInput
+          label={t('person.patronymic')}
+          onChange={(patronymic) => onChange({ ...state, patronymic })}
+          state={state.patronymic}
+        >
+          {i18n.resolvedLanguage === 'ru' && patronymicSuggestion && (
+            <div className="patronymic-suggestion-control">
+              {suggestedPatronymic && (
+                <button
+                  className="link-button surname-adoption-button"
+                  onClick={() => {
+                    onChange({
+                      ...state,
+                      patronymic: { unknown: false, value: suggestedPatronymic },
+                    })
+                  }}
+                  type="button"
+                >
+                  {suggestedPatronymic}
+                </button>
+              )}
+            </div>
+          )}
+          {patronymicError && (
+            <small className="patronymic-suggestion-error" role="alert">
+              {patronymicError}
+            </small>
+          )}
+        </KnownTextInput>
+      </div>
       <div className="date-place-field">
         <StructuredDateInput
           label={t('person.birthDate')}

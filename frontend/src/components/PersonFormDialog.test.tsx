@@ -291,6 +291,8 @@ describe('PersonFormDialog', () => {
     const fatherSuggestion = await within(dialog).findByRole('button', {
       name: 'Иванов-male',
     })
+    expect(within(dialog).getByText(',', { selector: '.surname-suggestion-separator' }))
+      .toBeInTheDocument()
     expect(onLocalize).toHaveBeenCalledWith('Иванов', 'male', 'male')
     expect(onLocalize).toHaveBeenCalledWith('Петрова', 'female', 'male')
     await userEvent.click(fatherSuggestion)
@@ -304,6 +306,18 @@ describe('PersonFormDialog', () => {
     expect(await within(dialog).findByRole('button', {
       name: 'Петрова-female',
     })).toBeInTheDocument()
+  })
+
+  it('places gender before the full name row', () => {
+    render(<PersonFormDialog onCancel={vi.fn()} onSave={vi.fn(async () => {})} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Create the first person' })
+    const gender = within(dialog).getByRole('combobox', { name: 'Gender' })
+    const surname = within(dialog).getByRole('textbox', { name: 'Surname' })
+
+    expect(gender.compareDocumentPosition(surname) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(surname.closest('.person-name-fields')).not.toBeNull()
   })
 
   it.each([
