@@ -591,69 +591,77 @@ function SecondParentField({
       <div className="child-second-parent-controls">
         <fieldset className="relationship-mode child-parent-source">
           <legend>{t('relationships.parentSource')}</legend>
-          <label className="choice-control">
-            <input
-              aria-label={t('relationships.newParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
-              checked={secondParentSource === 'new'}
-              onChange={() => {
-                setNewSecondParent(emptyPersonForm(genderForParentRole(role)))
-                setSecondParentId('')
-                setSecondParentSource('new')
-              }}
-              type="radio"
-            />
-            <span>{t('relationships.newPerson')}</span>
-          </label>
-          <label className="choice-control">
-            <input
-              aria-label={t('relationships.existingParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
-              checked={secondParentSource !== 'new'}
-              onChange={() => {
-                setSecondParentId('')
-                setSecondParentSource('unknown')
-              }}
-              type="radio"
-            />
-            <span>{t('relationships.existingPerson')}</span>
-          </label>
+          <div className="child-parent-source-options">
+            <label className="choice-control">
+              <input
+                aria-label={t('relationships.newParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
+                checked={secondParentSource === 'new'}
+                onChange={() => {
+                  setNewSecondParent(emptyPersonForm(genderForParentRole(role)))
+                  setSecondParentId('')
+                  setSecondParentSource('new')
+                }}
+                type="radio"
+              />
+              <span>{t('relationships.newPerson')}</span>
+            </label>
+            <label className="choice-control">
+              <input
+                aria-label={t('relationships.existingParent', { role: t(`relationships.${role}`).toLocaleLowerCase() })}
+                checked={secondParentSource !== 'new'}
+                onChange={() => {
+                  setSecondParentId('')
+                  setSecondParentSource('unknown')
+                }}
+                type="radio"
+              />
+              <span>{t('relationships.existingPerson')}</span>
+            </label>
+          </div>
         </fieldset>
         {secondParentSource === 'new' ? (
-          <strong>{t('relationships.newPerson')}</strong>
+          <div className="child-parent-select-field">
+            <span>{t('relationships.person')}</span>
+            <strong>{t('relationships.newPerson')}</strong>
+          </div>
         ) : (
-          <select
-            aria-label={t(`relationships.${role}`)}
-            onChange={(event) => {
-              setSecondParentId(event.target.value)
-              setSecondParentSource(event.target.value ? 'existing' : 'unknown')
-            }}
-            value={secondParentSource === 'existing' ? person?.id ?? '' : ''}
-          >
-            <option value="">{t('relationships.unknownParent')}</option>
-            {spouses.length > 0 ? (
-              <>
-                <optgroup label={t('relationships.spouses')}>
-                  {spouses.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {formatPersonName(candidate, t)}
-                    </option>
-                  ))}
-                </optgroup>
-                {otherPeople.length > 0 && (
-                  <optgroup label={t('relationships.otherPeople')}>
-                    {otherPeople.map((candidate) => (
+          <label className="child-parent-select-field">
+            <span>{t('relationships.person')}</span>
+            <select
+              aria-label={t(`relationships.${role}`)}
+              onChange={(event) => {
+                setSecondParentId(event.target.value)
+                setSecondParentSource(event.target.value ? 'existing' : 'unknown')
+              }}
+              value={secondParentSource === 'existing' ? person?.id ?? '' : ''}
+            >
+              <option value="">{t('relationships.unknownParent')}</option>
+              {spouses.length > 0 ? (
+                <>
+                  <optgroup label={t('relationships.spouses')}>
+                    {spouses.map((candidate) => (
                       <option key={candidate.id} value={candidate.id}>
                         {formatPersonName(candidate, t)}
                       </option>
                     ))}
                   </optgroup>
-                )}
-              </>
-            ) : eligible.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {formatPersonName(candidate, t)}
-              </option>
-            ))}
-          </select>
+                  {otherPeople.length > 0 && (
+                    <optgroup label={t('relationships.otherPeople')}>
+                      {otherPeople.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {formatPersonName(candidate, t)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : eligible.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {formatPersonName(candidate, t)}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
       </div>
       {secondParentSource === 'new' && (

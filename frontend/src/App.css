@@ -3160,19 +3160,46 @@
 }
 
 .child-parent-source {
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+}
+
+.child-parent-source-options {
+  align-items: end;
+  display: flex;
   gap: 12px;
-  padding: 10px 12px;
+  min-height: 36px;
+}
+
+.child-parent-source-options .choice-control {
+  transform: translateY(4px);
 }
 
 .child-second-parent-controls {
-  align-items: center;
+  align-items: start;
   display: grid;
   gap: 14px;
   grid-template-columns: max-content minmax(0, 1fr);
 }
 
-.child-second-parent-controls > strong {
-  align-self: center;
+.child-parent-select-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.child-parent-select-field > span {
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.child-parent-select-field > strong {
+  align-self: end;
+  min-height: 36px;
 }
 
 .child-second-parent-group {
