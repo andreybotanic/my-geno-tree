@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import logoC2 from '../assets/logo-concepts/concept-c-connected.png'
 import ChevronDownIcon from '../assets/icons/chevron-down.svg?react'
 import LogoutIcon from '../assets/icons/logout.svg?react'
 import PersonOutlineIcon from '../assets/icons/person-outline.svg?react'
@@ -57,7 +58,7 @@ export function Header() {
           type="button"
         >
           <span className="brand-mark" aria-hidden="true">
-            ✣
+            <img alt="" src={logoC2} />
           </span>
           <span>MyGenoTree</span>
         </button>

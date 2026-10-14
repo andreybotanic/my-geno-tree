@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import logoC2 from '../assets/logo-concepts/concept-c-connected.png'
 import { ApiRequestError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
@@ -148,7 +149,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
     <form className="auth-form" onSubmit={submit} noValidate>
       <div className="auth-heading">
         <span className="auth-mark" aria-hidden="true">
-          ✣
+          <img alt="" src={logoC2} />
         </span>
         <h2>
           {mode === 'login'
