@@ -1,4 +1,8 @@
-localhost {
+http://:8080 {
+	redir https://my-geno-tree.localhost{uri} 302
+}
+
+localhost, my-geno-tree.localhost {
 	tls internal
 	encode zstd gzip
 
