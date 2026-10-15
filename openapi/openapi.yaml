@@ -20,7 +20,7 @@ paths:
   /statistics:
     get:
       operationId: getStatistics
-      summary: Read public account and non-deleted tree counters
+      summary: Read public account, non-deleted tree and person counters
       responses:
         "200":
           description: Current public counters
@@ -1400,6 +1400,7 @@ components:
       required:
         - accountCount
         - treeCount
+        - personCount
       properties:
         accountCount:
           type: integer
@@ -1407,6 +1408,10 @@ components:
         treeCount:
           type: integer
           minimum: 0
+        personCount:
+          type: integer
+          minimum: 0
+          description: Total number of people across all trees of all users.
     Language:
       type: string
       enum:

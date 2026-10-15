@@ -40,6 +40,10 @@ export function HomePage() {
           <strong>{statistics?.treeCount ?? '—'}</strong>
           <span>{t('home.trees')}</span>
         </article>
+        <article>
+          <strong>{statistics?.personCount ?? '—'}</strong>
+          <span>{t('home.people')}</span>
+        </article>
       </section>
       {unavailable && (
         <p className="inline-error" role="alert">

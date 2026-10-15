@@ -11,6 +11,10 @@ export type Health = {
 export type Statistics = {
     accountCount: number;
     treeCount: number;
+    /**
+     * Total number of people across all trees of all users.
+     */
+    personCount: number;
 };
 
 export type Language = 'en' | 'ru';

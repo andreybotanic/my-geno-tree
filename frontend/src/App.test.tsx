@@ -53,6 +53,7 @@ describe('App', () => {
           return Promise.resolve(Response.json({
             accountCount: 12,
             treeCount: 8,
+            personCount: 1234,
           }))
         }
         if (url.endsWith('/trees')) {
@@ -79,7 +80,9 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByText('12')).toBeInTheDocument()
       expect(screen.getByText('8')).toBeInTheDocument()
+      expect(screen.getByText('1234')).toBeInTheDocument()
     })
+    expect(screen.getByText('Total people')).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: 'Sign in / Sign up' }),
     ).toBeInTheDocument()
@@ -307,6 +310,7 @@ describe('App', () => {
           return Promise.resolve(Response.json({
             accountCount: 1,
             treeCount: 0,
+            personCount: 0,
           }))
         }
         return Promise.resolve(Response.json({ status: 'ok' }))

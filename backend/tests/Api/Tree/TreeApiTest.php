@@ -15,6 +15,7 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertSame([
             'accountCount' => 0,
             'treeCount'    => 0,
+            'personCount'  => 0,
         ], $this->responseData());
 
         $accessToken = $this->register();
@@ -25,6 +26,79 @@ final class TreeApiTest extends ApiWebTestCase
         self::assertSame([
             'accountCount' => 1,
             'treeCount'    => 1,
+            'personCount'  => 0,
+        ], $this->responseData());
+    }
+
+    public function testStatisticsCountPeopleAcrossAllOwnersAndTrackDeletions(): void
+    {
+        $firstToken = $this->register();
+        $this->createTree($firstToken, 'Empty tree');
+        $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration([
+            'username' => 'second_owner',
+            'email'    => 'second@example.test',
+        ]));
+        self::assertResponseStatusCodeSame(201);
+        $secondToken = $this->responseString('accessToken');
+
+        $populatedTrees = [];
+        foreach ([$firstToken, $firstToken, $secondToken] as $index => $token) {
+            $tree = $this->createTree($token, 'Family ' . $index);
+            $this->jsonRequest('POST', '/api/v1/trees/' . $tree['id'] . '/graph-mutations', [
+                'type'   => 'create_first_person',
+                'person' => [
+                    'birthSurname' => ['state' => 'unknown'],
+                    'givenName'    => ['state' => 'unknown'],
+                    'patronymic'   => ['state' => 'unknown'],
+                    'gender'       => 'unknown',
+                    'birthDate'    => ['state' => 'unknown'],
+                    'deathDate'    => null,
+                ],
+            ], [
+                'Authorization' => 'Bearer ' . $token,
+                'If-Match'      => $tree['etag'],
+            ]);
+            self::assertResponseStatusCodeSame(201);
+            /** @var array{etag: string, people: list<array{id: string}>} $snapshot */
+            $snapshot = $this->responseData();
+            $populatedTrees[] = [
+                'id'       => $tree['id'],
+                'etag'     => $snapshot['etag'],
+                'personId' => $snapshot['people'][0]['id'],
+            ];
+        }
+
+        foreach ([[], ['Authorization' => 'Bearer ' . $firstToken]] as $headers) {
+            $this->jsonRequest('GET', '/api/v1/statistics', headers: $headers);
+            self::assertResponseIsSuccessful();
+            self::assertSame([
+                'accountCount' => 2,
+                'treeCount'    => 4,
+                'personCount'  => 3,
+            ], $this->responseData());
+        }
+
+        $this->jsonRequest('POST', '/api/v1/trees/' . $populatedTrees[0]['id'] . '/graph-mutations', [
+            'type'     => 'delete_person',
+            'personId' => $populatedTrees[0]['personId'],
+        ], [
+            'Authorization' => 'Bearer ' . $firstToken,
+            'If-Match'      => $populatedTrees[0]['etag'],
+        ]);
+        self::assertResponseIsSuccessful();
+        $this->jsonRequest('GET', '/api/v1/statistics');
+        self::assertSame(2, $this->responseData()['personCount']);
+
+        $this->jsonRequest('DELETE', '/api/v1/trees/' . $populatedTrees[2]['id'], headers: [
+            'Authorization' => 'Bearer ' . $secondToken,
+            'If-Match'      => $populatedTrees[2]['etag'],
+        ]);
+        self::assertResponseStatusCodeSame(204);
+        $this->jsonRequest('GET', '/api/v1/statistics');
+        self::assertSame([
+            'accountCount' => 2,
+            'treeCount'    => 3,
+            'personCount'  => 1,
         ], $this->responseData());
     }
 

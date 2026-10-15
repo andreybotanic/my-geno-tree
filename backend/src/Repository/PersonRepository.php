@@ -153,6 +153,14 @@ final class PersonRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    public function countAll(): int
+    {
+        return (int)$this->createQueryBuilder('person')
+            ->select('COUNT(person.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     public function countForTree(FamilyTree $tree): int
     {
         return (int)$this->createQueryBuilder('person')
