@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
-import type { TreeMergeDraft, TreeMergeList, TreeSnapshot } from '../api/generated'
+import type { TreeMergeDraft, TreeMergeList, TreeMergeProposal, TreeMergeResult, TreeSnapshot } from '../api/generated'
 import { formatPersonName } from '../personFormatting'
+import { TreeMergePreview } from './TreeMergePreview'
 
 type Props = {
   snapshot: TreeSnapshot
   request: AuthorizedJsonRequest
   onClose: () => void
+  onApplied?: (result: TreeMergeResult) => Promise<void>
 }
 
-export function TreeMergePanel({ snapshot, request, onClose }: Props) {
+export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<TreeMergeDraft | null>(null)
   const [referenceId, setReferenceId] = useState('')
@@ -19,13 +21,17 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
+  const messagesEnd = useRef<HTMLDivElement>(null)
   const pending = useRef<{ requestId: string; content: string } | null>(null)
   const base = `/trees/${snapshot.tree.id}/merges`
 
   useEffect(() => {
     const controller = new AbortController()
-    request<TreeMergeList>(base, { signal: controller.signal })
-      .then(({ items }) => {
+    const selectedId = new URLSearchParams(window.location.search).get('merge')
+    const loading = selectedId
+      ? request<TreeMergeDraft>(`${base}/${encodeURIComponent(selectedId)}`, { signal: controller.signal }).then((item) => ({ items: [item] }))
+      : request<TreeMergeList>(base, { signal: controller.signal })
+    loading.then(({ items }) => {
         if (controller.signal.aborted) return
         setDraft(items.find((item) => item.state !== 'cancelled') ?? null)
         setBusy(false)
@@ -40,15 +46,57 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
   }, [base, request])
 
   useEffect(() => {
+    if (!draft) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('merge', draft.id)
+    window.history.replaceState(window.history.state, '', url)
+  }, [draft])
+
+  useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [draft?.messages.length])
+
+  useEffect(() => {
     if (draft && !busy) textarea.current?.focus()
   }, [busy, draft])
 
   function showError(cause: unknown) {
-    setError(cause instanceof ApiRequestError && cause.status === 409
-      ? 'treeMerge.conflict'
+    setError(cause instanceof ApiRequestError && cause.status === 412 ? 'treeMerge.treeConflict'
+      : cause instanceof ApiRequestError && cause.status === 409 ? 'treeMerge.conflict'
       : cause instanceof ApiRequestError && cause.status === 401
         ? 'treeMerge.unauthorized'
+        : cause instanceof ApiRequestError && cause.status === 422 ? 'treeMerge.invalidProposal'
         : 'treeMerge.failed')
+  }
+
+  function close() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('merge')
+    window.history.replaceState(window.history.state, '', url)
+    onClose()
+  }
+
+  async function proposalAction(action: 'proposal' | 'apply' | 'revalidate', proposal?: TreeMergeProposal) {
+    if (!draft) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await request<TreeMergeDraft>(`${base}/${draft.id}/${action}`, {
+        method: action === 'proposal' ? 'PUT' : 'POST',
+        headers: action === 'apply' ? { 'If-Match': draft.treeEtag } : {},
+        body: JSON.stringify({ version: draft.version,
+          ...(action === 'apply' ? { proposalVersion: draft.proposalVersion } : {}),
+          ...(proposal ? { proposal } : {}),
+        }),
+      })
+      setDraft(next)
+      if (action === 'apply' && next.result) await onApplied?.(next.result)
+    } catch (cause) {
+      showError(cause)
+      if (cause instanceof ApiRequestError && cause.status === 412) {
+        try { setDraft(await request<TreeMergeDraft>(`${base}/${draft.id}`)) } catch { /* Keep the reviewed input. */ }
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function start() {
@@ -112,6 +160,9 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
       setContent('')
       setError(null)
       pending.current = null
+      const url = new URL(window.location.href)
+      url.searchParams.delete('merge')
+      window.history.replaceState(window.history.state, '', url)
     } catch (cause) {
       showError(cause)
     } finally {
@@ -121,10 +172,10 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
 
   return (
     <aside aria-label={t('treeMerge.title')} aria-busy={busy} className="tree-merge-panel"
-      onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}>
+      onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
       <header className="tree-merge-heading">
         <h2>{t('treeMerge.title')}</h2>
-        <button type="button" onClick={onClose} aria-label={t('common.close')}>×</button>
+        <button type="button" className="secondary-button compact-button" onClick={close} aria-label={t('common.close')}>×</button>
       </header>
       <p>{t('treeMerge.help')}</p>
       {error && (
@@ -152,6 +203,11 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
         </form>
       ) : (
         <>
+          {draft.referencePersonId && <p className="tree-merge-reference">{t('treeMerge.reference')}: {
+            snapshot.people.find((person) => person.id === draft.referencePersonId)
+              ? formatPersonName(snapshot.people.find((person) => person.id === draft.referencePersonId)!, t)
+              : t('person.unknown')
+          }</p>}
           <div aria-label={t('treeMerge.messages')} className="tree-merge-messages" role="log" aria-live="polite">
             {draft.messages.length === 0 && <p>{t('treeMerge.empty')}</p>}
             {draft.messages.map((message) => (
@@ -160,16 +216,30 @@ export function TreeMergePanel({ snapshot, request, onClose }: Props) {
                 <p>{message.content}</p>
               </article>
             ))}
+            <div ref={messagesEnd} />
           </div>
+          {draft.proposal && <TreeMergePreview key={`${draft.id}:${draft.version}`}
+            draft={{ ...draft, proposal: draft.proposal }} busy={busy}
+            onSave={(proposal) => proposalAction('proposal', proposal)}
+            onApply={() => proposalAction('apply')}
+            onRevalidate={() => proposalAction('revalidate')} />}
+          {draft.state !== 'applied' && (
           <form onSubmit={(event) => { event.preventDefault(); void send() }}>
             <label htmlFor="tree-merge-message">{t('treeMerge.message')}</label>
             <textarea id="tree-merge-message" ref={textarea} value={content} maxLength={10000}
               disabled={busy} onChange={(event) => setContent(event.target.value)} rows={4} />
             <div className="tree-merge-actions">
               <button className="primary-button" type="submit" disabled={busy || !content.trim()}>{t('treeMerge.send')}</button>
-              <button type="button" disabled={busy} onClick={() => void cancel()}>{t('treeMerge.cancel')}</button>
+              <button type="button" className="secondary-button" disabled={busy} onClick={() => void cancel()}>{t('treeMerge.cancel')}</button>
             </div>
           </form>
+          )}
+          {draft.state === 'applied' && <button className="secondary-button" type="button" onClick={() => {
+            setDraft(null)
+            const url = new URL(window.location.href)
+            url.searchParams.delete('merge')
+            window.history.replaceState(window.history.state, '', url)
+          }}>{t('treeMerge.newConversation')}</button>}
         </>
       )}
     </aside>

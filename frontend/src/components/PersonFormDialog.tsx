@@ -248,6 +248,8 @@ type PersonFormDialogProps = {
 type PersonFormFieldsProps = {
   autoFocus?: boolean
   fixedGender?: boolean
+  showPlaces?: boolean
+  showLifeStatus?: boolean
   onChange: (state: PersonFormState) => void
   patronymicSuggestion?: PatronymicSuggestion | undefined
   surnameSuggestions?: SurnameSuggestions | undefined
@@ -280,6 +282,8 @@ export type SurnameSuggestions = {
 export function PersonFormFields({
   autoFocus = false,
   fixedGender = false,
+  showPlaces = true,
+  showLifeStatus = true,
   onChange,
   patronymicSuggestion,
   surnameSuggestions,
@@ -484,13 +488,13 @@ export function PersonFormFields({
           state={state.birthDate}
           unknownToggleTabIndex={-1}
         />
-        <PlaceTextButton
+        {showPlaces && <PlaceTextButton
           onClick={() => setPlaceEditing('birth')}
           place={state.birthPlace}
-        />
+        />}
       </div>
       <div className="death-date-row">
-        <label
+        {showLifeStatus && <label
           className="deceased-toggle choice-control conditional-date-toggle"
         >
           <input
@@ -503,7 +507,7 @@ export function PersonFormFields({
             type="checkbox"
           />
           <span>{t('person.deceased')}</span>
-        </label>
+        </label>}
         {state.deceased && (
           <div className="date-place-field">
             <StructuredDateInput
@@ -512,10 +516,10 @@ export function PersonFormFields({
               state={state.deathDate}
               unknownToggleTabIndex={-1}
             />
-            <PlaceTextButton
+            {showPlaces && <PlaceTextButton
               onClick={() => setPlaceEditing('death')}
               place={state.deathPlace}
-            />
+            />}
           </div>
         )}
       </div>

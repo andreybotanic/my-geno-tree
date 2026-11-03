@@ -799,6 +799,8 @@ type TreeCanvasProps = {
   onToggleNetworkView: () => void
   onUpdateUser: (user: User) => void
   selectedPersonId: string | null
+  mergeAffectedIds: string[]
+  mergePanelOpen: boolean
   snapshot: TreeSnapshot
   user: User | null
   view: 'network' | 'tree'
@@ -821,6 +823,8 @@ function TreeCanvas({
   onToggleNetworkView,
   onUpdateUser,
   selectedPersonId,
+  mergeAffectedIds,
+  mergePanelOpen,
   snapshot,
   user,
   view,
@@ -921,20 +925,23 @@ function TreeCanvas({
   ])
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
-  const focusedSnapshot = useMemo(() => focusedTreeSnapshot(snapshot), [snapshot])
-  const currentLayoutKey = treeLayoutCacheKey(snapshot)
+  const focusedSnapshot = useMemo(() => mergeAffectedIds.length > 0 ? snapshot : focusedTreeSnapshot(snapshot), [mergeAffectedIds, snapshot])
+  // A merge result temporarily shows the complete branch. Its positions must
+  // never replace the cache belonging to the ordinary reference projection.
+  const layoutSnapshot = mergeAffectedIds.length > 0 ? { ...snapshot, layout: null, layoutRevision: null } : snapshot
+  const currentLayoutKey = `${treeLayoutCacheKey(snapshot)}:${mergeAffectedIds.length > 0}`
   const [layoutResolution, setLayoutResolution] = useState<{
     key: string
     value: TreeLayoutResolution
   }>(() => ({
     key: currentLayoutKey,
-    value: resolveTreeLayout(snapshot, focusedSnapshot),
+    value: resolveTreeLayout(layoutSnapshot, focusedSnapshot),
   }))
   let currentLayoutResolution = layoutResolution
   if (layoutResolution.key !== currentLayoutKey) {
     currentLayoutResolution = {
       key: currentLayoutKey,
-      value: resolveTreeLayout(snapshot, focusedSnapshot),
+      value: resolveTreeLayout(layoutSnapshot, focusedSnapshot),
     }
     setLayoutResolution(currentLayoutResolution)
   }
@@ -972,7 +979,8 @@ function TreeCanvas({
       person,
     },
     selected: person.id === selectedPersonId,
-  })), [focusedSnapshot.people, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions])
+    ...(mergeAffectedIds.includes(person.id) ? { className: 'merge-affected-node' } : {}),
+  })), [focusedSnapshot.people, mergeAffectedIds, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions])
   const pathNodes = useMemo<PersonFlowNode[]>(() => pathProjection?.overlayPeople.map((person) => ({
     id: person.id,
     type: 'person',
@@ -1194,6 +1202,26 @@ function TreeCanvas({
     })
     return () => cancelAnimationFrame(frame)
   }, [cameraReady, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view])
+
+  const lastMergeFocus = useRef('')
+  useEffect(() => {
+    if (!cameraReady || !instance.current || mergeAffectedIds.length === 0) return
+    const key = mergeAffectedIds.join(':')
+    if (lastMergeFocus.current === key) return
+    lastMergeFocus.current = key
+    const points = mergeAffectedIds.flatMap((id) => treePositions.get(id) ? [treePositions.get(id)!] : [])
+    const dimensions = canvas.current?.getBoundingClientRect()
+    if (!dimensions || points.length === 0) return
+    const x = Math.min(...points.map((point) => point.x))
+    const y = Math.min(...points.map((point) => point.y))
+    const bounds = { x, y,
+      width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
+      height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT,
+    }
+    const width = Math.max(200, dimensions.width - (mergePanelOpen ? Math.min(480, window.innerWidth) : 0))
+    void instance.current.setViewport(getViewportForBounds(bounds, width, dimensions.height, 0.1, 1, 0.2), { duration: 250 })
+      .then(() => { if (instance.current) rememberCamera('tree', instance.current.getViewport()) })
+  }, [cameraReady, mergeAffectedIds, mergePanelOpen, rememberCamera, treePositions])
 
   const resetCamera = useCallback(async (
     cameraView: TreeEditorView = view,
@@ -2175,7 +2203,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }, [importWarningCount])
   const [creating, setCreating] = useState(false)
-  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(() => new URLSearchParams(window.location.search).has('merge'))
+  const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedDetails, setSelectedDetails] = useState<PersonDetails | null>(null)
@@ -3043,7 +3072,15 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         </button>
       )}
       {mergeOpen && snapshot && (
-        <TreeMergePanel key={treeId} snapshot={snapshot} request={request} onClose={() => setMergeOpen(false)} />
+        <TreeMergePanel key={treeId} snapshot={snapshot} request={request} onClose={() => setMergeOpen(false)}
+          onApplied={async (result) => {
+            const next = await treeApi.snapshot(request, treeId)
+            replaceSnapshot(next)
+            setMergeAffectedIds(result.affectedPersonIds)
+            if (view !== 'tree') navigate(`${treeEditorPath(treeId, 'tree')}${window.location.search}`)
+            setConflict(false)
+            setStatus('ready')
+          }} />
       )}
       {placeRecognitionNotice && (
         <ToastNotice
@@ -3125,6 +3162,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onShowPathDisplay={showPathDisplay}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
+                  mergeAffectedIds={mergeAffectedIds}
+                  mergePanelOpen={mergeOpen}
                   snapshot={snapshot}
                   view={view}
                   onToggleNetworkView={toggleNetworkView}

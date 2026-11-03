@@ -87,8 +87,15 @@ messages must be parsed again or explicitly corrected.
 The general `Application/Tree/ChangeSet` executor has no chat or AI dependency
 and no five-person limit. Other application workflows can compose its ORM
 transaction with their own receipt. Its projection reads the graph in three
-queries, and application repeats validation under the tree lock. AI extraction
-and the UI proposal editor are delivered in the next feature slices.
+queries, and application repeats validation under the tree lock.
+
+The chat pins a versioned preview with editable person cards, explicit candidate
+selection, before/after values and source quotations. Corrections are checked on
+the server before the review checkbox and apply button become available again.
+The preview URL contains `?merge={mergeId}` and restores the conversation after
+refresh. Applying refreshes the snapshot, highlights the affected people and
+focuses the camera on them without changing the layout reference. AI extraction
+is delivered in the next feature slice.
 
 Validation: backend API tests cover persistence, retries, conflicts, source
 limits and ownership; component tests cover reference selection, errors and
