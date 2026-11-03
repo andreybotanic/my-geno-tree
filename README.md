@@ -59,7 +59,7 @@ committed to Git.
 
 ## Development commands
 
-### Tree merge chat (first feature slice)
+### Tree merge chat and change sets
 
 The tree editor's **Create from description** action opens a persistent chat
 draft in the right panel. Populated trees require a narrative reference person;
@@ -70,8 +70,25 @@ The `/api/v1/trees/{treeId}/merges` contract covers draft creation, recent draft
 reading, idempotent messages and cancellation. Message writes require the draft
 version and a unique `requestId`; concurrent edits return `409` and preserve
 the user's input. All drafts use the tree's ownership voter. Source text is
-limited to 10,000 characters in total. This slice only saves the conversation;
-AI proposals and applying changes are implemented in subsequent slices.
+limited to 10,000 characters in total.
+
+`PUT .../{mergeId}/proposal` validates explicit corrections against the complete
+prospective graph without writing people or relationships. A proposal can create
+up to five people, update existing core fields, and add parent or marriage links.
+Unknown life status and unresolved person matches block application. Candidates
+come from the existing name search; an equal name never silently merges people.
+`POST .../apply` requires both the draft and proposal versions and `If-Match`.
+It saves the application receipt in the same ORM transaction as people, links,
+automatic events, tree version and layout invalidation. Retrying returns that
+receipt. A tree conflict revalidates the proposal and requires confirmation again.
+`POST .../revalidate` is available for tree-version conflicts; changed source
+messages must be parsed again or explicitly corrected.
+
+The general `Application/Tree/ChangeSet` executor has no chat or AI dependency
+and no five-person limit. Other application workflows can compose its ORM
+transaction with their own receipt. Its projection reads the graph in three
+queries, and application repeats validation under the tree lock. AI extraction
+and the UI proposal editor are delivered in the next feature slices.
 
 Validation: backend API tests cover persistence, retries, conflicts, source
 limits and ownership; component tests cover reference selection, errors and

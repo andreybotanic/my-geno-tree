@@ -43,16 +43,19 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     /**
      * @return list<MarriagePeriod>
      */
-    public function findAllStructuralForTree(FamilyTree $tree): array
+    public function findAllStructuralForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        /** @var list<MarriagePeriod> $marriages */
-        $marriages = $this->createQueryBuilder('marriage')
+        $query = $this->createQueryBuilder('marriage')
             ->andWhere('marriage.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('marriage.createdAt', 'ASC')
             ->addOrderBy('marriage.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery();
+        if ($refresh) {
+            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
+        }
+        /** @var list<MarriagePeriod> $marriages */
+        $marriages = $query->getResult();
 
         return $marriages;
     }

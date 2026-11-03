@@ -41,15 +41,18 @@ final class ParentLinkRepository extends ServiceEntityRepository
     /**
      * @return list<ParentLink>
      */
-    public function findAllStructuralForTree(FamilyTree $tree): array
+    public function findAllStructuralForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        /** @var list<ParentLink> $links */
-        $links = $this->createQueryBuilder('link')
+        $query = $this->createQueryBuilder('link')
             ->andWhere('link.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('link.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery();
+        if ($refresh) {
+            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
+        }
+        /** @var list<ParentLink> $links */
+        $links = $query->getResult();
 
         return $links;
     }

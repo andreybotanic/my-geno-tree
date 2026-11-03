@@ -31,12 +31,7 @@ final readonly class GraphInvariantPolicy
         Person $child,
         ParentRole $role,
     ): void {
-        if ($parent === $child) {
-            $this->conflict('PERSON_CANNOT_PARENT_SELF');
-        }
-        if ($parent->getGender() !== $role->requiredGender()) {
-            $this->invalid('role', 'parent_role_gender_conflict');
-        }
+        $this->assertParentRoles($parent, $child, $role);
         if (null !== $this->parentLinks->findForPair($parent, $child)) {
             $this->conflict('PARENT_LINK_ALREADY_EXISTS');
         }
@@ -46,6 +41,21 @@ final readonly class GraphInvariantPolicy
         if ($this->wouldCreateAncestorCycle($tree, $parent, $child)) {
             $this->conflict('ANCESTOR_CYCLE');
         }
+        $this->assertParentChronology($parent, $child);
+    }
+
+    public function assertParentRoles(Person $parent, Person $child, ParentRole $role): void
+    {
+        if ($parent === $child) {
+            $this->conflict('PERSON_CANNOT_PARENT_SELF');
+        }
+        if ($parent->getGender() !== $role->requiredGender()) {
+            $this->invalid('role', 'parent_role_gender_conflict');
+        }
+    }
+
+    public function assertParentChronology(Person $parent, Person $child): void
+    {
         $this->assertDateWithinLife(
             $child->getBirthDate(),
             $parent,

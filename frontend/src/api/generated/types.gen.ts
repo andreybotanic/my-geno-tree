@@ -4,6 +4,67 @@ export type ClientOptions = {
     baseUrl: 'https://localhost/api/v1' | (string & {});
 };
 
+export type TreeMergeEvidence = {
+    messageId: string;
+    quote: string;
+};
+
+export type TreeMergePersonProposal = {
+    id: string;
+    existingPersonId: string | null;
+    resolution: 'new' | 'existing' | 'undecided';
+    fields: PersonPatchRequest;
+    lifeStatus: 'alive' | 'deceased' | 'uncertain';
+    evidence: Array<TreeMergeEvidence>;
+    readonly before?: Person | null;
+    readonly candidates?: Array<PersonSearchResult>;
+};
+
+export type TreeMergeParentProposal = {
+    parent: string;
+    child: string;
+    role: 'father' | 'mother';
+    evidence: Array<TreeMergeEvidence>;
+};
+
+export type TreeMergeMarriageProposal = {
+    first: string;
+    second: string;
+    marriageDate: GenealogicalDate;
+    dissolutionDate: GenealogicalDate | null;
+    newPeriod: boolean;
+    evidence: Array<TreeMergeEvidence>;
+};
+
+export type TreeMergeProposal = {
+    /**
+     * At most five new people; existing matches always require explicit resolution.
+     */
+    people: Array<TreeMergePersonProposal>;
+    parents: Array<TreeMergeParentProposal>;
+    marriages: Array<TreeMergeMarriageProposal>;
+    questions: Array<string>;
+};
+
+export type TreeMergeProposalRequest = {
+    version: number;
+    proposal: TreeMergeProposal;
+};
+
+export type TreeMergeApplyRequest = {
+    version: number;
+    proposalVersion: number;
+};
+
+export type TreeMergeResult = {
+    personIds: {
+        [key: string]: string;
+    };
+    affectedPersonIds: Array<string>;
+    etag: string;
+    proposalVersion: number;
+};
+
 export type TreeMergeMessage = {
     id: string;
     requestId: string;
@@ -18,7 +79,11 @@ export type TreeMergeDraft = {
     referencePersonId: string | null;
     version: number;
     sourceVersion: number;
-    state: 'collecting' | 'cancelled';
+    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    proposalVersion: number;
+    proposal: TreeMergeProposal | null;
+    questions: Array<string>;
+    result: TreeMergeResult | null;
     treeEtag: string;
     messages: Array<TreeMergeMessage>;
     createdAt: string;
@@ -642,6 +707,55 @@ export type ApiError = {
     };
 };
 
+export type TreeMergePersonProposalWritable = {
+    id: string;
+    existingPersonId: string | null;
+    resolution: 'new' | 'existing' | 'undecided';
+    fields: PersonPatchRequest;
+    lifeStatus: 'alive' | 'deceased' | 'uncertain';
+    evidence: Array<TreeMergeEvidence>;
+};
+
+export type TreeMergeProposalWritable = {
+    /**
+     * At most five new people; existing matches always require explicit resolution.
+     */
+    people: Array<TreeMergePersonProposalWritable>;
+    parents: Array<TreeMergeParentProposal>;
+    marriages: Array<TreeMergeMarriageProposal>;
+    questions: Array<string>;
+};
+
+export type TreeMergeProposalRequestWritable = {
+    version: number;
+    proposal: TreeMergeProposalWritable;
+};
+
+export type TreeMergeDraftWritable = {
+    id: string;
+    treeId: string;
+    referencePersonId: string | null;
+    version: number;
+    sourceVersion: number;
+    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    proposalVersion: number;
+    proposal: TreeMergeProposalWritable | null;
+    questions: Array<string>;
+    result: TreeMergeResult | null;
+    treeEtag: string;
+    messages: Array<TreeMergeMessage>;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TreeMergeListWritable = {
+    items: Array<TreeMergeDraftWritable>;
+};
+
+export type TreeLayoutPositionsWritable = {
+    [key: string]: TreeLayoutCoordinates;
+};
+
 export type TreeId = string;
 
 export type PersonId = string;
@@ -652,6 +766,141 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type ReviseTreeMergeProposalData = {
+    body: TreeMergeProposalRequestWritable;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/proposal';
+};
+
+export type ReviseTreeMergeProposalErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ReviseTreeMergeProposalError = ReviseTreeMergeProposalErrors[keyof ReviseTreeMergeProposalErrors];
+
+export type ReviseTreeMergeProposalResponses = {
+    /**
+     * Versioned merge draft
+     */
+    200: TreeMergeDraft;
+};
+
+export type ReviseTreeMergeProposalResponse = ReviseTreeMergeProposalResponses[keyof ReviseTreeMergeProposalResponses];
+
+export type RevalidateTreeMergeData = {
+    body: TreeMergeVersionRequest;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/revalidate';
+};
+
+export type RevalidateTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type RevalidateTreeMergeError = RevalidateTreeMergeErrors[keyof RevalidateTreeMergeErrors];
+
+export type RevalidateTreeMergeResponses = {
+    /**
+     * Versioned merge draft
+     */
+    200: TreeMergeDraft;
+};
+
+export type RevalidateTreeMergeResponse = RevalidateTreeMergeResponses[keyof RevalidateTreeMergeResponses];
+
+export type ApplyTreeMergeData = {
+    body: TreeMergeApplyRequest;
+    headers: {
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/apply';
+};
+
+export type ApplyTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ApplyTreeMergeError = ApplyTreeMergeErrors[keyof ApplyTreeMergeErrors];
+
+export type ApplyTreeMergeResponses = {
+    /**
+     * Versioned merge draft
+     */
+    200: TreeMergeDraft;
+};
+
+export type ApplyTreeMergeResponse = ApplyTreeMergeResponses[keyof ApplyTreeMergeResponses];
 
 export type ListTreeMergesData = {
     body?: never;

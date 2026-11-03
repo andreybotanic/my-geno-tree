@@ -5,6 +5,7 @@ namespace App\Controller\Api\Tree;
 use App\Api\RequestBodyMapper;
 use App\Api\TreeMergeDraftViewFactory;
 use App\Application\TreeMerge\TreeMergeDraftService;
+use App\Application\TreeMerge\TreeMergeProposalService;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -19,6 +20,7 @@ final readonly class TreeMergeDraftController
 {
     public function __construct(
         private TreeMergeDraftService $drafts,
+        private TreeMergeProposalService $proposals,
         private TreeMergeDraftViewFactory $views,
         private RequestBodyMapper $body,
     ) {
@@ -56,6 +58,33 @@ final readonly class TreeMergeDraftController
     {
         $draft = $this->drafts->get($tree, $mergeId);
         $this->drafts->cancel($draft, $this->body->decodeObject($request)['version'] ?? null);
+
+        return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/proposal', name: 'api_tree_merge_proposal', methods: ['PUT'])]
+    public function revise(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $this->proposals->revise($draft, $this->body->decodeObject($request));
+
+        return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/revalidate', name: 'api_tree_merge_revalidate', methods: ['POST'])]
+    public function revalidate(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $this->proposals->revalidate($draft, $this->body->decodeObject($request)['version'] ?? null);
+
+        return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/apply', name: 'api_tree_merge_apply', methods: ['POST'])]
+    public function apply(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $this->proposals->apply($draft, $this->body->decodeObject($request), $request->headers->get('If-Match'));
 
         return new JsonResponse($this->views->create($draft));
     }

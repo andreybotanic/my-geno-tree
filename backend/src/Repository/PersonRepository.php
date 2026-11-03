@@ -22,10 +22,9 @@ final class PersonRepository extends ServiceEntityRepository
     /**
      * @return list<Person>
      */
-    public function findAllForTree(FamilyTree $tree): array
+    public function findAllForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        /** @var list<Person> $people */
-        $people = $this->createQueryBuilder('person')
+        $query = $this->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia', 'photoVariant', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
@@ -36,8 +35,12 @@ final class PersonRepository extends ServiceEntityRepository
             ->setParameter('tree', $tree)
             ->orderBy('person.createdAt', 'ASC')
             ->addOrderBy('person.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery();
+        if ($refresh) {
+            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
+        }
+        /** @var list<Person> $people */
+        $people = $query->getResult();
 
         return $people;
     }

@@ -24,6 +24,28 @@ class TreeMergeDraft
     #[ORM\Column]
     public private(set) int $sourceVersion = 0;
 
+    #[ORM\Column]
+    public private(set) int $proposalVersion = 0;
+
+    #[ORM\Column(nullable: true)]
+    public private(set) ?int $preparedSourceVersion = null;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    public private(set) ?array $proposal = null;
+
+    /** @var list<array<string, mixed>> */
+    #[ORM\Column(type: 'json')]
+    public private(set) array $corrections = [];
+
+    /** @var list<string> */
+    #[ORM\Column(type: 'json')]
+    public private(set) array $questions = [];
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    public private(set) ?array $result = null;
+
     #[ORM\Column(length: 30)]
     public private(set) string $state = 'collecting';
 
@@ -61,6 +83,8 @@ class TreeMergeDraft
             'createdAt' => $now->format(\DateTimeInterface::ATOM),
         ];
         ++$this->sourceVersion;
+        ++$this->proposalVersion;
+        $this->state = 'collecting';
         ++$this->version;
         $this->updatedAt = $now;
     }
@@ -68,6 +92,33 @@ class TreeMergeDraft
     public function cancel(\DateTimeImmutable $now): void
     {
         $this->state = 'cancelled';
+        ++$this->version;
+        $this->updatedAt = $now;
+    }
+
+    /** @param array<string, mixed> $proposal
+     * @param list<string> $questions
+     */
+    public function propose(array $proposal, array $questions, string $etag, string $state, bool $correction, \DateTimeImmutable $now): void
+    {
+        if ($correction) {
+            $this->corrections[] = ['sourceVersion' => ++$this->sourceVersion, 'proposal' => $proposal];
+        }
+        $this->proposal = $proposal;
+        $this->questions = $questions;
+        $this->preparedSourceVersion = $this->sourceVersion;
+        $this->treeEtag = $etag;
+        $this->state = $state;
+        ++$this->proposalVersion;
+        ++$this->version;
+        $this->updatedAt = $now;
+    }
+
+    /** @param array<string, mixed> $result */
+    public function applied(array $result, \DateTimeImmutable $now): void
+    {
+        $this->result = $result;
+        $this->state = 'applied';
         ++$this->version;
         $this->updatedAt = $now;
     }

@@ -6,6 +6,115 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /trees/{treeId}/merges/{mergeId}/proposal:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: reviseTreeMergeProposal
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeProposalRequest" }
+      responses:
+        "200":
+          description: Versioned merge draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}/revalidate:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: revalidateTreeMerge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
+      responses:
+        "200":
+          description: Versioned merge draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}/apply:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: If-Match
+        in: header
+        required: true
+        schema: { type: string }
+    post:
+      operationId: applyTreeMerge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeApplyRequest" }
+      responses:
+        "200":
+          description: Versioned merge draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/TreeVersionConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /trees/{treeId}/merges:
     parameters:
       - name: treeId
@@ -1527,6 +1636,114 @@ components:
             $ref: "#/components/schemas/ApiError"
   schemas:
 
+    TreeMergeEvidence:
+      type: object
+      additionalProperties: false
+      required: [messageId, quote]
+      properties:
+        messageId: { type: string, format: uuid }
+        quote: { type: string, minLength: 1 }
+    TreeMergePersonProposal:
+      type: object
+      additionalProperties: false
+      required: [id, existingPersonId, resolution, fields, lifeStatus, evidence]
+      properties:
+        id: { type: string, pattern: '^[a-zA-Z0-9_-]{1,64}$' }
+        existingPersonId: { type: [string, "null"], format: uuid }
+        resolution: { type: string, enum: [new, existing, undecided] }
+        fields: { $ref: "#/components/schemas/PersonPatchRequest" }
+        lifeStatus: { type: string, enum: [alive, deceased, uncertain] }
+        evidence:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/TreeMergeEvidence" }
+        before:
+          readOnly: true
+          oneOf:
+            - { $ref: "#/components/schemas/Person" }
+            - { type: "null" }
+        candidates:
+          readOnly: true
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/PersonSearchResult" }
+    TreeMergeParentProposal:
+      type: object
+      additionalProperties: false
+      required: [parent, child, role, evidence]
+      properties:
+        parent: { type: string }
+        child: { type: string }
+        role: { type: string, enum: [father, mother] }
+        evidence:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/TreeMergeEvidence" }
+    TreeMergeMarriageProposal:
+      type: object
+      additionalProperties: false
+      required: [first, second, marriageDate, dissolutionDate, newPeriod, evidence]
+      properties:
+        first: { type: string }
+        second: { type: string }
+        marriageDate: { $ref: "#/components/schemas/GenealogicalDate" }
+        dissolutionDate:
+          oneOf:
+            - { $ref: "#/components/schemas/GenealogicalDate" }
+            - { type: "null" }
+        newPeriod: { type: boolean }
+        evidence:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/TreeMergeEvidence" }
+    TreeMergeProposal:
+      type: object
+      additionalProperties: false
+      required: [people, parents, marriages, questions]
+      properties:
+        people:
+          type: array
+          maxItems: 20
+          description: At most five new people; existing matches always require explicit resolution.
+          items: { $ref: "#/components/schemas/TreeMergePersonProposal" }
+        parents:
+          type: array
+          maxItems: 40
+          items: { $ref: "#/components/schemas/TreeMergeParentProposal" }
+        marriages:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/TreeMergeMarriageProposal" }
+        questions:
+          type: array
+          maxItems: 30
+          items: { type: string, maxLength: 1000 }
+    TreeMergeProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [version, proposal]
+      properties:
+        version: { type: integer, minimum: 1 }
+        proposal: { $ref: "#/components/schemas/TreeMergeProposal" }
+    TreeMergeApplyRequest:
+      type: object
+      additionalProperties: false
+      required: [version, proposalVersion]
+      properties:
+        version: { type: integer, minimum: 1 }
+        proposalVersion: { type: integer, minimum: 1 }
+    TreeMergeResult:
+      type: object
+      required: [personIds, affectedPersonIds, etag, proposalVersion]
+      properties:
+        personIds:
+          type: object
+          additionalProperties: { type: string, format: uuid }
+        affectedPersonIds:
+          type: array
+          items: { type: string, format: uuid }
+        etag: { type: string }
+        proposalVersion: { type: integer }
     TreeMergeMessage:
       type: object
       additionalProperties: false
@@ -1540,14 +1757,26 @@ components:
     TreeMergeDraft:
       type: object
       additionalProperties: false
-      required: [id, treeId, referencePersonId, version, sourceVersion, state, treeEtag, messages, createdAt, updatedAt]
+      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         treeId: { type: string, format: uuid }
         referencePersonId: { type: [string, "null"], format: uuid }
         version: { type: integer, minimum: 1 }
         sourceVersion: { type: integer, minimum: 0 }
-        state: { type: string, enum: [collecting, cancelled] }
+        state: { type: string, enum: [collecting, questions, ready, no_changes, conflict, applied, cancelled] }
+        proposalVersion: { type: integer, minimum: 0 }
+        proposal:
+          oneOf:
+            - { $ref: "#/components/schemas/TreeMergeProposal" }
+            - { type: "null" }
+        questions:
+          type: array
+          items: { type: string }
+        result:
+          oneOf:
+            - { $ref: "#/components/schemas/TreeMergeResult" }
+            - { type: "null" }
         treeEtag: { type: string }
         messages:
           type: array

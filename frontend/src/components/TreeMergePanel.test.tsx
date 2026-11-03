@@ -7,6 +7,7 @@ import { TreeMergePanel } from './TreeMergePanel'
 
 const draft: TreeMergeDraft = {
   id: 'merge', treeId: 'tree', referencePersonId: null, version: 1, sourceVersion: 0,
+  proposalVersion: 0, proposal: null, questions: [], result: null,
   state: 'collecting', treeEtag: 'etag', messages: [], createdAt: '2026-11-03', updatedAt: '2026-11-03',
 }
 const snapshot: TreeSnapshot = {
