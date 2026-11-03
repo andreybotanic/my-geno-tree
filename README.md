@@ -59,6 +59,28 @@ committed to Git.
 
 ## Development commands
 
+### Tree merge chat (first feature slice)
+
+The tree editor's **Create from description** action opens a persistent chat
+draft in the right panel. Populated trees require a narrative reference person;
+this does not change the layout reference. Messages survive reopening the panel
+and refreshing the page. Cancelling a draft is a separate action.
+
+The `/api/v1/trees/{treeId}/merges` contract covers draft creation, recent drafts,
+reading, idempotent messages and cancellation. Message writes require the draft
+version and a unique `requestId`; concurrent edits return `409` and preserve
+the user's input. All drafts use the tree's ownership voter. Source text is
+limited to 10,000 characters in total. This slice only saves the conversation;
+AI proposals and applying changes are implemented in subsequent slices.
+
+Validation: backend API tests cover persistence, retries, conflicts, source
+limits and ownership; component tests cover reference selection, errors and
+input preservation. PhpStorm inspections report two non-actionable environment
+findings: constructor arguments on an ORM entity are misidentified as service
+injections, and generated migration SQL has no IDE data source. The entity is
+created explicitly by the application service; Doctrine migration and schema
+checks validate the SQL against PostgreSQL.
+
 Run all application tooling inside its service container:
 
 ```bash

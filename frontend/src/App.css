@@ -3486,3 +3486,71 @@ select:not([multiple]) {
     grid-column: 1;
   }
 }
+.tree-merge-open-button {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  z-index: 15;
+}
+
+.tree-merge-panel {
+  position: fixed;
+  top: 50px;
+  bottom: 0;
+  right: 0;
+  width: min(480px, 100vw);
+  z-index: 40;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-dialog);
+}
+
+.tree-merge-heading, .tree-merge-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.tree-merge-heading h2, .tree-merge-message p {
+  margin: 0;
+}
+
+.tree-merge-panel form, .tree-merge-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tree-merge-panel textarea, .tree-merge-panel select {
+  width: 100%;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.tree-merge-messages {
+  flex: 1;
+  min-height: 100px;
+  overflow-y: auto;
+}
+
+.tree-merge-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--color-background);
+}
+
+.tree-merge-open .person-details-panel, .tree-merge-open .blood-network-sidebar-slot {
+  visibility: hidden;
+}

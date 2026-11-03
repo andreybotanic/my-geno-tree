@@ -75,6 +75,7 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
+import { TreeMergePanel } from '../components/TreeMergePanel'
 import { ActionIcon } from '../components/ActionIcon'
 import { PersonSearchPanel } from '../components/PersonSearchPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
@@ -2174,6 +2175,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }, [importWarningCount])
   const [creating, setCreating] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedDetails, setSelectedDetails] = useState<PersonDetails | null>(null)
@@ -3034,7 +3036,15 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   }, [pathDisplay, snapshot, view])
 
   return (
-    <main className="tree-editor-page">
+    <main className={`tree-editor-page${mergeOpen ? ' tree-merge-open' : ''}`}>
+      {status === 'ready' && snapshot && !mergeOpen && (
+        <button className="tree-merge-open-button secondary-button" type="button" onClick={() => setMergeOpen(true)}>
+          {t('treeMerge.action')}
+        </button>
+      )}
+      {mergeOpen && snapshot && (
+        <TreeMergePanel key={treeId} snapshot={snapshot} request={request} onClose={() => setMergeOpen(false)} />
+      )}
       {placeRecognitionNotice && (
         <ToastNotice
           closeLabel={t('common.close')}

@@ -4,6 +4,45 @@ export type ClientOptions = {
     baseUrl: 'https://localhost/api/v1' | (string & {});
 };
 
+export type TreeMergeMessage = {
+    id: string;
+    requestId: string;
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+};
+
+export type TreeMergeDraft = {
+    id: string;
+    treeId: string;
+    referencePersonId: string | null;
+    version: number;
+    sourceVersion: number;
+    state: 'collecting' | 'cancelled';
+    treeEtag: string;
+    messages: Array<TreeMergeMessage>;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TreeMergeCreateRequest = {
+    referencePersonId: string | null;
+};
+
+export type TreeMergeMessageRequest = {
+    version: number;
+    requestId: string;
+    content: string;
+};
+
+export type TreeMergeVersionRequest = {
+    version: number;
+};
+
+export type TreeMergeList = {
+    items: Array<TreeMergeDraft>;
+};
+
 export type Health = {
     status: 'ok';
 };
@@ -613,6 +652,204 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type ListTreeMergesData = {
+    body?: never;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges';
+};
+
+export type ListTreeMergesErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ListTreeMergesError = ListTreeMergesErrors[keyof ListTreeMergesErrors];
+
+export type ListTreeMergesResponses = {
+    /**
+     * Merge draft state
+     */
+    200: TreeMergeList;
+};
+
+export type ListTreeMergesResponse = ListTreeMergesResponses[keyof ListTreeMergesResponses];
+
+export type CreateTreeMergeData = {
+    body: TreeMergeCreateRequest;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges';
+};
+
+export type CreateTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type CreateTreeMergeError = CreateTreeMergeErrors[keyof CreateTreeMergeErrors];
+
+export type CreateTreeMergeResponses = {
+    /**
+     * Merge draft state
+     */
+    201: TreeMergeDraft;
+};
+
+export type CreateTreeMergeResponse = CreateTreeMergeResponses[keyof CreateTreeMergeResponses];
+
+export type GetTreeMergeData = {
+    body?: never;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}';
+};
+
+export type GetTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type GetTreeMergeError = GetTreeMergeErrors[keyof GetTreeMergeErrors];
+
+export type GetTreeMergeResponses = {
+    /**
+     * Merge draft state
+     */
+    200: TreeMergeDraft;
+};
+
+export type GetTreeMergeResponse = GetTreeMergeResponses[keyof GetTreeMergeResponses];
+
+export type AppendTreeMergeMessageData = {
+    body: TreeMergeMessageRequest;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/messages';
+};
+
+export type AppendTreeMergeMessageErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type AppendTreeMergeMessageError = AppendTreeMergeMessageErrors[keyof AppendTreeMergeMessageErrors];
+
+export type AppendTreeMergeMessageResponses = {
+    /**
+     * Merge draft state
+     */
+    200: TreeMergeDraft;
+};
+
+export type AppendTreeMergeMessageResponse = AppendTreeMergeMessageResponses[keyof AppendTreeMergeMessageResponses];
+
+export type CancelTreeMergeData = {
+    body: TreeMergeVersionRequest;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/cancel';
+};
+
+export type CancelTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type CancelTreeMergeError = CancelTreeMergeErrors[keyof CancelTreeMergeErrors];
+
+export type CancelTreeMergeResponses = {
+    /**
+     * Merge draft state
+     */
+    200: TreeMergeDraft;
+};
+
+export type CancelTreeMergeResponse = CancelTreeMergeResponses[keyof CancelTreeMergeResponses];
 
 export type GetHealthData = {
     body?: never;

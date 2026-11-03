@@ -6,6 +6,147 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /trees/{treeId}/merges:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listTreeMerges
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Merge draft state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeList" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    post:
+      operationId: createTreeMerge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeCreateRequest" }
+      responses:
+        "201":
+          description: Merge draft state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getTreeMerge
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Merge draft state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}/messages:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: appendTreeMergeMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeMessageRequest" }
+      responses:
+        "200":
+          description: Merge draft state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}/cancel:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: cancelTreeMerge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
+      responses:
+        "200":
+          description: Merge draft state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /health:
     get:
       operationId: getHealth
@@ -1385,6 +1526,62 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
   schemas:
+
+    TreeMergeMessage:
+      type: object
+      additionalProperties: false
+      required: [id, requestId, role, content, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        requestId: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+    TreeMergeDraft:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, referencePersonId, version, sourceVersion, state, treeEtag, messages, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        treeId: { type: string, format: uuid }
+        referencePersonId: { type: [string, "null"], format: uuid }
+        version: { type: integer, minimum: 1 }
+        sourceVersion: { type: integer, minimum: 0 }
+        state: { type: string, enum: [collecting, cancelled] }
+        treeEtag: { type: string }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/TreeMergeMessage" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TreeMergeCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [referencePersonId]
+      properties:
+        referencePersonId: { type: [string, "null"], format: uuid }
+    TreeMergeMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [version, requestId, content]
+      properties:
+        version: { type: integer, minimum: 1 }
+        requestId: { type: string, pattern: "^[a-zA-Z0-9-]{1,64}$" }
+        content: { type: string, minLength: 1, maxLength: 10000 }
+    TreeMergeVersionRequest:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    TreeMergeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TreeMergeDraft" }
     Health:
       type: object
       additionalProperties: false

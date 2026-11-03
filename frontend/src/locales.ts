@@ -1,6 +1,27 @@
 export const resources = {
   en: {
     translation: {
+      treeMerge: {
+        action: "Create from description",
+        title: "Tree assistant",
+        help: "Describe your family. Changes to the tree always require a preview and your confirmation.",
+        loadFailed: "The conversation could not be loaded. Close the panel and try again.",
+        failed: "Could not save. Your message has been kept; try again.",
+        conflict: "This conversation changed in another tab. Reload it before continuing.",
+        unauthorized: "Your session has expired. Sign in again to continue.",
+        reload: "Reload conversation",
+        reference: "Who is telling the story?",
+        chooseReference: "Choose a person",
+        referenceHelp: "“I” and unnamed relatives refer to this person.",
+        start: "Start conversation",
+        messages: "Conversation",
+        empty: "Describe the people and their relationships.",
+        you: "You",
+        assistant: "Assistant",
+        message: "Family description or clarification",
+        send: "Send",
+        cancel: "Discard draft",
+      },
       treeImport: {
         action: 'Import', checking: 'Recognizing the file…', disconnected: 'The file contains disconnected family trees. Import them separately.',
         chooseFile: 'Choose GEDCOM file', encoding: 'Only UTF-8 and ASCII GEDCOM files are supported.', failed: 'The tree could not be imported.', file: 'GEDCOM file', importing: 'Importing…',
@@ -413,6 +434,27 @@ export const resources = {
   },
   ru: {
     translation: {
+      treeMerge: {
+        action: "Создать по описанию",
+        title: "Помощник по дереву",
+        help: "Расскажите о семье. Изменения дерева всегда требуют предпросмотра и вашего подтверждения.",
+        loadFailed: "Не удалось загрузить беседу. Закройте панель и попробуйте снова.",
+        failed: "Не удалось сохранить. Сообщение сохранено в поле ввода; попробуйте снова.",
+        conflict: "Беседа изменена в другой вкладке. Загрузите её актуальную версию.",
+        unauthorized: "Сессия завершена. Войдите снова, чтобы продолжить.",
+        reload: "Обновить беседу",
+        reference: "От чьего лица ведётся рассказ?",
+        chooseReference: "Выберите персону",
+        referenceHelp: "«Я» и родственники без указания имени относятся к этой персоне.",
+        start: "Начать беседу",
+        messages: "Беседа",
+        empty: "Опишите людей и их родственные связи.",
+        you: "Вы",
+        assistant: "Помощник",
+        message: "Описание семьи или уточнение",
+        send: "Отправить",
+        cancel: "Отказаться от черновика",
+      },
       treeImport: {
         action: 'Импорт', checking: 'Распознаём файл…', disconnected: 'В файле несколько несвязанных деревьев. Импортируйте их отдельно.',
         chooseFile: 'Выбрать GEDCOM-файл', encoding: 'Поддерживаются только GEDCOM-файлы в UTF-8 и ASCII.', failed: 'Не удалось импортировать дерево.', file: 'Файл GEDCOM', importing: 'Импортируем…',
