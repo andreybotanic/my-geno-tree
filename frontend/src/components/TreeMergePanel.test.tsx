@@ -7,7 +7,7 @@ import { TreeMergePanel } from './TreeMergePanel'
 
 const draft: TreeMergeDraft = {
   id: 'merge', treeId: 'tree', referencePersonId: null, version: 1, sourceVersion: 0,
-  proposalVersion: 0, proposal: null, questions: [], result: null,
+  attemptId: null, attemptSourceVersion: null, attemptStartedAt: null, proposalVersion: 0, proposal: null, questions: [], result: null,
   state: 'collecting', treeEtag: 'etag', messages: [], createdAt: '2026-11-03', updatedAt: '2026-11-03',
 }
 const snapshot: TreeSnapshot = {
@@ -38,6 +38,7 @@ describe('TreeMergePanel', () => {
     }] }
     const { request, close } = renderPanel(async (_path, init) => {
       if (init?.method !== 'POST') return { items: [] }
+      if (_path.endsWith('/process')) return sent
       return JSON.parse(String(init.body)).content ? sent : draft
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Start conversation' }))
@@ -87,6 +88,51 @@ describe('TreeMergePanel', () => {
     fireEvent.click(start)
     await screen.findByRole('textbox')
     expect(request).toHaveBeenCalledWith('/trees/tree/merges', expect.objectContaining({ body: JSON.stringify({ referencePersonId: 'person' }) }))
+  })
+
+  it('restores a running attempt and polls until the answer is saved without stealing input focus', async () => {
+    const processing = { ...draft, state: 'processing' as const, attemptId: 'attempt', version: 3 }
+    const answered = { ...draft, version: 4, messages: [{ id: 'answer', requestId: 'request', role: 'assistant' as const,
+      content: 'Confirmed family facts', createdAt: '2026-11-03' }] }
+    const { request } = renderPanel(async (path) => path.endsWith('/merge') ? answered : { items: [processing] })
+    const input = await screen.findByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Next clarification' } })
+    expect(await screen.findByText('Confirmed family facts', {}, { timeout: 3500 })).toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(input).toHaveValue('Next clarification')
+  })
+
+  it('recovers the saved attempt after a transport error and retries without resending the message', async () => {
+    const saved: TreeMergeDraft = { ...draft, version: 2, messages: [{ id: 'source', requestId: 'request', role: 'user',
+      content: 'Vera is alive', createdAt: '2026-11-03' }] }
+    let attempts = 0
+    const { request } = renderPanel(async (path) => {
+      if (path.endsWith('/process')) {
+        if (++attempts === 1) throw new Error('connection interrupted')
+        return { ...saved, state: 'ready', version: 5, messages: [...saved.messages,
+          { id: 'answer', requestId: 'request', role: 'assistant', content: 'Review Vera', createdAt: '2026-11-03' }] }
+      }
+      return path.endsWith('/merge') ? { ...saved, state: 'error', version: 4 } : { items: [saved] }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Analyze description' }))
+    expect(await screen.findByText(/The description could not be processed/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze description' }))
+    expect(await screen.findByText('Review Vera')).toBeInTheDocument()
+    expect(request).toHaveBeenLastCalledWith('/trees/tree/merges/merge/process', expect.objectContaining({
+      body: JSON.stringify({ version: 4, requestId: 'request' }),
+    }))
+    expect(screen.getAllByText('Vera is alive')).toHaveLength(1)
+  })
+
+  it('offers retry for an abandoned processing attempt after restoring the chat', async () => {
+    const stale: TreeMergeDraft = { ...draft, state: 'processing', version: 3, attemptId: 'attempt',
+      attemptStartedAt: new Date(Date.now() - 360000).toISOString(), messages: [{ id: 'source', requestId: 'request',
+        role: 'user', content: 'My mother is Vera', createdAt: '2026-11-03' }] }
+    const { request } = renderPanel(async (path) => path.endsWith('/process') ? { ...stale, state: 'questions' } : { items: [stale] })
+    fireEvent.click(await screen.findByRole('button', { name: 'Analyze description' }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/process', expect.objectContaining({
+      body: JSON.stringify({ version: 3, requestId: 'request' }),
+    })))
   })
 
   it('reloads a conflicting draft without losing the unsaved message', async () => {

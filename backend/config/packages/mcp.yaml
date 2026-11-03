@@ -1,0 +1,20 @@
+mcp:
+    servers:
+        tree_read:
+            name: MyGenoTree read context
+            session:
+                store: cache
+                lock: { factory: lock.default.factory }
+            registry: [App\Mcp\TreeReadTools]
+            http:
+                path: /mcp/read
+                allowed_hosts: [proxy, localhost]
+        tree:
+            name: MyGenoTree
+            session:
+                store: cache
+                lock: { factory: lock.default.factory }
+            registry: ['App\Mcp\']
+            http:
+                path: /mcp/tree
+                allowed_hosts: [my-geno-tree.localhost, localhost]

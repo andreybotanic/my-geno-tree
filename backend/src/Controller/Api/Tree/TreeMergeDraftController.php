@@ -2,8 +2,10 @@
 
 namespace App\Controller\Api\Tree;
 
+use App\Api\ApiException;
 use App\Api\RequestBodyMapper;
 use App\Api\TreeMergeDraftViewFactory;
+use App\Application\TreeMerge\TreeMergeConversationService;
 use App\Application\TreeMerge\TreeMergeDraftService;
 use App\Application\TreeMerge\TreeMergeProposalService;
 use App\Entity\FamilyTree;
@@ -21,6 +23,7 @@ final readonly class TreeMergeDraftController
     public function __construct(
         private TreeMergeDraftService $drafts,
         private TreeMergeProposalService $proposals,
+        private TreeMergeConversationService $conversation,
         private TreeMergeDraftViewFactory $views,
         private RequestBodyMapper $body,
     ) {
@@ -48,7 +51,20 @@ final readonly class TreeMergeDraftController
     public function message(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
     {
         $draft = $this->drafts->get($tree, $mergeId);
-        $this->drafts->append($draft, $this->body->decodeObject($request));
+        $this->drafts->append($draft, $this->body->decodeObject($request), false);
+
+        return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/process', name: 'api_tree_merge_process', methods: ['POST'])]
+    public function process(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $payload = $this->body->decodeObject($request);
+        if (2 !== count($payload) || array_diff(['version', 'requestId'], array_keys($payload))) {
+            throw new ApiException(422, 'TREE_MERGE_INVALID');
+        }
+        $this->conversation->process($draft, $payload['version'] ?? null, $payload['requestId'] ?? null);
 
         return new JsonResponse($this->views->create($draft));
     }

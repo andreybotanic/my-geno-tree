@@ -49,7 +49,19 @@ class TreeMergeDraft
     #[ORM\Column(length: 30)]
     public private(set) string $state = 'collecting';
 
-    /** @var list<array{id: string, requestId: string, role: string, content: string, createdAt: string}> */
+    #[ORM\Column(length: 36, nullable: true)]
+    public private(set) ?string $attemptId = null;
+
+    #[ORM\Column(nullable: true)]
+    public private(set) ?int $attemptSourceVersion = null;
+
+    #[ORM\Column(nullable: true)]
+    public private(set) ?\DateTimeImmutable $attemptStartedAt = null;
+
+    #[ORM\Column(length: 30, nullable: true)]
+    public private(set) ?string $stateBeforeAttempt = null;
+
+    /** @var list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool}> */
     #[ORM\Column(type: 'json')]
     public private(set) array $messages = [];
 
@@ -73,7 +85,7 @@ class TreeMergeDraft
         $this->updatedAt = $createdAt;
     }
 
-    public function addMessage(string $requestId, string $content, \DateTimeImmutable $now): void
+    public function addMessage(string $requestId, string $content, \DateTimeImmutable $now, bool $source = true): void
     {
         $this->messages[] = [
             'id'        => Uuid::v7()->toRfc4122(),
@@ -81,10 +93,76 @@ class TreeMergeDraft
             'role'      => 'user',
             'content'   => $content,
             'createdAt' => $now->format(\DateTimeInterface::ATOM),
+            'source'    => $source,
         ];
-        ++$this->sourceVersion;
-        ++$this->proposalVersion;
-        $this->state = 'collecting';
+        if ($source) {
+            ++$this->sourceVersion;
+            ++$this->proposalVersion;
+            $this->state = 'collecting';
+        } else {
+            if (!in_array($this->state, ['processing', 'error', 'collecting'], true)) {
+                $this->stateBeforeAttempt = $this->state;
+            }
+            $this->state = 'collecting';
+        }
+        ++$this->version;
+        $this->updatedAt = $now;
+    }
+
+    public function beginAttempt(\DateTimeImmutable $now): string
+    {
+        if (null === $this->stateBeforeAttempt) {
+            $this->stateBeforeAttempt = $this->state;
+        }
+        $this->attemptId = Uuid::v7()->toRfc4122();
+        $this->attemptSourceVersion = $this->sourceVersion;
+        $this->attemptStartedAt = $now;
+        $this->state = 'processing';
+        ++$this->version;
+        $this->updatedAt = $now;
+
+        return $this->attemptId;
+    }
+
+    public function markSource(string $requestId): void
+    {
+        $pending = array_column($this->sourceMessages(), 'id');
+        foreach ($this->messages as &$message) {
+            if (in_array($message['id'], $pending, true) && !($message['source'] ?? true)) {
+                $message['source'] = true;
+                ++$this->sourceVersion;
+                ++$this->proposalVersion;
+            }
+            if ($message['requestId'] === $requestId) {
+                break;
+            }
+        }
+    }
+
+    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool}> */
+    public function sourceMessages(): array
+    {
+        $answered = array_column(array_filter($this->messages, static fn ($message) => 'assistant' === $message['role']), 'requestId');
+
+        return array_values(array_filter($this->messages, static fn ($message) => 'user' === $message['role']
+            && (($message['source'] ?? true) || !in_array($message['requestId'], $answered, true))));
+    }
+
+    public function answer(string $requestId, string $content, \DateTimeImmutable $now): void
+    {
+        $this->messages[] = ['id' => Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
+            'role'                => 'assistant', 'content' => $content, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
+        if ('processing' === $this->state) {
+            $this->state = $this->stateBeforeAttempt ?? 'collecting';
+        }
+        $this->stateBeforeAttempt = null;
+        ++$this->version;
+        $this->updatedAt = $now;
+    }
+
+    public function processingFailed(\DateTimeImmutable $now): void
+    {
+        $this->state = 'error';
         ++$this->version;
         $this->updatedAt = $now;
     }

@@ -84,7 +84,8 @@ final readonly class TreeMergeProposalService
 
     private function validateSaved(TreeMergeDraft $draft): void
     {
-        if (null === $draft->proposal || $draft->preparedSourceVersion !== $draft->sourceVersion) {
+        if (null === $draft->proposal || $draft->preparedSourceVersion !== $draft->sourceVersion
+            || in_array($draft->state, ['collecting', 'processing', 'error'], true)) {
             throw new ApiException(409, 'TREE_MERGE_NOT_READY', 'tree_merge_not_ready');
         }
         $proposal = $draft->proposal;

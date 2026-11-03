@@ -79,6 +79,24 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
         return $marriage;
     }
 
+    /** @return list<array{first: string, second: string}> */
+    public function findBoundedContext(FamilyTree $tree, Person $person): array
+    {
+        /** @var list<array{first: string, second: string}> $rows */
+        $rows = $this->createQueryBuilder('marriage')
+            ->select('IDENTITY(marriage.malePerson) AS first', 'IDENTITY(marriage.femalePerson) AS second')
+            ->andWhere('marriage.tree = :tree')
+            ->andWhere('marriage.malePerson = :person OR marriage.femalePerson = :person')
+            ->setParameter('tree', $tree)
+            ->setParameter('person', $person)
+            ->orderBy('marriage.id', 'ASC')
+            ->setMaxResults(11)
+            ->getQuery()
+            ->getScalarResult();
+
+        return $rows;
+    }
+
     /**
      * @return list<MarriagePeriod>
      */

@@ -29,7 +29,8 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', $path . '/messages', $message, $this->headers);
         self::assertResponseIsSuccessful();
         self::assertSame(2, $this->responseData()['version']);
-        self::assertSame(1, $this->responseData()['sourceVersion']);
+        // A saved message is classified before it can change the prepared package.
+        self::assertSame(0, $this->responseData()['sourceVersion']);
         $saved = $this->responseData();
         $this->jsonRequest('POST', $path . '/messages', $message, $this->headers);
         self::assertResponseIsSuccessful();

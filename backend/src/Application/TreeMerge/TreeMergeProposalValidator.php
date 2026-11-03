@@ -93,6 +93,19 @@ final readonly class TreeMergeProposalValidator
             }
             $name = $personData->givenName->getValue();
             $candidates = null !== $name && mb_strlen($name) >= 2 ? $this->search->search($draft->tree, $name) : [];
+            if (!$manual && [] !== $candidates && 'new' === $row['resolution']) {
+                $explicitNew = false;
+                foreach ($draft->corrections as $correction) {
+                    /** @var array{people: list<array{id: string, resolution: string}>} $reviewed */
+                    $reviewed = $correction['proposal'];
+                    foreach ($reviewed['people'] as $choice) {
+                        $explicitNew = $explicitNew || ($choice['id'] === $id && 'new' === $choice['resolution']);
+                    }
+                }
+                if (!$explicitNew) {
+                    $row['resolution'] = 'undecided';
+                }
+            }
             if ('undecided' === $row['resolution']) {
                 $questions[] = 'person_match:' . $id;
             }

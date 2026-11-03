@@ -6,6 +6,48 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /trees/{treeId}/merges/{mergeId}/process:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: processTreeMerge
+      description: Processes the latest saved message. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. No genealogical changes are applied.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, requestId]
+              properties:
+                version: { type: integer, minimum: 1 }
+                requestId: { type: string }
+      responses:
+        "200":
+          description: Ready, clarification, no changes or error draft; source remains saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          description: Processing rate limit reached; draft retained.
   /trees/{treeId}/merges/{mergeId}/proposal:
     parameters:
       - name: treeId
@@ -1753,18 +1795,22 @@ components:
         requestId: { type: string }
         role: { type: string, enum: [user, assistant] }
         content: { type: string }
+        source: { type: boolean, description: Whether this user message contributes source facts; pending messages remain saved before classification. }
         createdAt: { type: string, format: date-time }
     TreeMergeDraft:
       type: object
       additionalProperties: false
-      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, createdAt, updatedAt]
+      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, createdAt, updatedAt, attemptId, attemptSourceVersion, attemptStartedAt]
       properties:
         id: { type: string, format: uuid }
         treeId: { type: string, format: uuid }
         referencePersonId: { type: [string, "null"], format: uuid }
         version: { type: integer, minimum: 1 }
         sourceVersion: { type: integer, minimum: 0 }
-        state: { type: string, enum: [collecting, questions, ready, no_changes, conflict, applied, cancelled] }
+        state: { type: string, enum: [collecting, processing, error, questions, ready, no_changes, conflict, applied, cancelled] }
+        attemptId: { type: [string, "null"], format: uuid }
+        attemptSourceVersion: { type: [integer, "null"] }
+        attemptStartedAt: { type: [string, "null"], format: date-time }
         proposalVersion: { type: integer, minimum: 0 }
         proposal:
           oneOf:

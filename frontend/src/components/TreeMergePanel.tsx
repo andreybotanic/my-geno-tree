@@ -20,10 +20,13 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props)
   const [content, setContent] = useState('')
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [observedAt, setObservedAt] = useState(Date.now)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
   const pending = useRef<{ requestId: string; content: string } | null>(null)
   const base = `/trees/${snapshot.tree.id}/merges`
+  const staleAttempt = draft?.state === 'processing' && draft.attemptStartedAt !== null &&
+    observedAt - Date.parse(draft.attemptStartedAt) >= 5 * 60 * 1000
 
   useEffect(() => {
     const controller = new AbortController()
@@ -55,8 +58,19 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props)
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [draft?.messages.length])
 
   useEffect(() => {
-    if (draft && !busy) textarea.current?.focus()
-  }, [busy, draft])
+    if (draft?.state !== 'processing') return
+    const controller = new AbortController()
+    const timer = window.setInterval(() => {
+      void request<TreeMergeDraft>(`${base}/${draft.id}`, { signal: controller.signal }).then((next) => {
+        if (!controller.signal.aborted) { setDraft(next); setObservedAt(Date.now()) }
+      }).catch(() => { /* The saved conversation remains available for retry. */ })
+    }, 2000)
+    return () => { controller.abort(); window.clearInterval(timer) }
+  }, [base, draft?.id, draft?.state, request])
+
+  useEffect(() => {
+    if (draft?.id && !busy) textarea.current?.focus()
+  }, [busy, draft?.id])
 
   function showError(cause: unknown) {
     setError(cause instanceof ApiRequestError && cause.status === 412 ? 'treeMerge.treeConflict'
@@ -128,9 +142,27 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props)
       })
       setDraft(next)
       setContent('')
+      const requestId = pending.current.requestId
       pending.current = null
+      await process(next, requestId)
     } catch (cause) {
       showError(cause)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function process(current: TreeMergeDraft, requestId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await request<TreeMergeDraft>(`${base}/${current.id}/process`, {
+        method: 'POST', body: JSON.stringify({ version: current.version, requestId }),
+      })
+      setDraft(next)
+    } catch (cause) {
+      showError(cause)
+      try { setDraft(await request<TreeMergeDraft>(`${base}/${current.id}`)) } catch { /* Keep the saved message available. */ }
     } finally {
       setBusy(false)
     }
@@ -185,6 +217,8 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props)
         </div>
       )}
       {busy && <p role="status">{t('common.loading')}</p>}
+      {draft?.state === 'processing' && <p role="status">{t('treeMerge.processing')}</p>}
+      {draft?.state === 'error' && <p role="alert">{t('treeMerge.processingFailed')}</p>}
       {!draft ? (
         <form onSubmit={(event) => { event.preventDefault(); void start() }}>
           {snapshot.people.length > 0 && (
@@ -223,6 +257,9 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied }: Props)
             onSave={(proposal) => proposalAction('proposal', proposal)}
             onApply={() => proposalAction('apply')}
             onRevalidate={() => proposalAction('revalidate')} />}
+          {(draft.state === 'error' || draft.state === 'collecting' || staleAttempt) && draft.messages.at(-1)?.role === 'user' &&
+            <button type="button" className="secondary-button" disabled={busy}
+              onClick={() => void process(draft, draft.messages.at(-1)!.requestId)}>{t('treeMerge.process')}</button>}
           {draft.state !== 'applied' && (
           <form onSubmit={(event) => { event.preventDefault(); void send() }}>
             <label htmlFor="tree-merge-message">{t('treeMerge.message')}</label>

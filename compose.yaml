@@ -26,6 +26,14 @@ services:
       - ./frontend:/srv/frontend
       - ./openapi:/srv/openapi:ro
 
+  ollama:
+    image: ollama/ollama:0.40.12
+    profiles: [ai]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: 32768
+    volumes:
+      - ollama_models:/root/.ollama
+
   database:
     image: postgres:18.4-alpine
     environment:
@@ -55,6 +63,7 @@ services:
       - frontend
 
 volumes:
+  ollama_models:
   postgres_data:
   media_storage:
   caddy_data:

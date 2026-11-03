@@ -2,6 +2,9 @@ export const resources = {
   en: {
     translation: {
       treeMerge: {
+        processing: 'Reading the description and checking the tree…',
+        processingFailed: 'The description could not be processed. Your text is saved. Try again or add a clarification.',
+        process: 'Analyze description',
         treeConflict: 'The tree has changed. Review the updated proposal and confirm it again.',
         action: "Create from description",
         title: "Tree assistant",
@@ -35,6 +38,7 @@ export const resources = {
         askLifeStatus: "Clarify whether {{name}} is alive or deceased.",
         askMatch: "Choose who {{name}} refers to.",
         parentRelation: "{{parent}} — {{role}} of {{child}}",
+        parentRole: 'Parent role: {{parent}} → {{child}}',
         marriageRelation: "Spouses: {{first}} and {{second}}",
         newMarriagePeriod: "Create a separate marriage period",
         answeredInFields: "I have answered these questions in the fields above",
@@ -461,6 +465,9 @@ export const resources = {
   ru: {
     translation: {
       treeMerge: {
+        processing: 'Разбираем описание и проверяем дерево…',
+        processingFailed: 'Не удалось обработать описание. Текст сохранён. Повторите разбор или добавьте уточнение.',
+        process: 'Разобрать описание',
         treeConflict: 'Дерево изменилось. Проверьте обновлённое предложение и подтвердите его заново.',
         action: "Создать по описанию",
         title: "Помощник по дереву",
@@ -494,6 +501,7 @@ export const resources = {
         askLifeStatus: "Уточните, жив(а) ли {{name}} или умер(ла).",
         askMatch: "Выберите, к кому относится {{name}}.",
         parentRelation: "{{parent}} — {{role}} для {{child}}",
+        parentRole: 'Роль родителя: {{parent}} → {{child}}',
         marriageRelation: "Супруги: {{first}} и {{second}}",
         newMarriagePeriod: "Создать отдельный период брака",
         answeredInFields: "Я ответил(а) на эти вопросы в полях выше",

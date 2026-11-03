@@ -61,7 +61,7 @@ final readonly class TreeMergeDraftService
     }
 
     /** @param array<string, mixed> $payload */
-    public function append(TreeMergeDraft $draft, array $payload): void
+    public function append(TreeMergeDraft $draft, array $payload, bool $source = true): void
     {
         $expectedKeys = ['version', 'requestId', 'content'];
         if (count($payload) !== count($expectedKeys) || array_diff($expectedKeys, array_keys($payload))) {
@@ -78,11 +78,11 @@ final readonly class TreeMergeDraftService
         if (!is_int($payload['version'])) {
             $this->invalid('version');
         }
-        $this->entityManager->wrapInTransaction(function () use ($draft, $payload, $content, $requestId): void {
+        $this->entityManager->wrapInTransaction(function () use ($draft, $payload, $content, $requestId, $source): void {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
             foreach ($draft->messages as $message) {
-                if ($message['requestId'] === $requestId) {
+                if ('user' === $message['role'] && $message['requestId'] === $requestId) {
                     if ($message['content'] !== $content) {
                         throw new ApiException(409, 'TREE_MERGE_REQUEST_CONFLICT', 'tree_merge_request_conflict');
                     }
@@ -92,15 +92,16 @@ final readonly class TreeMergeDraftService
             }
             $this->assertEditable($draft, $payload['version']);
             $length = mb_strlen($content);
-            foreach ($draft->messages as $message) {
-                if ('user' === $message['role']) {
-                    $length += mb_strlen($message['content']);
-                }
+            foreach ($draft->sourceMessages() as $message) {
+                $length += mb_strlen($message['content']);
             }
             if ($length > self::MAX_SOURCE_LENGTH) {
                 $this->invalid('content', 'tree_merge_source_too_long');
             }
-            $draft->addMessage($requestId, $content, $this->clock->now());
+            if (count($draft->messages) >= 200) {
+                $this->invalid('content', 'tree_merge_message_limit');
+            }
+            $draft->addMessage($requestId, $content, $this->clock->now(), $source);
         });
     }
 

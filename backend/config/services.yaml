@@ -24,6 +24,10 @@ services:
 
 when@test:
     services:
+        App\Tests\Infrastructure\Ai\FixtureTreeMergeAi: ~
+        App\Application\TreeMerge\Ai\TreeMergeAiInterface:
+            alias: App\Tests\Infrastructure\Ai\FixtureTreeMergeAi
+            public: true
         app.test_media_storage:
             alias: media.storage
             public: true

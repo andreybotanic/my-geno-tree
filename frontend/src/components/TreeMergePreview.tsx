@@ -47,6 +47,7 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
   const [dirty, setDirty] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [removedParents, setRemovedParents] = useState<number[]>([])
+  const [parentRoles, setParentRoles] = useState(() => draft.proposal.parents.map((link) => link.role))
   const [removedMarriages, setRemovedMarriages] = useState<number[]>([])
   const [newPeriods, setNewPeriods] = useState(() => draft.proposal.marriages.map((marriage) => marriage.newPeriod))
   const [answered, setAnswered] = useState(false)
@@ -71,7 +72,8 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
     })
     await onSave({
       people,
-      parents: draft.proposal.parents.filter((_, index) => !removedParents.includes(index)),
+      parents: draft.proposal.parents.flatMap((link, index) => removedParents.includes(index)
+        ? [] : [{ ...link, role: parentRoles[index] ?? link.role }]),
       marriages: draft.proposal.marriages.flatMap((marriage, index) => removedMarriages.includes(index)
         ? [] : [{ ...marriage, newPeriod: newPeriods[index] ?? false }]),
       questions: answered ? [] : draft.proposal.questions,
@@ -152,12 +154,20 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
         </details>
       ))}
       {draft.proposal.parents.map((link, index) => (
-        <label key={`parent-${index}`} className="tree-merge-relation">
+        <div key={`parent-${index}`} className="tree-merge-relation"><label>
           <input type="checkbox" disabled={busy || draft.state === 'applied'} checked={!removedParents.includes(index)}
             onChange={(event) => { setRemovedParents((current) => event.target.checked ? current.filter((item) => item !== index) : [...current, index]); setDirty(true); setConfirmed(false) }} />
-          {t('treeMerge.parentRelation', { parent: name(link.parent), child: name(link.child), role: t(`relationships.${link.role}`) })}
+          {t('treeMerge.parentRelation', { parent: name(link.parent), child: name(link.child), role: t(`relationships.${parentRoles[index] ?? link.role}`) })}
+          </label>
+          <label>{t('treeMerge.parentRole', { parent: name(link.parent), child: name(link.child) })}
+            <select value={parentRoles[index]} disabled={busy || draft.state === 'applied' || removedParents.includes(index)}
+              onChange={(event) => { const role = event.target.value === 'mother' ? 'mother' : 'father'; setParentRoles((current) => current.map((value, at) => at === index ? role : value)); setDirty(true); setConfirmed(false) }}>
+              <option value="mother">{t('relationships.mother')}</option>
+              <option value="father">{t('relationships.father')}</option>
+            </select>
+          </label>
           {link.evidence.map((item, itemIndex) => <blockquote key={itemIndex}>{item.quote}</blockquote>)}
-        </label>
+        </div>
       ))}
       {draft.proposal.marriages.map((link, index) => (
         <div key={`marriage-${index}`} className="tree-merge-relation">

@@ -14,7 +14,7 @@ const proposal: TreeMergeProposal = {
 }
 const draft: TreeMergeDraft & { proposal: TreeMergeProposal } = {
   id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, sourceVersion: 1,
-  proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
+  attemptId: null, attemptSourceVersion: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
   messages: [], createdAt: 'now', updatedAt: 'now',
 }
 function setup(value = draft) {
@@ -87,6 +87,20 @@ describe('TreeMergePreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check corrections' }))
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ parents: [],
       marriages: [expect.objectContaining({ newPeriod: true })] })))
+  })
+
+  it('corrects a proposed parent role and requires the changed proposal to be checked again', async () => {
+    const { onSave, onApply } = setup({ ...draft, proposal: { ...proposal,
+      parents: [{ parent: 'i', child: 'other', role: 'father', evidence: [] }],
+    } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I have reviewed proposal version 1' }))
+    fireEvent.change(screen.getByRole('combobox', { name: /Parent role:/ }), { target: { value: 'mother' } })
+    expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Check corrections' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      parents: [expect.objectContaining({ parent: 'i', child: 'other', role: 'mother' })],
+    })))
+    expect(onApply).not.toHaveBeenCalled()
   })
 
   it('shows existing values and before-after comparisons including life dates', () => {

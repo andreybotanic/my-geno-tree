@@ -6,6 +6,11 @@ localhost, my-geno-tree.localhost {
 	tls internal
 	encode zstd gzip
 
+	handle /mcp/tree {
+		root * /srv/backend/public
+		php_fastcgi backend:9000
+	}
+
 	handle /api/* {
 		root * /srv/backend/public
 		php_fastcgi backend:9000
@@ -13,5 +18,16 @@ localhost, my-geno-tree.localhost {
 
 	handle {
 		reverse_proxy frontend:5173
+	}
+}
+
+# Internal HTTP MCP calls have their own FPM workers and no published host port.
+http://:8082 {
+	handle /mcp/read {
+		root * /srv/backend/public
+		php_fastcgi backend:9001
+	}
+	handle {
+		respond 404
 	}
 }

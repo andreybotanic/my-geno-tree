@@ -70,6 +70,10 @@ export type TreeMergeMessage = {
     requestId: string;
     role: 'user' | 'assistant';
     content: string;
+    /**
+     * Whether this user message contributes source facts; pending messages remain saved before classification.
+     */
+    source?: boolean;
     createdAt: string;
 };
 
@@ -79,7 +83,10 @@ export type TreeMergeDraft = {
     referencePersonId: string | null;
     version: number;
     sourceVersion: number;
-    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    state: 'collecting' | 'processing' | 'error' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    attemptId: string | null;
+    attemptSourceVersion: number | null;
+    attemptStartedAt: string | null;
     proposalVersion: number;
     proposal: TreeMergeProposal | null;
     questions: Array<string>;
@@ -737,7 +744,10 @@ export type TreeMergeDraftWritable = {
     referencePersonId: string | null;
     version: number;
     sourceVersion: number;
-    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    state: 'collecting' | 'processing' | 'error' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    attemptId: string | null;
+    attemptSourceVersion: number | null;
+    attemptStartedAt: string | null;
     proposalVersion: number;
     proposal: TreeMergeProposalWritable | null;
     questions: Array<string>;
@@ -766,6 +776,53 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type ProcessTreeMergeData = {
+    body: {
+        version: number;
+        requestId: string;
+    };
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/process';
+};
+
+export type ProcessTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+    /**
+     * Processing rate limit reached; draft retained.
+     */
+    429: unknown;
+};
+
+export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMergeErrors];
+
+export type ProcessTreeMergeResponses = {
+    /**
+     * Ready, clarification, no changes or error draft; source remains saved.
+     */
+    200: TreeMergeDraft;
+};
+
+export type ProcessTreeMergeResponse = ProcessTreeMergeResponses[keyof ProcessTreeMergeResponses];
 
 export type ReviseTreeMergeProposalData = {
     body: TreeMergeProposalRequestWritable;

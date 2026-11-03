@@ -62,6 +62,24 @@ final class ParentLinkRepository extends ServiceEntityRepository
         return $this->findOneBy(['tree' => $tree, 'id' => $id]);
     }
 
+    /** @return list<array{parentId: string, childId: string, role: string}> */
+    public function findBoundedContext(FamilyTree $tree, Person $person): array
+    {
+        /** @var list<array{parentId: string, childId: string, role: string}> $rows */
+        $rows = $this->createQueryBuilder('link')
+            ->select('IDENTITY(link.parent) AS parentId', 'IDENTITY(link.child) AS childId', 'link.role AS role')
+            ->andWhere('link.tree = :tree')
+            ->andWhere('link.parent = :person OR link.child = :person')
+            ->setParameter('tree', $tree)
+            ->setParameter('person', $person)
+            ->orderBy('link.id', 'ASC')
+            ->setMaxResults(11)
+            ->getQuery()
+            ->getScalarResult();
+
+        return $rows;
+    }
+
     /**
      * @return list<ParentLink>
      */
