@@ -116,12 +116,38 @@ Start the development text provider with Docker Compose (CPU is supported):
 
 ```sh
 docker compose --profile ai up -d --build
-docker compose exec -T ollama ollama pull qwen3:4b-instruct
+docker compose exec -T ollama ollama pull qwen3:8b
 ```
 
 `OLLAMA_URL`, `TREE_MERGE_MODEL` and `TREE_MERGE_MCP_URL` are backend settings.
 The pinned Ollama image stores models in `ollama_models`; its context window is
 32,768 tokens. Tests use prepared responses and do not require a running model.
+
+For an NVIDIA GPU available to Docker, enable `compose.gpu.yaml`. Add these
+settings to the ignored root `.env` so ordinary Compose commands keep using it
+on both Windows and Linux:
+
+```dotenv
+COMPOSE_PATH_SEPARATOR=,
+COMPOSE_FILE=compose.yaml,compose.gpu.yaml
+```
+
+Then recreate only the inference service:
+
+```sh
+docker compose --profile ai up -d --no-deps ollama
+docker compose exec -T ollama nvidia-smi
+docker compose exec -T ollama ollama ps
+```
+
+`ollama ps` shows CPU/GPU placement after the first model request. The GPU
+override preserves the 32,768-token context and enables Flash Attention with
+an 8-bit KV cache, one loaded model and one parallel request to limit VRAM use.
+Qwen3 8B may use partial CPU offloading on an 8 GB GPU; actual placement depends
+on other applications using the device. See the [Ollama memory settings](https://docs.ollama.com/faq#how-can-i-set-the-quantization-type-for-the-kv-cache).
+The base Compose configuration still supports CPU-only machines. Remove the two
+root `.env` settings and recreate `ollama` to return to CPU operation. Models
+remain in the same volume.
 
 The official `mcp/sdk`, Symfony MCP Bundle and Symfony AI MCP bridge expose
 Streamable HTTP at `https://my-geno-tree.localhost/mcp/tree`. External clients
