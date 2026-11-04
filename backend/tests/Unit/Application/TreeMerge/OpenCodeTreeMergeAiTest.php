@@ -47,6 +47,9 @@ final class OpenCodeTreeMergeAiTest extends TestCase
     private array $runtimeDirectories = [];
     private ?string $token = null;
     private string $scenario = 'valid';
+    private bool $aborted = false;
+    /** @var list<string> */
+    private array $prompts = [];
 
     protected function setUp(): void
     {
@@ -91,11 +94,22 @@ final class OpenCodeTreeMergeAiTest extends TestCase
             if ('/session' === $path) {
                 return new MockResponse('{"id":"fixture"}');
             }
+            if ('/session/fixture/abort' === $path) {
+                $this->aborted = true;
+                self::assertNull($options['on_progress']);
+
+                return new MockResponse('true');
+            }
             if ('GET' === $method) {
                 return new MockResponse(json_encode([['info' => ['role' => 'user']], ['info' => ['role' => 'assistant',
                     'tokens'                                                                            => ['input' => 10, 'output' => 5, 'reasoning' => 2, 'cache' => ['read' => 3, 'write' => 1], 'total' => 21]]]], JSON_THROW_ON_ERROR));
             }
             ++$this->calls;
+            if ('stop' === $this->scenario) {
+                $this->activity->stop($this->draft, 'message');
+                $options['on_progress'](0, 0, []);
+                self::fail('Progress must interrupt inference.');
+            }
             if ('rotate-credentials' === $this->scenario) {
                 $runtime = $this->runtimeDirectories[array_key_last($this->runtimeDirectories) ?? 0] ?? '';
                 self::assertNotSame('', $runtime);
@@ -108,11 +122,14 @@ final class OpenCodeTreeMergeAiTest extends TestCase
             self::assertSame(['providerID' => 'openai', 'modelID' => 'gpt-5.6-luna'], $body['model']);
             self::assertSame('tree-merge', $body['agent']);
             $prompt = $body['parts'][0]['text'];
+            $this->prompts[] = $prompt;
             self::assertStringContainsString('schema', $prompt);
             if ('invalid-json' === $this->scenario) {
                 $text = 'not JSON';
             } elseif ('repair-json' === $this->scenario && 1 === $this->calls) {
                 $text = '{"action":42}';
+            } elseif (str_contains($prompt, 'Automatic proposal repairs are exhausted')) {
+                $text = '{"questions":["Which Vera is the mother of Irina?"]}';
             } elseif (str_starts_with($prompt, 'Classify')) {
                 $text = '{"action":"' . ('refusal' === $this->scenario ? 'refusal' : 'proposal') . '"}';
             } else {
@@ -126,7 +143,7 @@ final class OpenCodeTreeMergeAiTest extends TestCase
 
             return new MockResponse(json_encode(['info' => ['role' => 'assistant'], 'parts' => [['type' => 'text', 'text' => $text]]], JSON_THROW_ON_ERROR));
         });
-        $this->runner = new OpenCodeRunner($http, new Serializer(), $budget, $this->directory . '/server', $this->directory . '/auth.json', 'openai/gpt-5.6-luna', 'http://mcp.test/mcp/read');
+        $this->runner = new OpenCodeRunner($http, new Serializer(), $budget, $this->activity, $this->directory . '/server', $this->directory . '/auth.json', 'openai/gpt-5.6-luna', 'http://mcp.test/mcp/read');
         $this->ai = new OpenCodeTreeMergeAi($this->runner, $this->grants, $this->activity);
         $now = new \DateTimeImmutable();
         $this->draft = new TreeMergeDraft(new FamilyTree(new User('test', 'test@example.test', 'hash', 'en', $now), 'tree', $now), null, 'etag', $now);
@@ -175,6 +192,49 @@ final class OpenCodeTreeMergeAiTest extends TestCase
         $this->scenario = 'refusal';
         self::assertSame(MergeAction::REFUSAL, $this->ai->respond($this->draft, $this->attempt)->response->action);
         self::assertNull($this->token);
+    }
+
+    public function testFinalClarificationUsesQuestionOnlySchemaWithoutMcpOrAnotherProposal(): void
+    {
+        $repair = new MergeAiRepair(new MergeAiResult(new MergeAiResponse()), new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON'), true);
+        $result = $this->ai->respond($this->draft, $this->attempt, $repair);
+        self::assertSame(MergeAction::CLARIFICATION, $result->response->action);
+        self::assertNull($result->response->proposal);
+        self::assertSame(['Which Vera is the mother of Irina?'], $result->response->questions);
+        self::assertSame(1, $this->calls);
+        self::assertNull($this->token);
+    }
+
+    public function testShortReplyIncludesAssistantQuestionsInClassificationAndGeneration(): void
+    {
+        $now = new \DateTimeImmutable();
+        $this->draft->ask('message', ['Should Vera be added as the mother of Irina?'], $now);
+        $this->draft->addMessage('reply', 'Yes.', $now);
+        $this->attempt = $this->draft->beginAttempt($now);
+        $this->ai->respond($this->draft, $this->attempt);
+        self::assertCount(2, $this->prompts);
+        foreach ($this->prompts as $prompt) {
+            self::assertStringContainsString('Should Vera be added as the mother of Irina?', $prompt);
+            self::assertStringContainsString('Mother of Irina is Vera.', $prompt);
+            self::assertStringContainsString('Yes.', $prompt);
+            self::assertStringContainsString('"role":"assistant"', $prompt);
+        }
+    }
+
+    public function testStopAbortsRuntimeAndAccountsForTokensAlreadySpent(): void
+    {
+        $this->scenario = 'stop';
+        try {
+            $this->runner->run($this->draft, 'Classify the request', MergeIntent::class);
+            self::fail('Stopped response must be rejected.');
+        } catch (ApiException $error) {
+            self::assertSame('TREE_MERGE_STOPPED', $error->getErrorCode());
+        }
+        self::assertTrue($this->aborted);
+        self::assertSame(21, $this->activity->read($this->draft)['usage']['total']);
+        self::assertSame(1, $this->calls);
+        $this->expectException(ApiException::class);
+        $this->runner->run($this->draft, 'Classify again', MergeIntent::class);
     }
 
     public function testRejectsAnAgentThatDidNotReadTheTree(): void

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { TreeMergeDraft, TreeSnapshot } from '../api/generated'
@@ -38,12 +38,17 @@ describe('TreeMergePanel', () => {
     const input = await screen.findByRole('textbox')
     await waitFor(() => expect(input).toBeEnabled())
     expect(screen.getByRole('img', { name: '25% of tokens remaining' })).toBeInTheDocument()
+    expect(input).toHaveStyle({ height: '60px', overflowY: 'hidden' })
     Object.defineProperty(input, 'scrollHeight', { configurable: true, value: 500 })
     fireEvent.change(input, { target: { value: 'line\n'.repeat(10) } })
     expect(input).toHaveStyle({ height: '180px' })
-    Object.defineProperty(input, 'scrollHeight', { configurable: true, value: 72 })
+    expect(input).toHaveStyle({ overflowY: 'auto' })
+    Object.defineProperty(input, 'scrollHeight', { configurable: true, get: () => {
+      expect(input.style.overflowY).toBe('hidden')
+      return 84
+    } })
     fireEvent.change(input, { target: { value: 'short' } })
-    expect(input).toHaveStyle({ height: '72px' })
+    expect(input).toHaveStyle({ height: '84px', overflowY: 'hidden' })
     expect(request).toHaveBeenCalledOnce()
   })
 
@@ -131,59 +136,83 @@ describe('TreeMergePanel', () => {
     expect(input).toHaveValue('Next clarification')
   })
 
-  it('recovers the saved attempt after a transport error and retries without resending the message', async () => {
+  it('replaces Send with Stop, keeps the chat and ignores a late answer after the next turn', async () => {
     const saved: TreeMergeDraft = { ...draft, version: 2, messages: [{ id: 'source', requestId: 'request', role: 'user',
       content: 'Vera is alive', createdAt: '2026-11-03' }] }
+    const stopped: TreeMergeDraft = { ...saved, version: 4, messages: [...saved.messages,
+      { id: 'stop', requestId: 'request', role: 'assistant', content: 'Stopped.', createdAt: '2026-11-03' }] }
+    let finish!: (value: TreeMergeDraft) => void
+    let signal: AbortSignal | null | undefined
+    let requestId = ''
     let attempts = 0
-    const { request } = renderPanel(async (path) => {
+    const { request } = renderPanel(async (path, init) => {
+      if (path.endsWith('/messages')) return saved
+      if (path.endsWith('/stop')) return stopped
       if (path.endsWith('/process')) {
-        if (++attempts === 1) throw new Error('connection interrupted')
-        return { ...saved, state: 'ready', version: 5, messages: [...saved.messages,
-          { id: 'answer', requestId: 'request', role: 'assistant', content: 'Review Vera', createdAt: '2026-11-03' }] }
+        requestId = (JSON.parse(String(init?.body)) as { requestId: string }).requestId
+        if (++attempts === 1) { signal = init?.signal; return new Promise<TreeMergeDraft>((resolve) => { finish = resolve }) }
+        return { ...stopped, version: 8, messages: [...stopped.messages,
+          { id: 'answer', requestId: 'second', role: 'assistant', content: 'Second response', createdAt: '2026-11-03' }] }
       }
-      return path.endsWith('/merge') ? { ...saved, state: 'error', version: 4 } : { items: [saved] }
+      return { items: [draft] }
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Analyze description' }))
-    expect(await screen.findByText(/The description could not be processed/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze description' }))
-    expect(await screen.findByText('Review Vera')).toBeInTheDocument()
-    expect(request).toHaveBeenLastCalledWith('/trees/tree/merges/merge/process', expect.objectContaining({
-      body: JSON.stringify({ version: 4, requestId: 'request' }),
-    }))
-    expect(screen.getAllByText('Vera is alive')).toHaveLength(1)
+    const input = await screen.findByRole('textbox')
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'Vera is alive' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
+    expect(await screen.findByText('Stopped.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Analyze description' })).not.toBeInTheDocument()
+    expect(signal?.aborted).toBe(true)
+    expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/stop', expect.objectContaining({ method: 'POST', body: JSON.stringify({ requestId }) }))
+    fireEvent.change(input, { target: { value: 'Continue with Vera' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('Second response')
+    await act(async () => { finish({ ...saved, version: 3, state: 'ready' }) })
+    expect(screen.getByText('Second response')).toBeInTheDocument()
+    expect(input).toBeEnabled()
   })
 
-  it.each(['en', 'ru'] as const)('restores the localized failure reply and retries the saved user message in %s', async (language) => {
-    await i18n.changeLanguage(language)
-    const failed: TreeMergeDraft = { ...draft, version: 4, state: 'error', messages: [
-      { id: 'source', requestId: 'request', role: 'user', content: 'Vera is my mother.', createdAt: '2026-11-03' },
-      { id: 'failure', requestId: 'request', role: 'assistant', content: 'Stored fallback', failureCode: 'validation_failed', createdAt: '2026-11-03' },
+  it('shows concrete assistant questions and sends the next reply without a separate analysis control', async () => {
+    const questions: TreeMergeDraft = { ...draft, version: 4, state: 'questions', messages: [
+      { id: 'source', requestId: 'request', role: 'user', content: 'My parents and four siblings', createdAt: '2026-11-03' },
+      { id: 'question', requestId: 'request', role: 'assistant', content: 'Only five new people fit. Shall we start with your parents?', createdAt: '2026-11-03' },
     ] }
-    const { request } = renderPanel(async (path) => path.endsWith('/process') ? { ...ready, version: 6, messages: [
-      failed.messages[0], { id: 'failure', requestId: 'request', role: 'assistant', content: 'Review Vera', createdAt: '2026-11-03' },
-    ] } : { items: [failed] })
-    expect(await screen.findByText(language === 'ru' ? /Не удалось подготовить корректное предложение/ : /I could not prepare a valid proposal/)).toBeInTheDocument()
-    expect(screen.queryByText('Stored fallback')).not.toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: language === 'ru' ? 'Разобрать описание' : 'Analyze description' }))
-    expect(await screen.findByText('Review Vera')).toBeInTheDocument()
-    expect(request).toHaveBeenLastCalledWith('/trees/tree/merges/merge/process', expect.objectContaining({
-      body: JSON.stringify({ version: 4, requestId: 'request' }),
-    }))
-    expect(screen.getAllByText('Vera is my mother.')).toHaveLength(1)
+    const { request } = renderPanel(async (path) => {
+      if (path.endsWith('/messages')) return { ...questions, version: 5 }
+      if (path.endsWith('/process')) throw new Error('offline')
+      if (path.endsWith('/merge')) return { ...questions, state: 'error', version: 6 }
+      return { items: [questions] }
+    })
+    expect(await screen.findByText('Only five new people fit. Shall we start with your parents?')).toBeInTheDocument()
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Yes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('Could not save. Your message has been kept; try again.')
+    expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/messages', expect.objectContaining({ body: expect.stringContaining('Yes') }))
+    expect(screen.queryByRole('button', { name: 'Analyze description' })).not.toBeInTheDocument()
+    expect(screen.getByText('Only five new people fit. Shall we start with your parents?')).toBeInTheDocument()
   })
 
-  it('offers retry for an abandoned processing attempt after restoring the chat', async () => {
-    const stale: TreeMergeDraft = { ...draft, state: 'processing', version: 3, attemptId: 'attempt',
-      attemptStartedAt: new Date(Date.now() - 360000).toISOString(), messages: [{ id: 'source', requestId: 'request',
+  it('can stop a restored attempt and preserves it when the stop request fails', async () => {
+    const running: TreeMergeDraft = { ...draft, state: 'processing', version: 3, attemptId: 'attempt',
+      attemptStartedAt: new Date().toISOString(), messages: [{ id: 'source', requestId: 'request',
         role: 'user', content: 'My mother is Vera', createdAt: '2026-11-03' }] }
-    const { request } = renderPanel(async (path) => path.endsWith('/process') ? { ...stale, state: 'questions' } : { items: [stale] })
-    fireEvent.click(await screen.findByRole('button', { name: 'Analyze description' }))
-    await waitFor(() => expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/process', expect.objectContaining({
-      body: JSON.stringify({ version: 3, requestId: 'request' }),
-    })))
+    let stops = 0
+    renderPanel(async (path) => {
+      if (path.endsWith('/stop')) {
+        if (++stops === 1) throw new Error('offline')
+        return { ...running, version: 4, state: 'collecting' }
+      }
+      return { items: [running] }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
+    await screen.findByRole('alert')
+    expect(screen.getByText('My mother is Vera')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop response' }))
+    await screen.findByRole('button', { name: 'Send' })
+    expect(screen.getByRole('textbox')).toBeEnabled()
   })
-
   it('reloads a conflicting draft without losing the unsaved message', async () => {
     let reads = 0
     renderPanel(async (_path, init) => {

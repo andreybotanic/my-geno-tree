@@ -5,6 +5,7 @@ namespace App\Tests\Unit\Application\TreeMerge;
 use App\Api\ApiException;
 use App\Application\TreeMerge\Ai\Dto\MergeAction;
 use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
+use App\Application\TreeMerge\Ai\Dto\MergeClarification;
 use App\Application\TreeMerge\Ai\Dto\MergeIntent;
 use App\Application\TreeMerge\Ai\MergeAiRepair;
 use App\Application\TreeMerge\Ai\MergeAiResult;
@@ -145,6 +146,40 @@ final class SymfonyTreeMergeAiTest extends TestCase
         self::assertSame($previous->contexts, $result->contexts);
         self::assertSame($previous->people, $result->people);
         self::assertSame($response, $result->response);
+    }
+
+    public function testClarificationAndShortReplyIncludeTheWholeConversation(): void
+    {
+        $draft = $this->draft('Vera is my mother.');
+        $now = new \DateTimeImmutable();
+        $draft->ask('request', ['Is Vera the existing person in your tree?'], $now);
+        $draft->addMessage('reply', 'Yes.', $now);
+        $calls = 0;
+        $platform = MockPlatformFactory::createPlatform(static function (Model $model, mixed $payload) use (&$calls): ObjectResult {
+            ++$calls;
+            $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+            self::assertStringContainsString('Vera is my mother.', $encoded);
+            self::assertStringContainsString('Is Vera the existing person in your tree?', $encoded);
+            self::assertStringContainsString('Yes.', $encoded);
+            if (1 === $calls) {
+                self::assertStringContainsString('Latest request: Yes.', $encoded);
+
+                return new ObjectResult(new MergeIntent());
+            }
+            self::assertStringContainsString('Do NOT produce another proposal', $encoded);
+            self::assertStringContainsString('ambiguous_existing_person', $encoded);
+            $response = new MergeClarification();
+            $response->questions = ['Which of the two Veras is your mother?'];
+
+            return new ObjectResult($response);
+        });
+        $http = new MockHttpClient(static function (): never { throw new \LogicException('Clarification must reuse context'); });
+        $ai = new SymfonyTreeMergeAi($platform, $this->grants(), $http, 'test', 'http://mcp.test');
+        $ai->respond($draft, 'attempt');
+        $repair = new MergeAiRepair(new MergeAiResult(new MergeAiResponse()), new ApiException(422, 'TREE_MERGE_PROPOSAL_INVALID',
+            fields: ['people[0]' => ['ambiguous_existing_person']]), true);
+        self::assertSame(['Which of the two Veras is your mother?'], $ai->respond($draft, 'attempt', $repair)->response->questions);
+        self::assertSame(2, $calls);
     }
 
     private function grants(): TreeMergeReadGrant

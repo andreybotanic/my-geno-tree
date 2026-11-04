@@ -2,6 +2,7 @@
 
 namespace App\Application\TreeMerge\Ai;
 
+use App\Application\TreeMerge\MergeActivity;
 use App\Entity\TreeMergeDraft;
 use Symfony\AI\Platform\StructuredOutput\ResponseFormatFactory;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -15,6 +16,7 @@ final readonly class OpenCodeRunner
 {
     public function __construct(private HttpClientInterface $http, private DenormalizerInterface $serializer,
         private MergeTokenBudget $budget,
+        private MergeActivity $activity,
         #[Autowire(env: 'TREE_MERGE_OPENCODE_BINARY')] private string $binary,
         #[Autowire(env: 'TREE_MERGE_OPENCODE_AUTH')] private string $authFile,
         #[Autowire(env: 'TREE_MERGE_OPENCODE_MODEL')] private string $model,
@@ -30,6 +32,7 @@ final readonly class OpenCodeRunner
     public function run(TreeMergeDraft $draft, string $prompt, string $responseClass, ?string $mcpToken = null): object
     {
         $this->budget->assertAvailable($draft);
+        $this->activity->assertRunning($draft);
         [$provider, $model] = explode('/', $this->model, 2);
         $directory = '/run/tree-merge/opencode-' . bin2hex(random_bytes(12));
         $files = new Filesystem();
@@ -81,9 +84,10 @@ final readonly class OpenCodeRunner
             $process->disableOutput();
             $process->start();
             $client = $this->http->withOptions(['base_uri' => 'http://' . $address, 'auth_basic' => ['tree-merge', $password],
-                'timeout'                                  => 270, 'max_duration' => 270]);
+                'timeout'                                  => 270, 'max_duration' => 270, 'on_progress' => fn () => $this->activity->assertRunning($draft)]);
             $ready = false;
             for ($try = 0; $try < 100 && $process->isRunning(); ++$try) {
+                $this->activity->assertRunning($draft);
                 try {
                     $ready = true === ($client->request('GET', '/global/health', ['timeout' => 0.2, 'max_duration' => 0.2])->toArray()['healthy'] ?? false);
                 } catch (\Throwable) {
@@ -105,6 +109,10 @@ final readonly class OpenCodeRunner
                 $response = $this->generate($client, $path, $provider, $model, $prompt, $responseClass);
             } finally {
                 // Each assistant step has its own usage; final-message usage alone omits tool rounds.
+                $client = $client->withOptions(['on_progress' => null, 'timeout' => 5, 'max_duration' => 5]);
+                if ($this->activity->isStopped($draft)) {
+                    $client->request('POST', '/session/' . rawurlencode($session['id']) . '/abort')->getContent();
+                }
                 $messages = $client->request('GET', $path)->toArray();
                 foreach ($messages as $message) {
                     $info = is_array($message) && is_array($message['info'] ?? null) ? $message['info'] : [];
@@ -167,8 +175,8 @@ final readonly class OpenCodeRunner
             }
             try {
                 $data = json_decode($text, true, flags: JSON_THROW_ON_ERROR);
-                if (!is_array($data) || !is_string($data['action'] ?? null)) {
-                    throw new \JsonException('A JSON object with an action field is required.');
+                if (!is_array($data) || (Dto\MergeClarification::class !== $responseClass && !is_string($data['action'] ?? null))) {
+                    throw new \JsonException('A JSON object matching the supplied schema is required.');
                 }
                 $response = $this->serializer->denormalize($data, $responseClass);
                 if (!$response instanceof $responseClass) {

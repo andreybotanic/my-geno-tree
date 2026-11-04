@@ -25,7 +25,7 @@ final class MergeAiProposalMapper
         foreach ($proposal['people'] as $personIndex => &$person) {
             $existingId = $person['existingPersonId'];
             if (null !== $existingId && !isset($context[$existingId])) {
-                throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON', fields: ['people[' . $personIndex . '].existingPersonId' => ['person_not_observed_through_mcp']]);
+                throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON', fields: ['people[' . $personIndex . '].existingPersonId' => ['person_not_observed_through_mcp']], details: ['violations' => [['path' => 'people[' . $personIndex . '].existingPersonId', 'message' => 'Search candidates are not full person context. Use only IDs from get_tree_context.people or get_person_context.people. Before proposing an existing person, read their context through MCP. Previously observed person IDs: ' . implode(', ', array_keys($context)) . '.']]]);
             }
             $fields = array_filter($person['fields'], static fn ($value) => null !== $value);
             $unknownNames = $fields['unknownNames'] ?? [];

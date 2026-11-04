@@ -24,7 +24,8 @@ final readonly class TreeMergeReadGrant
         $item = $this->cache->getItem('merge_grant_' . hash('sha256', $token));
         $item->set(['userId' => $draft->owner->getId()->toRfc4122(), 'treeId' => $draft->tree->getId()->toRfc4122(),
             'draftId'        => $draft->id->toRfc4122(), 'attemptId' => $attemptId,
-            'expires'        => $this->clock->now()->getTimestamp() + 300, 'remaining' => 16]);
+            // Streamable HTTP uses GET/POST and discovery in addition to the eight bounded tool reads.
+            'expires' => $this->clock->now()->getTimestamp() + 300, 'remaining' => 32]);
         $item->expiresAfter(300);
         $this->cache->save($item);
 

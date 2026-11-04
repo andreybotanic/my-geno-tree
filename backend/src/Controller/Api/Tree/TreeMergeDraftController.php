@@ -81,6 +81,19 @@ final readonly class TreeMergeDraftController
         return new JsonResponse($this->views->create($draft));
     }
 
+    #[Route('/{mergeId}/stop', name: 'api_tree_merge_stop', methods: ['POST'])]
+    public function stop(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $payload = $this->body->decodeObject($request);
+        if (['requestId'] !== array_keys($payload)) {
+            throw new ApiException(422, 'TREE_MERGE_INVALID');
+        }
+        $this->conversation->stop($draft, $payload['requestId']);
+
+        return new JsonResponse($this->views->create($draft));
+    }
+
     #[Route('/{mergeId}/proposal', name: 'api_tree_merge_proposal', methods: ['PUT'])]
     public function revise(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
     {

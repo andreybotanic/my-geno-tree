@@ -28,6 +28,26 @@ final readonly class MergeActivity
         $this->update($draft->id->toRfc4122(), $draft->attemptId ?? 'none', $step);
     }
 
+    public function stop(TreeMergeDraft $draft, string $requestId): void
+    {
+        $item = $this->cache->getItem('stop_' . $draft->id->toRfc4122() . '_' . hash('sha256', $requestId));
+        $this->cache->save($item->set(true)->expiresAfter(3600));
+    }
+
+    public function assertRunning(TreeMergeDraft $draft): void
+    {
+        if ($this->isStopped($draft)) {
+            throw new ApiException(409, 'TREE_MERGE_STOPPED');
+        }
+    }
+
+    public function isStopped(TreeMergeDraft $draft): bool
+    {
+        $requestId = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role'])['requestId'] ?? '';
+
+        return $this->cache->getItem('stop_' . $draft->id->toRfc4122() . '_' . hash('sha256', $requestId))->isHit();
+    }
+
     /** @param array<string, mixed> $context */
     public function observed(string $draftId, string $attemptId, string $step, array $context): void
     {

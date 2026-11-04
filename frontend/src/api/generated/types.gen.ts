@@ -106,7 +106,7 @@ export type TreeMergeDraft = {
      * Session-only conversation; empty in another login session or after ephemeral memory expires.
      */
     messages: Array<TreeMergeMessage>;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing'>;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
     tokenUsage: TreeMergeTokenUsage;
     tokenBudget: TreeMergeTokenBudget;
     createdAt: string;
@@ -802,7 +802,7 @@ export type TreeMergeDraftWritable = {
      * Session-only conversation; empty in another login session or after ephemeral memory expires.
      */
     messages: Array<TreeMergeMessage>;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing'>;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
     tokenUsage: TreeMergeTokenUsage;
     tokenBudget: TreeMergeTokenBudget;
     createdAt: string;
@@ -915,12 +915,54 @@ export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMerg
 
 export type ProcessTreeMergeResponses = {
     /**
-     * Ready, clarification, no changes or error draft. Validation failures allow at most two automatic repairs after the initial generation. Exhaustion or provider failure adds a retryable assistant failure message to the current session; source messages remain in that session and the reviewed proposal is retained.
+     * Ready, clarification, no changes or error draft. Validation failures allow at most two repairs, then one question-only generation using the exact diagnostics. Questions are assistant messages and the next turn receives the whole session conversation. The previous reviewed proposal is retained but cannot be applied while clarification is required. Provider failures remain retryable.
      */
     200: TreeMergeDraft;
 };
 
 export type ProcessTreeMergeResponse = ProcessTreeMergeResponses[keyof ProcessTreeMergeResponses];
+
+export type StopTreeMergeData = {
+    body: {
+        requestId: string;
+    };
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/stop';
+};
+
+export type StopTreeMergeErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type StopTreeMergeError = StopTreeMergeErrors[keyof StopTreeMergeErrors];
+
+export type StopTreeMergeResponses = {
+    /**
+     * Stopped or already completed draft; messages and reviewed proposal retained.
+     */
+    200: TreeMergeDraft;
+};
+
+export type StopTreeMergeResponse = StopTreeMergeResponses[keyof StopTreeMergeResponses];
 
 export type ReviseTreeMergeProposalData = {
     body: TreeMergeProposalRequestWritable;

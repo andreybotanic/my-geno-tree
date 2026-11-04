@@ -61,7 +61,7 @@ paths:
                 requestId: { type: string }
       responses:
         "200":
-          description: Ready, clarification, no changes or error draft. Validation failures allow at most two automatic repairs after the initial generation. Exhaustion or provider failure adds a retryable assistant failure message to the current session; source messages remain in that session and the reviewed proposal is retained.
+          description: Ready, clarification, no changes or error draft. Validation failures allow at most two repairs, then one question-only generation using the exact diagnostics. Questions are assistant messages and the next turn receives the whole session conversation. The previous reviewed proposal is retained but cannot be applied while clarification is required. Provider failures remain retryable.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TreeMergeDraft" }
@@ -75,6 +75,41 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "429":
           description: Processing rate limit reached; draft retained.
+  /trees/{treeId}/merges/{mergeId}/stop:
+    parameters:
+      - name: treeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: mergeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: stopTreeMerge
+      description: Stops the latest message's processing without discarding the conversation or applying changes. The request ID prevents a stale stop from cancelling a newer turn. Repeated stops or an already completed answer are idempotent. Provider work is interrupted and late results cannot replace the stopped state.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        "200":
+          description: Stopped or already completed draft; messages and reviewed proposal retained.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
   /trees/{treeId}/merges/{mergeId}/proposal:
     parameters:
       - name: treeId
@@ -1865,7 +1900,7 @@ components:
           items: { $ref: "#/components/schemas/TreeMergeMessage" }
         progress:
           type: array
-          items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing] }
+          items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing, clarifying] }
         tokenUsage:
           $ref: "#/components/schemas/TreeMergeTokenUsage"
         tokenBudget:

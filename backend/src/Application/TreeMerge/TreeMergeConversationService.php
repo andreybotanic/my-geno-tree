@@ -15,6 +15,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /** @phpstan-import-type ContextDate from MergeAiResult */
@@ -32,6 +33,7 @@ final readonly class TreeMergeConversationService
         private LoggerInterface $logger,
         private MergeActivity $activity,
         #[Target('tree_merge')] private RateLimiterFactoryInterface $limiter,
+        private RequestStack $requests,
     ) {
     }
 
@@ -66,12 +68,20 @@ final readonly class TreeMergeConversationService
             return;
         }
         $attemptVersion = $draft->version;
+        $this->requests->getCurrentRequest()?->attributes->set(TreeMergeDraft::class, $draft);
         $repair = null;
-        for ($number = 0; $number <= self::MAX_REPAIRS; ++$number) {
-            $this->activity->step($draft, 0 === $number ? 'thinking' : 'repairing');
+        for ($number = 0; $number <= self::MAX_REPAIRS + 1; ++$number) {
+            $questionsOnly = $repair->questionsOnly ?? false;
+            $step = match (true) {
+                $questionsOnly => 'clarifying',
+                0 === $number  => 'thinking',
+                default        => 'repairing',
+            };
+            $this->activity->step($draft, $step);
             $failure = 'provider_unavailable';
             // Every model call, including repairs, runs outside ORM transactions and tree locks.
             try {
+                $this->activity->assertRunning($draft);
                 $answer = $this->ai->respond($draft, $attempt, $repair);
                 $this->activity->step($draft, 'validating');
             } catch (\Throwable $error) {
@@ -81,7 +91,7 @@ final readonly class TreeMergeConversationService
                 }
                 $answer = null;
             }
-            $repair = $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $answer, $number, $failure): ?MergeAiRepair {
+            $repair = $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $answer, $number, $failure, $questionsOnly, $repair): ?MergeAiRepair {
                 $this->entityManager->lock($draft->tree, LockMode::PESSIMISTIC_WRITE);
                 $this->entityManager->refresh($draft->tree);
                 $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
@@ -90,11 +100,14 @@ final readonly class TreeMergeConversationService
                     return null;
                 }
                 if (null === $answer) {
-                    $this->fail($draft, $requestId, $failure);
+                    $this->fail($draft, $requestId, $failure, $repair);
 
                     return null;
                 }
                 try {
+                    if ($questionsOnly && (MergeAction::CLARIFICATION !== $answer->response->action || null !== $answer->response->proposal)) {
+                        throw new ApiException(422, 'TREE_MERGE_CLARIFICATION_INVALID');
+                    }
                     if ($number > 0 && !in_array($answer->response->action, [MergeAction::PROPOSAL, MergeAction::CLARIFICATION], true)) {
                         throw new ApiException(422, 'TREE_MERGE_REPAIR_ACTION_INVALID', fields: ['action' => ['expected_proposal_or_clarification']]);
                     }
@@ -105,10 +118,10 @@ final readonly class TreeMergeConversationService
                     $this->logger->warning('Tree merge response rejected: ' . $code . ' ' . $fields, ['generation' => $number + 1]);
                     if ($error instanceof ApiException && 422 === $error->getStatus()
                         && ($number > 0 || in_array($answer->response->action, [MergeAction::PROPOSAL, MergeAction::CLARIFICATION], true))
-                        && $number < self::MAX_REPAIRS) {
-                        return new MergeAiRepair($answer, $error);
+                        && $number <= self::MAX_REPAIRS) {
+                        return new MergeAiRepair($answer, $error, self::MAX_REPAIRS === $number);
                     }
-                    $this->fail($draft, $requestId, 'validation_failed');
+                    $this->fail($draft, $requestId, 'validation_failed', $repair);
                 }
 
                 return null;
@@ -119,9 +132,34 @@ final readonly class TreeMergeConversationService
         }
     }
 
-    private function fail(TreeMergeDraft $draft, string $requestId, string $code): void
+    public function stop(TreeMergeDraft $draft, mixed $requestId): void
+    {
+        if (!is_string($requestId) || '' === $requestId || strlen($requestId) > 100) {
+            throw new ApiException(422, 'TREE_MERGE_INVALID');
+        }
+        $this->entityManager->wrapInTransaction(function () use ($draft, $requestId): void {
+            $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
+            $this->entityManager->refresh($draft);
+            $last = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role']);
+            if (null === $last || $last['requestId'] !== $requestId || in_array($draft->state, ['applied', 'cancelled'], true)) {
+                throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
+            }
+            if (array_any($draft->messages, static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId && !isset($message['failureCode']))) {
+                return;
+            }
+            $this->activity->stop($draft, $requestId);
+            $draft->stop($requestId, $this->clock->now());
+        });
+    }
+
+    private function fail(TreeMergeDraft $draft, string $requestId, string $code, ?MergeAiRepair $repair = null): void
     {
         $russian = 'ru' === $draft->owner->getPreferredLanguage();
+        if (null !== $repair && 'token_limit' !== $code) {
+            $draft->ask($requestId, [$repair->fallbackQuestion($russian)], $this->clock->now());
+
+            return;
+        }
         if ('token_limit' === $code) {
             $reply = $russian ? 'Достигнут дневной лимит токенов. Продолжите позже. Ваше предложение доступно для проверки.'
                 : 'The daily token limit has been reached. Please continue later. Your proposal remains available for review.';
@@ -161,6 +199,15 @@ final readonly class TreeMergeConversationService
                     : 'Please specify the person in your tree. To apply changes, use the separate confirmation button.';
             }
         } else {
+            if (MergeAction::CLARIFICATION === $response->action && null === $response->proposal) {
+                if ([] === $response->questions || count($response->questions) > 3 || array_any($response->questions,
+                    static fn ($question) => !is_string($question) || '' === trim($question) || mb_strlen($question) > 1000 || !str_contains($question, '?'))) {
+                    throw new ApiException(422, 'TREE_MERGE_CLARIFICATION_INVALID');
+                }
+                $draft->ask($requestId, $response->questions, $this->clock->now());
+
+                return;
+            }
             if (null === $response->proposal) {
                 throw new ApiException(422, 'TREE_MERGE_AI_INVALID', fields: ['proposal' => ['proposal_required']]);
             }

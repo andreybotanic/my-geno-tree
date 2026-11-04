@@ -9,7 +9,7 @@ export function TreeMergeBudget({ budget }: { budget: TreeMergeTokenBudget | nul
   const format = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 })
   const label = percent === null ? t('treeMerge.budgetUnavailable') : t('treeMerge.budgetPercent', { percent: format.format(percent) })
   return <div className="tree-merge-budget" tabIndex={0} role="img" aria-label={label} aria-describedby={tooltip}>
-    <svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
+    <svg viewBox="0 0 36 36" width="20" height="20" aria-hidden="true">
       <circle className="tree-merge-budget-track" cx="18" cy="18" r="14" fill="none" strokeWidth="3" />
       <circle className="tree-merge-budget-value" cx="18" cy="18" r="14" fill="none" strokeWidth="3"
         pathLength="100" strokeDasharray={`${percent ?? 0} 100`} transform="rotate(-90 18 18)" />

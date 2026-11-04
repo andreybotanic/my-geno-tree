@@ -125,11 +125,16 @@ the provider need not support tool calling and a JSON schema in the same call.
 AI DTOs use plain name strings and compact dates (`~1938`, `1938..1940`,
 `unknown`); the mapper converts these into the existing KnownText/date contract
 and the domain policy validates them. This notation is internal to inference.
-The chat polls saved processing attempts; after five minutes an interrupted
-attempt can be retried without sending the source message again.
+The chat polls processing attempts and starts analysis immediately after sending;
+there is no separate analysis button. While inference runs, Send becomes Stop.
+`POST .../{mergeId}/stop` targets the latest message's `requestId`, interrupts its
+provider request and preserves the session conversation. A late result is ignored;
+stopping twice is idempotent, and stopping an older turn cannot cancel a newer one.
+OpenCode also receives a session abort before its isolated runtime is removed.
+The REST process endpoint can retry interrupted attempts after five minutes.
 
 Proposal validation allows two automatic repair calls after the initial model
-response (three generations maximum per processing attempt). Each repair receives
+response (three proposal generations maximum per processing attempt). Each repair receives
 the rejected response and machine-readable diagnostics, including a precise field
 path, rule and explanation. Unknown relationship endpoints include the available
 temporary IDs. Repairs reuse the bounded HTTP MCP context and do not restart
@@ -137,14 +142,18 @@ scope classification or tool gathering. Each returned proposal is checked again
 under a short tree/draft lock; no model request runs inside an ORM transaction.
 New messages, manual edits and cancellation supersede any in-flight repair.
 
-When repairs are exhausted, the session chat contains a localized assistant reply
-with `failureCode=validation_failed`; provider failures use `provider_unavailable`
-without automatic provider retries. Source messages and the reviewed proposal
-remain available, and no tree data is applied. A failed reply does not mark its
-source as successfully answered: manual retry replaces that reply without
-duplicating the message. The UI restores failures after refresh and offers retry
-or a new clarification. Fixtures cover recovery, exhaustion and stale responses;
-live-provider checks use synthetic data without applying changes.
+When repairs are exhausted, one final question-only pass receives the exact
+validation diagnostics and rejected proposal. It asks up to three essential
+questions in the interface language, naming the relevant people and obstacle;
+its dedicated `MergeClarification` DTO cannot prepare or apply another proposal. Questions are regular assistant
+messages. Both adapters receive the entire session conversation, including previous
+assistant questions, during classification and generation, so short answers such
+as "yes" retain their meaning. Only user messages can substantiate proposed facts.
+If even question generation fails, a localized question based on the validation
+category is used. Provider failures without validation feedback retain the normal
+`provider_unavailable` response and do not retry automatically. Sources and reviewed
+changes remain available without applying tree data. Users can continue in the same
+chat; fixtures cover repair exhaustion, follow-up context, stop races and isolation.
 
 The selected local development agent is OpenCode 1.18.32 from WSL using
 `openai/gpt-5.6-luna` (the installed provider catalogue does not list gpt6-luna).
@@ -177,7 +186,9 @@ See [OpenCode server configuration](https://opencode.ai/docs/server/) and
 The chat displays elapsed thinking time, completed MCP read stages, validation
 and repair progress. A donut in the composer shows the remaining daily token
 percentage; its keyboard-accessible tooltip shows the exact shared user quota.
-The textarea grows to seven lines before scrolling, independently of its buttons.
+The compact quota ring stays centered alongside the buttons. The textarea grows
+from two to seven lines before scrolling; measurement excludes the scrollbar so
+wrapping does not add a premature extra line.
 The `tree_merge_tokens` Symfony rate limiter
 counts all completed inference steps, including classification, tool rounds,
 format and domain repairs, cached input and reasoning output. Its initial limit
@@ -265,10 +276,14 @@ returns an absolute preview link (`APP_URL`); no MCP tool applies changes.
 The embedded agent uses real HTTP MCP requests to the separate internal
 `/mcp/read` endpoint on proxy port 8082 and a separate PHP-FPM pool. That port is
 not published to the host. Backend-issued access lasts five minutes, is bound
-to the user/tree/processing attempt, permits at most 16 protocol requests and
+to the user/tree/processing attempt, permits at most 32 protocol requests and
 is revoked after processing. It is rejected by REST mutations. The agent's
 toolbox contains only the three read tools, allows eight context calls and
 60 KB of cumulative tool output, and never calls `prepare_tree_merge` recursively.
+The protocol budget includes discovery and Streamable HTTP GET/POST overhead;
+it must not expire before the eighth permitted read. Search results are candidate
+hints: an existing person must also occur in a full context read before a proposal
+can reference their ID.
 Every tool checks the tree voter; context contains at most ten parent/child
 links and ten marriages, and name search returns at most five candidates.
 MCP sessions use separate cache prefixes and Symfony locks for each endpoint.
@@ -312,6 +327,16 @@ keyboard-accessible quota tooltips and Russian/English text were checked in Chro
 Starting/stopping microphone recording and handling an empty recording were checked;
 successful audio normalization/transcription is covered by prepared fixtures and
 the local-provider API checks. No automatic browser E2E tests were added.
+Additional Chrome checks on 4 November covered the 20 px quota ring aligned with
+32 px buttons, two-line minimum input, real text wrapping without a premature row,
+growth to seven lines and scrolling beyond that. Sending starts immediately with
+Stop replacing Send. Stopping a live OpenCode request preserved the conversation
+and removed its temporary runtime. A failed proposal produced specific assistant
+questions; replying "Да" retained the full conversation and prepared Pavel and
+Oleg with the existing Vera and Mikhail as their parents. Refresh restored the
+questions and unconfirmed preview. Explicit confirmation added exactly two people
+to the synthetic tree (three to five), with the resulting branch highlighted.
+The original user's tree was not changed.
 Run all application tooling inside its service container:
 
 ```bash

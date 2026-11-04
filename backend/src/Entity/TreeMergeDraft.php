@@ -197,6 +197,23 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
+    /** @param list<string> $questions */
+    public function ask(string $requestId, array $questions, \DateTimeImmutable $now): void
+    {
+        $this->markSource($requestId);
+        $this->answer($requestId, implode("\n", $questions), $now);
+        $this->questions = $questions;
+        $this->state = 'questions';
+    }
+
+    public function stop(string $requestId, \DateTimeImmutable $now): void
+    {
+        $this->markSource($requestId);
+        $this->answer($requestId, 'ru' === $this->owner->getPreferredLanguage()
+            ? 'Остановлено. Можно продолжить или уточнить описание.' : 'Stopped. You can continue or clarify the description.', $now);
+        $this->state = 'collecting';
+    }
+
     /** @param array<string, mixed> $proposal
      * @param list<string> $questions
      */

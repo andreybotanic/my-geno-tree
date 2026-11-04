@@ -137,7 +137,15 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         $this->process('first');
         $reviewed = $this->responseData();
         FixtureTreeMergeAi::$calls = 0;
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft): MergeAiResult {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, ?MergeAiRepair $repair): MergeAiResult {
+            if ($repair?->questionsOnly) {
+                self::assertSame(['people[0].evidence[0]' => ['evidence_not_found']], $repair->feedback()['fields']);
+                $response = new MergeAiResponse();
+                $response->action = MergeAction::CLARIFICATION;
+                $response->questions = ['I could not verify the name in the proposal. Is her name Vera?'];
+
+                return new MergeAiResult($response);
+            }
             $result = $this->personResponse($draft);
             self::assertNotNull($result->response->proposal);
             $result->response->proposal->people[0]->evidence[0]->quote = 'invented';
@@ -146,21 +154,23 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         };
         $this->message('Her name is Vera.', 'clarify');
         $this->process('clarify');
-        self::assertSame(1 + TreeMergeConversationService::MAX_REPAIRS, FixtureTreeMergeAi::$calls);
-        self::assertSame('error', $this->responseString('state'));
+        self::assertSame(2 + TreeMergeConversationService::MAX_REPAIRS, FixtureTreeMergeAi::$calls);
+        self::assertSame('questions', $this->responseString('state'));
         self::assertSame($reviewed['proposal'], $this->responseData()['proposal']);
-        self::assertSame($reviewed['proposalVersion'], $this->responseData()['proposalVersion']);
+        self::assertGreaterThan($reviewed['proposalVersion'], $this->responseData()['proposalVersion']);
         self::assertCount(4, $this->arrayAt('messages'));
-        self::assertSame('validation_failed', $this->responseString('messages', '3', 'failureCode'));
-        self::assertStringContainsString('after several attempts', $this->responseString('messages', '3', 'content'));
+        self::assertArrayNotHasKey('failureCode', $this->arrayAt('messages', '3'));
+        self::assertStringContainsString('Is her name Vera?', $this->responseString('messages', '3', 'content'));
         $this->process('clarify');
         self::assertCount(4, $this->arrayAt('messages'));
         FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft): MergeAiResult {
+            self::assertStringContainsString('Is her name Vera?', $draft->messages[3]['content']);
+            self::assertSame('assistant', $draft->messages[3]['role']);
             self::assertCount(3, $draft->sourceMessages());
 
             return $this->personResponse($draft);
         };
-        $this->message('The spelling is Vera.', 'confirmed');
+        $this->message('Yes.', 'confirmed');
         $this->process('confirmed');
         self::assertSame('ready', $this->responseString('state'));
     }
@@ -205,8 +215,8 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         $this->message('Vera was born about 1938. Vera died.', 'family');
         $this->process('family');
         self::assertSame(2, FixtureTreeMergeAi::$calls);
-        self::assertSame('error', $this->responseString('state'));
-        self::assertStringContainsString('Ваш текст сохранён', $this->responseString('messages', '1', 'content'));
+        self::assertSame('questions', $this->responseString('state'));
+        self::assertStringContainsString('даты', $this->responseString('messages', '1', 'content'));
     }
 
     public function testLateInferenceCannotOverwriteAnEditOrCancellation(): void
@@ -252,7 +262,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', $this->path . '/process', ['version' => 1, 'requestId' => 'first'], $this->headers);
         self::assertResponseStatusCodeSame(409);
         $this->process('first');
-        self::assertSame('error', $this->responseString('state'));
+        self::assertSame('questions', $this->responseString('state'));
         self::assertNull($this->responseData()['proposal']);
     }
 
@@ -275,6 +285,83 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         self::assertStringNotContainsString('INVENTED', $reply);
         self::assertSame(0, $this->responseData()['sourceVersion']);
         self::assertNull($this->responseData()['proposal']);
+    }
+
+    public function testStopsRunningTurnIdempotentlyAndIgnoresItsLateResult(): void
+    {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft): MergeAiResult {
+            $result = $this->personResponse($draft);
+            static::getContainer()->get(TreeMergeConversationService::class)->stop($draft, 'first');
+
+            return $result;
+        };
+        $this->message('Vera was born about 1938.', 'first');
+        $this->process('first');
+        self::assertResponseIsSuccessful();
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertNull($this->responseData()['proposal']);
+        self::assertCount(2, $this->arrayAt('messages'));
+        self::assertStringContainsString('Stopped.', $this->responseString('messages', '1', 'content'));
+        $stopped = $this->responseData();
+        $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'first'], $this->headers);
+        self::assertSame($stopped, $this->responseData());
+        $this->process('first');
+        self::assertSame(1, FixtureTreeMergeAi::$calls);
+        $this->message('Vera died.', 'next');
+        $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'first'], $this->headers);
+        self::assertResponseStatusCodeSame(409);
+        FixtureTreeMergeAi::$handler = fn (TreeMergeDraft $draft) => $this->personResponse($draft);
+        $this->process('next');
+        self::assertSame('ready', $this->responseString('state'));
+        $prepared = $this->responseData();
+        $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'next'], $this->headers);
+        self::assertSame($prepared, $this->responseData());
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
+        self::assertSame([], $this->responseData()['people']);
+    }
+
+    public function testStopBeforeProcessingAndAuthorization(): void
+    {
+        foreach ([['requestId' => null], ['requestId' => ''], ['requestId' => 7], ['requestId' => str_repeat('a', 101)], ['requestId' => 'a', 'extra' => true]] as $payload) {
+            $this->jsonRequest('POST', $this->path . '/stop', $payload, $this->headers);
+            self::assertResponseStatusCodeSame(422);
+        }
+        $this->message('My mother is Vera.', 'first');
+        $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'first'], $this->headers);
+        self::assertResponseIsSuccessful();
+        self::assertSame('collecting', $this->responseString('state'));
+        $this->process('first');
+        self::assertSame(0, FixtureTreeMergeAi::$calls);
+        $this->jsonRequest('POST', '/api/v1/auth/register', array_replace($this->validRegistration(), ['username' => 'another', 'email' => 'another@example.test']));
+        $other = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+        $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'first'], $other);
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testQuestionOnlyPassCannotOverwriteNewInput(): void
+    {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, ?MergeAiRepair $repair): MergeAiResult {
+            if ($repair?->questionsOnly) {
+                $response = new MergeAiResponse();
+                $response->action = MergeAction::CLARIFICATION;
+                $response->questions = ['Shall we start with the parents?'];
+                $draft->addMessage('newer', 'Start with the mother.', new \DateTimeImmutable());
+                static::getContainer()->get(EntityManagerInterface::class)->flush();
+
+                return new MergeAiResult($response);
+            }
+            $result = $this->familyResponse($draft);
+            $proposal = $result->response->proposal;
+            self::assertNotNull($proposal);
+            $proposal->parents[0]->parent = 'missing';
+
+            return $result;
+        };
+        $this->message('Vera is the mother of Irina.', 'family');
+        $this->process('family');
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertCount(2, $this->arrayAt('messages'));
+        self::assertSame('Start with the mother.', $this->responseString('messages', '1', 'content'));
     }
 
     /** @return array<array-key, mixed> */

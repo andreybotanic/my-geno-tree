@@ -20,7 +20,7 @@ export const resources = {
           budgetDetails: '{{remaining}} of {{limit}} tokens remaining in your daily allowance, shared across all trees.',
           budgetUnavailable: 'Token allowance is unavailable',
           graphLegend: 'Existing people are faded; new people have normal colors. Click a person to review their details.',
-          progress: { thinking: 'Request received', tree_loaded: 'Tree context received', names_searched: 'Names searched', people_loaded: 'Related people checked', validating: 'Checking the proposal', repairing: 'Correcting the proposal after validation' },
+          progress: { thinking: 'Request received', tree_loaded: 'Tree context received', names_searched: 'Names searched', people_loaded: 'Related people checked', validating: 'Checking the proposal', repairing: 'Correcting the proposal after validation', clarifying: 'Preparing clarification questions' },
         processingFailed: 'The description could not be processed. Your text is saved. Try again or add a clarification.',
         failure: {
           validation_failed: 'I could not prepare a valid proposal after several attempts. Your text is saved. Please clarify the relationships or try again.',
@@ -45,6 +45,7 @@ export const resources = {
         assistant: "Assistant",
         message: "Family description or clarification",
         send: "Send",
+        stop: "Stop response",
         cancel: "Discard draft",
         preview: "Review changes",
         version: "Version {{version}}",
@@ -504,7 +505,7 @@ export const resources = {
           budgetDetails: 'Осталось {{remaining}} из {{limit}} токенов дневного лимита. Лимит общий для всех деревьев.',
           budgetUnavailable: 'Лимит токенов недоступен',
           graphLegend: 'Существующие персоны приглушены, новые показаны обычным цветом. Нажмите на персону, чтобы проверить сведения.',
-          progress: { thinking: 'Запрос принят', tree_loaded: 'Контекст дерева получен', names_searched: 'Поиск по именам выполнен', people_loaded: 'Связанные персоны проверены', validating: 'Проверяю предложение', repairing: 'Исправляю предложение после проверки' },
+          progress: { thinking: 'Запрос принят', tree_loaded: 'Контекст дерева получен', names_searched: 'Поиск по именам выполнен', people_loaded: 'Связанные персоны проверены', validating: 'Проверяю предложение', repairing: 'Исправляю предложение после проверки', clarifying: 'Уточняю, что нужно для продолжения' },
         processingFailed: 'Не удалось обработать описание. Текст сохранён. Повторите разбор или добавьте уточнение.',
         failure: {
           validation_failed: 'Не удалось подготовить корректное предложение после нескольких попыток. Ваш текст сохранён. Уточните, кто кому приходится родственником, или попробуйте ещё раз.',
@@ -529,6 +530,7 @@ export const resources = {
         assistant: "Помощник",
         message: "Описание семьи или уточнение",
         send: "Отправить",
+        stop: "Остановить ответ",
         cancel: "Отказаться от черновика",
         preview: "Предпросмотр изменений",
         version: "Версия {{version}}",

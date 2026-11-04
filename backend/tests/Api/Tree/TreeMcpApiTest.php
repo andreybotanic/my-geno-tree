@@ -191,6 +191,33 @@ final class TreeMcpApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(401);
     }
 
+    public function testProtocolOverheadLeavesRoomForEightReadsButNotANinth(): void
+    {
+        $this->jsonRequest('POST', '/api/v1/trees/' . $this->treeId . '/merges', ['referencePersonId' => null], $this->headers);
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $draft = $em->getRepository(TreeMergeDraft::class)->find($this->responseString('id'));
+        self::assertNotNull($draft);
+        $attempt = $draft->beginAttempt(new \DateTimeImmutable());
+        $em->flush();
+        $token = static::getContainer()->get(TreeMergeReadGrant::class)->issue($draft, $attempt);
+        $this->headers = ['Authorization' => 'Merge ' . $token];
+        for ($i = 0; $i < 3; ++$i) {
+            $this->rpc('tools/list', endpoint: '/mcp/read');
+            self::assertResponseIsSuccessful();
+        }
+        // Discovery/transport requests consume authentication budget, not the tool-read budget.
+        for ($i = 0; $i < 8; ++$i) {
+            $this->rpc('tools/list', endpoint: '/mcp/read');
+            self::assertResponseIsSuccessful();
+            $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/read');
+            self::assertResponseIsSuccessful();
+            self::assertSame($this->treeId, $this->toolData()['treeId']);
+        }
+        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/read');
+        self::assertResponseStatusCodeSame(400);
+        self::assertArrayHasKey('error', $this->responseData());
+    }
+
     /** @param array<string, mixed> $arguments */
     private function call(string $name, array $arguments, string $endpoint = '/mcp/tree'): void
     {

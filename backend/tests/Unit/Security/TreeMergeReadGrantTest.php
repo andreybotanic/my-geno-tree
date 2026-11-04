@@ -22,7 +22,7 @@ final class TreeMergeReadGrantTest extends TestCase
         $user = new User('test', 'test@example.test', 'hash', 'en', $clock->now());
         $draft = new TreeMergeDraft(new FamilyTree($user, 'tree', $clock->now()), null, 'etag', $clock->now());
         $token = $grants->issue($draft, 'attempt');
-        for ($i = 15; $i >= 0; --$i) {
+        for ($i = 31; $i >= 0; --$i) {
             self::assertSame($i, $grants->consume($token)['remaining']);
         }
         try {

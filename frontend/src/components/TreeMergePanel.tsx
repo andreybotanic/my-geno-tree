@@ -32,13 +32,14 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   const [busy, setBusy] = useState(true)
   const [thinkingSince, setThinkingSince] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [observedAt, setObservedAt] = useState(Date.now)
+  const [stopping, setStopping] = useState(false)
+  const generation = useRef(0)
+  const activeRequest = useRef<{ draftId: string; requestId: string; controller: AbortController } | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
   const pending = useRef<{ requestId: string; content: string } | null>(null)
   const base = `/trees/${snapshot.tree.id}/merges`
-  const staleAttempt = draft?.state === 'processing' && draft.attemptStartedAt !== null &&
-    observedAt - Date.parse(draft.attemptStartedAt) >= 5 * 60 * 1000
+  const thinking = thinkingSince !== null || draft?.state === 'processing'
 
   useEffect(() => {
     try {
@@ -78,8 +79,13 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
       const style = getComputedStyle(input)
       const padding = (parseFloat(style.paddingTop) || 12) + (parseFloat(style.paddingBottom) || 0)
       const lineHeight = parseFloat(style.lineHeight) || 24
-      input.style.height = 'auto'
-      input.style.height = `${Math.min(Math.max(input.scrollHeight, lineHeight + padding), 7 * lineHeight + padding)}px`
+      // A temporary scrollbar narrows the text and falsely adds a wrapped line.
+      input.style.overflowY = 'hidden'
+      input.style.height = '0px'
+      const measured = input.scrollHeight
+      const maximum = 7 * lineHeight + padding
+      input.style.height = `${Math.min(Math.max(measured, 2 * lineHeight + padding), maximum)}px`
+      input.style.overflowY = measured > maximum ? 'auto' : 'hidden'
     }
     resize()
     const observer = new ResizeObserver((entries) => {
@@ -104,7 +110,7 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     const controller = new AbortController()
     const timer = window.setInterval(() => {
       void request<TreeMergeDraft>(`${base}/${draft.id}`, { signal: controller.signal }).then((next) => {
-        if (!controller.signal.aborted) { setDraft(next); setObservedAt(Date.now()) }
+        if (!controller.signal.aborted) setDraft((current) => !current || next.version >= current.version ? next : current)
       }).catch(() => { /* The saved conversation remains available for retry. */ })
     }, 2000)
     return () => { controller.abort(); window.clearInterval(timer) }
@@ -182,23 +188,51 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
       const requestId = pending.current.requestId
       pending.current = null
       await process(next, requestId)
-    } catch (cause) { showError(cause) }
-    finally { setBusy(false) }
+    } catch (cause) { showError(cause); setBusy(false) }
   }
 
   async function process(current: TreeMergeDraft, requestId: string) {
+    const turn = ++generation.current
+    const controller = new AbortController()
+    activeRequest.current = { draftId: current.id, requestId, controller }
     setBusy(true)
     setThinkingSince(Date.now())
     setDraft({ ...current, progress: [] })
     setError(null)
     try {
-      setDraft(await request<TreeMergeDraft>(`${base}/${current.id}/process`, {
-        method: 'POST', body: JSON.stringify({ version: current.version, requestId }),
-      }))
+      const next = await request<TreeMergeDraft>(`${base}/${current.id}/process`, {
+        method: 'POST', body: JSON.stringify({ version: current.version, requestId }), signal: controller.signal,
+      })
+      if (turn === generation.current) setDraft(next)
     } catch (cause) {
+      if (turn !== generation.current) return
       showError(cause)
-      try { setDraft(await request<TreeMergeDraft>(`${base}/${current.id}`)) } catch { /* Keep the saved message available. */ }
-    } finally { setBusy(false); setThinkingSince(null) }
+      try {
+        const next = await request<TreeMergeDraft>(`${base}/${current.id}`)
+        if (turn === generation.current) setDraft(next)
+      } catch { /* Keep the saved message available. */ }
+    } finally {
+      if (turn === generation.current) { setBusy(false); setThinkingSince(null); activeRequest.current = null }
+    }
+  }
+
+  async function stop() {
+    const running = activeRequest.current
+    const requestId = running?.requestId ?? draft?.messages.findLast((message) => message.role === 'user')?.requestId
+    const draftId = running?.draftId ?? draft?.id
+    if (!draftId || !requestId || stopping) return
+    setStopping(true)
+    try {
+      const next = await request<TreeMergeDraft>(`${base}/${draftId}/stop`, { method: 'POST', body: JSON.stringify({ requestId }) })
+      ++generation.current
+      running?.controller.abort()
+      activeRequest.current = null
+      setDraft(next)
+      setThinkingSince(null)
+      setBusy(false)
+      setError(null)
+    } catch (cause) { showError(cause) }
+    finally { setStopping(false) }
   }
 
   async function reload() {
@@ -228,7 +262,6 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     finally { setBusy(false) }
   }
 
-  const pendingMessage = draft?.messages.findLast((message) => message.role === 'user')
   return (
     <aside aria-label={t('treeMerge.title')} aria-busy={busy} className="tree-merge-panel"
       onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
@@ -249,7 +282,7 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
               <p>{message.failureCode ? t(`treeMerge.failure.${message.failureCode}`) : message.content}</p>
             </article>
           ))}
-          {(thinkingSince !== null || draft?.state === 'processing') && <TreeMergeThinking startedAt={thinkingSince ?? (draft?.attemptStartedAt ? Date.parse(draft.attemptStartedAt) : Date.now())} progress={draft?.progress ?? []} />}
+          {thinking && <TreeMergeThinking startedAt={thinkingSince ?? (draft ? Date.parse(draft.attemptStartedAt ?? draft.updatedAt) : 0)} progress={draft?.progress ?? []} />}
           {draft?.state === 'error' && !draft.messages.at(-1)?.failureCode && <p role="alert">{t('treeMerge.processingFailed')}</p>}
           {draft?.state === 'applied' && <p role="status">{t('treeMerge.applied')}</p>}
           <div ref={messagesEnd} />
@@ -260,10 +293,6 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
           onSave={(proposal) => proposalAction('proposal', proposal)}
           onApply={() => proposalAction('apply')}
           onRevalidate={() => proposalAction('revalidate')} />, previewContainer ?? document.body)}
-        {draft && pendingMessage && (draft.state === 'error' || draft.state === 'collecting' || staleAttempt) &&
-          (draft.messages.at(-1)?.role === 'user' || draft.messages.at(-1)?.failureCode) &&
-          <button type="button" className="secondary-button" disabled={busy || voiceBusy}
-            onClick={() => void process(draft, pendingMessage.requestId)}>{t('treeMerge.process')}</button>}
       </div>
       {draft?.state !== 'applied' ? (
         <form className="tree-merge-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
@@ -273,14 +302,17 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
             onTranscript={(text) => setContent(content ? `${content}\n${text}` : text)}>
             <textarea id="tree-merge-message" aria-label={t('treeMerge.message')} placeholder={t('treeMerge.placeholder')}
               ref={textarea} value={content} maxLength={10000} disabled={busy || voiceBusy}
-              onChange={(event) => setContent(event.target.value)} rows={1} />
+              onChange={(event) => setContent(event.target.value)} rows={2} />
             <TreeMergeBudget budget={draft?.tokenBudget ?? budget} />
-            <button className="tree-merge-send" type="submit" aria-label={t('treeMerge.send')}
+            {thinking ? <button className="tree-merge-send" type="button" aria-label={t('treeMerge.stop')}
+              disabled={stopping} onClick={() => void stop()}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+            </button> : <button className="tree-merge-send" type="submit" aria-label={t('treeMerge.send')}
               disabled={busy || voiceBusy || !content.trim()}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
                 <path d="m5 12 7-7 7 7m-7-7v15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </button>
+            </button>}
           </TreeMergeVoiceInput>
         </form>
       ) : <button className="secondary-button" type="button" onClick={() => {

@@ -4,6 +4,7 @@ namespace App\Application\TreeMerge\Ai;
 
 use App\Application\TreeMerge\Ai\Dto\MergeAction;
 use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
+use App\Application\TreeMerge\Ai\Dto\MergeClarification;
 use App\Application\TreeMerge\Ai\Dto\MergeIntent;
 use App\Application\TreeMerge\MergeActivity;
 use App\Entity\TreeMergeDraft;
@@ -29,19 +30,25 @@ final readonly class OpenCodeTreeMergeAi implements TreeMergeAiInterface
             return new MergeAiResult($response);
         }
         $input = json_encode(['interfaceLanguage' => $draft->owner->getPreferredLanguage(), 'treeId' => $draft->tree->getId()->toRfc4122(),
-            'messages'                            => $draft->sourceMessages(), 'reviewedProposal' => $draft->proposal,
+            'messages'                            => $draft->messages, 'reviewedProposal' => $draft->proposal,
             'corrections'                         => array_slice($draft->corrections, -1)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         if (null !== $repair) {
-            $response = $this->runner->run($draft, $input . "\nCorrect the COMPLETE proposal using this server validation feedback. Preserve supported facts. "
-                . 'If facts are missing, ask concrete questions. Use only this previously observed MCP context: '
+            $response = $this->runner->run($draft, $input . "\n" . $repair->instruction()
+                . ' Use only this previously observed MCP context: '
                 . json_encode(['contexts' => $repair->previous->contexts, 'previousProposal' => $repair->previous->response,
-                    'validation'          => $repair->feedback()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), MergeAiResponse::class);
+                    'validation'          => $repair->feedback()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $repair->questionsOnly ? MergeClarification::class : MergeAiResponse::class);
+            if ($response instanceof MergeClarification) {
+                $clarification = new MergeAiResponse();
+                $clarification->action = MergeAction::CLARIFICATION;
+                $clarification->questions = $response->questions;
+                $response = $clarification;
+            }
 
             return new MergeAiResult($response, $repair->previous->people, $repair->previous->contexts);
         }
         $intent = $this->runner->run($draft, 'Classify only this latest user request. No tools are available. '
-            . 'Questions about a named person in the selected family tree are in scope; unrelated requests must be refused. '
-            . json_encode(['latestMessage' => $latest], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), MergeIntent::class);
+            . 'Interpret short answers using the preceding assistant questions in this conversation. Questions about a named person in the selected family tree are in scope; unrelated requests must be refused. '
+            . json_encode(['messages' => $draft->messages, 'latestMessage' => $latest], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), MergeIntent::class);
         if (MergeAction::REFUSAL === $intent->action) {
             return new MergeAiResult(new MergeAiResponse());
         }
