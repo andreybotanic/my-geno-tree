@@ -1,0 +1,21 @@
+{
+	auto_https off
+}
+
+:80 {
+	mercure {
+		issuer https://my-geno-tree.localhost {
+			publisher {
+				jwt {env.MERCURE_JWT_SECRET}
+			}
+			subscriber {
+				jwt {env.MERCURE_JWT_SECRET}
+			}
+		}
+		resource_identifier https://my-geno-tree.localhost/.well-known/mercure
+		cookie_name __Secure-mercure_access_token
+		transport local
+		heartbeat 20s
+	}
+	respond "Not Found" 404
+}

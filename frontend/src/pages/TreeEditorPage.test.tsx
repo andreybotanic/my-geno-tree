@@ -21,6 +21,11 @@ import i18n from '../i18n'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { TreeEditorPage } from './TreeEditorPage'
 
+vi.mock('../hooks/useTreeMergeEvents', async (original) => ({
+  ...await original<typeof import('../hooks/useTreeMergeEvents')>(),
+  useTreeMergeEvents: vi.fn(() => ({ error: null, reconnect: vi.fn() })),
+}))
+
 vi.mock('../components/ImageCropDialog', () => ({
   ImageCropDialog: ({
     onSave,

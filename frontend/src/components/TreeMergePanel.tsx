@@ -8,6 +8,7 @@ import { TreeMergeBudget } from './TreeMergeBudget'
 import { TreeMergeThinking } from './TreeMergeThinking'
 import { TreeMergePreview } from './TreeMergePreview'
 import { TreeMergeVoiceInput } from './TreeMergeVoiceInput'
+import { mergeTreeMergeEvent, useTreeMergeEvents } from '../hooks/useTreeMergeEvents'
 
 type Props = {
   snapshot: TreeSnapshot
@@ -37,6 +38,19 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   const pending = useRef<{ requestId: string; content: string } | null>(null)
   const base = `/trees/${snapshot.tree.id}/merges`
   const thinking = thinkingSince !== null || draft?.state === 'processing'
+  const lastApplied = useRef<string | null>(null)
+  async function acceptApplied(next: TreeMergeDraft) {
+    if (next.result && lastApplied.current !== next.id) {
+      lastApplied.current = next.id
+      await onApplied?.(next.result)
+    }
+  }
+  const stream = useTreeMergeEvents(draft && draft.state !== 'applied' && draft.state !== 'cancelled' ? `${base}/${draft.id}` : null,
+    request, setDraft, (next) => {
+      if (draft && next.id === draft.id && next.version >= draft.version) {
+        void acceptApplied(next).catch(() => setError('treeMerge.loadFailed'))
+      }
+    })
 
   useEffect(() => {
     try {
@@ -103,17 +117,6 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [draft?.messages.length, draft?.state])
 
   useEffect(() => {
-    if (!draft || (draft.state !== 'processing' && thinkingSince === null)) return
-    const controller = new AbortController()
-    const timer = window.setInterval(() => {
-      void request<TreeMergeDraft>(`${base}/${draft.id}`, { signal: controller.signal }).then((next) => {
-        if (!controller.signal.aborted) setDraft((current) => !current || next.version >= current.version ? next : current)
-      }).catch(() => { /* The saved conversation remains available for retry. */ })
-    }, 2000)
-    return () => { controller.abort(); window.clearInterval(timer) }
-  }, [base, draft, request, thinkingSince])
-
-  useEffect(() => {
     if (open && !busy) textarea.current?.focus()
   }, [busy, draft?.id, open])
 
@@ -144,15 +147,15 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
         }),
       })
       if (action === 'revalidate') await onRefreshTree?.()
-      setDraft(next)
-      if (action === 'apply' && next.result) await onApplied?.(next.result)
+      setDraft((current) => mergeTreeMergeEvent(current, { kind: 'draft', draft: next }))
+      if (action === 'apply') await acceptApplied(next)
     } catch (cause) {
       showError(cause)
       if (cause instanceof ApiRequestError && cause.status === 412) {
         try {
           const current = await request<TreeMergeDraft>(`${base}/${draft.id}`)
           await onRefreshTree?.()
-          setDraft(current)
+          setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: current }))
         } catch { /* Keep the reviewed input. */ }
       }
     } finally { setBusy(false) }
@@ -179,7 +182,7 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
       const next = await request<TreeMergeDraft>(`${base}/${current.id}/messages`, {
         method: 'POST', body: JSON.stringify({ version: current.version, ...pending.current }),
       })
-      setDraft(next)
+      setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }))
       setContent('')
       const requestId = pending.current.requestId
       pending.current = null
@@ -193,19 +196,19 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     activeRequest.current = { draftId: current.id, requestId, controller }
     setBusy(true)
     setThinkingSince(Date.now())
-    setDraft({ ...current, progress: [] })
+    setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: { ...current, progress: [] } }))
     setError(null)
     try {
       const next = await request<TreeMergeDraft>(`${base}/${current.id}/process`, {
         method: 'POST', body: JSON.stringify({ version: current.version, requestId }), signal: controller.signal,
       })
-      if (turn === generation.current) setDraft(next)
+      if (turn === generation.current) setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }))
     } catch (cause) {
       if (turn !== generation.current) return
       showError(cause)
       try {
         const next = await request<TreeMergeDraft>(`${base}/${current.id}`)
-        if (turn === generation.current) setDraft(next)
+        if (turn === generation.current) setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }))
       } catch { /* Keep the saved message available. */ }
     } finally {
       if (turn === generation.current) { setBusy(false); setThinkingSince(null); activeRequest.current = null }
@@ -223,7 +226,7 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
       ++generation.current
       running?.controller.abort()
       activeRequest.current = null
-      setDraft(next)
+      setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }))
       setThinkingSince(null)
       setBusy(false)
       setError(null)
@@ -234,7 +237,11 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   async function reload() {
     if (!draft) return
     setBusy(true)
-    try { setDraft(await request<TreeMergeDraft>(`${base}/${draft.id}`)); setError(null) }
+    try {
+      const next = await request<TreeMergeDraft>(`${base}/${draft.id}`)
+      setDraft((saved) => mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }))
+      setError(null)
+    }
     catch (cause) { showError(cause) }
     finally { setBusy(false) }
   }
@@ -267,6 +274,9 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
           disabled={busy || voiceBusy} onClick={() => void cancel()}>{t('treeMerge.cancel')}</button>}
       </header>
       <div className="tree-merge-content">
+        {stream.error && <div role="status"><p>{t(stream.error)}</p>
+          <button type="button" onClick={stream.reconnect}>{t('treeMerge.reconnect')}</button>
+        </div>}
         {error && <div role="alert">
           <p>{t(error)}</p>
           {draft && <button type="button" disabled={busy} onClick={() => void reload()}>{t('treeMerge.reload')}</button>}

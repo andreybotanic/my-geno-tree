@@ -8,6 +8,7 @@ services:
     working_dir: /srv/backend
     environment:
       DATABASE_URL: postgresql://mygenotree:${LOCAL_SERVICE_PASSWORD}@database:5432/mygenotree?serverVersion=18&charset=utf8
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:?Set MERCURE_JWT_SECRET in the root .env}
     volumes:
       - ./backend:/srv/backend
       - media_storage:/srv/backend/var/storage
@@ -60,6 +61,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
+  mercure:
+    image: dunglas/mercure:v1.1.5
+    environment:
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:?Set MERCURE_JWT_SECRET in the root .env}
+    volumes:
+      - ./docker/mercure/Caddyfile:/etc/caddy/Caddyfile:ro
+    tmpfs:
+      - /data
+      - /config
+
   proxy:
     image: caddy:2.10.2-alpine
     ports:
@@ -73,6 +84,7 @@ services:
     depends_on:
       - backend
       - frontend
+      - mercure
 
 volumes:
   whisper_models:

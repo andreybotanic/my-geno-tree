@@ -1,6 +1,10 @@
 framework:
     http_client:
         scoped_clients:
+            mercure.client:
+                base_uri: '%env(MERCURE_URL)%'
+                timeout: 1
+                max_duration: 2
             geoapify.client:
                 base_uri: '%env(GEOAPIFY_BASE_URI)%'
                 headers:

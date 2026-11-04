@@ -6,6 +6,12 @@ localhost, my-geno-tree.localhost {
 	tls internal
 	encode zstd gzip
 
+	handle /.well-known/mercure {
+		reverse_proxy mercure:80 {
+			flush_interval -1
+		}
+	}
+
 	handle /mcp/tree {
 		root * /srv/backend/public
 		php_fastcgi backend:9000

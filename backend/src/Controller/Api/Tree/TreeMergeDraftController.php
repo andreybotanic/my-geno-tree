@@ -9,6 +9,7 @@ use App\Application\TreeMerge\Ai\MergeTokenBudget;
 use App\Application\TreeMerge\TreeMergeConversationService;
 use App\Application\TreeMerge\TreeMergeDraftService;
 use App\Application\TreeMerge\TreeMergeProposalService;
+use App\Application\TreeMerge\TreeMergeSubscription;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -57,6 +58,12 @@ final readonly class TreeMergeDraftController
         $this->drafts->append($draft, $this->body->decodeObject($request), false);
 
         return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/events', name: 'api_tree_merge_events', methods: ['POST'])]
+    public function events(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request, TreeMergeSubscription $subscriptions): JsonResponse
+    {
+        return $subscriptions->create($request, $this->drafts->get($tree, $mergeId));
     }
 
     #[Route('/{mergeId}/process', name: 'api_tree_merge_process', methods: ['POST'])]

@@ -60,7 +60,7 @@ final class OpenCodeTreeMergeAiTest extends TestCase
         chmod($this->directory . '/server', 0700);
         $cache = new ArrayAdapter();
         $locks = new LockFactory(new InMemoryStore());
-        $this->activity = new MergeActivity($cache, $locks);
+        $this->activity = new MergeActivity($cache, $locks, \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher());
         $factory = new RateLimiterFactory(['id' => 'tokens', 'policy' => 'fixed_window', 'limit' => 100000, 'interval' => '1 day'], new CacheStorage($cache), $locks);
         $budget = new MergeTokenBudget($factory, $this->activity);
         $this->grants = new TreeMergeReadGrant($cache, $locks, new NativeClock());

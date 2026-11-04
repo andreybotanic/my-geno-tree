@@ -6,6 +6,25 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /trees/{treeId}/merges/{mergeId}/events:
+    parameters:
+      - { name: treeId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: subscribeTreeMergeEvents
+      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; this endpoint does not read conversation state. Events contain TreeMergeEvent JSON. The hub retains no history; fetch the draft once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription URL and cookie lifetime. Cache-Control no-store.
+          headers:
+            Set-Cookie: { schema: { type: string }, description: Private Mercure subscriber cookie; never exposed to JavaScript. }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeSubscription" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /tree-merge-transcriptions:
     post:
       operationId: transcribeTreeMergeAudio
@@ -1866,6 +1885,32 @@ components:
           enum: [validation_failed, provider_unavailable, token_limit]
           description: Retryable assistant failure. It does not mark the user message as successfully answered. A subsequent attempt replaces this reply instead of duplicating it.
         createdAt: { type: string, format: date-time }
+    TreeMergeSubscription:
+      type: object
+      additionalProperties: false
+      required: [url, expiresIn]
+      properties:
+        url: { type: string, description: Same-origin Mercure subscription URL. }
+        expiresIn: { type: integer, minimum: 60 }
+    TreeMergeEvent:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, draft]
+          properties:
+            kind: { const: draft }
+            draft: { $ref: "#/components/schemas/TreeMergeDraft" }
+        - type: object
+          additionalProperties: false
+          required: [kind, id, version, attemptId, attemptStartedAt, progress, tokenUsage]
+          properties:
+            kind: { const: progress }
+            id: { type: string, format: uuid }
+            version: { type: integer, minimum: 1 }
+            attemptId: { type: string, format: uuid }
+            attemptStartedAt: { type: string, format: date-time }
+            progress: { type: array, items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing, clarifying] } }
+            tokenUsage: { $ref: "#/components/schemas/TreeMergeTokenUsage" }
     TreeMergeDraft:
       type: object
       description: Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.

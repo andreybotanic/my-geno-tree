@@ -13,7 +13,7 @@ use Symfony\Component\Lock\LockFactory;
  */
 final readonly class MergeActivity
 {
-    public function __construct(#[Target('cache.merge_session')] private CacheItemPoolInterface $cache, private LockFactory $locks)
+    public function __construct(#[Target('cache.merge_session')] private CacheItemPoolInterface $cache, private LockFactory $locks, private TreeMergeEvents $events)
     {
     }
 
@@ -98,5 +98,6 @@ final readonly class MergeActivity
         } finally {
             $lock->release();
         }
+        $this->events->progress($draftId, $attemptId, $value['progress'], $value['usage']);
     }
 }

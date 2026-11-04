@@ -4,6 +4,12 @@ import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { TreeMergeDraft, TreeSnapshot } from '../api/generated'
 import i18n from '../i18n'
 import { TreeMergePanel } from './TreeMergePanel'
+import { useTreeMergeEvents } from '../hooks/useTreeMergeEvents'
+
+vi.mock('../hooks/useTreeMergeEvents', async (original) => ({
+  ...await original<typeof import('../hooks/useTreeMergeEvents')>(),
+  useTreeMergeEvents: vi.fn(() => ({ error: null, reconnect: vi.fn() })),
+}))
 
 const draft: TreeMergeDraft = {
   id: 'merge', treeId: 'tree', referencePersonId: null, version: 1, sourceVersion: 0,
@@ -165,7 +171,7 @@ describe('TreeMergePanel', () => {
     expect(request).toHaveBeenCalledWith('/trees/tree/merges', expect.objectContaining({ body: JSON.stringify({ referencePersonId: null }) }))
   })
 
-  it('restores a running attempt and polls until the answer is saved without stealing input focus', async () => {
+  it('receives a saved answer through the stream without stealing input focus', async () => {
     const processing = { ...draft, state: 'processing' as const, attemptId: 'attempt', version: 3 }
     const answered = { ...draft, version: 4, messages: [{ id: 'answer', requestId: 'request', role: 'assistant' as const,
       content: 'Confirmed family facts', createdAt: '2026-11-03' }] }
@@ -173,9 +179,53 @@ describe('TreeMergePanel', () => {
     const input = await screen.findByRole('textbox')
     await waitFor(() => expect(input).toBeEnabled())
     fireEvent.change(input, { target: { value: 'Next clarification' } })
-    expect(await screen.findByText('Confirmed family facts', {}, { timeout: 3500 })).toBeInTheDocument()
-    expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    act(() => vi.mocked(useTreeMergeEvents).mock.lastCall![2](answered))
+    expect(await screen.findByText('Confirmed family facts')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledOnce()
     expect(input).toHaveValue('Next clarification')
+  })
+
+  it('shows a recoverable stream error and applies a streamed receipt only once', async () => {
+    const reconnect = vi.fn()
+    vi.mocked(useTreeMergeEvents).mockReturnValue({ error: 'treeMerge.streamDisconnected', reconnect })
+    const { applied } = renderPanel(async () => ({ items: [draft] }))
+    await screen.findByRole('textbox')
+    await waitFor(() => expect(vi.mocked(useTreeMergeEvents).mock.lastCall?.[0]).toBe('/trees/tree/merges/merge'))
+    expect(screen.getByRole('status')).toHaveTextContent('Live updates are temporarily unavailable')
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    expect(reconnect).toHaveBeenCalledOnce()
+    const receive = vi.mocked(useTreeMergeEvents).mock.lastCall![3]
+    const result = { personIds: {}, affectedPersonIds: [], etag: 'new', proposalVersion: 1 }
+    await act(async () => {
+      receive({ ...draft, id: 'other', result, state: 'applied' })
+      receive({ ...draft, version: 0, result, state: 'applied' })
+    })
+    expect(applied).not.toHaveBeenCalled()
+    await act(async () => {
+      receive({ ...draft, version: 3, result, state: 'applied' })
+      receive({ ...draft, version: 3, result, state: 'applied' })
+    })
+    expect(applied).toHaveBeenCalledOnce()
+    vi.mocked(useTreeMergeEvents).mockReturnValue({ error: null, reconnect: vi.fn() })
+  })
+
+  it('does not replace a newer streamed answer with a delayed process response', async () => {
+    let finish!: (value: TreeMergeDraft) => void
+    renderPanel(async (path) => {
+      if (path.endsWith('/messages')) return { ...draft, version: 2 }
+      if (path.endsWith('/process')) return new Promise<TreeMergeDraft>((resolve) => { finish = resolve })
+      return { items: [draft] }
+    })
+    const input = await screen.findByRole('textbox')
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'My family' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByRole('button', { name: 'Stop response' })
+    const latest: TreeMergeDraft = { ...draft, version: 5, messages: [{ id: 'answer', requestId: 'request', role: 'assistant',
+      content: 'Newer streamed answer', createdAt: '2026-11-04' }] }
+    act(() => vi.mocked(useTreeMergeEvents).mock.lastCall![2](latest))
+    await act(async () => finish({ ...draft, version: 4 }))
+    expect(screen.getByText('Newer streamed answer')).toBeInTheDocument()
   })
 
   it('replaces Send with Stop, keeps the chat and ignores a late answer after the next turn', async () => {
@@ -293,7 +343,7 @@ describe('TreeMergePanel', () => {
     window.history.replaceState({}, '', '/?merge=merge')
     const result = { personIds: { p: 'person' }, affectedPersonIds: ['person'], etag: 'new-etag' }
     const { request, applied } = renderPanel(async (path) => {
-      if (path.endsWith('/apply')) return { ...ready, state: 'applied', result }
+      if (path.endsWith('/apply')) return { ...ready, version: 3, proposalVersion: 2, state: 'applied', result }
       return { ...ready, version: 2, proposalVersion: 2 }
     })
     const apply = await screen.findByRole('button', { name: 'Confirm and apply changes' })

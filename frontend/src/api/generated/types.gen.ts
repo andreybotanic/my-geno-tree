@@ -84,6 +84,27 @@ export type TreeMergeMessage = {
     createdAt: string;
 };
 
+export type TreeMergeSubscription = {
+    /**
+     * Same-origin Mercure subscription URL.
+     */
+    url: string;
+    expiresIn: number;
+};
+
+export type TreeMergeEvent = {
+    kind: 'draft';
+    draft: TreeMergeDraft;
+} | {
+    kind: 'progress';
+    id: string;
+    version: number;
+    attemptId: string;
+    attemptStartedAt: string;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
+    tokenUsage: TreeMergeTokenUsage;
+};
+
 /**
  * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
  */
@@ -780,6 +801,19 @@ export type TreeMergeProposalRequestWritable = {
     proposal: TreeMergeProposalWritable;
 };
 
+export type TreeMergeEventWritable = {
+    kind: 'draft';
+    draft: TreeMergeDraftWritable;
+} | {
+    kind: 'progress';
+    id: string;
+    version: number;
+    attemptId: string;
+    attemptStartedAt: string;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
+    tokenUsage: TreeMergeTokenUsage;
+};
+
 /**
  * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
  */
@@ -828,6 +862,38 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type SubscribeTreeMergeEventsData = {
+    body?: never;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/events';
+};
+
+export type SubscribeTreeMergeEventsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type SubscribeTreeMergeEventsError = SubscribeTreeMergeEventsErrors[keyof SubscribeTreeMergeEventsErrors];
+
+export type SubscribeTreeMergeEventsResponses = {
+    /**
+     * Subscription URL and cookie lifetime. Cache-Control no-store.
+     */
+    200: TreeMergeSubscription;
+};
+
+export type SubscribeTreeMergeEventsResponse = SubscribeTreeMergeEventsResponses[keyof SubscribeTreeMergeEventsResponses];
 
 export type TranscribeTreeMergeAudioData = {
     body: {

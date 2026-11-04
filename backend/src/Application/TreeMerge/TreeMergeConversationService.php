@@ -36,6 +36,7 @@ final readonly class TreeMergeConversationService
         #[Target('tree_merge')] private RateLimiterFactoryInterface $limiter,
         private RequestStack $requests,
         private MergeReplySummary $summary,
+        private TreeMergeEvents $events,
     ) {
     }
 
@@ -70,6 +71,7 @@ final readonly class TreeMergeConversationService
             return;
         }
         $attemptVersion = $draft->version;
+        $this->events->begin($draft);
         $this->requests->getCurrentRequest()?->attributes->set(TreeMergeDraft::class, $draft);
         $repair = null;
         for ($number = 0; $number <= self::MAX_REPAIRS + 1; ++$number) {

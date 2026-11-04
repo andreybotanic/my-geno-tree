@@ -21,7 +21,7 @@ final class CancellableMergeHttpClientTest extends TestCase
 {
     public function testStopsInferenceDuringProgressAndDoesNotStartAnotherRequest(): void
     {
-        $activity = new MergeActivity(new ArrayAdapter(), new LockFactory(new InMemoryStore()));
+        $activity = new MergeActivity(new ArrayAdapter(), new LockFactory(new InMemoryStore()), \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher());
         $now = new \DateTimeImmutable();
         $draft = new TreeMergeDraft(new FamilyTree(new User('user', 'user@example.test', 'hash', 'en', $now), 'tree', $now), null, 'etag', $now);
         $draft->addMessage('turn', 'Add Vera.', $now);

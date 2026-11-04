@@ -30,6 +30,11 @@ services:
 
 when@test:
     services:
+        app.test_mercure_hub:
+            decorates: mercure.hub.default
+            class: Symfony\Component\Mercure\MockHub
+            factory: ['App\Tests\Infrastructure\Ai\TestMergeEvents', 'hub']
+            arguments: ['@app.test_mercure_hub.inner']
         App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider: ~
         App\Application\TreeMerge\Voice\TranscriptionProviderInterface:
             alias: App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider
