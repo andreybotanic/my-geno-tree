@@ -40,6 +40,7 @@ import type {
   ResolvedEventPlace,
   SaveTreeLayoutRequest,
   TreeSnapshot,
+  TreeMergeDraft,
   TreeReference,
   User,
 } from '../api/generated'
@@ -75,7 +76,7 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
-import { TreeMergePanel } from '../components/TreeMergePanel'
+import { TreeMergeDrawer } from '../components/TreeMergeDrawer'
 import { ActionIcon } from '../components/ActionIcon'
 import { PersonSearchPanel } from '../components/PersonSearchPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
@@ -117,6 +118,7 @@ import {
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
 import { formatPersonName } from '../personFormatting'
 import { projectSearchRoute } from '../searchRouteProjection'
+import { projectTreeMerge } from '../treeMergeProjection'
 import {
   createLocalRelationshipPath,
   relationshipPerson,
@@ -392,6 +394,7 @@ function ZoomControls({
 }
 
 type LayoutToolbarProps = {
+  previewing?: boolean
   isNetworkView: boolean
   onExport: () => void
   onRegenerateNetwork: () => void
@@ -400,6 +403,7 @@ type LayoutToolbarProps = {
 }
 
 function LayoutToolbar({
+  previewing = false,
   isNetworkView,
   onExport,
   onRegenerateNetwork,
@@ -412,6 +416,7 @@ function LayoutToolbar({
     <Panel className="editor-toolbar" position="top-right">
       <button
         aria-label={t('treeExport.action')}
+        disabled={previewing}
         className="editor-tool-button"
         onClick={onExport}
         title={t('treeExport.action')}
@@ -423,6 +428,7 @@ function LayoutToolbar({
         aria-label={isNetworkView
           ? t('editor.showTreeView')
           : t('editor.showBloodNetwork')}
+        disabled={previewing}
         className="editor-tool-button"
         onClick={onToggleNetworkView}
         title={isNetworkView
@@ -801,6 +807,8 @@ type TreeCanvasProps = {
   selectedPersonId: string | null
   mergeAffectedIds: string[]
   mergePanelOpen: boolean
+  mergeDraft: TreeMergeDraft | null
+  onSelectMergePerson: (id: string | null) => void
   snapshot: TreeSnapshot
   user: User | null
   view: 'network' | 'tree'
@@ -825,6 +833,8 @@ function TreeCanvas({
   selectedPersonId,
   mergeAffectedIds,
   mergePanelOpen,
+  mergeDraft,
+  onSelectMergePerson,
   snapshot,
   user,
   view,
@@ -925,6 +935,8 @@ function TreeCanvas({
   ])
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
+  const mergeProjection = useMemo(() => mergeDraft?.proposal ? projectTreeMerge(snapshot, mergeDraft.proposal) : null, [mergeDraft, snapshot])
+  const mergePreviewKey = mergeDraft ? `${mergeDraft.id}:${mergeDraft.proposalVersion}` : null
   const focusedSnapshot = useMemo(() => mergeAffectedIds.length > 0 ? snapshot : focusedTreeSnapshot(snapshot), [mergeAffectedIds, snapshot])
   // A merge result temporarily shows the complete branch. Its positions must
   // never replace the cache belonging to the ordinary reference projection.
@@ -1074,8 +1086,8 @@ function TreeCanvas({
         ...node,
         selected: node.id === bloodNetworkRotationPivotNodeId,
       }))
-    : [...treeNodes, ...pathNodes]
-  const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : edges
+    : mergeProjection?.nodes ?? [...treeNodes, ...pathNodes]
+  const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : mergeProjection?.edges ?? edges
   const treeMenuSpouses = useMemo(() => {
     if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
     const spouseIds = new Set<string>()
@@ -1171,8 +1183,32 @@ function TreeCanvas({
     cameraView: TreeEditorView,
     viewport: Viewport,
   ) => {
+    if (mergeProjection) return
     cameras.current[cameraView] = { ...viewport }
-  }, [cameras])
+  }, [cameras, mergeProjection])
+
+  const previewCamera = useRef<Viewport | null>(null)
+  const lastPreviewKey = useRef<string | null>(null)
+  useEffect(() => {
+    const flow = instance.current
+    if (!cameraReady || !flow || lastPreviewKey.current === mergePreviewKey) return
+    lastPreviewKey.current = mergePreviewKey
+    if (!mergeProjection) {
+      if (previewCamera.current) void flow.setViewport(previewCamera.current, { duration: 250 })
+      previewCamera.current = null
+      return
+    }
+    previewCamera.current ??= flow.getViewport()
+    const points = mergeProjection.nodes.filter((node) => mergeProjection.proposalIds.has(node.id)).map((node) => node.position)
+    const dimensions = canvas.current?.getBoundingClientRect()
+    if (!dimensions || points.length === 0) return
+    const x = Math.min(...points.map((point) => point.x))
+    const y = Math.min(...points.map((point) => point.y))
+    const bounds = { x, y, width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
+      height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT }
+    const width = Math.max(200, dimensions.width - Math.min(480, window.innerWidth - 44))
+    void flow.setViewport(getViewportForBounds(bounds, width, Math.max(200, dimensions.height - 120), 0.1, 1, 0.2), { duration: 250 })
+  }, [cameraReady, mergePreviewKey, mergeProjection])
 
   useEffect(() => {
     if (!selectedPersonId) {
@@ -1181,6 +1217,7 @@ function TreeCanvas({
     }
     if (
       view !== 'tree'
+      || mergeProjection
       || !cameraReady
       || centeredPersonId.current === selectedPersonId
     ) {
@@ -1201,7 +1238,7 @@ function TreeCanvas({
       ).then(() => rememberCamera('tree', flow.getViewport()))
     })
     return () => cancelAnimationFrame(frame)
-  }, [cameraReady, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view])
+  }, [cameraReady, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view])
 
   const lastMergeFocus = useRef('')
   useEffect(() => {
@@ -1609,12 +1646,14 @@ function TreeCanvas({
         viewport,
       )}
       onNodeClick={(_event, node) => {
+        if (mergeProjection) { onSelectMergePerson(mergeProjection.proposalIds.get(node.id) ?? null); return }
         if (view === 'tree') {
           onSelectPerson(node.id)
         }
       }}
       onNodeContextMenu={(event, node) => {
         event.preventDefault()
+        if (mergeProjection) return
         if (view === 'tree') {
           setTreeContextMenu({
             kind: 'person',
@@ -1631,6 +1670,7 @@ function TreeCanvas({
         })
       }}
       onEdgeContextMenu={(event, edge) => {
+        if (mergeProjection) { event.preventDefault(); return }
         if (
           view !== 'tree'
           || edge.type !== 'family'
@@ -1682,6 +1722,7 @@ function TreeCanvas({
         setBloodNetworkMotionRevision((revision) => revision + 1)
       }}
       onPaneClick={() => {
+        if (mergeProjection) { onSelectMergePerson(null); return }
         setBloodNetworkContextMenu(null)
         setTreeContextMenu(null)
         if (view === 'tree') {
@@ -1705,8 +1746,8 @@ function TreeCanvas({
         />
       )}
       <Background color="var(--color-border)" gap={22} size={1} />
-      {view === 'tree' && (
-        <Panel position="top-right">
+      {view === 'tree' && !mergeProjection && (
+        <Panel className="editor-search-panel" position="top-right">
           <PersonSearchPanel
             onSearch={searchPeople}
             onSelect={(person) => void selectSearchResult(person)}
@@ -1714,7 +1755,7 @@ function TreeCanvas({
           />
         </Panel>
       )}
-      {view === 'tree' && pathDisplay && (
+      {view === 'tree' && pathDisplay && !mergeProjection && (
         <Panel className="path-display-panel" position="top-left">
           <span className="path-display-title">
             {t('editor.pathDisplayTitle', { name: '' }).trim()}&nbsp;
@@ -1741,6 +1782,7 @@ function TreeCanvas({
         </Panel>
       )}
       <LayoutToolbar
+        previewing={Boolean(mergeProjection)}
         isNetworkView={view === 'network'}
         onExport={onExport}
         onRegenerateNetwork={() => {
@@ -2204,6 +2246,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   }, [importWarningCount])
   const [creating, setCreating] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(() => new URLSearchParams(window.location.search).has('merge'))
+  const [mergeDraft, setMergeDraft] = useState<TreeMergeDraft | null>(null)
+  const [mergeReviewContainer, setMergeReviewContainer] = useState<HTMLDivElement | null>(null)
+  const [selectedMergePerson, setSelectedMergePerson] = useState<string | null>(null)
+  const mergePreviewDraft = mergeOpen && mergeDraft?.proposal && !['applied', 'cancelled'].includes(mergeDraft.state) ? mergeDraft : null
   const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -3066,13 +3112,11 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
   return (
     <main className={`tree-editor-page${mergeOpen ? ' tree-merge-open' : ''}`}>
-      {status === 'ready' && snapshot && !mergeOpen && (
-        <button className="tree-merge-open-button secondary-button" type="button" onClick={() => setMergeOpen(true)}>
-          {t('treeMerge.action')}
-        </button>
-      )}
-      {mergeOpen && snapshot && (
-        <TreeMergePanel key={treeId} snapshot={snapshot} request={request} onClose={() => setMergeOpen(false)}
+      {snapshot && (
+        <TreeMergeDrawer key={treeId} snapshot={snapshot} request={request} open={mergeOpen} onOpenChange={setMergeOpen}
+          onDraftChange={setMergeDraft} previewContainer={mergeReviewContainer}
+          selectedProposalPersonId={selectedMergePerson} onCloseProposalPerson={() => setSelectedMergePerson(null)}
+          onRefreshTree={async () => { replaceSnapshot(await treeApi.snapshot(request, treeId)) }}
           onApplied={async (result) => {
             const next = await treeApi.snapshot(request, treeId)
             replaceSnapshot(next)
@@ -3135,7 +3179,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         )}
         {status === 'ready' && snapshot && (
           <div className="tree-canvas">
-            {snapshot.people.length === 0 ? (
+            <div className="tree-merge-review-slot" ref={setMergeReviewContainer} />
+            {snapshot.people.length === 0 && !mergePreviewDraft ? (
               <div className="empty-tree-action">
                 <p>{t('trees.editorEmpty')}</p>
                 <button
@@ -3164,8 +3209,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   selectedPersonId={selectedPerson?.id ?? null}
                   mergeAffectedIds={mergeAffectedIds}
                   mergePanelOpen={mergeOpen}
+                  mergeDraft={mergePreviewDraft}
+                  onSelectMergePerson={setSelectedMergePerson}
                   snapshot={snapshot}
-                  view={view}
+                  view={mergePreviewDraft ? 'tree' : view}
                   onToggleNetworkView={toggleNetworkView}
                   onUpdateUser={updateUser}
                   request={request}

@@ -8,6 +8,7 @@ import type {
   Person,
   SearchRoutePlan,
   TreeSnapshot,
+  TreeMergeDraft,
   User,
 } from '../api/generated'
 import {
@@ -217,6 +218,37 @@ describe('TreeEditorPage', () => {
     window.localStorage.clear()
     await i18n.changeLanguage('en')
     vi.unstubAllGlobals()
+  })
+
+  it.each([false, true])('previews a merge on the canvas without changing real people (empty=%s)', async (empty) => {
+    const original = snapshot(empty ? [] : [person])
+    const prepared: TreeMergeDraft = {
+      id: 'merge-preview', treeId, referencePersonId: null, version: 2, sourceVersion: 1, proposalVersion: 1,
+      state: 'ready', attemptId: null, attemptSourceVersion: null, attemptStartedAt: null,
+      treeEtag: original.etag, messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
+      questions: [], result: null, createdAt: person.createdAt, updatedAt: person.updatedAt,
+      proposal: { people: [
+        ...(empty ? [] : [{ id: 'a', existingPersonId: person.id, resolution: 'existing' as const, lifeStatus: 'alive' as const, fields: { deathDate: null }, evidence: [] }]),
+        { id: 'b', existingPersonId: null, resolution: 'new', lifeStatus: 'alive', fields: { givenName: { state: 'known', value: 'Boris' }, gender: 'male', deathDate: null }, evidence: [] },
+      ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] },
+    }
+    const request = vi.fn(async (path: string) => path.endsWith('/merges') ? { items: [prepared], tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
+    const { container } = renderEditor(request)
+    fireEvent.click(await screen.findByRole('button', { name: 'Open AI chat' }))
+    const added = await screen.findByText('Boris')
+    expect(added.closest('article')).not.toHaveClass('person-card-muted')
+    if (!empty) expect(screen.getByText('Anna').closest('article')).toHaveClass('person-card-muted')
+    expect(container.querySelector('.tree-canvas .tree-merge-graph-review')).toBeInTheDocument()
+    expect(container.querySelector('.tree-merge-panel .tree-merge-preview')).toBeNull()
+    fireEvent.click(added)
+    expect(await screen.findByLabelText('Match in this tree')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
+    await waitFor(() => expect(screen.queryByText('Boris')).not.toBeInTheDocument())
+    if (!empty) expect(screen.getByText('Anna').closest('article')).not.toHaveClass('person-card-muted')
+    expect(original.people).toHaveLength(empty ? 0 : 1)
+    expect(request).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'POST' }))
   })
 
   it('shows the import warning once when places remain text-only', async () => {

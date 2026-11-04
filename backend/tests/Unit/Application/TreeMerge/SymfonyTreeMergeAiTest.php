@@ -2,15 +2,19 @@
 
 namespace App\Tests\Unit\Application\TreeMerge;
 
+use App\Api\ApiException;
 use App\Application\TreeMerge\Ai\Dto\MergeAction;
 use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
 use App\Application\TreeMerge\Ai\Dto\MergeIntent;
+use App\Application\TreeMerge\Ai\MergeAiRepair;
+use App\Application\TreeMerge\Ai\MergeAiResult;
 use App\Application\TreeMerge\Ai\SymfonyTreeMergeAi;
 use App\Entity\FamilyTree;
 use App\Entity\TreeMergeDraft;
 use App\Entity\User;
 use App\Security\TreeMergeReadGrant;
 use PHPUnit\Framework\TestCase;
+use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\Result\ObjectResult;
 use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Result\ToolCall;
@@ -94,6 +98,53 @@ final class SymfonyTreeMergeAiTest extends TestCase
         self::assertSame(0, $calls);
         self::assertSame(MergeAction::REFUSAL, $ai->respond($this->draft('What is the capital of France?'), 'attempt')->response->action);
         self::assertSame(1, $calls);
+    }
+
+    public function testManualRetryClassifiesTheOriginalUserMessageInsteadOfTheFailureReply(): void
+    {
+        $draft = $this->draft('Vera is my mother.');
+        $draft->processingFailed(new \DateTimeImmutable(), 'request', 'An earlier attempt failed.', 'validation_failed');
+        $calls = 0;
+        $platform = MockPlatformFactory::createPlatform(function (Model $model, mixed $payload) use (&$calls): ObjectResult {
+            ++$calls;
+            $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+            self::assertStringContainsString('Latest request: Vera is my mother.', $encoded);
+            self::assertStringNotContainsString('Latest request: An earlier attempt failed.', $encoded);
+
+            return new ObjectResult(new MergeIntent());
+        });
+        $ai = new SymfonyTreeMergeAi($platform, $this->grants(), new MockHttpClient(), 'test', 'http://mcp.test/mcp/read');
+        $ai->respond($draft, 'retry');
+        self::assertSame(1, $calls);
+    }
+
+    public function testRepairReceivesPreviousResponseAndDiagnosticWithoutNewToolCalls(): void
+    {
+        $response = new MergeAiResponse();
+        $response->action = MergeAction::PROPOSAL;
+        $error = new ApiException(422, 'TREE_MERGE_PROPOSAL_INVALID', fields: ['parents[0].parent' => ['person_reference_unknown']],
+            details: ['violations' => [['path' => 'parents[0].parent', 'message' => 'Use people[].id: p1, p2.']]]);
+        $previous = new MergeAiResult($response, contexts: [['personCount' => 0]]);
+        $calls = 0;
+        $platform = MockPlatformFactory::createPlatform(function (Model $model, mixed $payload) use (&$calls, $response): ObjectResult {
+            ++$calls;
+            $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+            self::assertStringContainsString('parents[0].parent', $encoded);
+            self::assertStringContainsString('person_reference_unknown', $encoded);
+            self::assertStringContainsString('p1, p2', $encoded);
+            self::assertStringContainsString('personCount', $encoded);
+            self::assertStringContainsString('assistant', $encoded);
+            self::assertStringContainsString('COMPLETE proposal', $encoded);
+
+            return new ObjectResult($response);
+        });
+        $http = new MockHttpClient(static function (): never { throw new \LogicException('Repair must reuse observed MCP context'); });
+        $ai = new SymfonyTreeMergeAi($platform, $this->grants(), $http, 'test', 'http://mcp.test/mcp/read');
+        $result = $ai->respond($this->draft('Vera is my mother.'), 'attempt', new MergeAiRepair($previous, $error));
+        self::assertSame(1, $calls);
+        self::assertSame($previous->contexts, $result->contexts);
+        self::assertSame($previous->people, $result->people);
+        self::assertSame($response, $result->response);
     }
 
     private function grants(): TreeMergeReadGrant

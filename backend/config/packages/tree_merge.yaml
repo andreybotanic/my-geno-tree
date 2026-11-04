@@ -6,6 +6,18 @@ framework:
                 timeout: 270
                 max_duration: 270
     rate_limiter:
+        tree_merge_tokens:
+            policy: fixed_window
+            limit: '%env(int:TREE_MERGE_TOKEN_LIMIT)%'
+            interval: '1 day'
+            cache_pool: cache.merge_access
+            lock_factory: lock.default.factory
+        tree_merge_voice:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+            cache_pool: cache.merge_access
+            lock_factory: lock.default.factory
         tree_merge:
             policy: sliding_window
             limit: 20

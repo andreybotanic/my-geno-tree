@@ -9,6 +9,9 @@
 parameters:
 
 services:
+    app.merge_memory_adapter:
+        class: Symfony\Component\Cache\Adapter\FilesystemAdapter
+        arguments: ['merge_%kernel.environment%', 3600, '%env(TREE_MERGE_SESSION_DIR)%']
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
@@ -19,11 +22,18 @@ services:
     App\:
         resource: '../src/'
 
+    App\Application\TreeMerge\Ai\TreeMergeAiInterface:
+        alias: App\Application\TreeMerge\Ai\ConfiguredTreeMergeAi
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
 when@test:
     services:
+        App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider: ~
+        App\Application\TreeMerge\Voice\TranscriptionProviderInterface:
+            alias: App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider
+            public: true
         App\Tests\Infrastructure\Ai\FixtureTreeMergeAi: ~
         App\Application\TreeMerge\Ai\TreeMergeAiInterface:
             alias: App\Tests\Infrastructure\Ai\FixtureTreeMergeAi

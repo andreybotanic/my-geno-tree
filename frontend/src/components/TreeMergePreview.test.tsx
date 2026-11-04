@@ -14,7 +14,7 @@ const proposal: TreeMergeProposal = {
 }
 const draft: TreeMergeDraft & { proposal: TreeMergeProposal } = {
   id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, sourceVersion: 1,
-  attemptId: null, attemptSourceVersion: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
+  progress: [], tokenBudget: { remaining: 10000000, limit: 10000000 }, tokenUsage: { input: 0, output: 0, total: 0 }, attemptId: null, attemptSourceVersion: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
   messages: [], createdAt: 'now', updatedAt: 'now',
 }
 function setup(value = draft) {

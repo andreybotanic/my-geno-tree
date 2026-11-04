@@ -6,5 +6,5 @@ use App\Entity\TreeMergeDraft;
 
 interface TreeMergeAiInterface
 {
-    public function respond(TreeMergeDraft $draft, string $attemptId): MergeAiResult;
+    public function respond(TreeMergeDraft $draft, string $attemptId, ?MergeAiRepair $repair = null): MergeAiResult;
 }

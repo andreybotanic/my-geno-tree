@@ -11,6 +11,8 @@ services:
     volumes:
       - ./backend:/srv/backend
       - media_storage:/srv/backend/var/storage
+    tmpfs:
+      - /run/tree-merge:size=512m,mode=1777
     depends_on:
       database:
         condition: service_healthy
@@ -33,6 +35,16 @@ services:
       OLLAMA_CONTEXT_LENGTH: 32768
     volumes:
       - ollama_models:/root/.ollama
+
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    profiles: [ai]
+    environment:
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
+      WHISPER__NUM_WORKERS: 1
+    volumes:
+      - whisper_models:/home/ubuntu/.cache/huggingface/hub
 
   database:
     image: postgres:18.4-alpine
@@ -63,6 +75,7 @@ services:
       - frontend
 
 volumes:
+  whisper_models:
   ollama_models:
   postgres_data:
   media_storage:

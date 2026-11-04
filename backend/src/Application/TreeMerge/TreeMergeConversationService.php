@@ -6,6 +6,7 @@ use App\Api\ApiException;
 use App\Application\Tree\TreeVersion;
 use App\Application\TreeMerge\Ai\Dto\MergeAction;
 use App\Application\TreeMerge\Ai\MergeAiProposalMapper;
+use App\Application\TreeMerge\Ai\MergeAiRepair;
 use App\Application\TreeMerge\Ai\MergeAiResult;
 use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
 use App\Entity\TreeMergeDraft;
@@ -19,6 +20,8 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 /** @phpstan-import-type ContextDate from MergeAiResult */
 final readonly class TreeMergeConversationService
 {
+    public const int MAX_REPAIRS = 2;
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private TreeMergeAiInterface $ai,
@@ -27,6 +30,7 @@ final readonly class TreeMergeConversationService
         private TreeVersion $versions,
         private ClockInterface $clock,
         private LoggerInterface $logger,
+        private MergeActivity $activity,
         #[Target('tree_merge')] private RateLimiterFactoryInterface $limiter,
     ) {
     }
@@ -40,11 +44,11 @@ final readonly class TreeMergeConversationService
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
             foreach ($draft->messages as $message) {
-                if ('assistant' === $message['role'] && $requestId === $message['requestId']) {
+                if ('assistant' === $message['role'] && $requestId === $message['requestId'] && !isset($message['failureCode'])) {
                     return null;
                 }
             }
-            $last = $draft->messages[array_key_last($draft->messages) ?? 0] ?? null;
+            $last = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role']);
             if ($draft->version !== $version || null === $last || $last['requestId'] !== $requestId
                 || 'user' !== $last['role'] || in_array($draft->state, ['applied', 'cancelled'], true)) {
                 throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
@@ -62,33 +66,73 @@ final readonly class TreeMergeConversationService
             return;
         }
         $attemptVersion = $draft->version;
-        // No ORM transaction or tree lock is held during inference or HTTP MCP calls.
-        try {
-            $answer = $this->ai->respond($draft, $attempt);
-        } catch (\Throwable $error) {
-            $this->logger->warning('Tree merge inference failed: ' . $error::class);
-            $answer = null;
-        }
-        $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $answer): void {
-            $this->entityManager->lock($draft->tree, LockMode::PESSIMISTIC_WRITE);
-            $this->entityManager->refresh($draft->tree);
-            $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
-            $this->entityManager->refresh($draft);
-            if ($draft->attemptId !== $attempt || $draft->version !== $attemptVersion || 'processing' !== $draft->state) {
+        $repair = null;
+        for ($number = 0; $number <= self::MAX_REPAIRS; ++$number) {
+            $this->activity->step($draft, 0 === $number ? 'thinking' : 'repairing');
+            $failure = 'provider_unavailable';
+            // Every model call, including repairs, runs outside ORM transactions and tree locks.
+            try {
+                $answer = $this->ai->respond($draft, $attempt, $repair);
+                $this->activity->step($draft, 'validating');
+            } catch (\Throwable $error) {
+                $this->logger->warning('Tree merge inference failed: ' . $error::class);
+                if ($error instanceof ApiException && 'TREE_MERGE_TOKEN_LIMIT' === $error->getErrorCode()) {
+                    $failure = 'token_limit';
+                }
+                $answer = null;
+            }
+            $repair = $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $answer, $number, $failure): ?MergeAiRepair {
+                $this->entityManager->lock($draft->tree, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($draft->tree);
+                $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($draft);
+                if ($draft->attemptId !== $attempt || $draft->version !== $attemptVersion || 'processing' !== $draft->state) {
+                    return null;
+                }
+                if (null === $answer) {
+                    $this->fail($draft, $requestId, $failure);
+
+                    return null;
+                }
+                try {
+                    if ($number > 0 && !in_array($answer->response->action, [MergeAction::PROPOSAL, MergeAction::CLARIFICATION], true)) {
+                        throw new ApiException(422, 'TREE_MERGE_REPAIR_ACTION_INVALID', fields: ['action' => ['expected_proposal_or_clarification']]);
+                    }
+                    $this->complete($draft, $requestId, $answer);
+                } catch (\Throwable $error) {
+                    $code = $error instanceof ApiException ? $error->getErrorCode() : $error::class;
+                    $fields = $error instanceof ApiException ? implode(',', array_keys($error->getFields())) : '';
+                    $this->logger->warning('Tree merge response rejected: ' . $code . ' ' . $fields, ['generation' => $number + 1]);
+                    if ($error instanceof ApiException && 422 === $error->getStatus()
+                        && ($number > 0 || in_array($answer->response->action, [MergeAction::PROPOSAL, MergeAction::CLARIFICATION], true))
+                        && $number < self::MAX_REPAIRS) {
+                        return new MergeAiRepair($answer, $error);
+                    }
+                    $this->fail($draft, $requestId, 'validation_failed');
+                }
+
+                return null;
+            });
+            if (null === $repair) {
                 return;
             }
-            try {
-                if (null === $answer) {
-                    throw new \RuntimeException('TREE_MERGE_AI_UNAVAILABLE');
-                }
-                $this->complete($draft, $requestId, $answer);
-            } catch (\Throwable $error) {
-                $code = $error instanceof ApiException ? $error->getErrorCode() : $error::class;
-                $fields = $error instanceof ApiException ? implode(',', array_keys($error->getFields())) : '';
-                $this->logger->warning('Tree merge response rejected: ' . $code . ' ' . $fields);
-                $draft->processingFailed($this->clock->now());
-            }
-        });
+        }
+    }
+
+    private function fail(TreeMergeDraft $draft, string $requestId, string $code): void
+    {
+        $russian = 'ru' === $draft->owner->getPreferredLanguage();
+        if ('token_limit' === $code) {
+            $reply = $russian ? 'Достигнут дневной лимит токенов. Продолжите позже. Ваше предложение доступно для проверки.'
+                : 'The daily token limit has been reached. Please continue later. Your proposal remains available for review.';
+        } elseif ('validation_failed' === $code) {
+            $reply = $russian ? 'Не удалось подготовить корректное предложение после нескольких попыток. Ваш текст сохранён. Уточните, кто кому приходится родственником, или попробуйте ещё раз.'
+                : 'I could not prepare a valid proposal after several attempts. Your text is saved. Please clarify the relationships or try again.';
+        } else {
+            $reply = $russian ? 'Не удалось получить ответ. Ваш текст сохранён. Попробуйте ещё раз чуть позже.'
+                : 'I could not get a response. Your text is saved. Please try again shortly.';
+        }
+        $draft->processingFailed($this->clock->now(), $requestId, $reply, $code);
     }
 
     private function complete(TreeMergeDraft $draft, string $requestId, MergeAiResult $result): void
@@ -118,7 +162,7 @@ final readonly class TreeMergeConversationService
             }
         } else {
             if (null === $response->proposal) {
-                throw new ApiException(422, 'TREE_MERGE_AI_INVALID');
+                throw new ApiException(422, 'TREE_MERGE_AI_INVALID', fields: ['proposal' => ['proposal_required']]);
             }
             $proposal = $this->mapper->map($draft, $response->proposal, $result->people);
             $validated = $this->validator->validate($draft, $proposal);
@@ -129,7 +173,23 @@ final readonly class TreeMergeConversationService
                 default                      => 'no_changes',
             };
             $draft->propose($validated->proposal, $validated->questions, $this->versions->etag($draft->tree), $state, false, $this->clock->now());
-            $reply = $russian ? 'Проверьте предложенные изменения и уточнения в предпросмотре.' : 'Review the proposed changes and questions in the preview.';
+            $reply = $russian ? 'Подготовил изменения. Проверьте их на дереве.' : 'The changes are ready to review on the tree.';
+            if ('no_changes' === $state) {
+                $reply = $russian ? 'Эти сведения уже есть в дереве.' : 'This information is already in the tree.';
+            } elseif ([] !== $validated->questions) {
+                $reply = '';
+                foreach (array_slice($validated->questions, 0, 3) as $question) {
+                    if (str_starts_with($question, 'person_match:')) {
+                        $id = substr($question, 13);
+                        /** @var list<array{id: string, fields: array{givenName?: array{value?: string}}}> $people */
+                        $people = $validated->proposal['people'];
+                        $person = array_find($people, static fn ($person) => $person['id'] === $id);
+                        $name = $person['fields']['givenName']['value'] ?? ($russian ? 'этот человек' : 'this person');
+                        $question = $russian ? 'Кто ' . $name . ': человек из дерева или новая персона?' : 'Is ' . $name . ' someone in the tree or a new person?';
+                    }
+                    $reply .= ('' === $reply ? '' : "\n") . $question;
+                }
+            }
         }
         $draft->answer($requestId, $reply, $this->clock->now());
     }

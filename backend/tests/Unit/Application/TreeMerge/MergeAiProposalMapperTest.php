@@ -15,6 +15,33 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 final class MergeAiProposalMapperTest extends KernelTestCase
 {
+    public function testDefaultsNewPeopleToAliveAndPreservesExistingDeathInformation(): void
+    {
+        self::bootKernel();
+        $now = new \DateTimeImmutable();
+        $draft = new TreeMergeDraft(new FamilyTree(new User('test', 'test@example.test', 'hash', 'ru', $now), 'tree', $now), null, 'etag', $now);
+        $serializer = static::getContainer()->get(SerializerInterface::class);
+        $mapper = new MergeAiProposalMapper();
+        foreach (['Вера' => 'alive', 'Вера умерла' => 'deceased'] as $quote => $status) {
+            $input = $serializer->deserialize(json_encode(['people' => [['id' => 'v', 'resolution' => 'new', 'fields' => ['givenName' => 'Вера'],
+                'evidence'                                                    => [['messageId' => 'source', 'quote' => $quote]]]]], JSON_THROW_ON_ERROR), MergeAiProposal::class, 'json');
+            $mapped = $mapper->map($draft, $input, []);
+            self::assertIsArray($mapped['people']);
+            self::assertIsArray($mapped['people'][0]);
+            self::assertSame($status, $mapped['people'][0]['lifeStatus']);
+            self::assertSame([], $mapped['questions']);
+        }
+        $draft->propose(['people' => [['existingPersonId' => 'p']]], [], 'etag', 'ready', true, $now);
+        $input = $serializer->deserialize('{"people":[{"id":"v","existingPersonId":"p","resolution":"existing","lifeStatus":"alive","fields":{},"evidence":[]}]}', MergeAiProposal::class, 'json');
+        $context = ['id' => 'p', 'givenName' => ['state' => 'known', 'value' => 'Вера'], 'birthSurname' => ['state' => 'unknown'],
+            'patronymic' => ['state' => 'unknown'], 'gender' => 'female', 'birthDate' => ['state' => 'unknown'], 'deathDate' => ['state' => 'unknown']];
+        $mapped = $mapper->map($draft, $input, ['p' => $context]);
+        self::assertIsArray($mapped['people']);
+        self::assertIsArray($mapped['people'][0]);
+        self::assertSame('deceased', $mapped['people'][0]['lifeStatus']);
+        self::assertSame(['deathDate' => ['state' => 'unknown']], $mapped['people'][0]['fields']);
+    }
+
     public function testExplicitUnknownNamesRemainUnknownAndCannotTargetOtherFields(): void
     {
         $now = new \DateTimeImmutable();
@@ -30,7 +57,7 @@ final class MergeAiProposalMapperTest extends KernelTestCase
         $mapped = $mapper->map($draft, $proposal, []);
         self::assertIsArray($mapped['people']);
         self::assertIsArray($mapped['people'][0]);
-        self::assertSame(['birthSurname' => ['state' => 'unknown']], $mapped['people'][0]['fields']);
+        self::assertSame(['birthSurname' => ['state' => 'unknown'], 'deathDate' => null], $mapped['people'][0]['fields']);
         $person->fields->unknownNames = ['gender'];
         $this->expectException(ApiException::class);
         $mapper->map($draft, $proposal, []);

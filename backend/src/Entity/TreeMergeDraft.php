@@ -24,6 +24,9 @@ class TreeMergeDraft
     #[ORM\Column]
     public private(set) int $sourceVersion = 0;
 
+    #[ORM\Column(options: ['default' => 0])]
+    public private(set) int $sourceLength = 0;
+
     #[ORM\Column]
     public private(set) int $proposalVersion = 0;
 
@@ -61,9 +64,10 @@ class TreeMergeDraft
     #[ORM\Column(length: 30, nullable: true)]
     public private(set) ?string $stateBeforeAttempt = null;
 
-    /** @var list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool}> */
-    #[ORM\Column(type: 'json')]
+    /** @var list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> */
     public private(set) array $messages = [];
+
+    public bool $chatSessionAvailable = false;
 
     #[ORM\Column]
     public private(set) \DateTimeImmutable $updatedAt;
@@ -87,7 +91,7 @@ class TreeMergeDraft
 
     public function addMessage(string $requestId, string $content, \DateTimeImmutable $now, bool $source = true): void
     {
-        $this->messages[] = [
+        $message = [
             'id'        => Uuid::v7()->toRfc4122(),
             'requestId' => $requestId,
             'role'      => 'user',
@@ -95,7 +99,9 @@ class TreeMergeDraft
             'createdAt' => $now->format(\DateTimeInterface::ATOM),
             'source'    => $source,
         ];
+        $this->messages[] = $message;
         if ($source) {
+            $this->sourceLength += mb_strlen($content);
             ++$this->sourceVersion;
             ++$this->proposalVersion;
             $this->state = 'collecting';
@@ -124,12 +130,20 @@ class TreeMergeDraft
         return $this->attemptId;
     }
 
+    /** @param list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> $messages */
+    public function restoreSessionMessages(array $messages, bool $available): void
+    {
+        $this->messages = $messages;
+        $this->chatSessionAvailable = $available;
+    }
+
     public function markSource(string $requestId): void
     {
         $pending = array_column($this->sourceMessages(), 'id');
         foreach ($this->messages as &$message) {
             if (in_array($message['id'], $pending, true) && !($message['source'] ?? true)) {
                 $message['source'] = true;
+                $this->sourceLength += mb_strlen($message['content']);
                 ++$this->sourceVersion;
                 ++$this->proposalVersion;
             }
@@ -139,10 +153,10 @@ class TreeMergeDraft
         }
     }
 
-    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool}> */
+    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> */
     public function sourceMessages(): array
     {
-        $answered = array_column(array_filter($this->messages, static fn ($message) => 'assistant' === $message['role']), 'requestId');
+        $answered = array_column(array_filter($this->messages, static fn ($message) => 'assistant' === $message['role'] && !isset($message['failureCode'])), 'requestId');
 
         return array_values(array_filter($this->messages, static fn ($message) => 'user' === $message['role']
             && (($message['source'] ?? true) || !in_array($message['requestId'], $answered, true))));
@@ -150,8 +164,10 @@ class TreeMergeDraft
 
     public function answer(string $requestId, string $content, \DateTimeImmutable $now): void
     {
-        $this->messages[] = ['id' => Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
-            'role'                => 'assistant', 'content' => $content, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
+        $index = array_find_key($this->messages, static fn ($message) => 'assistant' === $message['role']
+            && $message['requestId'] === $requestId && isset($message['failureCode'])) ?? count($this->messages);
+        $this->messages[$index] = ['id' => $this->messages[$index]['id'] ?? Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
+            'role'                      => 'assistant', 'content' => $content, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
         if ('processing' === $this->state) {
             $this->state = $this->stateBeforeAttempt ?? 'collecting';
         }
@@ -160,11 +176,18 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
-    public function processingFailed(\DateTimeImmutable $now): void
+    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $reply, string $code): void
     {
+        $previousState = $this->stateBeforeAttempt;
+        $this->answer($requestId, $reply, $now);
+        foreach ($this->messages as &$message) {
+            if ('assistant' === $message['role'] && $message['requestId'] === $requestId) {
+                $message['failureCode'] = $code;
+            }
+        }
+        unset($message);
         $this->state = 'error';
-        ++$this->version;
-        $this->updatedAt = $now;
+        $this->stateBeforeAttempt = $previousState;
     }
 
     public function cancel(\DateTimeImmutable $now): void

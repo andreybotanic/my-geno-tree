@@ -29,7 +29,7 @@ final readonly class TreeMergeDraftService
     /** @return list<TreeMergeDraft> */
     public function recent(FamilyTree $tree): array
     {
-        return $this->drafts->recentForTree($tree);
+        return array_values(array_filter($this->drafts->recentForTree($tree), static fn (TreeMergeDraft $draft) => $draft->chatSessionAvailable));
     }
 
     public function get(FamilyTree $tree, string $id): TreeMergeDraft
@@ -50,7 +50,7 @@ final readonly class TreeMergeDraftService
             $this->invalid('referencePersonId');
         }
         $person = null === $id ? null : $this->people->findInTree($tree, $id);
-        if ((null !== $id && null === $person) || (null === $id && $this->people->countForTree($tree) > 0)) {
+        if (null !== $id && null === $person) {
             $this->invalid('referencePersonId');
         }
         $draft = new TreeMergeDraft($tree, $person, $this->versions->etag($tree), $this->clock->now());
@@ -91,9 +91,11 @@ final readonly class TreeMergeDraftService
                 }
             }
             $this->assertEditable($draft, $payload['version']);
-            $length = mb_strlen($content);
+            $length = $draft->sourceLength + mb_strlen($content);
             foreach ($draft->sourceMessages() as $message) {
-                $length += mb_strlen($message['content']);
+                if (!($message['source'] ?? true)) {
+                    $length += mb_strlen($message['content']);
+                }
             }
             if ($length > self::MAX_SOURCE_LENGTH) {
                 $this->invalid('content', 'tree_merge_source_too_long');

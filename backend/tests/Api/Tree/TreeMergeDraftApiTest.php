@@ -98,7 +98,7 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         /** @var list<array{id: string}> $people */
         $people = $this->responseData()['people'];
         $this->jsonRequest('POST', $this->base(), ['referencePersonId' => null], $this->headers);
-        self::assertResponseStatusCodeSame(422);
+        self::assertResponseStatusCodeSame(201);
         $this->jsonRequest('POST', $this->base(), ['referencePersonId' => $people[0]['id']], $this->headers);
         self::assertResponseStatusCodeSame(201);
         self::assertSame($people[0]['id'], $this->responseString('referencePersonId'));
@@ -136,11 +136,52 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         return '/api/v1/trees/' . $this->treeId . '/merges';
     }
 
+    public function testConversationIsSessionOnlyAndIsNotPartOfTheDatabaseMapping(): void
+    {
+        $path = $this->createDraft();
+        $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'private-chat', 'content' => 'Session-only text'], $this->headers);
+        self::assertIsArray($messages = $this->responseData()['messages']);
+        self::assertCount(1, $messages);
+        $this->jsonRequest('POST', '/api/v1/auth/login', ['identifier' => 'family_admin', 'password' => 'StrongPass1!']);
+        self::assertResponseIsSuccessful();
+        $otherSession = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+        $this->jsonRequest('GET', $path, headers: $otherSession);
+        self::assertSame([], $this->responseData()['messages']);
+        $this->jsonRequest('GET', $this->base(), headers: $otherSession);
+        self::assertSame([], $this->responseData()['items']);
+        $this->jsonRequest('GET', $path, headers: $this->headers);
+        self::assertIsArray($messages = $this->responseData()['messages']);
+        self::assertCount(1, $messages);
+        $mapping = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->getClassMetadata(\App\Entity\TreeMergeDraft::class);
+        self::assertFalse($mapping->hasField('messages'));
+        self::assertFalse($mapping->hasField('audioSources'));
+    }
+
     private function createDraft(): string
     {
         $this->jsonRequest('POST', $this->base(), ['referencePersonId' => null], $this->headers);
         self::assertResponseStatusCodeSame(201);
 
         return $this->base() . '/' . $this->responseString('id');
+    }
+
+    public function testSourceLimitSurvivesTheEndOfTheChatSession(): void
+    {
+        $path = $this->createDraft();
+        $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'full', 'content' => str_repeat('Я', 10000)], $this->headers);
+        self::assertResponseIsSuccessful();
+        $manager = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $draft = $manager->find(\App\Entity\TreeMergeDraft::class, basename($path));
+        self::assertNotNull($draft);
+        $draft->markSource('full');
+        $manager->flush();
+        self::assertSame(10000, $draft->sourceLength);
+        $this->jsonRequest('POST', '/api/v1/auth/login', ['identifier' => 'family_admin', 'password' => 'StrongPass1!']);
+        $otherSession = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+        $this->jsonRequest('GET', $path, headers: $otherSession);
+        self::assertSame([], $this->responseData()['messages']);
+        $this->jsonRequest('POST', $path . '/messages', ['version' => 2, 'requestId' => 'overflow', 'content' => 'Ещё'], $otherSession);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('tree_merge_source_too_long', $this->responseString('message'));
     }
 }

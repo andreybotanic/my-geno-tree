@@ -16,6 +16,8 @@ framework:
 
         # Namespaced pools use the above "app" backend by default
         pools:
+            cache.merge_session:
+                adapter: app.merge_memory_adapter
             cache.merge_access:
                 adapter: cache.adapter.filesystem
             cache.map_rate_limiter:

@@ -19,6 +19,25 @@ final class PersonRepository extends ServiceEntityRepository
         parent::__construct($registry, Person::class);
     }
 
+    /** Exact supplied name parts only. Two rows suffice to prove ambiguity without truncation hiding a namesake.
+     * @param array<string, string> $names
+     *
+     * @return list<Person>
+     */
+    public function findExactNamedCandidates(FamilyTree $tree, array $names): array
+    {
+        $query = $this->createQueryBuilder('person')->where('person.tree = :tree')->setParameter('tree', $tree)->setMaxResults(2);
+        foreach (['givenName', 'patronymic', 'birthSurname'] as $field) {
+            if (isset($names[$field])) {
+                $query->andWhere('LOWER(person.' . $field . '.value) = :' . $field)->setParameter($field, mb_strtolower(trim($names[$field])));
+            }
+        }
+        /** @var list<Person> $matches */
+        $matches = $query->getQuery()->getResult();
+
+        return $matches;
+    }
+
     /**
      * @return list<Person>
      */

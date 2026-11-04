@@ -21,7 +21,7 @@ final readonly class TreeMergeTools
     }
 
     /** @return array<string, mixed> */
-    #[McpTool(name: 'prepare_tree_merge', description: 'Prepare a reviewable family branch from description (10000 characters maximum). Requires narrative reference for populated trees. Never applies changes.', annotations: new ToolAnnotations(destructiveHint: false))]
+    #[McpTool(name: 'prepare_tree_merge', description: 'Prepare a reviewable family branch from description (10000 characters maximum). People may be named directly; ambiguous names require clarification. Never applies changes.', annotations: new ToolAnnotations(destructiveHint: false))]
     public function prepare(string $treeId, string $description, ?string $referencePersonId = null): array
     {
         $tree = $this->context->tree($treeId, true);

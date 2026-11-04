@@ -5,11 +5,12 @@ namespace App\Application\TreeMerge\Ai;
 use App\Api\ApiException;
 use App\Application\TreeMerge\Ai\Dto\MergeAiProposal;
 use App\Entity\TreeMergeDraft;
+use App\Repository\PersonRepository;
 
 /** @phpstan-import-type ContextPerson from MergeAiResult */
 final class MergeAiProposalMapper
 {
-    public function __construct(private readonly MergeDateParser $dates = new MergeDateParser())
+    public function __construct(private readonly MergeDateParser $dates = new MergeDateParser(), private readonly ?PersonRepository $people = null)
     {
     }
 
@@ -21,10 +22,10 @@ final class MergeAiProposalMapper
         /** @var array{people: list<array{id: string, existingPersonId: ?string, resolution: string, lifeStatus: string, fields: array<string, array<string, mixed>|string|null>, evidence: list<array{messageId: string, quote: string}>}>, parents: list<array<string, mixed>>, marriages: list<array{first: string, second: string, marriageDate: string, dissolutionDate: ?string, newPeriod: bool, evidence: list<array{messageId: string, quote: string}>}>, questions: list<string>} $proposal */
         $proposal = json_decode(json_encode($input, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
         $russian = 'ru' === $draft->owner->getPreferredLanguage();
-        foreach ($proposal['people'] as &$person) {
+        foreach ($proposal['people'] as $personIndex => &$person) {
             $existingId = $person['existingPersonId'];
             if (null !== $existingId && !isset($context[$existingId])) {
-                throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
+                throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON', fields: ['people[' . $personIndex . '].existingPersonId' => ['person_not_observed_through_mcp']]);
             }
             $fields = array_filter($person['fields'], static fn ($value) => null !== $value);
             $unknownNames = $fields['unknownNames'] ?? [];
@@ -33,7 +34,7 @@ final class MergeAiProposalMapper
                 if (is_string($value) && in_array($field, ['givenName', 'birthSurname', 'patronymic'], true)) {
                     $value = ['state' => 'known', 'value' => $value];
                 } elseif (is_string($value) && in_array($field, ['birthDate', 'deathDate'], true)) {
-                    $value = $this->dates->parse($value);
+                    $value = $this->dates->parse($value, 'people[' . $personIndex . '].fields.' . $field);
                 }
             }
             unset($value);
@@ -47,6 +48,13 @@ final class MergeAiProposalMapper
                 $fields[$field] = ['state' => 'unknown'];
             }
             $quotes = implode(' ', array_column($person['evidence'], 'quote'));
+            $identityQuotes = $quotes;
+            foreach (array_merge($proposal['parents'], $proposal['marriages']) as $link) {
+                if (in_array($person['id'], [$link['parent'] ?? null, $link['child'] ?? null, $link['first'] ?? null, $link['second'] ?? null], true)) {
+                    $linkEvidence = is_array($link['evidence'] ?? null) ? $link['evidence'] : [];
+                    $identityQuotes .= ' ' . implode(' ', array_column($linkEvidence, 'quote'));
+                }
+            }
             foreach (['givenName', 'birthSurname', 'patronymic'] as $field) {
                 $value = is_array($fields[$field] ?? null) ? $fields[$field]['value'] ?? null : null;
                 if (is_string($value) && ($context[$existingId ?? ''][$field]['value'] ?? null) !== $value
@@ -64,19 +72,34 @@ final class MergeAiProposalMapper
             if (isset($context[$existingId ?? ''])) {
                 $knownStatus = null === $context[$existingId ?? '']['deathDate'] ? 'alive' : 'deceased';
             }
-            $statusEvidence = match ($person['lifeStatus']) {
-                'alive'    => '/\b(?:жив[аы]?|alive|living)\b/iu',
-                'deceased' => '/(?:умер|скончал|погиб|deceased|died|dead)/iu',
-                default    => '/(?!) /',
+            $deathMentioned = 1 === preg_match('/умер|скончал|погиб|смерт|deceased|died|dead|death/iu', $quotes);
+            $aliveMentioned = 1 === preg_match('/\b(?:жив[аы]?|alive|living)\b/iu', $quotes);
+            $person['lifeStatus'] = match (true) {
+                'deceased' === $person['lifeStatus'] && $deathMentioned  => 'deceased',
+                'alive' === $person['lifeStatus'] && $aliveMentioned     => 'alive',
+                null !== $knownStatus                                    => $knownStatus,
+                'uncertain' === $person['lifeStatus'] && $deathMentioned => 'deceased',
+                default                                                  => 'alive',
             };
-            if ($knownStatus !== $person['lifeStatus'] && 1 !== preg_match($statusEvidence, $quotes)) {
-                $person['lifeStatus'] = 'uncertain';
-            }
             if ('alive' === $person['lifeStatus']) {
                 $fields['deathDate'] = null;
+            } elseif (!isset($fields['deathDate']) && null === ($context[$existingId ?? '']['deathDate'] ?? null)) {
+                $fields['deathDate'] = ['state' => 'unknown'];
             }
-            // An implicit match is permitted only for the explicitly selected narrative reference.
             $explicit = $draft->referencePerson?->getId()->toRfc4122() === $existingId;
+            if (null !== $existingId && null !== $this->people) {
+                $names = [];
+                foreach (['givenName', 'patronymic', 'birthSurname'] as $field) {
+                    $name = $fields[$field]['value'] ?? ('givenName' === $field ? $context[$existingId][$field]['value'] ?? null : null);
+                    if (is_string($name)) {
+                        $names[$field] = $name;
+                    }
+                }
+                if (isset($names['givenName']) && str_contains(mb_strtolower($identityQuotes), mb_strtolower(mb_substr($names['givenName'], 0, max(3, mb_strlen($names['givenName']) - 2))))) {
+                    $matches = $this->people->findExactNamedCandidates($draft->tree, $names);
+                    $explicit = $explicit || (1 === count($matches) && $matches[0]->getId()->toRfc4122() === $existingId);
+                }
+            }
             foreach (array_slice($draft->corrections, -1) as $correction) {
                 /** @var array{people: list<array{existingPersonId: ?string}>} $reviewedProposal */
                 $reviewedProposal = $correction['proposal'];
@@ -90,20 +113,23 @@ final class MergeAiProposalMapper
                 $fields = array_replace($context[$existingId], $fields);
                 unset($fields['id']);
             }
-            $person['fields'] = $fields ?: ['givenName' => ['state' => 'unknown']];
+            if ([] === $fields) {
+                $fields = null !== $existingId ? ['deathDate' => $context[$existingId]['deathDate']] : ['givenName' => ['state' => 'unknown']];
+            }
+            $person['fields'] = $fields;
         }
         unset($person);
         foreach ($proposal['parents'] as $link) {
             $evidence = is_array($link['evidence'] ?? null) ? $link['evidence'] : [];
-            if (1 !== preg_match('/мам|мат[ьиер]|от[ец]|пап|сын|доч|дет|реб[её]н|parent|mother|father|son|daughter|child/iu', implode(' ', array_column($evidence, 'quote')))) {
+            if (1 !== preg_match('/мам|мат[ьиер]|от[ец]|пап|родител|сын|доч|дет|реб[её]н|parent|mother|father|son|daughter|child/iu', implode(' ', array_column($evidence, 'quote')))) {
                 $proposal['questions'][] = $russian ? 'Уточните общего родителя: брат или сестра сами по себе не устанавливают родительскую связь.'
                     : 'Clarify the common parent: siblings alone do not establish a parent relationship.';
             }
         }
-        foreach ($proposal['marriages'] as &$marriage) {
-            $marriage['marriageDate'] = $this->dates->parse($marriage['marriageDate']);
+        foreach ($proposal['marriages'] as $marriageIndex => &$marriage) {
+            $marriage['marriageDate'] = $this->dates->parse($marriage['marriageDate'], 'marriages[' . $marriageIndex . '].marriageDate');
             if (null !== $marriage['dissolutionDate']) {
-                $marriage['dissolutionDate'] = $this->dates->parse($marriage['dissolutionDate']);
+                $marriage['dissolutionDate'] = $this->dates->parse($marriage['dissolutionDate'], 'marriages[' . $marriageIndex . '].dissolutionDate');
             }
             // The preview, not the model, chooses a separate marriage period.
             $marriage['newPeriod'] = false;

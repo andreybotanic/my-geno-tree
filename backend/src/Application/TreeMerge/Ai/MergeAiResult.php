@@ -9,8 +9,10 @@ use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
  */
 final readonly class MergeAiResult
 {
-    /** @param array<string, ContextPerson> $people */
-    public function __construct(public MergeAiResponse $response, public array $people = [])
+    /** @param array<string, ContextPerson> $people
+     * @param list<array<array-key, mixed>> $contexts
+     */
+    public function __construct(public MergeAiResponse $response, public array $people = [], public array $contexts = [])
     {
     }
 }

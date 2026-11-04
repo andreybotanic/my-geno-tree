@@ -4,6 +4,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         $PHPIZE_DEPS \
         git \
+        ffmpeg \
         libicu-dev \
         libjpeg62-turbo-dev \
         libpng-dev \
@@ -19,6 +20,7 @@ RUN apt-get update \
 
 COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer
 COPY docker/backend/entrypoint.sh /usr/local/bin/mygenotree-entrypoint
+COPY docker/backend/prepare-opencode-auth.php /usr/local/lib/prepare-opencode-auth.php
 
 RUN chmod +x /usr/local/bin/mygenotree-entrypoint
 

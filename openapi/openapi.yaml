@@ -6,6 +6,33 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /tree-merge-transcriptions:
+    post:
+      operationId: transcribeTreeMergeAudio
+      description: Transcribes a temporary recording after normalization to mono PCM WAV at 16 kHz. Maximum 10 MiB and 90 seconds. No tree, draft, media object or recording is stored. The user reviews the text before sending it. Ten attempts per user per hour.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV; detected from content. }
+      responses:
+        "200":
+          description: Editable transcription; the uploaded audio has been discarded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeTranscription" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /trees/{treeId}/merges/{mergeId}/process:
     parameters:
       - name: treeId
@@ -18,7 +45,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: processTreeMerge
-      description: Processes the latest saved message. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. No genealogical changes are applied.
+      description: Processes the latest message from the authenticated login session. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. Completed inference tokens consume a per-user daily budget; exhaustion produces a localized token_limit reply. No genealogical changes are applied.
       security:
         - bearerAuth: []
       requestBody:
@@ -34,7 +61,7 @@ paths:
                 requestId: { type: string }
       responses:
         "200":
-          description: Ready, clarification, no changes or error draft; source remains saved.
+          description: Ready, clarification, no changes or error draft. Validation failures allow at most two automatic repairs after the initial generation. Exhaustion or provider failure adds a retryable assistant failure message to the current session; source messages remain in that session and the reviewed proposal is retained.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TreeMergeDraft" }
@@ -1694,7 +1721,10 @@ components:
         existingPersonId: { type: [string, "null"], format: uuid }
         resolution: { type: string, enum: [new, existing, undecided] }
         fields: { $ref: "#/components/schemas/PersonPatchRequest" }
-        lifeStatus: { type: string, enum: [alive, deceased, uncertain] }
+        lifeStatus:
+          type: string
+          enum: [alive, deceased, uncertain]
+          description: New people default to alive unless death is mentioned. Legacy uncertain values normalize to the existing person's status or alive for a new person. Missing names and dates do not require clarification.
         evidence:
           type: array
           maxItems: 10
@@ -1746,7 +1776,7 @@ components:
         people:
           type: array
           maxItems: 20
-          description: At most five new people; existing matches always require explicit resolution.
+          description: At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
           items: { $ref: "#/components/schemas/TreeMergePersonProposal" }
         parents:
           type: array
@@ -1795,12 +1825,17 @@ components:
         requestId: { type: string }
         role: { type: string, enum: [user, assistant] }
         content: { type: string }
-        source: { type: boolean, description: Whether this user message contributes source facts; pending messages remain saved before classification. }
+        source: { type: boolean, description: Whether this user message contributes source facts; pending messages remain in session memory before classification. }
+        failureCode:
+          type: string
+          enum: [validation_failed, provider_unavailable, token_limit]
+          description: Retryable assistant failure. It does not mark the user message as successfully answered. A subsequent attempt replaces this reply instead of duplicating it.
         createdAt: { type: string, format: date-time }
     TreeMergeDraft:
       type: object
+      description: Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
       additionalProperties: false
-      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, createdAt, updatedAt, attemptId, attemptSourceVersion, attemptStartedAt]
+      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptSourceVersion, attemptStartedAt]
       properties:
         id: { type: string, format: uuid }
         treeId: { type: string, format: uuid }
@@ -1826,7 +1861,15 @@ components:
         treeEtag: { type: string }
         messages:
           type: array
+          description: Session-only conversation; empty in another login session or after ephemeral memory expires.
           items: { $ref: "#/components/schemas/TreeMergeMessage" }
+        progress:
+          type: array
+          items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing] }
+        tokenUsage:
+          $ref: "#/components/schemas/TreeMergeTokenUsage"
+        tokenBudget:
+          $ref: "#/components/schemas/TreeMergeTokenBudget"
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     TreeMergeCreateRequest:
@@ -1834,7 +1877,30 @@ components:
       additionalProperties: false
       required: [referencePersonId]
       properties:
-        referencePersonId: { type: [string, "null"], format: uuid }
+        referencePersonId: { type: [string, "null"], format: uuid, description: Optional narrative reference. Use null to name people directly in an empty or existing tree. }
+    TreeMergeTranscription:
+      type: object
+      additionalProperties: false
+      required: [text, durationSeconds]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 10000 }
+        durationSeconds: { type: number, exclusiveMinimum: 0, maximum: 90 }
+    TreeMergeTokenUsage:
+      type: object
+      additionalProperties: false
+      required: [input, output, total]
+      properties:
+        input: { type: integer, minimum: 0 }
+        output: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+    TreeMergeTokenBudget:
+      type: object
+      additionalProperties: false
+      description: Remaining daily inference allowance shared by all trees and sessions of this user.
+      required: [remaining, limit]
+      properties:
+        remaining: { type: integer, minimum: 0 }
+        limit: { type: integer, minimum: 1 }
     TreeMergeMessageRequest:
       type: object
       additionalProperties: false
@@ -1852,8 +1918,10 @@ components:
     TreeMergeList:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [items, tokenBudget]
       properties:
+        tokenBudget:
+          $ref: "#/components/schemas/TreeMergeTokenBudget"
         items:
           type: array
           items: { $ref: "#/components/schemas/TreeMergeDraft" }

@@ -1,0 +1,14 @@
+services:
+  backend:
+    environment:
+      TREE_MERGE_AI: opencode
+      TREE_MERGE_OPENCODE_MODEL: ${TREE_MERGE_OPENCODE_MODEL:-openai/gpt-5.6-luna}
+      TREE_MERGE_OPENCODE_BINARY: /opt/opencode
+      TREE_MERGE_OPENCODE_AUTH: /var/lib/tree-merge-opencode/auth.json
+    volumes:
+      - ${OPENCODE_BINARY_PATH:?Set the installed Linux OpenCode binary path}:/opt/opencode:ro
+      - ${OPENCODE_AUTH_PATH:?Set the OpenCode auth.json path}:/run/secrets/opencode-auth.json:ro
+      - tree_merge_opencode_credentials:/var/lib/tree-merge-opencode
+
+volumes:
+  tree_merge_opencode_credentials:

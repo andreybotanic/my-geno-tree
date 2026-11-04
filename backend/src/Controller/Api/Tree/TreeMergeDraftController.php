@@ -5,6 +5,7 @@ namespace App\Controller\Api\Tree;
 use App\Api\ApiException;
 use App\Api\RequestBodyMapper;
 use App\Api\TreeMergeDraftViewFactory;
+use App\Application\TreeMerge\Ai\MergeTokenBudget;
 use App\Application\TreeMerge\TreeMergeConversationService;
 use App\Application\TreeMerge\TreeMergeDraftService;
 use App\Application\TreeMerge\TreeMergeProposalService;
@@ -26,13 +27,15 @@ final readonly class TreeMergeDraftController
         private TreeMergeConversationService $conversation,
         private TreeMergeDraftViewFactory $views,
         private RequestBodyMapper $body,
+        private MergeTokenBudget $budget,
     ) {
     }
 
     #[Route('', name: 'api_tree_merge_list', methods: ['GET'])]
     public function list(#[MapEntity(id: 'treeId')] FamilyTree $tree): JsonResponse
     {
-        return new JsonResponse(['items' => array_map($this->views->create(...), $this->drafts->recent($tree))]);
+        return new JsonResponse(['items' => array_map($this->views->create(...), $this->drafts->recent($tree)),
+            'tokenBudget'                => $this->budget->remaining($tree->getOwner())]);
     }
 
     #[Route('', name: 'api_tree_merge_create', methods: ['POST'])]

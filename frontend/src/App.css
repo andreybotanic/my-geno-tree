@@ -3486,29 +3486,66 @@ select:not([multiple]) {
     grid-column: 1;
   }
 }
-.tree-merge-open-button {
+.tree-merge-overlay {
+  position: fixed;
+  inset: 50px 0 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: clip;
+}
+.tree-editor-page { --merge-panel-width: min(480px, calc(100vw - 44px)); }
+.tree-merge-drawer {
   position: absolute;
-  top: 60px;
-  right: 16px;
-  z-index: 15;
+  inset: 0 0 0 auto;
+  width: var(--merge-panel-width);
+  transform: translateX(100%);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
 }
 
+.tree-merge-drawer.is-open { transform: translateX(0); }
+.tree-merge-drawer-body { position: relative; height: 100%; z-index: 1; }
+.tree-merge-drawer.is-open .tree-merge-drawer-body { pointer-events: auto; }
+.tree-merge-tab {
+  position: absolute;
+  top: 44%;
+  left: -44px;
+  width: 84px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+  color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 180ms ease;
+}
+.tree-merge-tab svg { flex: 0 0 24px; }
+.tree-merge-tab span { opacity: 0; font-size: 0.85rem; font-weight: 700; transition: opacity 180ms ease; }
+.tree-merge-tab:hover, .tree-merge-tab:focus-visible { transform: translateX(-40px); }
+.tree-merge-tab:hover span, .tree-merge-tab:focus-visible span { opacity: 1; }
+.tree-merge-tab:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
 .tree-merge-panel {
-  position: fixed;
-  top: 50px;
-  bottom: 0;
-  right: 0;
-  width: min(480px, 100vw);
-  z-index: 40;
-  padding: 20px;
+  height: 100%;
+  padding: 20px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
-  box-shadow: var(--shadow-dialog);
+  box-shadow: none;
 }
+.tree-merge-drawer.is-open .tree-merge-panel { box-shadow: 0 24px 80px var(--color-shadow); }
+.react-flow__panel.right { transition: right 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tree-merge-open .react-flow__panel.right { right: var(--merge-panel-width); }
 
 .tree-merge-heading, .tree-merge-actions {
   display: flex;
@@ -3520,6 +3557,21 @@ select:not([multiple]) {
 .tree-merge-heading h2, .tree-merge-message p {
   margin: 0;
 }
+.tree-merge-heading h2 { font-size: 1rem; font-weight: 600; }
+.tree-merge-reset { background: none; border: 0; color: var(--color-text-muted); font-size: 0.8rem; cursor: pointer; padding: 4px; }
+.tree-merge-content { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; overflow-y: auto; }
+.tree-merge-composer { flex: 0 0 auto; }
+.tree-merge-input { position: relative; padding-bottom: 44px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-elevated); }
+.tree-merge-input:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.tree-merge-panel .tree-merge-input textarea { display: block; resize: none; line-height: 24px; min-height: 36px; max-height: 180px; overflow-y: auto; padding: 12px 12px 0; border: 0; outline: none; background: transparent; }
+.tree-merge-panel .tree-merge-input textarea::placeholder { color: var(--color-text-muted); }
+.tree-merge-microphone, .tree-merge-send { position: absolute; bottom: 8px; width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.tree-merge-microphone { right: 48px; color: var(--color-text-muted); background: transparent; }
+.tree-merge-microphone:hover, .tree-merge-microphone.is-recording { color: var(--color-accent); background: var(--color-background); }
+.tree-merge-send { right: 8px; background: var(--color-accent); color: var(--color-accent-contrast); }
+.tree-merge-send:disabled, .tree-merge-microphone:disabled { opacity: 0.45; cursor: default; }
+.tree-merge-recording-time { position: absolute; bottom: 16px; left: 112px; color: var(--color-text-muted); font-size: 0.8rem; }
+.tree-merge-panel .tree-merge-reference-picker { font-size: 0.8rem; color: var(--color-text-muted); }
 
 .tree-merge-panel form, .tree-merge-panel label {
   display: flex;
@@ -3559,7 +3611,8 @@ select:not([multiple]) {
 .tree-merge-heading h2 { margin: 0; }
 .tree-merge-panel > p { margin: 4px 0; }
 .tree-merge-reference { font-size: 0.85rem; color: var(--color-text-muted); }
-.tree-merge-messages { min-height: 90px; max-height: 30vh; overflow-y: auto; flex: 0 1 auto; }
+.tree-merge-messages { min-height: 0; overflow-y: auto; flex: 1 1 auto; }
+.tree-merge-content:has(.tree-merge-preview) .tree-merge-messages { max-height: 30vh; flex: 0 1 auto; }
 .tree-merge-preview { min-height: 160px; flex: 1 1 auto; overflow: auto; border-top: 1px solid var(--color-border); }
 .tree-merge-preview h3 { position: sticky; top: 0; background: var(--color-surface); padding: 10px 0; margin: 0; z-index: 1; }
 .tree-merge-preview fieldset { border: 0; margin: 0; padding: 12px 0; min-width: 0; display: grid; gap: 12px; }
@@ -3579,4 +3632,30 @@ select:not([multiple]) {
 .tree-merge-panel .tree-merge-relation label { flex-direction: row; }
 .tree-merge-panel label.tree-merge-relation { display: grid; grid-template-columns: auto 1fr; align-items: start; }
 .tree-merge-relation blockquote { grid-column: 1 / -1; }
+.tree-merge-voice { display: grid; gap: 8px; }
+.tree-merge-voice > p { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+@media (prefers-reduced-motion: reduce) {
+  .tree-merge-drawer, .tree-merge-tab, .tree-merge-tab span, .react-flow__panel.right { transition: none; }
+}
 .merge-affected-node { outline: 3px solid var(--color-accent); outline-offset: 5px; border-radius: 12px; }
+
+.tree-merge-thinking p { display: flex; align-items: center; gap: 8px; }
+.tree-merge-thinking-time { margin-left: auto; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.tree-merge-thinking ul { padding-left: 20px; color: var(--color-text-muted); font-size: 0.85rem; }
+.tree-merge-thinking-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); animation: merge-thinking 1.2s ease-in-out infinite; }
+@keyframes merge-thinking { 50% { opacity: 0.3; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .tree-merge-thinking-dot { animation: none; } }
+.tree-merge-budget { position: absolute; left: 10px; bottom: 8px; display: flex; align-items: center; gap: 4px; color: var(--color-text-muted); font-size: 0.75rem; cursor: help; }
+.tree-merge-budget-track { stroke: var(--color-border); }
+.tree-merge-budget-value { stroke: var(--color-accent); }
+.tree-merge-budget-tooltip { display: none; position: absolute; left: 0; bottom: 38px; width: 240px; padding: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 4px 12px var(--color-shadow); z-index: 3; }
+.tree-merge-budget:hover .tree-merge-budget-tooltip, .tree-merge-budget:focus .tree-merge-budget-tooltip { display: block; }
+.tree-merge-budget:focus-visible { outline: 2px solid var(--color-accent); border-radius: 8px; }
+.tree-merge-review-slot { position: absolute; inset: 0 var(--merge-panel-width) 0 0; pointer-events: none; z-index: 12; }
+.tree-merge-graph-review { position: absolute; bottom: 16px; left: 16px; width: min(650px, calc(100% - 280px)); min-height: 0; overflow: visible; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px var(--color-shadow); pointer-events: auto; }
+.tree-merge-graph-legend { margin: 0 0 8px; color: var(--color-text-muted); font-size: 0.8rem; }
+.tree-merge-graph-review .tree-merge-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0; }
+.tree-merge-graph-review .tree-merge-review-details { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(380px, 100%); max-height: min(65vh, 650px); overflow: auto; padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 8px 24px var(--color-shadow); }
+.tree-merge-details-close { float: right; background: transparent; border: 0; color: var(--color-text-muted); cursor: pointer; }
+.tree-merge-graph-review .tree-merge-review-details h3 { position: static; }
+.merge-preview-person { cursor: pointer; }

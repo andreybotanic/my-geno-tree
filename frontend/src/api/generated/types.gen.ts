@@ -14,6 +14,9 @@ export type TreeMergePersonProposal = {
     existingPersonId: string | null;
     resolution: 'new' | 'existing' | 'undecided';
     fields: PersonPatchRequest;
+    /**
+     * New people default to alive unless death is mentioned. Legacy uncertain values normalize to the existing person's status or alive for a new person. Missing names and dates do not require clarification.
+     */
     lifeStatus: 'alive' | 'deceased' | 'uncertain';
     evidence: Array<TreeMergeEvidence>;
     readonly before?: Person | null;
@@ -38,7 +41,7 @@ export type TreeMergeMarriageProposal = {
 
 export type TreeMergeProposal = {
     /**
-     * At most five new people; existing matches always require explicit resolution.
+     * At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
      */
     people: Array<TreeMergePersonProposal>;
     parents: Array<TreeMergeParentProposal>;
@@ -71,12 +74,19 @@ export type TreeMergeMessage = {
     role: 'user' | 'assistant';
     content: string;
     /**
-     * Whether this user message contributes source facts; pending messages remain saved before classification.
+     * Whether this user message contributes source facts; pending messages remain in session memory before classification.
      */
     source?: boolean;
+    /**
+     * Retryable assistant failure. It does not mark the user message as successfully answered. A subsequent attempt replaces this reply instead of duplicating it.
+     */
+    failureCode?: 'validation_failed' | 'provider_unavailable' | 'token_limit';
     createdAt: string;
 };
 
+/**
+ * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
+ */
 export type TreeMergeDraft = {
     id: string;
     treeId: string;
@@ -92,13 +102,41 @@ export type TreeMergeDraft = {
     questions: Array<string>;
     result: TreeMergeResult | null;
     treeEtag: string;
+    /**
+     * Session-only conversation; empty in another login session or after ephemeral memory expires.
+     */
     messages: Array<TreeMergeMessage>;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing'>;
+    tokenUsage: TreeMergeTokenUsage;
+    tokenBudget: TreeMergeTokenBudget;
     createdAt: string;
     updatedAt: string;
 };
 
 export type TreeMergeCreateRequest = {
+    /**
+     * Optional narrative reference. Use null to name people directly in an empty or existing tree.
+     */
     referencePersonId: string | null;
+};
+
+export type TreeMergeTranscription = {
+    text: string;
+    durationSeconds: number;
+};
+
+export type TreeMergeTokenUsage = {
+    input: number;
+    output: number;
+    total: number;
+};
+
+/**
+ * Remaining daily inference allowance shared by all trees and sessions of this user.
+ */
+export type TreeMergeTokenBudget = {
+    remaining: number;
+    limit: number;
 };
 
 export type TreeMergeMessageRequest = {
@@ -112,6 +150,7 @@ export type TreeMergeVersionRequest = {
 };
 
 export type TreeMergeList = {
+    tokenBudget: TreeMergeTokenBudget;
     items: Array<TreeMergeDraft>;
 };
 
@@ -719,13 +758,16 @@ export type TreeMergePersonProposalWritable = {
     existingPersonId: string | null;
     resolution: 'new' | 'existing' | 'undecided';
     fields: PersonPatchRequest;
+    /**
+     * New people default to alive unless death is mentioned. Legacy uncertain values normalize to the existing person's status or alive for a new person. Missing names and dates do not require clarification.
+     */
     lifeStatus: 'alive' | 'deceased' | 'uncertain';
     evidence: Array<TreeMergeEvidence>;
 };
 
 export type TreeMergeProposalWritable = {
     /**
-     * At most five new people; existing matches always require explicit resolution.
+     * At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
      */
     people: Array<TreeMergePersonProposalWritable>;
     parents: Array<TreeMergeParentProposal>;
@@ -738,6 +780,9 @@ export type TreeMergeProposalRequestWritable = {
     proposal: TreeMergeProposalWritable;
 };
 
+/**
+ * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
+ */
 export type TreeMergeDraftWritable = {
     id: string;
     treeId: string;
@@ -753,12 +798,19 @@ export type TreeMergeDraftWritable = {
     questions: Array<string>;
     result: TreeMergeResult | null;
     treeEtag: string;
+    /**
+     * Session-only conversation; empty in another login session or after ephemeral memory expires.
+     */
     messages: Array<TreeMergeMessage>;
+    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing'>;
+    tokenUsage: TreeMergeTokenUsage;
+    tokenBudget: TreeMergeTokenBudget;
     createdAt: string;
     updatedAt: string;
 };
 
 export type TreeMergeListWritable = {
+    tokenBudget: TreeMergeTokenBudget;
     items: Array<TreeMergeDraftWritable>;
 };
 
@@ -776,6 +828,52 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type TranscribeTreeMergeAudioData = {
+    body: {
+        /**
+         * WebM/Opus
+         */
+        audio: Blob | File;
+    };
+    path?: never;
+    query?: never;
+    url: '/tree-merge-transcriptions';
+};
+
+export type TranscribeTreeMergeAudioErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+    /**
+     * Shared or per-user request limit exceeded
+     */
+    429: ApiError;
+};
+
+export type TranscribeTreeMergeAudioError = TranscribeTreeMergeAudioErrors[keyof TranscribeTreeMergeAudioErrors];
+
+export type TranscribeTreeMergeAudioResponses = {
+    /**
+     * Editable transcription; the uploaded audio has been discarded.
+     */
+    200: TreeMergeTranscription;
+};
+
+export type TranscribeTreeMergeAudioResponse = TranscribeTreeMergeAudioResponses[keyof TranscribeTreeMergeAudioResponses];
 
 export type ProcessTreeMergeData = {
     body: {
@@ -817,7 +915,7 @@ export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMerg
 
 export type ProcessTreeMergeResponses = {
     /**
-     * Ready, clarification, no changes or error draft; source remains saved.
+     * Ready, clarification, no changes or error draft. Validation failures allow at most two automatic repairs after the initial generation. Exhaustion or provider failure adds a retryable assistant failure message to the current session; source messages remain in that session and the reviewed proposal is retained.
      */
     200: TreeMergeDraft;
 };

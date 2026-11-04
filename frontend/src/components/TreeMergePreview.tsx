@@ -12,6 +12,9 @@ type Props = {
   onSave: (proposal: TreeMergeProposal) => Promise<void>
   onApply: () => Promise<void>
   onRevalidate: () => Promise<void>
+  graphMode?: boolean
+  selectedPersonId?: string | null
+  onClosePerson?: () => void
 }
 
 function dateState(date: GenealogicalDate | undefined | null): DateInputState {
@@ -38,7 +41,7 @@ function formState(fields: PersonPatchRequest): PersonFormState {
   }
 }
 
-export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }: Props) {
+export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate, graphMode = false, selectedPersonId, onClosePerson }: Props) {
   const { t, i18n } = useTranslation()
   const [rows, setRows] = useState(() => draft.proposal.people.map((person) => ({
     person,
@@ -86,8 +89,11 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
   }
 
   return (
-    <section aria-label={t('treeMerge.preview')} className="tree-merge-preview">
+    <section aria-label={t('treeMerge.preview')} className={`tree-merge-preview${graphMode ? ' tree-merge-graph-review' : ''}`}>
+      {graphMode && <p className="tree-merge-graph-legend">{t('treeMerge.graphLegend')}</p>}
+      {(!graphMode || selectedPersonId) && <div className="tree-merge-review-details">
       <h3>{t('treeMerge.preview')} · {t('treeMerge.version', { version: draft.proposalVersion })}</h3>
+      {graphMode && <button type="button" className="tree-merge-details-close" onClick={onClosePerson}>{t('common.close')}</button>}
       {draft.questions.length > 0 && (
         <div className="tree-merge-questions">
           <h4>{t('treeMerge.questions')}</h4>
@@ -98,8 +104,8 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
           ))}</ul>
         </div>
       )}
-      {rows.map((row, index) => (
-        <details className="tree-merge-person" key={row.person.id} open={rows.length === 1 || row.person.resolution === 'undecided'}>
+      {rows.map((row, index) => (!graphMode || row.person.id === selectedPersonId) && (
+        <details className="tree-merge-person" key={row.person.id} open={graphMode || rows.length === 1 || row.person.resolution === 'undecided'}>
           <summary>{name(row.person.id)} · {t(row.person.resolution === 'existing' ? 'treeMerge.existingPerson' : 'treeMerge.newPerson')}</summary>
           <fieldset disabled={busy || draft.state === 'applied'}>
             <label>{t('treeMerge.match')}
@@ -124,7 +130,6 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
                 const lifeStatus = event.target.value as typeof row.person.lifeStatus
                 change(index, { person: { ...row.person, lifeStatus }, form: { ...row.form, deceased: lifeStatus === 'deceased' } })
               }}>
-                <option value="uncertain">{t('treeMerge.lifeUncertain')}</option>
                 <option value="alive">{t('treeMerge.alive')}</option>
                 <option value="deceased">{t('person.deceased')}</option>
               </select>
@@ -153,7 +158,7 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
           </fieldset>
         </details>
       ))}
-      {draft.proposal.parents.map((link, index) => (
+      {draft.proposal.parents.map((link, index) => (!graphMode || link.parent === selectedPersonId || link.child === selectedPersonId) && (
         <div key={`parent-${index}`} className="tree-merge-relation"><label>
           <input type="checkbox" disabled={busy || draft.state === 'applied'} checked={!removedParents.includes(index)}
             onChange={(event) => { setRemovedParents((current) => event.target.checked ? current.filter((item) => item !== index) : [...current, index]); setDirty(true); setConfirmed(false) }} />
@@ -169,7 +174,7 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
           {link.evidence.map((item, itemIndex) => <blockquote key={itemIndex}>{item.quote}</blockquote>)}
         </div>
       ))}
-      {draft.proposal.marriages.map((link, index) => (
+      {draft.proposal.marriages.map((link, index) => (!graphMode || link.first === selectedPersonId || link.second === selectedPersonId) && (
         <div key={`marriage-${index}`} className="tree-merge-relation">
           <label><input type="checkbox" disabled={busy || draft.state === 'applied'} checked={!removedMarriages.includes(index)}
             onChange={(event) => { setRemovedMarriages((current) => event.target.checked ? current.filter((item) => item !== index) : [...current, index]); setDirty(true); setConfirmed(false) }} />
@@ -185,15 +190,16 @@ export function TreeMergePreview({ draft, busy, onSave, onApply, onRevalidate }:
           {link.evidence.map((item, itemIndex) => <blockquote key={itemIndex}>{item.quote}</blockquote>)}
         </div>
       ))}
+      </div>}
       {draft.state === 'applied' ? <p role="status">{t('treeMerge.applied')}</p> : (
         <div className="tree-merge-confirm">
           {draft.proposal.questions.length > 0 && <label><input type="checkbox" checked={answered}
             onChange={(event) => { setAnswered(event.target.checked); setDirty(true); setConfirmed(false) }} />
             {t('treeMerge.answeredInFields')}
           </label>}
-          <button type="button" className="secondary-button" disabled={busy || !dirty || !valid} onClick={() => void save()}>
+          {(!graphMode || dirty) && <button type="button" className="secondary-button" disabled={busy || !dirty || !valid} onClick={() => void save()}>
             {t('treeMerge.checkCorrections')}
-          </button>
+          </button>}
           {!valid && <p role="alert">{t('treeMerge.invalidFields')}</p>}
           {draft.state === 'conflict' && <button type="button" disabled={busy || dirty} onClick={() => void onRevalidate()}>
             {t('treeMerge.revalidate')}
