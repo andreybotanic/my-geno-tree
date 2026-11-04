@@ -2,9 +2,8 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
-use App\Application\TreeMerge\Ai\MergeAiResult;
 use App\Application\TreeMerge\TreeContextService;
+use App\Entity\AuthSession;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
@@ -15,7 +14,7 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
-use App\Security\TreeMergeReadGrant;
+use App\Security\TreeMergeAgentGrant;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
@@ -26,6 +25,8 @@ use Mcp\Client\Stateless\ToolCatalog;
 use Mcp\Schema\ClientCapabilities;
 use Mcp\Schema\Enum\ProtocolVersion;
 use Mcp\Schema\Implementation;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Uid\Uuid;
 
 final class TreeMcpApiTest extends ApiWebTestCase
@@ -70,7 +71,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
 
     public function testExternalPreparationUsesTheConversationPipelineAndReturnsAPreviewLink(): void
     {
-        FixtureTreeMergeAi::$handler = static fn () => new MergeAiResult(new MergeAiResponse());
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Please describe your family.');
         $this->call('prepare_tree_merge', ['treeId' => $this->treeId, 'description' => 'A non-tree question']);
         self::assertResponseIsSuccessful();
         $draft = $this->toolData();
@@ -160,34 +161,34 @@ final class TreeMcpApiTest extends ApiWebTestCase
         self::assertNotNull($draft);
         $attempt = $draft->beginAttempt(new \DateTimeImmutable());
         $em->flush();
-        $grants = static::getContainer()->get(TreeMergeReadGrant::class);
-        $token = $grants->issue($draft, $attempt);
+        $grants = static::getContainer()->get(TreeMergeAgentGrant::class);
+        $token = $grants->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         $this->headers = ['Authorization' => 'Merge ' . $token];
-        $this->rpc('tools/list', endpoint: '/mcp/read');
+        $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseIsSuccessful();
         $tools = $this->responseData()['result'];
         self::assertIsArray($tools);
         self::assertIsArray($tools['tools']);
-        self::assertCount(3, $tools['tools']);
-        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/read');
+        self::assertCount(5, $tools['tools']);
+        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
         self::assertSame($this->treeId, $this->toolData()['treeId']);
-        $this->call('get_tree_context', ['treeId' => Uuid::v7()->toRfc4122()], '/mcp/read');
+        $this->call('get_tree_context', ['treeId' => Uuid::v7()->toRfc4122()], '/mcp/agent');
         self::assertArrayHasKey('error', $this->responseData());
-        $this->call('prepare_tree_merge', ['treeId' => $this->treeId, 'description' => 'Vera'], '/mcp/read');
+        $this->call('prepare_tree_merge', ['treeId' => $this->treeId, 'description' => 'Vera'], '/mcp/agent');
         self::assertArrayHasKey('error', $this->responseData());
         $this->jsonRequest('POST', $base . '/' . $id . '/apply', ['version' => 2, 'proposalVersion' => 1], $this->headers);
         self::assertResponseStatusCodeSame(401);
         $grants->revoke($token);
-        $this->rpc('tools/list', endpoint: '/mcp/read');
+        $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseStatusCodeSame(401);
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
         self::assertNotNull($draft);
-        $stale = $grants->issue($draft, $attempt);
+        $stale = $grants->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         $draft->beginAttempt(new \DateTimeImmutable());
         $em->flush();
         $this->headers = ['Authorization' => 'Merge ' . $stale];
-        $this->rpc('tools/list', endpoint: '/mcp/read');
+        $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseStatusCodeSame(401);
     }
 
@@ -199,23 +200,96 @@ final class TreeMcpApiTest extends ApiWebTestCase
         self::assertNotNull($draft);
         $attempt = $draft->beginAttempt(new \DateTimeImmutable());
         $em->flush();
-        $token = static::getContainer()->get(TreeMergeReadGrant::class)->issue($draft, $attempt);
+        $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         $this->headers = ['Authorization' => 'Merge ' . $token];
         for ($i = 0; $i < 3; ++$i) {
-            $this->rpc('tools/list', endpoint: '/mcp/read');
+            $this->rpc('tools/list', endpoint: '/mcp/agent');
             self::assertResponseIsSuccessful();
         }
         // Discovery/transport requests consume authentication budget, not the tool-read budget.
         for ($i = 0; $i < 8; ++$i) {
-            $this->rpc('tools/list', endpoint: '/mcp/read');
+            $this->rpc('tools/list', endpoint: '/mcp/agent');
             self::assertResponseIsSuccessful();
-            $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/read');
+            $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
             self::assertResponseIsSuccessful();
             self::assertSame($this->treeId, $this->toolData()['treeId']);
         }
-        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/read');
+        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
         self::assertResponseStatusCodeSame(400);
         self::assertArrayHasKey('error', $this->responseData());
+    }
+
+    public function testAgentCommandsOverHttpRestoreSessionValidateEvidenceAndCommitVerbatimReply(): void
+    {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $tree = $em->getRepository(FamilyTree::class)->find($this->treeId);
+        self::assertNotNull($tree);
+        $now = new \DateTimeImmutable();
+        $mother = new Person($tree, KnownText::unknown(), KnownText::known('Vera'), KnownText::unknown(),
+            Gender::FEMALE, GenealogicalDate::unknown(), null, $now);
+        $em->persist($mother);
+        $em->flush();
+        $motherId = $mother->getId()->toRfc4122();
+        $base = '/api/v1/trees/' . $this->treeId . '/merges';
+        $this->jsonRequest('POST', $base, ['referencePersonId' => $motherId], $this->headers);
+        $id = $this->responseString('id');
+        $this->jsonRequest('POST', $base . '/' . $id . '/messages', ['version' => 1, 'requestId' => 'family',
+            'content'                                                          => 'Vera has a daughter also called Vera; she is two years younger than her brother.'], $this->headers);
+        $messageId = $this->responseString('messages', '0', 'id');
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
+        self::assertNotNull($draft);
+        $session = $em->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]);
+        self::assertNotNull($session);
+        $requests = static::getContainer()->get(RequestStack::class);
+        $request = new Request();
+        $request->attributes->set(AuthSession::class, $session);
+        $requests->push($request);
+        try {
+            $em->refresh($draft);
+            $attempt = $draft->beginAttempt($now);
+            $em->flush();
+            $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $attempt);
+        } finally {
+            $requests->pop();
+        }
+        $browserHeaders = $this->headers;
+        $this->headers = ['Authorization' => 'Merge ' . $token];
+        $evidence = [['messageId' => $messageId, 'quote' => 'Vera has a daughter also called Vera']];
+        $proposal = ['people' => [
+            ['id'        => 'm', 'existingPersonId' => $motherId, 'resolution' => 'existing', 'lifeStatus' => 'alive',
+                'fields' => ['gender' => 'female'], 'evidence' => $evidence],
+            ['id'        => 'v', 'existingPersonId' => null, 'resolution' => 'new', 'lifeStatus' => 'alive',
+                'fields' => ['givenName' => ['state' => 'known', 'value' => 'Vera'], 'gender' => 'female'], 'evidence' => $evidence],
+        ], 'parents' => [['parent' => 'm', 'child' => 'v', 'role' => 'mother', 'evidence' => $evidence]], 'marriages' => [], 'questions' => []];
+        $this->call('prepare_tree_merge_proposal', ['treeId' => $this->treeId, 'proposal' => $proposal], '/mcp/agent');
+        self::assertStringContainsString('TREE_MERGE_UNOBSERVED_PERSON', json_encode($this->responseData(), JSON_THROW_ON_ERROR));
+        $this->call('get_person_context', ['treeId' => $this->treeId, 'personId' => $motherId], '/mcp/agent');
+        self::assertResponseIsSuccessful();
+        $bad = $proposal;
+        $bad['people'][1]['evidence'][0]['quote'] = 'Invented quote';
+        $this->call('prepare_tree_merge_proposal', ['treeId' => $this->treeId, 'proposal' => $bad], '/mcp/agent');
+        self::assertStringContainsString('evidence_not_found', json_encode($this->responseData(), JSON_THROW_ON_ERROR));
+        $this->call('prepare_tree_merge_proposal', ['treeId' => $this->treeId, 'proposal' => $proposal], '/mcp/agent');
+        $prepared = $this->toolData();
+        self::assertSame(1, $prepared['newPeople']);
+        self::assertSame(1, $prepared['existingPeople']);
+        self::assertSame('ready', $prepared['state']);
+        $reply = 'Ready to add 1 person.';
+        $this->call('reply_to_tree_merge', ['treeId' => $this->treeId, 'reply' => $reply, 'proposalId' => $prepared['proposalId']], '/mcp/agent');
+        self::assertSame('ready', $this->toolData()['state']);
+        $this->call('reply_to_tree_merge', ['treeId' => $this->treeId, 'reply' => 'Overwrite.'], '/mcp/agent');
+        self::assertResponseStatusCodeSame(401);
+        $this->headers = $browserHeaders;
+        $this->jsonRequest('GET', $base . '/' . $id, headers: $this->headers);
+        self::assertSame($reply, $this->responseString('messages', '1', 'content'));
+        self::assertSame('new', $this->responseString('proposal', 'people', '1', 'resolution'));
+        // Prose mentioning a relative age cannot fill any field that the agent omitted.
+        self::assertSame('unknown', $this->responseString('proposal', 'people', '1', 'fields', 'birthDate', 'state'));
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
+        $people = $this->responseData()['people'];
+        self::assertIsArray($people);
+        self::assertCount(1, $people);
     }
 
     /** @param array<string, mixed> $arguments */

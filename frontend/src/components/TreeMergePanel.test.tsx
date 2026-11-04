@@ -39,6 +39,19 @@ const ready: TreeMergeDraft = { ...draft, proposalVersion: 1, state: 'ready', pr
 describe('TreeMergePanel', () => {
   beforeEach(async () => { localStorage.clear(); window.history.replaceState({}, '', '/'); await i18n.changeLanguage('en') })
 
+  it('renders the agent sentence verbatim and system failures outside assistant messages', async () => {
+    const sentence = 'Ready to add 1 person; Boris was omitted at your request.'
+    const saved: TreeMergeDraft = { ...ready, messages: [
+      { id: 'answer', requestId: 'first', role: 'assistant', content: sentence, createdAt: '2026-11-04' },
+      { id: 'notice', requestId: 'second', role: 'system', content: '', failureCode: 'provider_unavailable', createdAt: '2026-11-04' },
+    ] }
+    renderPanel(async () => ({ items: [saved] }))
+    expect(await screen.findByRole('article', { name: 'Assistant' })).toHaveTextContent(sentence)
+    expect(screen.getByRole('article', { name: 'Assistant' }).textContent).toBe(sentence)
+    expect(screen.getByRole('status')).toHaveTextContent('The AI service is unavailable; please try again shortly.')
+    expect(screen.getAllByRole('article', { name: 'Assistant' })).toHaveLength(1)
+  })
+
   it('grows the composer to seven lines, shrinks it after editing and shows the allowance before a draft exists', async () => {
     const { request } = renderPanel(async () => ({ items: [], tokenBudget: { remaining: 250, limit: 1000 } }))
     const input = await screen.findByRole('textbox')

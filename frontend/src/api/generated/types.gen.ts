@@ -71,16 +71,16 @@ export type TreeMergeResult = {
 export type TreeMergeMessage = {
     id: string;
     requestId: string;
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
     /**
-     * Whether this user message contributes source facts; pending messages remain in session memory before classification.
+     * Whether this user message contributes source facts; the agent MCP command marks pending source messages.
      */
     source?: boolean;
     /**
-     * Retryable assistant failure. It does not mark the user message as successfully answered. A subsequent attempt replaces this reply instead of duplicating it.
+     * System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
      */
-    failureCode?: 'validation_failed' | 'provider_unavailable' | 'token_limit';
+    failureCode?: 'reply_missing' | 'provider_unavailable' | 'token_limit' | 'stopped';
     createdAt: string;
 };
 
@@ -981,7 +981,7 @@ export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMerg
 
 export type ProcessTreeMergeResponses = {
     /**
-     * Ready, clarification, no changes or error draft. Validation failures allow at most two repairs, then one question-only generation using the exact diagnostics. Questions are assistant messages and the next turn receives the whole session conversation. The previous reviewed proposal is retained but cannot be applied while clarification is required. Provider failures remain retryable.
+     * Ready, clarification, no changes or error draft. The agent receives MCP validation errors and corrects commands within its tool budget. Questions are sent explicitly through MCP and the next turn receives the whole conversation. Prior proposals cannot be applied while clarification is required. Provider failures are retryable.
      */
     200: TreeMergeDraft;
 };

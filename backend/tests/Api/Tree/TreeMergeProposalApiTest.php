@@ -105,11 +105,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $proposal = $this->family();
         $proposal['people'][0]['lifeStatus'] = 'uncertain';
         $proposal['people'][0]['resolution'] = 'undecided';
+        $proposal['questions'] = ['Is this a new person?'];
         $this->revise($proposal);
         self::assertSame('questions', $this->responseString('state'));
         self::assertNotContains('life_status:i', $this->arrayAt('questions'));
         self::assertSame('alive', $this->responseString('proposal', 'people', '0', 'lifeStatus'));
-        self::assertContains('person_match:i', $this->arrayAt('questions'));
+        self::assertContains('Is this a new person?', $this->arrayAt('questions'));
         $this->apply();
         self::assertResponseStatusCodeSame(409);
         $this->revise($this->family(), 2);

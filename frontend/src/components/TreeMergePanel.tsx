@@ -282,10 +282,12 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
           {draft && <button type="button" disabled={busy} onClick={() => void reload()}>{t('treeMerge.reload')}</button>}
         </div>}
         <div aria-label={t('treeMerge.messages')} className="tree-merge-messages" role="log" aria-live="polite">
-          {draft?.messages.map((message) => (
+          {draft?.messages.map((message) => message.role === 'system' ? (
+            <p key={message.id} role="status">{message.failureCode ? t(`treeMerge.failure.${message.failureCode}`) : message.content}</p>
+          ) : (
             <article key={message.id} className={`tree-merge-message tree-merge-message-${message.role}`}
               aria-label={t(message.role === 'user' ? 'treeMerge.you' : 'treeMerge.assistant')}>
-              <p>{message.failureCode ? t(`treeMerge.failure.${message.failureCode}`) : message.content}</p>
+              <p>{message.content}</p>
             </article>
           ))}
           {thinking && <TreeMergeThinking startedAt={thinkingSince ?? (draft ? Date.parse(draft.attemptStartedAt ?? draft.updatedAt) : 0)} progress={draft?.progress ?? []} />}

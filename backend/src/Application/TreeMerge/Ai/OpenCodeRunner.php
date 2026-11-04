@@ -4,17 +4,15 @@ namespace App\Application\TreeMerge\Ai;
 
 use App\Application\TreeMerge\MergeActivity;
 use App\Entity\TreeMergeDraft;
-use Symfony\AI\Platform\StructuredOutput\ResponseFormatFactory;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
-use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /** A separate disposable OpenCode runtime per call prevents sharing MCP credentials or conversation history. */
 final readonly class OpenCodeRunner
 {
-    public function __construct(private HttpClientInterface $http, private DenormalizerInterface $serializer,
+    public function __construct(private HttpClientInterface $http,
         private MergeTokenBudget $budget,
         private MergeActivity $activity,
         #[Autowire(env: 'TREE_MERGE_OPENCODE_BINARY')] private string $binary,
@@ -24,12 +22,7 @@ final readonly class OpenCodeRunner
     {
     }
 
-    /** @template T of object
-     * @param class-string<T> $responseClass
-     *
-     * @return T
-     */
-    public function run(TreeMergeDraft $draft, string $prompt, string $responseClass, ?string $mcpToken = null): object
+    public function run(TreeMergeDraft $draft, string $prompt, string $mcpToken): void
     {
         $this->budget->assertAvailable($draft);
         $this->activity->assertRunning($draft);
@@ -54,17 +47,14 @@ final readonly class OpenCodeRunner
             $files->dumpFile($directory . '/data/opencode/auth.json', json_encode([$provider => $credentials[$provider]], JSON_THROW_ON_ERROR));
             $files->chmod($directory . '/data/opencode/auth.json', 0600);
             $permission = ['*' => 'deny'];
-            if (null !== $mcpToken) {
-                foreach (['get_tree_context', 'find_people', 'get_person_context'] as $tool) {
-                    $permission['tree_' . $tool] = 'allow';
-                }
+            foreach (BoundedTreeToolset::TOOLS as $tool) {
+                $permission['tree_' . $tool] = 'allow';
             }
-            $permission['StructuredOutput'] = 'allow';
             $config = ['snapshot' => false, 'share' => 'disabled', 'autoupdate' => false, 'enabled_providers' => [$provider],
                 'permission'      => $permission, 'agent' => ['tree-merge' => ['mode' => 'primary', 'prompt' => MergePrompt::SYSTEM,
-                    'steps'                                                           => 10, 'permission' => $permission]],
-                'mcp' => null === $mcpToken ? new \stdClass() : ['tree' => ['type' => 'remote', 'url' => $this->mcpUrl,
-                    'oauth'                                                        => false, 'headers' => ['Authorization' => 'Merge ' . $mcpToken], 'timeout' => 20000]]];
+                    'steps'                                                           => 16, 'permission' => $permission]],
+                'mcp' => ['tree' => ['type' => 'remote', 'url' => $this->mcpUrl,
+                    'oauth'                 => false, 'headers' => ['Authorization' => 'Merge ' . $mcpToken], 'timeout' => 20000]]];
             $socket = stream_socket_server('tcp://127.0.0.1:0');
             if (false === $socket) {
                 throw new \RuntimeException('OPENCODE_PORT_UNAVAILABLE');
@@ -106,7 +96,15 @@ final readonly class OpenCodeRunner
             }
             $path = '/session/' . rawurlencode($session['id']) . '/message';
             try {
-                $response = $this->generate($client, $path, $provider, $model, $prompt, $responseClass);
+                $result = $client->request('POST', $path, ['json' => [
+                    'model' => ['providerID' => $provider, 'modelID' => $model],
+                    'agent' => 'tree-merge', 'system' => MergePrompt::SYSTEM,
+                    'parts' => [['type' => 'text', 'text' => $prompt]],
+                ]])->toArray();
+                if (!is_array($result['info'] ?? null) || isset($result['info']['error'])) {
+                    throw new \RuntimeException('OPENCODE_RESPONSE_INVALID');
+                }
+                // Final free text is deliberately ignored; MCP commands own every effect.
             } finally {
                 // Each assistant step has its own usage; final-message usage alone omits tool rounds.
                 $client = $client->withOptions(['on_progress' => null, 'timeout' => 5, 'max_duration' => 5]);
@@ -146,49 +144,5 @@ final readonly class OpenCodeRunner
                 fclose($credentialLock);
             }
         }
-
-        return $response;
-    }
-
-    /** @template T of object
-     * @param class-string<T> $responseClass
-     *
-     * @return T
-     */
-    private function generate(HttpClientInterface $client, string $path, string $provider, string $model, string $prompt, string $responseClass): object
-    {
-        $schema = json_encode((new ResponseFormatFactory())->create($responseClass)['json_schema']['schema'], JSON_THROW_ON_ERROR);
-        $generation = 0;
-        do {
-            // OpenCode 1.18.32 cannot serialize messages with format=json_schema (OutputFormatJsonSchema).
-            $result = $client->request('POST', $path, ['json' => ['model' => ['providerID' => $provider, 'modelID' => $model],
-                'agent'                                                   => 'tree-merge', 'system' => MergePrompt::SYSTEM, 'parts' => [['type' => 'text', 'text' => $prompt
-                    . "\nReturn ONLY a JSON object matching this schema, without Markdown or commentary: " . $schema]]]])->toArray();
-            if (!is_array($result['info'] ?? null) || isset($result['info']['error']) || !is_array($result['parts'] ?? null)) {
-                throw new \RuntimeException('OPENCODE_STRUCTURED_RESPONSE_INVALID');
-            }
-            $text = '{}';
-            foreach ($result['parts'] as $part) {
-                if (is_array($part) && 'text' === ($part['type'] ?? null) && is_string($part['text'] ?? null)) {
-                    $text = $part['text'];
-                }
-            }
-            try {
-                $data = json_decode($text, true, flags: JSON_THROW_ON_ERROR);
-                if (!is_array($data) || (Dto\MergeClarification::class !== $responseClass && !is_string($data['action'] ?? null))) {
-                    throw new \JsonException('A JSON object matching the supplied schema is required.');
-                }
-                $response = $this->serializer->denormalize($data, $responseClass);
-                if (!$response instanceof $responseClass) {
-                    throw new \JsonException('The response does not match the required DTO.');
-                }
-
-                return $response;
-            } catch (\JsonException|\Symfony\Component\Serializer\Exception\ExceptionInterface $error) {
-                $prompt = 'Server format validation failed: ' . mb_substr($error->getMessage(), 0, 1500)
-                    . '. Correct the previous response. No further tree reads are necessary. Return the complete JSON object.';
-            }
-        } while (++$generation < 2);
-        throw $error;
     }
 }

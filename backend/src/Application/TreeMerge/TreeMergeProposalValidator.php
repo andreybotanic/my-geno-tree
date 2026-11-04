@@ -5,7 +5,6 @@ namespace App\Application\TreeMerge;
 use App\Api\ApiException;
 use App\Api\PersonViewFactory;
 use App\Application\Person\PersonDataPolicy;
-use App\Application\Person\PersonSearchService;
 use App\Application\Tree\ChangeSet\MarriageChange;
 use App\Application\Tree\ChangeSet\ParentChange;
 use App\Application\Tree\ChangeSet\PersonChange;
@@ -22,7 +21,6 @@ final readonly class TreeMergeProposalValidator
     public function __construct(
         private PersonDataPolicy $data,
         private PersonRepository $people,
-        private PersonSearchService $search,
         private PersonViewFactory $views,
         private TreeChangeSetProjector $projector,
         private ClockInterface $clock,
@@ -42,6 +40,16 @@ final readonly class TreeMergeProposalValidator
             }
         }
         $normalized = $changes = $references = [];
+        $existingIds = [];
+        foreach ($personRows as $row) {
+            if (is_array($row) && is_string($row['existingPersonId'] ?? null) && Uuid::isValid($row['existingPersonId'])) {
+                $existingIds[] = $row['existingPersonId'];
+            }
+        }
+        $existingPeople = [];
+        foreach ($this->people->findRelationshipPeopleByTreeAndIds($draft->tree, array_values(array_unique($existingIds))) as $person) {
+            $existingPeople[$person->getId()->toRfc4122()] = $person;
+        }
         $newCount = 0;
         foreach ($personRows as $index => $row) {
             $path = 'people[' . $index . ']';
@@ -59,14 +67,14 @@ final readonly class TreeMergeProposalValidator
             if (null !== $existingId && (!is_string($existingId) || !Uuid::isValid($existingId))) {
                 $this->invalid($path . '.existingPersonId', 'existing_person_id_invalid', 'Expected a UUID observed through MCP, or null for a new or undecided person.');
             }
-            $existing = null === $existingId ? null : $this->people->findInTree($draft->tree, $existingId);
+            $existing = null === $existingId ? null : ($existingPeople[$existingId] ?? null);
             if (null !== $existingId && null === $existing) {
                 $this->invalid($path . '.existingPersonId', 'existing_person_unavailable', 'This existing person is not available in the selected tree. Use only people observed through MCP.');
             }
             if (('existing' === $row['resolution']) !== (null !== $existing)) {
                 $this->invalid($path . '.resolution', 'resolution_mismatch', 'resolution=existing requires an existingPersonId in this tree; new or undecided requires existingPersonId=null.');
             }
-            if (!is_array($row['fields']) || array_is_list($row['fields'])) {
+            if (!is_array($row['fields']) || ([] !== $row['fields'] && array_is_list($row['fields']))) {
                 $this->invalid($path . '.fields', 'fields_invalid', 'Expected an object containing person fields.');
             }
             $fields = $this->personFields($row['fields'], $path . '.fields');
@@ -94,46 +102,13 @@ final readonly class TreeMergeProposalValidator
             } else {
                 $personData = $this->data->patch($existing, $fields);
             }
-            $name = $personData->givenName->getValue();
-            $candidates = null !== $name && mb_strlen($name) >= 2 ? $this->search->search($draft->tree, $name) : [];
-            if (null === $existing) {
-                // An explicitly described relative cannot also be the already matched endpoint of that relationship.
-                $distinctIds = [];
-                foreach (array_merge($parentRows, $marriageRows) as $link) {
-                    if (!is_array($link)) {
-                        continue;
-                    }
-                    $ends = [$link['parent'] ?? $link['first'] ?? null, $link['child'] ?? $link['second'] ?? null];
-                    if (in_array($id, $ends, true)) {
-                        foreach ($personRows as $other) {
-                            if (is_array($other) && ($other['id'] ?? null) !== $id && in_array($other['id'] ?? null, $ends, true)) {
-                                $distinctIds[] = $other['existingPersonId'] ?? null;
-                            }
-                        }
-                    }
-                }
-                $candidates = array_values(array_filter($candidates, static fn ($candidate) => !in_array($candidate['id'], $distinctIds, true)));
-            }
-            if (!$manual && [] !== $candidates && 'new' === $row['resolution']) {
-                $explicitNew = false;
-                foreach ($draft->corrections as $correction) {
-                    /** @var array{people: list<array{id: string, resolution: string}>} $reviewed */
-                    $reviewed = $correction['proposal'];
-                    foreach ($reviewed['people'] as $choice) {
-                        $explicitNew = $explicitNew || ($choice['id'] === $id && 'new' === $choice['resolution']);
-                    }
-                }
-                if (!$explicitNew) {
-                    $row['resolution'] = 'undecided';
-                }
-            }
-            if ('undecided' === $row['resolution']) {
-                $questions[] = 'person_match:' . $id;
+            if ('undecided' === $row['resolution'] && [] === $questions) {
+                $this->invalid($path . '.resolution', 'question_required', 'Supply the necessary clarification in questions when identity is undecided.');
             }
             $this->evidence($draft, $row['evidence'], $manual, $path . '.evidence');
             $normalized[] = ['id' => $id, 'existingPersonId' => $existingId, 'resolution' => $row['resolution'],
                 'fields'          => $fields, 'lifeStatus' => $row['lifeStatus'], 'evidence' => $row['evidence'],
-                'candidates'      => $candidates, 'before' => null === $existing ? null : $this->views->create($existing)];
+                'candidates'      => [], 'before' => null === $existing ? null : $this->views->create($existing)];
             $changes[] = new PersonChange($id, $existingId, $personData);
         }
         if ($newCount > 10) {

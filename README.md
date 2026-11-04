@@ -143,48 +143,27 @@ The preview URL contains `?merge={mergeId}` and restores the conversation after
 refresh within the same login session. Applying refreshes the snapshot, highlights the affected people and
 focuses the camera on them without changing the layout reference.
 
-Text extraction uses Symfony AI Platform structured PHP DTOs and a versioned,
-tree-only system prompt (`MergePrompt`). `POST .../{mergeId}/process` processes
-the latest session message with its `requestId` and draft version. Inference runs
-outside database transactions. A persisted attempt/version check discards late
-responses; failures retain the source and can be retried. Informational answers
-and refusals leave the proposal version unchanged. Tree answers render observed
-facts; arbitrary model prose cannot become a saved tree fact or apply a merge.
-Each user is limited to 20 processing attempts per hour.
-Context gathering and structured extraction are separate Symfony AI calls, so
-the provider need not support tool calling and a JSON schema in the same call.
-AI DTOs use plain name strings and compact dates (`~1938`, `1938..1940`,
-`unknown`); the mapper converts these into the existing KnownText/date contract
-and the domain policy validates them. This notation is internal to inference.
-The chat polls processing attempts and starts analysis immediately after sending;
-there is no separate analysis button. While inference runs, Send becomes Stop.
-`POST .../{mergeId}/stop` targets the latest message's `requestId`, interrupts its
-provider request and preserves the session conversation. A late result is ignored;
-stopping twice is idempotent, and stopping an older turn cannot cancel a newer one.
-OpenCode also receives a session abort before its isolated runtime is removed.
-The REST process endpoint can retry interrupted attempts after five minutes.
+The Symfony AI agent and the development OpenCode adapter use the same versioned
+tree-only prompt and MCP tool contract. `POST .../{mergeId}/process` starts a
+scoped attempt for the latest message's requestId and draft version. No model
+request runs inside an ORM transaction. Each user is limited to 20 attempts per
+hour. Both adapters receive the entire session conversation, including earlier
+questions and user answers; only user messages can substantiate source quotes.
 
-Proposal validation allows two automatic repair calls after the initial model
-response (three proposal generations maximum per processing attempt). Each repair receives
-the rejected response and machine-readable diagnostics, including a precise field
-path, rule and explanation. Unknown relationship endpoints include the available
-temporary IDs. Repairs reuse the bounded HTTP MCP context and do not restart
-scope classification or tool gathering. Each returned proposal is checked again
-under a short tree/draft lock; no model request runs inside an ORM transaction.
-New messages, manual edits and cancellation supersede any in-flight repair.
+Sending starts the agent immediately. Private Mercure SSE delivers processing
+stages and draft updates; there is no periodic chat-status polling. While the agent
+runs, Send becomes Stop. `POST .../{mergeId}/stop` targets that message's requestId,
+interrupts the provider and preserves the conversation. Old commands cannot
+overwrite newer input, a stopped turn or a reviewed proposal. OpenCode also
+receives a session abort before its isolated runtime is removed. Interrupted
+attempts can be retried after five minutes.
 
-When repairs are exhausted, one final question-only pass receives the exact
-validation diagnostics and rejected proposal. It asks up to three essential
-questions in the interface language, naming the relevant people and obstacle;
-its dedicated `MergeClarification` DTO cannot prepare or apply another proposal. Questions are regular assistant
-messages. Both adapters receive the entire session conversation, including previous
-assistant questions, during classification and generation, so short answers such
-as "yes" retain their meaning. Only user messages can substantiate proposed facts.
-If even question generation fails, a localized question based on the validation
-category is used. Provider failures without validation feedback retain the normal
-`provider_unavailable` response and do not retry automatically. Sources and reviewed
-changes remain available without applying tree data. Users can continue in the same
-chat; fixtures cover repair exhaustion, follow-up context, stop races and isolation.
+MCP validation errors include the field path, rule and diagnostic. The agent
+corrects its own commands within the tool budget, or sends one essential
+clarification question itself. The application does not invent fallback questions
+or replies. A provider failure or missing reply command produces a retryable
+system notice; the source and earlier reviewed proposal remain available.
+Application of tree changes still requires the separate preview confirmation.
 
 The selected local development agent is OpenCode 1.18.32 from WSL using
 `openai/gpt-5.6-luna` (the installed provider catalogue does not list gpt6-luna).
@@ -200,29 +179,26 @@ data stays in RAM and is never written into the credential volume.
 
 Each call starts a separate loopback OpenCode server with random Basic auth, an
 isolated RAM home and no project configuration. All built-in tools are denied;
-only the three tree MCP read tools are allowed. No personal MCP servers are
+only the five scoped tree MCP tools are allowed. No personal MCP servers are
 inherited. Runtime data, SQLite sessions, logs and temporary credentials are
 removed when the call finishes, including failures. OpenCode is rejected outside
 the Symfony dev environment. The default provider remains Ollama unless
 `TREE_MERGE_AI=opencode` is set by this Compose override.
 
-This installed OpenCode version fails to serialize responses when its native
-`format=json_schema` option is used (`OutputFormatJsonSchema`). The adapter sends
-the Symfony AI DTO schema in the prompt, deserializes the response into the same
-PHP DTOs and allows one format repair with concrete diagnostics. Domain validation
-still allows at most two repairs and application still requires the preview button.
-See [OpenCode server configuration](https://opencode.ai/docs/server/) and
+OpenCode final free text is ignored. The adapter neither requests structured
+output nor parses a response DTO; proposals and replies arrive exclusively through
+MCP commands. See [OpenCode server configuration](https://opencode.ai/docs/server/) and
 [tool permissions](https://opencode.ai/docs/permissions/).
 
 The chat displays elapsed thinking time, completed MCP read stages, validation
-and repair progress. A donut in the composer shows the remaining daily token
+progress. A donut in the composer shows the remaining daily token
 percentage; its keyboard-accessible tooltip shows the exact shared user quota.
 The compact quota ring stays centered alongside the buttons. The textarea grows
 from two to seven lines before scrolling; measurement excludes the scrollbar so
 wrapping does not add a premature extra line.
 The `tree_merge_tokens` Symfony rate limiter
-counts all completed inference steps, including classification, tool rounds,
-format and domain repairs, cached input and reasoning output. Its initial limit
+counts all completed agent steps, including tool rounds, cached input and
+reasoning output. Its initial limit
 is **10,000,000 tokens per user per day** (`TREE_MERGE_TOKEN_LIMIT`). Calls are
 checked before starting; already spent tokens are recorded even if an in-flight
 response crosses the limit. Further calls then stop with a localized explanation.
@@ -297,21 +273,33 @@ conversion, without network ASR calls. Hugging Face activation remains deferred.
 The versioned `MergePrompt::SYSTEM` is entirely in English while requiring
 responses in the user's interface language and preserving original names/quotes.
 
-Merge replies report the number of new people calculated from the validated
-proposal, distinguish existing matches, and explain omitted people with source
-quotes. The prompt inventories named and unnamed relatives across the whole
-conversation: two explicitly mentioned sons produce two distinct male people,
-even when their names and dates are unknown. Supported deductions are labelled
-in the reply. A relative age uses an observed birth year and produces an
-approximate year (never a copied birthday); family-name deductions require an
-established parent or sibling relationship and do not change existing facts or
-explicit unknown values. A spouse's surname is not treated as a birth surname.
-Short relationship quotes are checked in their original source sentence.
+The agent performs all interpretation, matching, extraction and deductions using
+MCP and the full conversation. Application code does not classify prose, infer
+names or dates, or execute final model text/JSON. The agent sends the visible answer
+with `reply_to_tree_merge`: one short sentence, stored verbatim, including the
+number of new people and any omission reasons. The server never adds summaries,
+assumptions or explanations. Processing errors and Stop are localized system
+notices, separate from assistant messages.
+
+The prompt requires every mentioned relative, including unnamed counted children,
+and supports approximate dates and inferred names when justified by MCP facts.
+The agent supplies complete structured names and dates itself; validation checks
+the explicit command, source quotes, ownership and tree invariants without trying
+to interpret the user's text. A rejected command returns diagnostics to the agent.
 Browser validation on 4 November covered the supplied Ivan family example in a
 separate synthetic tree: six proposed people, Petr's inferred surname/patronymic,
 Anna's approximate 1992 birth year and two unnamed sons. A concurrent edit in a
 second tab blocked application until the refreshed proposal was confirmed again.
 Application and page refresh retained exactly seven people and the conversation.
+
+MCP-only browser verification (4 November): the live agent submitted all six new
+people and replied exactly "К добавлению готово 6 персон."; the preview included
+Anna's approximate 1992 birth year, Petr's surname/patronymic and both unnamed
+sons. Applying in another tab updated the original tab through SSE. A subsequent
+request for Vera while omitting Boris produced one sentence with count and reason.
+Stop appeared as a separate system notice; continuing preserved the conversation
+and existing people, and applying then refreshing retained eight people. Agent
+instructions explicitly require empty fields for unchanged existing endpoints.
 
 The official `mcp/sdk`, Symfony MCP Bundle and Symfony AI MCP bridge expose
 Streamable HTTP at `https://my-geno-tree.localhost/mcp/tree`. External clients
@@ -321,12 +309,18 @@ token. Available tools are `get_tree_context`, `find_people`,
 returns an absolute preview link (`APP_URL`); no MCP tool applies changes.
 
 The embedded agent uses real HTTP MCP requests to the separate internal
-`/mcp/read` endpoint on proxy port 8082 and a separate PHP-FPM pool. That port is
+`/mcp/agent` endpoint on proxy port 8082 and a separate PHP-FPM pool. That port is
 not published to the host. Backend-issued access lasts five minutes, is bound
-to the user/tree/processing attempt, permits at most 32 protocol requests and
+to the user/login session/tree/processing attempt/version, permits at most 64 protocol requests and
 is revoked after processing. It is rejected by REST mutations. The agent's
-toolbox contains only the three read tools, allows eight context calls and
-60 KB of cumulative tool output, and never calls `prepare_tree_merge` recursively.
+toolbox contains the three read tools, `prepare_tree_merge_proposal` and
+`reply_to_tree_merge`, with at most eight context reads and sixteen tool calls.
+Preparing validates and stages a proposal for five minutes in ephemeral memory;
+replying with its proposalId atomically submits it for UI review and stores the
+agent's sentence. A stale version, changed tree, expired session or stopped
+attempt cannot submit it. No tool applies tree mutations or recursively starts
+`prepare_tree_merge`. Built-in OpenCode tools and structured-output extraction
+are disabled.
 The protocol budget includes discovery and Streamable HTTP GET/POST overhead;
 it must not expire before the eighth permitted read. Search results are candidate
 hints: an existing person must also occur in a full context read before a proposal

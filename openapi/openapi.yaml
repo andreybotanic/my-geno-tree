@@ -64,7 +64,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: processTreeMerge
-      description: Processes the latest message using the full authenticated-session conversation and observed tree context. Proposal replies report the validated number of new people, explain omitted people and existing matches, and label supported deductions. Explicitly mentioned unnamed relatives are included; relative ages can produce approximate birth years. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. Completed inference tokens consume a per-user daily budget; exhaustion produces a localized token_limit reply. No genealogical changes are applied.
+      description: Runs an agent with the full session conversation and scoped MCP tools; the agent performs all interpretation, matching and deductions. Only MCP commands can submit proposals and send replies; final model text or JSON has no effects. The short, single-sentence AI reply is stored verbatim, including new-person counts and omission reasons. Processing failures are system notices. No tree mutations are applied.
       security:
         - bearerAuth: []
       requestBody:
@@ -80,7 +80,7 @@ paths:
                 requestId: { type: string }
       responses:
         "200":
-          description: Ready, clarification, no changes or error draft. Validation failures allow at most two repairs, then one question-only generation using the exact diagnostics. Questions are assistant messages and the next turn receives the whole session conversation. The previous reviewed proposal is retained but cannot be applied while clarification is required. Provider failures remain retryable.
+          description: Ready, clarification, no changes or error draft. The agent receives MCP validation errors and corrects commands within its tool budget. Questions are sent explicitly through MCP and the next turn receives the whole conversation. Prior proposals cannot be applied while clarification is required. Provider failures are retryable.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TreeMergeDraft" }
@@ -1877,13 +1877,13 @@ components:
       properties:
         id: { type: string, format: uuid }
         requestId: { type: string }
-        role: { type: string, enum: [user, assistant] }
+        role: { type: string, enum: [user, assistant, system] }
         content: { type: string }
-        source: { type: boolean, description: Whether this user message contributes source facts; pending messages remain in session memory before classification. }
+        source: { type: boolean, description: Whether this user message contributes source facts; the agent MCP command marks pending source messages. }
         failureCode:
           type: string
-          enum: [validation_failed, provider_unavailable, token_limit]
-          description: Retryable assistant failure. It does not mark the user message as successfully answered. A subsequent attempt replaces this reply instead of duplicating it.
+          enum: [reply_missing, provider_unavailable, token_limit, stopped]
+          description: System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
         createdAt: { type: string, format: date-time }
     TreeMergeSubscription:
       type: object

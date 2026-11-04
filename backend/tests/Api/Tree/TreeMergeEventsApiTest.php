@@ -2,8 +2,6 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Application\TreeMerge\Ai\Dto\MergeAiResponse;
-use App\Application\TreeMerge\Ai\MergeAiResult;
 use App\Entity\TreeMergeDraft;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
@@ -53,7 +51,7 @@ final class TreeMergeEventsApiTest extends ApiWebTestCase
         self::assertSame([$topic], $update->getTopics());
         self::assertSame(['kind' => 'draft', 'draft' => $this->responseData()], json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR));
         $version = $this->responseData()['version'];
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => new MergeAiResult(new MergeAiResponse());
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Please describe your family.');
         try {
             $this->jsonRequest('POST', $path . '/process', ['version' => $version, 'requestId' => 'stream'], $headers);
         } finally {
@@ -64,7 +62,7 @@ final class TreeMergeEventsApiTest extends ApiWebTestCase
         $packets = array_map(static fn ($update) => json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR), TestMergeEvents::updates());
         self::assertSame('progress', $packets[1]['kind']);
         self::assertSame(['thinking'], $packets[1]['progress']);
-        self::assertSame(['thinking', 'validating'], $packets[2]['progress']);
+        self::assertSame('draft', $packets[2]['kind']);
         self::assertSame('draft', $packets[3]['kind']);
         self::assertSame($this->responseData(), $packets[3]['draft']);
         foreach (TestMergeEvents::updates() as $event) {

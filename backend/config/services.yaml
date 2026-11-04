@@ -39,7 +39,8 @@ when@test:
         App\Application\TreeMerge\Voice\TranscriptionProviderInterface:
             alias: App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider
             public: true
-        App\Tests\Infrastructure\Ai\FixtureTreeMergeAi: ~
+        App\Tests\Infrastructure\Ai\FixtureTreeMergeAi:
+            autowire: true
         App\Application\TreeMerge\Ai\TreeMergeAiInterface:
             alias: App\Tests\Infrastructure\Ai\FixtureTreeMergeAi
             public: true

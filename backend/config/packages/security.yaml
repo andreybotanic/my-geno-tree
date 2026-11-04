@@ -15,12 +15,12 @@ security:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
-        merge_read:
-            pattern: ^/mcp/read$
+        merge_agent:
+            pattern: ^/mcp/agent$
             stateless: true
             provider: app_users
-            custom_authenticators: [App\Security\TreeMergeReadAuthenticator]
-            entry_point: App\Security\TreeMergeReadAuthenticator
+            custom_authenticators: [App\Security\TreeMergeAgentAuthenticator]
+            entry_point: App\Security\TreeMergeAgentAuthenticator
         main:
             lazy: true
             stateless: true

@@ -5,7 +5,7 @@ namespace App\Mcp;
 use App\Api\ApiException;
 use App\Application\TreeMerge\MergeActivity;
 use App\Application\TreeMerge\TreeContextService;
-use App\Security\TreeMergeReadGrant;
+use App\Security\TreeMergeAgentGrant;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Schema\ToolAnnotations;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -48,7 +48,7 @@ final readonly class TreeReadTools
      */
     private function observed(string $step, array $data): array
     {
-        $grant = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeReadGrant::class);
+        $grant = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentGrant::class);
         if (is_array($grant) && is_string($grant['draftId'] ?? null) && is_string($grant['attemptId'] ?? null)) {
             $this->activity->observed($grant['draftId'], $grant['attemptId'], $step, $data);
         }
@@ -58,7 +58,7 @@ final readonly class TreeReadTools
 
     private function scope(string $treeId): void
     {
-        $grant = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeReadGrant::class);
+        $grant = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentGrant::class);
         if (is_array($grant) && $grant['treeId'] !== $treeId) {
             throw new ApiException(404, 'TREE_NOT_FOUND');
         }

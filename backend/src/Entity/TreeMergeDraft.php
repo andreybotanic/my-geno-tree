@@ -164,7 +164,7 @@ class TreeMergeDraft
 
     public function answer(string $requestId, string $content, \DateTimeImmutable $now): void
     {
-        $index = array_find_key($this->messages, static fn ($message) => 'assistant' === $message['role']
+        $index = array_find_key($this->messages, static fn ($message) => 'system' === $message['role']
             && $message['requestId'] === $requestId && isset($message['failureCode'])) ?? count($this->messages);
         $this->messages[$index] = ['id' => $this->messages[$index]['id'] ?? Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
             'role'                      => 'assistant', 'content' => $content, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
@@ -176,16 +176,15 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
-    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $reply, string $code): void
+    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $code): void
     {
         $previousState = $this->stateBeforeAttempt;
-        $this->answer($requestId, $reply, $now);
-        foreach ($this->messages as &$message) {
-            if ('assistant' === $message['role'] && $message['requestId'] === $requestId) {
-                $message['failureCode'] = $code;
-            }
-        }
-        unset($message);
+        $index = array_find_key($this->messages, static fn ($message) => 'system' === $message['role']
+            && $message['requestId'] === $requestId) ?? count($this->messages);
+        $this->messages[$index] = ['id' => $this->messages[$index]['id'] ?? Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
+            'role'                      => 'system', 'content' => '', 'failureCode' => $code, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
+        ++$this->version;
+        $this->updatedAt = $now;
         $this->state = 'error';
         $this->stateBeforeAttempt = $previousState;
     }
@@ -197,20 +196,18 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
-    /** @param list<string> $questions */
-    public function ask(string $requestId, array $questions, \DateTimeImmutable $now, ?string $summary = null): void
+    public function ask(string $requestId, string $reply, \DateTimeImmutable $now): void
     {
         $this->markSource($requestId);
-        $this->answer($requestId, (null === $summary ? '' : $summary . "\n") . implode("\n", $questions), $now);
-        $this->questions = $questions;
+        $this->answer($requestId, $reply, $now);
+        $this->questions = [$reply];
         $this->state = 'questions';
     }
 
     public function stop(string $requestId, \DateTimeImmutable $now): void
     {
         $this->markSource($requestId);
-        $this->answer($requestId, 'ru' === $this->owner->getPreferredLanguage()
-            ? 'Остановлено. Можно продолжить или уточнить описание.' : 'Stopped. You can continue or clarify the description.', $now);
+        $this->processingFailed($now, $requestId, 'stopped');
         $this->state = 'collecting';
     }
 

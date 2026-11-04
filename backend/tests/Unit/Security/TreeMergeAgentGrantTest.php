@@ -2,27 +2,30 @@
 
 namespace App\Tests\Unit\Security;
 
+use App\Entity\AuthSession;
 use App\Entity\FamilyTree;
 use App\Entity\TreeMergeDraft;
 use App\Entity\User;
-use App\Security\TreeMergeReadGrant;
+use App\Security\TreeMergeAgentGrant;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Clock\MockClock;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
-final class TreeMergeReadGrantTest extends TestCase
+final class TreeMergeAgentGrantTest extends TestCase
 {
     public function testGrantExpiresAndHasARequestBudget(): void
     {
         $clock = new MockClock();
-        $grants = new TreeMergeReadGrant(new ArrayAdapter(), new LockFactory(new InMemoryStore()), $clock);
+        $grants = new TreeMergeAgentGrant(new ArrayAdapter(), new LockFactory(new InMemoryStore()), $clock, new RequestStack());
         $user = new User('test', 'test@example.test', 'hash', 'en', $clock->now());
         $draft = new TreeMergeDraft(new FamilyTree($user, 'tree', $clock->now()), null, 'etag', $clock->now());
-        $token = $grants->issue($draft, 'attempt');
-        for ($i = 31; $i >= 0; --$i) {
+        $session = new AuthSession($user, 'hash', $clock->now()->modify('+1 hour'), $clock->now()->modify('+1 day'), $clock->now());
+        $token = $grants->issue($draft, 'attempt', $session);
+        for ($i = 63; $i >= 0; --$i) {
             self::assertSame($i, $grants->consume($token)['remaining']);
         }
         try {
@@ -31,7 +34,7 @@ final class TreeMergeReadGrantTest extends TestCase
         } catch (AuthenticationException $error) {
             self::assertSame('invalid_merge_access', $error->getMessage());
         }
-        $expiring = $grants->issue($draft, 'next');
+        $expiring = $grants->issue($draft, 'next', $session);
         $clock->sleep(300);
         $this->expectException(AuthenticationException::class);
         $grants->consume($expiring);

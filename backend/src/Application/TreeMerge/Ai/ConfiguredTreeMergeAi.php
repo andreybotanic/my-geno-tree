@@ -13,13 +13,16 @@ final readonly class ConfiguredTreeMergeAi implements TreeMergeAiInterface
     {
     }
 
-    public function respond(TreeMergeDraft $draft, string $attemptId, ?MergeAiRepair $repair = null): MergeAiResult
+    public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
-        return match ($this->provider) {
-            'ollama'   => $this->ollama->respond($draft, $attemptId, $repair),
-            'opencode' => 'dev' === $this->environment ? $this->openCode->respond($draft, $attemptId, $repair)
-                : throw new \RuntimeException('OPENCODE_IS_DEVELOPMENT_ONLY'),
-            default => throw new \RuntimeException('TREE_MERGE_PROVIDER_INVALID'),
+        if ('opencode' === $this->provider && 'dev' !== $this->environment) {
+            throw new \RuntimeException('OPENCODE_IS_DEVELOPMENT_ONLY');
+        }
+        $provider = match ($this->provider) {
+            'ollama'   => $this->ollama,
+            'opencode' => $this->openCode,
+            default    => throw new \RuntimeException('TREE_MERGE_PROVIDER_INVALID'),
         };
+        $provider->respond($draft, $attemptId);
     }
 }
