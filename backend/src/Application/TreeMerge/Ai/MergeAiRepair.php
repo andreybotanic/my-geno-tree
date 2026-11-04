@@ -16,7 +16,7 @@ final readonly class MergeAiRepair
             ? 'Automatic proposal repairs are exhausted. Do NOT produce another proposal. This call uses a question-only schema: return ONLY questions[] containing one to three questions. Do not include action, proposal or reply. '
                 . 'Use the specific validation reasons and conversation below. Briefly explain the relevant obstacle in each question and name the people involved. '
                 . 'Ask only for decisions or facts necessary to resolve it, never optional profile details or internal identifiers. '
-                . 'For more than five new people, ask which branch or people to prepare first. Do not blame the user for malformed model JSON or invented evidence. '
+                . 'For more than ten new people, ask which branch or people to prepare first. Do not blame the user for malformed model JSON or invented evidence. '
                 . 'Do not silently omit requested relatives. Your questions become assistant messages; the next reply may simply be yes or a name.'
             : 'Correct the COMPLETE proposal using the server validation feedback. Preserve supported facts and reviewed corrections. '
                 . 'If facts or decisions are missing, return action=clarification with proposal=null and concrete questions in questions[].';
@@ -26,8 +26,8 @@ final readonly class MergeAiRepair
     {
         $codes = array_merge(...array_values($this->error->getFields()));
         if (in_array('new_people_limit', $codes, true)) {
-            return $russian ? 'За один раз можно добавить до пяти новых персон. Кого из описанных родственников добавим сначала?'
-                : 'Up to five new people can be added at a time. Which of the described relatives should we add first?';
+            return $russian ? 'За один раз можно добавить до десяти новых персон. Кого из описанных родственников добавим сначала?'
+                : 'Up to ten new people can be added at a time. Which of the described relatives should we add first?';
         }
         if (array_any(array_keys($this->error->getFields()), static fn ($path) => str_contains(strtolower($path), 'date')) || str_contains($this->error->getErrorCode(), 'CHRONOLOGY')) {
             return $russian ? 'Не удалось согласовать указанные даты. Какие даты рождения или смерти в последнем описании нужно исправить?'

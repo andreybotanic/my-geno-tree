@@ -41,7 +41,7 @@ export type TreeMergeMarriageProposal = {
 
 export type TreeMergeProposal = {
     /**
-     * At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
+     * At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
      */
     people: Array<TreeMergePersonProposal>;
     parents: Array<TreeMergeParentProposal>;
@@ -767,7 +767,7 @@ export type TreeMergePersonProposalWritable = {
 
 export type TreeMergeProposalWritable = {
     /**
-     * At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
+     * At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
      */
     people: Array<TreeMergePersonProposalWritable>;
     parents: Array<TreeMergeParentProposal>;

@@ -245,7 +245,7 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
             self::assertResponseStatusCodeSame([] === $payload ? 400 : 422);
         }
         $proposal = $this->family();
-        for ($index = 0; $index < 2; ++$index) {
+        for ($index = 0; $index < 7; ++$index) {
             $person = $proposal['people'][0];
             $person['id'] = 'extra' . $index;
             $proposal['people'][] = $person;
@@ -267,6 +267,40 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertSame('TREE_MERGE_CLOSED', $this->responseString('code'));
         $this->jsonRequest('POST', $this->path . '/apply', ['version' => 3], $this->headers);
         self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testAllowsTenNewPeopleAlongsideExistingPeople(): void
+    {
+        $this->revise($this->family());
+        $this->apply();
+        $ids = $this->arrayAt('result', 'personIds');
+        $this->snapshot();
+        $this->etag = $this->responseString('etag');
+        $this->newDraft();
+        $proposal = $this->family();
+        foreach ($proposal['people'] as &$person) {
+            $person['resolution'] = 'existing';
+            $person['existingPersonId'] = $ids[$person['id']];
+        }
+        unset($person);
+        for ($index = 0; $index < 10; ++$index) {
+            $id = 'child' . $index;
+            $proposal['people'][] = ['id' => $id, 'existingPersonId' => null, 'resolution' => 'new',
+                'fields'                  => ['givenName' => ['state' => 'known', 'value' => 'Child ' . $index]],
+                'lifeStatus'              => 'alive', 'evidence' => []];
+            $proposal['parents'][] = ['parent' => 'v', 'child' => $id, 'role' => 'mother', 'evidence' => []];
+        }
+        $this->revise($proposal);
+        self::assertResponseIsSuccessful();
+        self::assertSame('ready', $this->responseString('state'));
+        self::assertCount(14, $this->arrayAt('proposal', 'people'));
+        $this->snapshot();
+        self::assertCount(4, $this->arrayAt('people'));
+        $this->apply();
+        self::assertResponseIsSuccessful();
+        $this->snapshot();
+        self::assertCount(14, $this->arrayAt('people'));
+        self::assertCount(13, $this->arrayAt('parentLinks'));
     }
 
     public function testExistingMatchNeedsExplicitNewMarriagePeriodAndDetectsNoChanges(): void

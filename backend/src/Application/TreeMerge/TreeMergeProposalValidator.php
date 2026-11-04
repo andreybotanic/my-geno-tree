@@ -136,8 +136,8 @@ final readonly class TreeMergeProposalValidator
                 'candidates'      => $candidates, 'before' => null === $existing ? null : $this->views->create($existing)];
             $changes[] = new PersonChange($id, $existingId, $personData);
         }
-        if ($newCount > 5) {
-            $this->invalid('people', 'new_people_limit', 'A merge supports at most five new people. Ask the user to narrow the fragment rather than silently dropping described people.');
+        if ($newCount > 10) {
+            $this->invalid('people', 'new_people_limit', 'A merge supports at most ten new people. Ask the user to narrow the fragment rather than silently dropping described people.');
         }
         $parents = [];
         foreach ($parentRows as $index => $row) {

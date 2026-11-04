@@ -1811,7 +1811,7 @@ components:
         people:
           type: array
           maxItems: 20
-          description: At most five new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
+          description: At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
           items: { $ref: "#/components/schemas/TreeMergePersonProposal" }
         parents:
           type: array

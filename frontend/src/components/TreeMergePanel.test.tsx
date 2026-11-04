@@ -176,7 +176,7 @@ describe('TreeMergePanel', () => {
   it('shows concrete assistant questions and sends the next reply without a separate analysis control', async () => {
     const questions: TreeMergeDraft = { ...draft, version: 4, state: 'questions', messages: [
       { id: 'source', requestId: 'request', role: 'user', content: 'My parents and four siblings', createdAt: '2026-11-03' },
-      { id: 'question', requestId: 'request', role: 'assistant', content: 'Only five new people fit. Shall we start with your parents?', createdAt: '2026-11-03' },
+      { id: 'question', requestId: 'request', role: 'assistant', content: 'Only ten new people fit. Shall we start with your parents?', createdAt: '2026-11-03' },
     ] }
     const { request } = renderPanel(async (path) => {
       if (path.endsWith('/messages')) return { ...questions, version: 5 }
@@ -184,14 +184,14 @@ describe('TreeMergePanel', () => {
       if (path.endsWith('/merge')) return { ...questions, state: 'error', version: 6 }
       return { items: [questions] }
     })
-    expect(await screen.findByText('Only five new people fit. Shall we start with your parents?')).toBeInTheDocument()
+    expect(await screen.findByText('Only ten new people fit. Shall we start with your parents?')).toBeInTheDocument()
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'Yes' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await screen.findByText('Could not save. Your message has been kept; try again.')
     expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/messages', expect.objectContaining({ body: expect.stringContaining('Yes') }))
     expect(screen.queryByRole('button', { name: 'Analyze description' })).not.toBeInTheDocument()
-    expect(screen.getByText('Only five new people fit. Shall we start with your parents?')).toBeInTheDocument()
+    expect(screen.getByText('Only ten new people fit. Shall we start with your parents?')).toBeInTheDocument()
   })
 
   it('can stop a restored attempt and preserves it when the stop request fails', async () => {

@@ -84,7 +84,7 @@ session expiry without retaining the full source text.
 
 `PUT .../{mergeId}/proposal` validates explicit corrections against the complete
 prospective graph without writing people or relationships. A proposal can create
-up to five people, update existing core fields, and add parent or marriage links.
+up to ten new people, update existing core fields, and add parent or marriage links.
 Only unresolved identities and information essential to valid relationships block
 application. Missing surnames, patronymics and dates remain unknown; new people
 are considered alive unless death is mentioned. Existing death information is
@@ -98,7 +98,7 @@ receipt. A tree conflict revalidates the proposal and requires confirmation agai
 messages must be parsed again or explicitly corrected.
 
 The general `Application/Tree/ChangeSet` executor has no chat or AI dependency
-and no five-person limit. Other application workflows can compose its ORM
+and no merge-specific person limit. Other application workflows can compose its ORM
 transaction with their own receipt. Its projection reads the graph in three
 queries, and application repeats validation under the tree lock.
 
@@ -337,6 +337,11 @@ Oleg with the existing Vera and Mikhail as their parents. Refresh restored the
 questions and unconfirmed preview. Explicit confirmation added exactly two people
 to the synthetic tree (three to five), with the resulting branch highlighted.
 The original user's tree was not changed.
+The ten-person limit was checked in Chrome with a separate empty tree: Anna and
+her nine children appeared in the preview. Adding an eleventh person prompted a
+choice and disabled confirmation. After deferring that person, explicit approval
+created exactly ten people with nine parent links. API tests also cover ten new
+people alongside existing relatives and rejection of eleven new people.
 Run all application tooling inside its service container:
 
 ```bash

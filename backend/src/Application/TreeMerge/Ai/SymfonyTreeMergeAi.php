@@ -131,7 +131,7 @@ final readonly class SymfonyTreeMergeAi implements TreeMergeAiInterface
             ));
         }
         $response = $platform->invoke($model, $extraction,
-            ['response_format' => $responseClass, 'temperature' => 0, 'think' => false, 'num_predict' => 2500])->asObject($responseClass);
+            ['response_format' => $responseClass, 'temperature' => 0, 'think' => false, 'num_predict' => 5000])->asObject($responseClass);
         if ($response instanceof MergeClarification) {
             $clarification = new MergeAiResponse();
             $clarification->action = MergeAction::CLARIFICATION;

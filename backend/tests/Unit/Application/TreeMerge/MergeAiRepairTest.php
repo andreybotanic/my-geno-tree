@@ -13,7 +13,7 @@ final class MergeAiRepairTest extends TestCase
     public function testFallbackQuestionsUseValidationReasonsWhenTheProviderCannotAsk(): void
     {
         foreach ([
-            [['people' => ['new_people_limit']], 'TREE_MERGE_PROPOSAL_INVALID', 'five', 'пяти'],
+            [['people' => ['new_people_limit']], 'TREE_MERGE_PROPOSAL_INVALID', 'ten', 'десяти'],
             [['people[0].fields.birthDate' => ['invalid']], 'TREE_MERGE_PROPOSAL_INVALID', 'dates', 'даты'],
             [[], 'TREE_CHRONOLOGY_INVALID', 'dates', 'даты'],
             [['parents[0].parent' => ['person_reference_unknown']], 'TREE_MERGE_PROPOSAL_INVALID', 'connect', 'связать'],
