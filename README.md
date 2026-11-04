@@ -270,6 +270,22 @@ conversion, without network ASR calls. Hugging Face activation remains deferred.
 The versioned `MergePrompt::SYSTEM` is entirely in English while requiring
 responses in the user's interface language and preserving original names/quotes.
 
+Merge replies report the number of new people calculated from the validated
+proposal, distinguish existing matches, and explain omitted people with source
+quotes. The prompt inventories named and unnamed relatives across the whole
+conversation: two explicitly mentioned sons produce two distinct male people,
+even when their names and dates are unknown. Supported deductions are labelled
+in the reply. A relative age uses an observed birth year and produces an
+approximate year (never a copied birthday); family-name deductions require an
+established parent or sibling relationship and do not change existing facts or
+explicit unknown values. A spouse's surname is not treated as a birth surname.
+Short relationship quotes are checked in their original source sentence.
+Browser validation on 4 November covered the supplied Ivan family example in a
+separate synthetic tree: six proposed people, Petr's inferred surname/patronymic,
+Anna's approximate 1992 birth year and two unnamed sons. A concurrent edit in a
+second tab blocked application until the refreshed proposal was confirmed again.
+Application and page refresh retained exactly seven people and the conversation.
+
 The official `mcp/sdk`, Symfony MCP Bundle and Symfony AI MCP bridge expose
 Streamable HTTP at `https://my-geno-tree.localhost/mcp/tree`. External clients
 authenticate with the existing application's `Authorization: Bearer` session

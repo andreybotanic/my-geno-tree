@@ -45,7 +45,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: processTreeMerge
-      description: Processes the latest message from the authenticated login session. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. Completed inference tokens consume a per-user daily budget; exhaustion produces a localized token_limit reply. No genealogical changes are applied.
+      description: Processes the latest message using the full authenticated-session conversation and observed tree context. Proposal replies report the validated number of new people, explain omitted people and existing matches, and label supported deductions. Explicitly mentioned unnamed relatives are included; relative ages can produce approximate birth years. Inference runs outside the mutation transaction. Late answers cannot overwrite newer input. Refusals and tree answers preserve the proposal. Completed inference tokens consume a per-user daily budget; exhaustion produces a localized token_limit reply. No genealogical changes are applied.
       security:
         - bearerAuth: []
       requestBody:

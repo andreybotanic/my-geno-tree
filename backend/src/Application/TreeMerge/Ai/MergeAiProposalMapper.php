@@ -10,7 +10,7 @@ use App\Repository\PersonRepository;
 /** @phpstan-import-type ContextPerson from MergeAiResult */
 final class MergeAiProposalMapper
 {
-    public function __construct(private readonly MergeDateParser $dates = new MergeDateParser(), private readonly ?PersonRepository $people = null)
+    public function __construct(private readonly MergeDateParser $dates = new MergeDateParser(), private readonly ?PersonRepository $people = null, private readonly MergeInferenceResolver $inferences = new MergeInferenceResolver())
     {
     }
 
@@ -19,10 +19,15 @@ final class MergeAiProposalMapper
      */
     public function map(TreeMergeDraft $draft, MergeAiProposal $input, array $context): array
     {
-        /** @var array{people: list<array{id: string, existingPersonId: ?string, resolution: string, lifeStatus: string, fields: array<string, array<string, mixed>|string|null>, evidence: list<array{messageId: string, quote: string}>}>, parents: list<array<string, mixed>>, marriages: list<array{first: string, second: string, marriageDate: string, dissolutionDate: ?string, newPeriod: bool, evidence: list<array{messageId: string, quote: string}>}>, questions: list<string>} $proposal */
+        $inferred = [];
+        foreach ($input->people as $person) {
+            $inferred[$person->id] = $this->inferences->resolve($person, $input, $context);
+        }
+        /** @var array{people: list<array{id: string, existingPersonId: ?string, resolution: string, lifeStatus: string, fields: array<string, array<string, mixed>|string|null>, evidence: list<array{messageId: string, quote: string}>, inferences: list<mixed>}>, parents: list<array<string, mixed>>, marriages: list<array{first: string, second: string, marriageDate: string, dissolutionDate: ?string, newPeriod: bool, evidence: list<array{messageId: string, quote: string}>}>, questions: list<string>} $proposal */
         $proposal = json_decode(json_encode($input, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
         $russian = 'ru' === $draft->owner->getPreferredLanguage();
         foreach ($proposal['people'] as $personIndex => &$person) {
+            unset($person['inferences']);
             $existingId = $person['existingPersonId'];
             if (null !== $existingId && !isset($context[$existingId])) {
                 throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON', fields: ['people[' . $personIndex . '].existingPersonId' => ['person_not_observed_through_mcp']], details: ['violations' => [['path' => 'people[' . $personIndex . '].existingPersonId', 'message' => 'Search candidates are not full person context. Use only IDs from get_tree_context.people or get_person_context.people. Before proposing an existing person, read their context through MCP. Previously observed person IDs: ' . implode(', ', array_keys($context)) . '.']]]);
@@ -57,14 +62,14 @@ final class MergeAiProposalMapper
             }
             foreach (['givenName', 'birthSurname', 'patronymic'] as $field) {
                 $value = is_array($fields[$field] ?? null) ? $fields[$field]['value'] ?? null : null;
-                if (is_string($value) && ($context[$existingId ?? ''][$field]['value'] ?? null) !== $value
+                if (!in_array($field, $inferred[$person['id']], true) && is_string($value) && ($context[$existingId ?? ''][$field]['value'] ?? null) !== $value
                     && !str_contains(mb_strtolower($quotes), mb_strtolower(mb_substr($value, 0, max(2, mb_strlen($value) - 2))))) {
                     $proposal['questions'][] = $russian ? 'Подтвердите написание имени: ' . $value : 'Confirm the spelling of this name: ' . $value;
                 }
             }
             foreach (['birthDate', 'deathDate'] as $field) {
                 $year = is_array($fields[$field] ?? null) ? $fields[$field]['year'] ?? null : null;
-                if (is_int($year) && ($context[$existingId ?? ''][$field]['year'] ?? null) !== $year && !str_contains($quotes, (string)$year)) {
+                if (!in_array($field, $inferred[$person['id']], true) && is_int($year) && ($context[$existingId ?? ''][$field]['year'] ?? null) !== $year && !str_contains($quotes, (string)$year)) {
                     $proposal['questions'][] = $russian ? 'Уточните год: ' . $year : 'Clarify the year: ' . $year;
                 }
             }
@@ -121,7 +126,23 @@ final class MergeAiProposalMapper
         unset($person);
         foreach ($proposal['parents'] as $link) {
             $evidence = is_array($link['evidence'] ?? null) ? $link['evidence'] : [];
-            if (1 !== preg_match('/мам|мат[ьиер]|от[ец]|пап|родител|сын|доч|дет|реб[её]н|parent|mother|father|son|daughter|child/iu', implode(' ', array_column($evidence, 'quote')))) {
+            $quotes = array_column($evidence, 'quote');
+            // A short quote may name the second parent after "parents are ... and ...".
+            // Read its actual source sentence without borrowing unrelated statements from the chat.
+            foreach ($evidence as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $message = array_find($draft->messages, static fn ($message) => 'user' === $message['role'] && $message['id'] === ($item['messageId'] ?? null));
+                if (null !== $message && is_string($item['quote'] ?? null) && '' !== $item['quote']) {
+                    foreach (preg_split('/(?<=[.!?])\s+/u', $message['content']) ?: [] as $sentence) {
+                        if (str_contains($sentence, $item['quote'])) {
+                            $quotes[] = $sentence;
+                        }
+                    }
+                }
+            }
+            if (1 !== preg_match('/мам|мат[ьиер]|от[ец]|пап|родител|сын|доч|дет|реб[её]н|parent|mother|father|son|daughter|child/iu', implode(' ', $quotes))) {
                 $proposal['questions'][] = $russian ? 'Уточните общего родителя: брат или сестра сами по себе не устанавливают родительскую связь.'
                     : 'Clarify the common parent: siblings alone do not establish a parent relationship.';
             }

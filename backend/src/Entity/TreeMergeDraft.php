@@ -198,10 +198,10 @@ class TreeMergeDraft
     }
 
     /** @param list<string> $questions */
-    public function ask(string $requestId, array $questions, \DateTimeImmutable $now): void
+    public function ask(string $requestId, array $questions, \DateTimeImmutable $now, ?string $summary = null): void
     {
         $this->markSource($requestId);
-        $this->answer($requestId, implode("\n", $questions), $now);
+        $this->answer($requestId, (null === $summary ? '' : $summary . "\n") . implode("\n", $questions), $now);
         $this->questions = $questions;
         $this->state = 'questions';
     }

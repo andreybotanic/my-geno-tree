@@ -16,4 +16,7 @@ final class MergeAiResponse
     /** @var list<string> Existing person IDs whose confirmed data answers the question. */
     #[Schema(maxItems: 5)]
     public array $answerPersonIds = [];
+    /** @var list<MergeAiOmission> Every mentioned person not represented in the complete proposal, with a concrete reason. */
+    #[Schema(maxItems: 20)]
+    public array $omittedPeople = [];
 }

@@ -8,6 +8,7 @@ use App\Application\TreeMerge\Ai\Dto\MergeAction;
 use App\Application\TreeMerge\Ai\MergeAiProposalMapper;
 use App\Application\TreeMerge\Ai\MergeAiRepair;
 use App\Application\TreeMerge\Ai\MergeAiResult;
+use App\Application\TreeMerge\Ai\MergeReplySummary;
 use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
 use App\Entity\TreeMergeDraft;
 use Doctrine\DBAL\LockMode;
@@ -34,6 +35,7 @@ final readonly class TreeMergeConversationService
         private MergeActivity $activity,
         #[Target('tree_merge')] private RateLimiterFactoryInterface $limiter,
         private RequestStack $requests,
+        private MergeReplySummary $summary,
     ) {
     }
 
@@ -204,7 +206,8 @@ final readonly class TreeMergeConversationService
                     static fn ($question) => !is_string($question) || '' === trim($question) || mb_strlen($question) > 1000 || !str_contains($question, '?'))) {
                     throw new ApiException(422, 'TREE_MERGE_CLARIFICATION_INVALID');
                 }
-                $draft->ask($requestId, $response->questions, $this->clock->now());
+                $summary = $this->summary->describe($draft, $response, null);
+                $draft->ask($requestId, $response->questions, $this->clock->now(), $summary);
 
                 return;
             }
@@ -213,6 +216,7 @@ final readonly class TreeMergeConversationService
             }
             $proposal = $this->mapper->map($draft, $response->proposal, $result->people);
             $validated = $this->validator->validate($draft, $proposal);
+            $summary = $this->summary->describe($draft, $response, $validated->proposal);
             $draft->markSource($requestId);
             $state = match (true) {
                 [] !== $validated->questions => 'questions',
@@ -237,6 +241,7 @@ final readonly class TreeMergeConversationService
                     $reply .= ('' === $reply ? '' : "\n") . $question;
                 }
             }
+            $reply = $summary . "\n" . $reply;
         }
         $draft->answer($requestId, $reply, $this->clock->now());
     }

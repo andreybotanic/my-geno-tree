@@ -20,4 +20,7 @@ final class MergeAiPerson
     /** @var list<MergeAiEvidence> */
     #[Schema(minItems: 1, maxItems: 3)]
     public array $evidence = [];
+    /** @var list<MergeAiInference> Supported deductions for NEW people, never unmarked guesses. */
+    #[Schema(maxItems: 3)]
+    public array $inferences = [];
 }
