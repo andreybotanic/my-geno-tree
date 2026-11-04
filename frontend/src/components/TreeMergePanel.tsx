@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
-import type { TreeMergeDraft, TreeMergeList, TreeMergeProposal, TreeMergeResult, TreeMergeTokenBudget, TreeSnapshot } from '../api/generated'
+import type { TreeMergeDraft, TreeMergeList, TreeMergeResult, TreeMergeTokenBudget, TreeSnapshot } from '../api/generated'
 import { TreeMergeBudget } from './TreeMergeBudget'
 import { TreeMergeThinking } from './TreeMergeThinking'
 import { TreeMergePreview } from './TreeMergePreview'
@@ -18,12 +18,9 @@ type Props = {
   onRefreshTree?: () => Promise<void>
   onDraftChange?: (draft: TreeMergeDraft | null) => void
   previewContainer?: HTMLElement | null
-  selectedProposalPersonId?: string | null
-  onCloseProposalPerson?: () => void
 }
 
-export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefreshTree, open = true, onDraftChange, previewContainer,
-  selectedProposalPersonId, onCloseProposalPerson }: Props) {
+export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefreshTree, open = true, onDraftChange, previewContainer }: Props) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<TreeMergeDraft | null>(null)
   const [budget, setBudget] = useState<TreeMergeTokenBudget | null>(null)
@@ -134,17 +131,16 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     onClose()
   }
 
-  async function proposalAction(action: 'proposal' | 'apply' | 'revalidate', proposal?: TreeMergeProposal) {
+  async function proposalAction(action: 'apply' | 'revalidate') {
     if (!draft) return
     setBusy(true)
     setError(null)
     try {
       const next = await request<TreeMergeDraft>(`${base}/${draft.id}/${action}`, {
-        method: action === 'proposal' ? 'PUT' : 'POST',
+        method: 'POST',
         headers: action === 'apply' ? { 'If-Match': draft.treeEtag } : {},
         body: JSON.stringify({ version: draft.version,
           ...(action === 'apply' ? { proposalVersion: draft.proposalVersion } : {}),
-          ...(proposal ? { proposal } : {}),
         }),
       })
       if (action === 'revalidate') await onRefreshTree?.()
@@ -172,7 +168,7 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   }
 
   async function send() {
-    if (!content.trim()) return
+    if (busy || voiceBusy || thinking || stopping || !content.trim()) return
     setBusy(true)
     setError(null)
     if (pending.current?.content !== content) {
@@ -277,8 +273,8 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
         </div>}
         <div aria-label={t('treeMerge.messages')} className="tree-merge-messages" role="log" aria-live="polite">
           {draft?.messages.map((message) => (
-            <article key={message.id} className={`tree-merge-message tree-merge-message-${message.role}`}>
-              <strong>{t(message.role === 'user' ? 'treeMerge.you' : 'treeMerge.assistant')}</strong>
+            <article key={message.id} className={`tree-merge-message tree-merge-message-${message.role}`}
+              aria-label={t(message.role === 'user' ? 'treeMerge.you' : 'treeMerge.assistant')}>
               <p>{message.failureCode ? t(`treeMerge.failure.${message.failureCode}`) : message.content}</p>
             </article>
           ))}
@@ -289,8 +285,6 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
         </div>
         {open && draft?.proposal && draft.state !== 'applied' && draft.state !== 'cancelled' && previewContainer !== null && createPortal(<TreeMergePreview key={`${draft.id}:${draft.proposalVersion}`}
           draft={{ ...draft, proposal: draft.proposal }} busy={busy || voiceBusy}
-          graphMode={Boolean(onDraftChange)} selectedPersonId={selectedProposalPersonId ?? null} onClosePerson={() => onCloseProposalPerson?.()}
-          onSave={(proposal) => proposalAction('proposal', proposal)}
           onApply={() => proposalAction('apply')}
           onRevalidate={() => proposalAction('revalidate')} />, previewContainer ?? document.body)}
       </div>
@@ -302,12 +296,19 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
             onTranscript={(text) => setContent(content ? `${content}\n${text}` : text)}>
             <textarea id="tree-merge-message" aria-label={t('treeMerge.message')} placeholder={t('treeMerge.placeholder')}
               ref={textarea} value={content} maxLength={10000} disabled={busy || voiceBusy}
-              onChange={(event) => setContent(event.target.value)} rows={2} />
+              onChange={(event) => setContent(event.target.value)} rows={2}
+              onKeyDown={(event) => {
+                if (event.ctrlKey && event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  void send()
+                }
+              }} />
             <TreeMergeBudget budget={draft?.tokenBudget ?? budget} />
             {thinking ? <button className="tree-merge-send" type="button" aria-label={t('treeMerge.stop')}
               disabled={stopping} onClick={() => void stop()}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
             </button> : <button className="tree-merge-send" type="submit" aria-label={t('treeMerge.send')}
+              title={t('treeMerge.sendShortcut')} aria-keyshortcuts="Control+Enter"
               disabled={busy || voiceBusy || !content.trim()}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
                 <path d="m5 12 7-7 7 7m-7-7v15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

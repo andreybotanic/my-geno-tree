@@ -808,7 +808,6 @@ type TreeCanvasProps = {
   mergeAffectedIds: string[]
   mergePanelOpen: boolean
   mergeDraft: TreeMergeDraft | null
-  onSelectMergePerson: (id: string | null) => void
   snapshot: TreeSnapshot
   user: User | null
   view: 'network' | 'tree'
@@ -834,7 +833,6 @@ function TreeCanvas({
   mergeAffectedIds,
   mergePanelOpen,
   mergeDraft,
-  onSelectMergePerson,
   snapshot,
   user,
   view,
@@ -1646,7 +1644,7 @@ function TreeCanvas({
         viewport,
       )}
       onNodeClick={(_event, node) => {
-        if (mergeProjection) { onSelectMergePerson(mergeProjection.proposalIds.get(node.id) ?? null); return }
+        if (mergeProjection) return
         if (view === 'tree') {
           onSelectPerson(node.id)
         }
@@ -1722,7 +1720,7 @@ function TreeCanvas({
         setBloodNetworkMotionRevision((revision) => revision + 1)
       }}
       onPaneClick={() => {
-        if (mergeProjection) { onSelectMergePerson(null); return }
+        if (mergeProjection) return
         setBloodNetworkContextMenu(null)
         setTreeContextMenu(null)
         if (view === 'tree') {
@@ -2248,7 +2246,6 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [mergeOpen, setMergeOpen] = useState(() => new URLSearchParams(window.location.search).has('merge'))
   const [mergeDraft, setMergeDraft] = useState<TreeMergeDraft | null>(null)
   const [mergeReviewContainer, setMergeReviewContainer] = useState<HTMLDivElement | null>(null)
-  const [selectedMergePerson, setSelectedMergePerson] = useState<string | null>(null)
   const mergePreviewDraft = mergeOpen && mergeDraft?.proposal && !['applied', 'cancelled'].includes(mergeDraft.state) ? mergeDraft : null
   const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
@@ -3115,7 +3112,6 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       {snapshot && (
         <TreeMergeDrawer key={treeId} snapshot={snapshot} request={request} open={mergeOpen} onOpenChange={setMergeOpen}
           onDraftChange={setMergeDraft} previewContainer={mergeReviewContainer}
-          selectedProposalPersonId={selectedMergePerson} onCloseProposalPerson={() => setSelectedMergePerson(null)}
           onRefreshTree={async () => { replaceSnapshot(await treeApi.snapshot(request, treeId)) }}
           onApplied={async (result) => {
             const next = await treeApi.snapshot(request, treeId)
@@ -3153,7 +3149,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       )}
 
       <section className={`editor-workspace${
-        view === 'network'
+        mergeOpen ? '' : view === 'network'
           ? ' editor-workspace-network-sidebar-open'
           : selectedPerson ? ' editor-workspace-panel-open' : ''
       }`}>
@@ -3210,7 +3206,6 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   mergeAffectedIds={mergeAffectedIds}
                   mergePanelOpen={mergeOpen}
                   mergeDraft={mergePreviewDraft}
-                  onSelectMergePerson={setSelectedMergePerson}
                   snapshot={snapshot}
                   view={mergePreviewDraft ? 'tree' : view}
                   onToggleNetworkView={toggleNetworkView}

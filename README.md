@@ -104,10 +104,14 @@ queries, and application repeats validation under the tree lock.
 
 The versioned preview is projected onto the tree without saving its people,
 relationships or layout. Existing people are faded; new people keep their normal
-colors. Clicking a proposed person opens corrections, candidate selection,
-before/after values and source quotations on the canvas. The chat contains a short
-reply and any essential questions. Corrections are checked on
-the server before the review checkbox and apply button become available again.
+colors. The preview consists of graph cards and relationships, without detailed
+person forms. Corrections and essential clarifications go through the chat and
+are checked on the server. The separate apply button confirms the current checked
+proposal directly, without an additional checkbox.
+Messages have compact bubbles: user messages on the right, assistant replies on
+the left. Ctrl+Enter sends a message; Enter inserts a line break. Opening the chat
+hides the person or network sidebar and releases its grid column without clearing
+the selected person or the sidebar's edit state.
 The preview URL contains `?merge={mergeId}` and restores the conversation after
 refresh within the same login session. Applying refreshes the snapshot, highlights the affected people and
 focuses the camera on them without changing the layout reference.
@@ -342,6 +346,19 @@ her nine children appeared in the preview. Adding an eleventh person prompted a
 choice and disabled confirmation. After deferring that person, explicit approval
 created exactly ten people with nine parent links. API tests also cover ten new
 people alongside existing relatives and rejection of eleven new people.
+The simplified chat was also checked in Chrome on 4 November: opening it from
+person editing or the network sidebar releases the left grid column, and closing
+it restores the sidebar and selection. The tree camera stayed unchanged when
+opening an empty chat. Enter inserted a newline; Ctrl+Enter sent the message.
+User and assistant bubbles aligned right and left without visible author headings;
+Russian and English send tooltips were checked. Clicking a proposed card no longer
+opened detailed fields, and no review checkbox was present. A real OpenCode turn
+prepared Pavel's daughter Sofia in the synthetic tree. A change in a second tab
+produced a version conflict; the refreshed proposal waited for another explicit
+apply click, then added exactly one person (five to six). Refresh preserved both
+the saved result and the session conversation. The interface language was restored
+to Russian after these checks.
+
 Run all application tooling inside its service container:
 
 ```bash

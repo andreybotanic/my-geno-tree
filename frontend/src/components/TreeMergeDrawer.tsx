@@ -13,8 +13,6 @@ type Props = {
   onRefreshTree?: () => Promise<void>
   onDraftChange?: (draft: TreeMergeDraft | null) => void
   previewContainer?: HTMLElement | null
-  selectedProposalPersonId?: string | null
-  onCloseProposalPerson?: () => void
 }
 
 export function TreeMergeDrawer({ open, onOpenChange, ...panel }: Props) {

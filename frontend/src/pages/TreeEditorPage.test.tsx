@@ -241,14 +241,42 @@ describe('TreeEditorPage', () => {
     expect(container.querySelector('.tree-canvas .tree-merge-graph-review')).toBeInTheDocument()
     expect(container.querySelector('.tree-merge-panel .tree-merge-preview')).toBeNull()
     fireEvent.click(added)
-    expect(await screen.findByLabelText('Match in this tree')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByLabelText('Match in this tree')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Given name' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /reviewed proposal/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
     await waitFor(() => expect(screen.queryByText('Boris')).not.toBeInTheDocument())
     if (!empty) expect(screen.getByText('Anna').closest('article')).not.toHaveClass('person-card-muted')
     expect(original.people).toHaveLength(empty ? 0 : 1)
     expect(request).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'POST' }))
+  })
+
+  it.each(['tree', 'network'] as const)('releases the %s sidebar column while chatting and restores the previous selection', async (view) => {
+    if (view === 'network') window.history.replaceState({}, '', `/trees/${treeId}/network`)
+    const request = vi.fn(async (path: string) => {
+      if (path.endsWith('/merges')) return { items: [] }
+      if (path.endsWith('/events')) return { items: [] }
+      return snapshot([person])
+    }) as unknown as AuthorizedJsonRequest
+    const { container } = renderEditor(request)
+    const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+    if (view === 'tree') {
+      fireEvent.click(card)
+      await screen.findByRole('complementary', { name: 'Person details' })
+    }
+    const workspace = container.querySelector('.editor-workspace')!
+    const sidebarClass = view === 'tree' ? 'editor-workspace-panel-open' : 'editor-workspace-network-sidebar-open'
+    expect(workspace).toHaveClass(sidebarClass)
+    fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled())
+    expect(workspace).not.toHaveClass(sidebarClass)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
+    expect(workspace).toHaveClass(sidebarClass)
+    if (view === 'tree') {
+      expect(screen.getByRole('complementary', { name: 'Person details' })).toBeInTheDocument()
+      expect(card.closest('.react-flow__node')).toHaveClass('selected')
+    }
   })
 
   it('shows the import warning once when places remain text-only', async () => {

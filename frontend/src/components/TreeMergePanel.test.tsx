@@ -75,6 +75,48 @@ describe('TreeMergePanel', () => {
     expect(await screen.findByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled()
   })
 
+  it('sends with Ctrl+Enter, keeps Enter for newlines and prevents duplicate sends while busy', async () => {
+    let finish!: (value: TreeMergeDraft) => void
+    const { request } = renderPanel(async (path) => {
+      if (path.endsWith('/messages')) return new Promise<TreeMergeDraft>((resolve) => { finish = resolve })
+      if (path.endsWith('/process')) return draft
+      return { items: [draft] }
+    })
+    const input = await screen.findByRole('textbox')
+    await waitFor(() => expect(input).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (Ctrl+Enter)')
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    fireEvent.change(input, { target: { value: 'Vera is alive\nHer son is Ivan' } })
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    expect(request).toHaveBeenCalledOnce()
+    expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })).toBe(false)
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+    expect(input).toBeDisabled()
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenLastCalledWith('/trees/tree/merges/merge/messages', expect.objectContaining({
+      body: expect.stringContaining('Vera is alive\\nHer son is Ivan'),
+    }))
+    await act(async () => { finish({ ...draft, version: 2 }) })
+    expect(input).toHaveValue('')
+    expect(input).toBeEnabled()
+  })
+
+  it('shows only message content while keeping authors accessible and localizes the send hint', async () => {
+    await i18n.changeLanguage('ru')
+    renderPanel(async () => ({ items: [{ ...draft, messages: [
+      { id: 'user', requestId: 'request', role: 'user', content: 'Мама Ивана — Вера', createdAt: 'now' },
+      { id: 'assistant', requestId: 'request', role: 'assistant', content: 'Ветка готова к проверке.', createdAt: 'now' },
+    ] }] }))
+    const message = await screen.findByText('Мама Ивана — Вера')
+    expect(message.closest('article')).toHaveAccessibleName(i18n.t('treeMerge.you'))
+    expect(screen.getByText('Ветка готова к проверке.').closest('article')).toHaveAccessibleName(i18n.t('treeMerge.assistant'))
+    expect(screen.queryByText(i18n.t('treeMerge.you'))).not.toBeInTheDocument()
+    expect(screen.queryByText(i18n.t('treeMerge.assistant'))).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Отправить' })).toHaveAttribute('title', 'Отправить (Ctrl+Enter)')
+  })
+
   it('keeps failed input and reuses the request id on retry', async () => {
     const requests: string[] = []
     let fail = true
@@ -247,21 +289,17 @@ describe('TreeMergePanel', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
-  it('opens a preview link, checks corrections and applies only the reviewed version', async () => {
+  it('opens a preview link and applies the reviewed version with one explicit click', async () => {
     window.history.replaceState({}, '', '/?merge=merge')
     const result = { personIds: { p: 'person' }, affectedPersonIds: ['person'], etag: 'new-etag' }
-    const { request, applied } = renderPanel(async (path, init) => {
-      if (path.endsWith('/proposal')) return { ...ready, version: 2, proposalVersion: 2 }
+    const { request, applied } = renderPanel(async (path) => {
       if (path.endsWith('/apply')) return { ...ready, state: 'applied', result }
-      if (init?.method === 'POST') return draft
-      return ready
+      return { ...ready, version: 2, proposalVersion: 2 }
     })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Given name' }), { target: { value: 'Veronika' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Check corrections' }))
-    const confirm = await screen.findByRole('checkbox', { name: 'I have reviewed proposal version 2' })
-    expect(confirm).not.toBeChecked()
-    fireEvent.click(confirm)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
+    const apply = await screen.findByRole('button', { name: 'Confirm and apply changes' })
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(applied).not.toHaveBeenCalled()
+    fireEvent.click(apply)
     await waitFor(() => expect(applied).toHaveBeenCalledWith(result))
     expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/apply', expect.objectContaining({
       headers: { 'If-Match': 'etag' }, body: JSON.stringify({ version: 2, proposalVersion: 2 }),
@@ -272,30 +310,43 @@ describe('TreeMergePanel', () => {
     expect(screen.getByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled()
   })
 
-  it('fetches the revalidated version after a tree conflict and requires confirmation again', async () => {
-    const { refreshTree } = renderPanel(async (path, init) => {
-      if (init?.method === 'POST') throw new ApiRequestError(412, { code: 'VERSION_CONFLICT', message: null, fields: {}, details: {} })
-      return path.endsWith('/merge') ? { ...ready, version: 3, proposalVersion: 2 } : { items: [ready] }
+  it('fetches the updated proposal after a tree conflict and waits for another explicit apply', async () => {
+    let attempts = 0
+    const result = { personIds: { p: 'person' }, affectedPersonIds: ['person'], etag: 'applied-etag' }
+    const { request, refreshTree, applied } = renderPanel(async (path, init) => {
+      if (init?.method === 'POST') {
+        if (++attempts === 1) throw new ApiRequestError(412, { code: 'VERSION_CONFLICT', message: null, fields: {}, details: {} })
+        return { ...ready, state: 'applied', result }
+      }
+      return path.endsWith('/merge') ? { ...ready, version: 3, proposalVersion: 2, treeEtag: 'fresh-etag' } : { items: [ready] }
     })
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'I have reviewed proposal version 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm and apply changes' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('tree has changed')
-    expect(await screen.findByRole('checkbox', { name: 'I have reviewed proposal version 2' })).not.toBeChecked()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled())
     expect(refreshTree).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
+    expect(attempts).toBe(1)
+    expect(applied).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
+    await waitFor(() => expect(applied).toHaveBeenCalledWith(result))
+    expect(request).toHaveBeenLastCalledWith('/trees/tree/merges/merge/apply', expect.objectContaining({
+      headers: { 'If-Match': 'fresh-etag' }, body: JSON.stringify({ version: 3, proposalVersion: 2 }),
+    }))
   })
 
-  it('revalidates a conflict and retains corrections on a validation error', async () => {
-    renderPanel(async (_path, init) => {
-      if (init?.method === 'POST') return ready
-      if (init?.method === 'PUT') throw new ApiRequestError(422, { code: 'INVALID', message: null, fields: {}, details: {} })
+  it('revalidates a conflict without applying and keeps chat corrections on validation failure', async () => {
+    const { applied } = renderPanel(async (path, init) => {
+      if (path.endsWith('/revalidate')) return ready
+      if (init?.method === 'POST') throw new ApiRequestError(422, { code: 'INVALID', message: null, fields: {}, details: {} })
       return { items: [{ ...ready, state: 'conflict' }] }
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Check against the current tree' }))
-    await screen.findByRole('checkbox', { name: 'I have reviewed proposal version 1' })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Given name' }), { target: { value: 'Veronika' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Check corrections' }))
+    expect(await screen.findByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Check against the current tree' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled())
+    expect(applied).not.toHaveBeenCalled()
+    const input = screen.getByRole('textbox', { name: 'Family description or clarification' })
+    fireEvent.change(input, { target: { value: 'Her name is Veronika' } })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Given name' })).toHaveValue('Veronika')
+    expect(input).toHaveValue('Her name is Veronika')
   })
 })
