@@ -198,11 +198,14 @@ No provider or application credential is placed in the model's messages or tool
 arguments. The model does not provide user identity, login session or attempt ID.
 
 `SymfonyTreeMergeAi` runs the configured agent within a backend-only
-`TreeMergeAgentContext` tied to the current authenticated request. Before every
-tool, `TreeMergeAgentAccess` reloads the login session and draft, checks the real
-`FamilyTreeVoter`, selected tree, attempt, version and Stop state. Logout, a newer
-message or a stopped attempt therefore prevents late reads and writes. The scope
-is restored in a finally block; the Symfony Security identity is never replaced.
+`TreeMergeAgentContext` tied to the current authenticated request.
+`TreeMergeAgentVoter` authorizes agent use through Symfony Security: it rechecks
+the active login session and delegates tree ownership to `FamilyTreeVoter` using
+the same security token. `TreeMergeAgentScope` binds calls to the selected draft
+and checks the attempt, version and Stop state, including within write transactions.
+Logout, a newer message or a stopped attempt therefore prevents late reads and
+writes. The scope is restored in a finally block; the Symfony Security identity
+is never replaced.
 The separate internal MCP endpoint, service authentication and extra FPM pool
 have been removed. External authenticated clients still use `/mcp/tree`.
 
@@ -467,7 +470,7 @@ Ivan's stored 1990 birth year. Refresh preserved the complete conversation and
 proposal. The proposal was left unapplied; the existing one-person tree was not
 modified. Progress and token usage arrived through the existing Mercure flow.
 
-Automated validation: 207 backend tests and 385 frontend tests; 92.63% backend
+Automated validation: 215 backend tests and 385 frontend tests; 92.65% backend
 line coverage and 90.17% frontend line coverage; every production file with
 measurable behavior is at least 75%. The two constructor-only Doctrine repository
 wrappers (EventPlaceRepository and MediaVariantRepository) have no custom behavior
@@ -479,3 +482,13 @@ The backend suite retains nine existing PHPUnit mock-expectation notices in map
 and GEDCOM tests. Request-level tests cover the real configured Symfony tool loop,
 absence of credentials from model bodies and tool schemas, current-user ownership,
 session revocation, stale/Stop behavior and the eight-read budget.
+
+Agent cleanup validation (2026-11-05): the shorter prompt uses the actual local
+tool workflow. Schema equality was checked against the previous committed version.
+Symfony's registered TreeMergeAgentVoter covers current-user ownership and active
+login sessions; tests also cover guest, missing, expired, revoked and mismatched
+sessions. Processing-attempt and Stop checks live in TreeMergeAgentScope and are
+reused by tool reads and transactional proposal/reply commands.
+In the HTTPS browser, adding Maria preserved the pending Anna/Petr proposal;
+Stop produced a separate notice, and continuing returned exactly
+"Предложено добавить 3 персоны." The tree changes remained unapplied.

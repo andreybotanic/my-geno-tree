@@ -6,9 +6,6 @@ use App\Api\ApiException;
 use App\Api\TreeMergeDraftViewFactory;
 use App\Application\Tree\TreeVersion;
 use App\Entity\AuthSession;
-use App\Entity\TreeMergeDraft;
-use App\Repository\TreeMergeDraftRepository;
-use App\Security\TreeMergeAgentContext;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Cache\CacheItemPoolInterface;
@@ -17,13 +14,12 @@ use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Uid\Uuid;
 
-/** The agent's only write boundary: explicit MCP arguments, never interpreted user or model prose. */
+/** The agent's only write boundary: explicit tool arguments, never interpreted user or model prose. */
 final readonly class TreeMergeAgentCommands
 {
     public function __construct(
-        private TreeMergeDraftRepository $drafts,
+        private TreeMergeAgentScope $scope,
         private EntityManagerInterface $entityManager,
-        private TreeContextService $context,
         private TreeMergeProposalValidator $validator,
         private TreeVersion $versions,
         private MergeActivity $activity,
@@ -40,7 +36,7 @@ final readonly class TreeMergeAgentCommands
      */
     public function prepare(string $treeId, array $proposal): array
     {
-        $draft = $this->active($treeId);
+        $draft = $this->scope->active($treeId);
         $this->entityManager->refresh($draft->tree);
         $etag = $this->versions->etag($draft->tree);
         $this->activity->step($draft, 'validating');
@@ -85,7 +81,7 @@ final readonly class TreeMergeAgentCommands
             || preg_match_all('/[.!?]+(?=\s|$)/u', $reply) > 1 || (null !== $proposalId && $needsClarification)) {
             throw new ApiException(422, 'TREE_MERGE_REPLY_INVALID', details: ['instruction' => 'Send one short sentence of at most 350 characters; use either proposalId or needsClarification.']);
         }
-        $draft = $this->active($treeId);
+        $draft = $this->scope->active($treeId);
         $staged = null;
         if (null !== $proposalId) {
             if (!Uuid::isValid($proposalId)) {
@@ -101,7 +97,7 @@ final readonly class TreeMergeAgentCommands
             $this->entityManager->lock($draft->tree, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft->tree);
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
-            $this->active($treeId);
+            $this->scope->active($treeId);
             $requestId = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role'])['requestId']
                 ?? throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
             if (null !== $staged) {
@@ -123,23 +119,5 @@ final readonly class TreeMergeAgentCommands
         }
 
         return ['state' => $draft->state, 'version' => $draft->version];
-    }
-
-    private function active(string $treeId): TreeMergeDraft
-    {
-        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
-        if (!$context instanceof TreeMergeAgentContext || $context->treeId !== $treeId) {
-            throw new ApiException(403, 'TREE_MERGE_AGENT_REQUIRED');
-        }
-        $this->context->tree($treeId, true);
-        $draft = $this->drafts->find($context->draftId) ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
-        $this->entityManager->refresh($draft);
-        if ($draft->attemptId !== $context->attemptId || $draft->version !== $context->version
-            || 'processing' !== $draft->state || !$draft->chatSessionAvailable) {
-            throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
-        }
-        $this->activity->assertRunning($draft);
-
-        return $draft;
     }
 }

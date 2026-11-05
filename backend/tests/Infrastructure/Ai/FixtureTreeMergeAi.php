@@ -3,10 +3,10 @@
 namespace App\Tests\Infrastructure\Ai;
 
 use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
+use App\Application\TreeMerge\TreeMergeAgentScope;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Mcp\TreeReadTools;
-use App\Security\TreeMergeAgentAccess;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\When;
 
@@ -18,7 +18,7 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static int $calls = 0;
     private static TreeMergeAgentTools $tools;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads, private readonly TreeMergeAgentAccess $access)
+    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads, private readonly TreeMergeAgentScope $scope)
     {
         self::$tools = $tools;
     }
@@ -26,7 +26,7 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
         ++self::$calls;
-        $this->access->run($draft, $attemptId, function () use ($draft, $attemptId): void {
+        $this->scope->run($draft, $attemptId, function () use ($draft, $attemptId): void {
             if (null === self::$handler) {
                 throw new \LogicException('Missing AI fixture');
             }

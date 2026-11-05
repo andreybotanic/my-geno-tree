@@ -1,26 +1,24 @@
 <?php
 
-namespace App\Security;
+namespace App\Application\TreeMerge;
 
 use App\Api\ApiException;
-use App\Application\TreeMerge\MergeActivity;
-use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
 use App\Repository\TreeMergeDraftRepository;
+use App\Security\TreeMergeAgentContext;
+use App\Security\TreeMergeAgentVoter;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 
-/** In-process attempt scope; identity stays in Symfony Security and never reaches the model. */
-final readonly class TreeMergeAgentAccess
+/** Binds tool execution to the selected draft and its current processing attempt. */
+final readonly class TreeMergeAgentScope
 {
     public function __construct(
         private TreeMergeDraftRepository $drafts,
         private EntityManagerInterface $entityManager,
         private RequestStack $requests,
         private AuthorizationCheckerInterface $authorization,
-        private ClockInterface $clock,
         private MergeActivity $activity,
     ) {
     }
@@ -50,23 +48,16 @@ final readonly class TreeMergeAgentAccess
 
     public function active(string $treeId): TreeMergeDraft
     {
-        $request = $this->requests->getCurrentRequest();
-        $context = $request?->attributes->get(TreeMergeAgentContext::class);
-        $session = $request?->attributes->get(AuthSession::class);
-        if (!$context instanceof TreeMergeAgentContext || !$session instanceof AuthSession) {
-            throw new ApiException(401, 'TREE_MERGE_AGENT_REQUIRED');
-        }
-        // Recheck logout even when the initiating request still holds a security token.
-        $this->entityManager->refresh($session);
-        if (!$session->isRefreshActive($this->clock->now())) {
+        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
+        if (!$context instanceof TreeMergeAgentContext) {
             throw new ApiException(401, 'TREE_MERGE_AGENT_REQUIRED');
         }
         if ($context->treeId !== $treeId) {
             throw new ApiException(404, 'TREE_NOT_FOUND');
         }
-        $draft = $this->drafts->find($context->draftId);
-        if (null === $draft || !$this->authorization->isGranted(FamilyTreeVoter::EDIT, $draft->tree)) {
-            throw new ApiException(404, 'TREE_NOT_FOUND');
+        $draft = $this->drafts->find($context->draftId) ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        if (!$this->authorization->isGranted(TreeMergeAgentVoter::USE, $draft)) {
+            throw new ApiException(403, 'TREE_MERGE_AGENT_REQUIRED');
         }
         $this->entityManager->refresh($draft);
         if ($draft->attemptId !== $context->attemptId || $draft->version !== $context->version

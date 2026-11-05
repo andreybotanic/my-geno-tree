@@ -4,11 +4,11 @@ namespace App\Tests\Api\Tree;
 
 use App\Api\ApiException;
 use App\Application\TreeMerge\Ai\SymfonyTreeMergeAi;
+use App\Application\TreeMerge\TreeMergeAgentScope;
 use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Mcp\TreeMergeToolSchema;
-use App\Security\TreeMergeAgentAccess;
 use App\Security\TreeMergeAgentContext;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
@@ -188,10 +188,10 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             $other = $container->get(EntityManagerInterface::class)->find(TreeMergeDraft::class, $otherDraftId);
             self::assertNotNull($other);
             try {
-                $container->get(TreeMergeAgentAccess::class)->run($other, $attempt, static fn () => true);
+                $container->get(TreeMergeAgentScope::class)->run($other, $attempt, static fn () => true);
                 self::fail('Ownership was not enforced');
             } catch (ApiException $error) {
-                self::assertSame('TREE_NOT_FOUND', $error->getErrorCode());
+                self::assertSame('TREE_MERGE_AGENT_REQUIRED', $error->getErrorCode());
             }
             self::assertSame($this->treeId, $tools->tree($this->treeId)['treeId']);
             FixtureTreeMergeAi::reply($draft, 'Current owner retained.');
