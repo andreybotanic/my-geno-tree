@@ -36,7 +36,7 @@ final class TreeMergeExtractionApiTest extends ApiWebTestCase
         $path = $base . '/' . $this->responseString('id');
         $text = 'Добавь Ивану родителей - Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980). У нах есть еще один сын - Петр. У Ивана Ивановича с его женой Анной (она на пару лет младше) есть два сына, но о них ничего не известно.';
         $this->jsonRequest('POST', $path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => 'family', 'content' => $text], $headers);
-        FixtureTreeMergeAi::$handler = static function (TreeMergeDraft $draft) use ($ivanId, $text): void {
+        FixtureTreeMergeAi::$handler = static function (TreeMergeDraft $draft) use ($ivanId, $text): string {
             $evidence = [['messageId' => $draft->messages[0]['id'], 'quote' => $text]];
             $people = [];
             foreach (['i' => [], 'f' => ['givenName' => 'Иван', 'patronymic' => 'Васильевич', 'birthDate' => '1970-10-10', 'gender' => 'male'],
@@ -67,7 +67,8 @@ final class TreeMergeExtractionApiTest extends ApiWebTestCase
             }
             $parents[1]['evidence'][0]['quote'] = 'Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980)';
             static::getContainer()->get(TreeReadTools::class)->person($draft->tree->getId()->toRfc4122(), $ivanId);
-            FixtureTreeMergeAi::reply($draft, 'К добавлению готово 6 персон.', [
+
+            return FixtureTreeMergeAi::reply($draft, 'К добавлению готово 6 персон.', [
                 'people' => $people, 'parents' => $parents, 'marriages' => [['first' => 'i', 'second' => 'a',
                     'marriageDate'                                                   => ['state' => 'unknown'], 'dissolutionDate' => null, 'newPeriod' => false, 'evidence' => $evidence]],
                 'questions' => [],

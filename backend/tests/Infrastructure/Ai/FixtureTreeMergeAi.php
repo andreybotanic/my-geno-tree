@@ -3,7 +3,6 @@
 namespace App\Tests\Infrastructure\Ai;
 
 use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
-use App\Application\TreeMerge\TreeMergeAgentScope;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Mcp\TreeReadTools;
@@ -18,40 +17,31 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static int $calls = 0;
     private static TreeMergeAgentTools $tools;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads, private readonly TreeMergeAgentScope $scope)
+    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads)
     {
         self::$tools = $tools;
     }
 
-    public function respond(TreeMergeDraft $draft, string $attemptId): void
+    public function respond(TreeMergeDraft $draft, string $attemptId): string
     {
         ++self::$calls;
-        $this->scope->run($draft, $attemptId, function () use ($draft, $attemptId): void {
-            if (null === self::$handler) {
-                throw new \LogicException('Missing AI fixture');
-            }
-            (self::$handler)($draft, $attemptId, self::$tools, $this->reads);
-        });
+        if (null === self::$handler) {
+            throw new \LogicException('Missing AI fixture');
+        }
+
+        return (string)(self::$handler)($draft, $attemptId, self::$tools, $this->reads);
     }
 
     /** @param array<string, mixed>|null $proposal */
-    public static function reply(TreeMergeDraft $draft, string $reply, ?array $proposal = null, bool $clarification = false): void
+    public static function reply(TreeMergeDraft $draft, string $reply, ?array $proposal = null): string
     {
-        $id = null;
         if (null !== $proposal) {
-            $prepared = self::$tools->prepare($draft->tree->getId()->toRfc4122(), $proposal);
-            if (isset($prepared['error'])) {
-                throw new \LogicException(json_encode($prepared, JSON_THROW_ON_ERROR));
+            $result = self::$tools->merge($draft->tree->getId()->toRfc4122(), $proposal);
+            if (isset($result['error'])) {
+                throw new \LogicException(json_encode($result, JSON_THROW_ON_ERROR));
             }
-            $data = $prepared;
-            if (!is_string($data['proposalId'] ?? null)) {
-                throw new \LogicException('Missing proposal id');
-            }
-            $id = $data['proposalId'];
         }
-        $result = self::$tools->reply($draft->tree->getId()->toRfc4122(), $reply, $id, $clarification);
-        if (isset($result['error'])) {
-            throw new \LogicException(json_encode($result, JSON_THROW_ON_ERROR));
-        }
+
+        return $reply;
     }
 }

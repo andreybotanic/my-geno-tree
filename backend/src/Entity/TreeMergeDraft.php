@@ -176,7 +176,7 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
-    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $code): void
+    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $code, bool $preserveProposal = false): void
     {
         $previousState = $this->stateBeforeAttempt;
         $index = array_find_key($this->messages, static fn ($message) => 'system' === $message['role']
@@ -185,7 +185,7 @@ class TreeMergeDraft
             'role'                      => 'system', 'content' => '', 'failureCode' => $code, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
         ++$this->version;
         $this->updatedAt = $now;
-        $this->state = 'error';
+        $this->state = $preserveProposal ? ($previousState ?? 'error') : 'error';
         $this->stateBeforeAttempt = $previousState;
     }
 
@@ -194,14 +194,6 @@ class TreeMergeDraft
         $this->state = 'cancelled';
         ++$this->version;
         $this->updatedAt = $now;
-    }
-
-    public function ask(string $requestId, string $reply, \DateTimeImmutable $now): void
-    {
-        $this->markSource($requestId);
-        $this->answer($requestId, $reply, $now);
-        $this->questions = [$reply];
-        $this->state = 'questions';
     }
 
     public function stop(string $requestId, \DateTimeImmutable $now): void
@@ -214,7 +206,7 @@ class TreeMergeDraft
     /** @param array<string, mixed> $proposal
      * @param list<string> $questions
      */
-    public function propose(array $proposal, array $questions, string $etag, string $state, bool $correction, \DateTimeImmutable $now): void
+    public function propose(array $proposal, array $questions, string $etag, string $state, bool $correction, \DateTimeImmutable $now, bool $keepProcessing = false): void
     {
         if ($correction) {
             $this->corrections[] = ['sourceVersion' => ++$this->sourceVersion, 'proposal' => $proposal];
@@ -223,7 +215,11 @@ class TreeMergeDraft
         $this->questions = $questions;
         $this->preparedSourceVersion = $this->sourceVersion;
         $this->treeEtag = $etag;
-        $this->state = $state;
+        if ($keepProcessing && 'processing' === $this->state) {
+            $this->stateBeforeAttempt = $state;
+        } else {
+            $this->state = $state;
+        }
         ++$this->proposalVersion;
         ++$this->version;
         $this->updatedAt = $now;

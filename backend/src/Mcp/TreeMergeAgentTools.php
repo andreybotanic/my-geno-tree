@@ -3,8 +3,8 @@
 namespace App\Mcp;
 
 use App\Api\ApiException;
-use App\Application\TreeMerge\TreeMergeAgentCommands;
-use App\Application\TreeMerge\TreeMergeAgentScope;
+use App\Application\TreeMerge\TreeMergeDraftService;
+use App\Application\TreeMerge\TreeMergeProposalService;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
 
@@ -31,27 +31,17 @@ use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
     method: 'person',
 )]
 #[AsTool(
-    name: 'prepare_tree_merge_proposal',
+    name: 'merge',
     description: <<<'DESCRIPTION'
-        Validate and stage the complete explicit proposal for UI review.
-        Returns proposalId and exact new/existing person counts.
+        Validate and save the complete proposal for UI preview and separate confirmation.
+        Returns the saved proposal version and exact new/existing person counts.
         Correct rejected arguments using the returned field diagnostics.
         DESCRIPTION,
-    method: 'prepare',
-)]
-#[AsTool(
-    name: 'reply_to_tree_merge',
-    description: <<<'DESCRIPTION'
-        Publish the user-visible reply verbatim and end this attempt.
-        Use one sentence of at most 350 characters; a proposal reply states its new-person count
-        and the reason for any omissions. Pass proposalId to submit a staged proposal for UI review.
-        Use needsClarification=true to ask an essential question.
-        DESCRIPTION,
-    method: 'reply',
+    method: 'merge',
 )]
 final readonly class TreeMergeAgentTools
 {
-    public function __construct(private TreeMergeAgentCommands $commands, private TreeReadTools $reads, private TreeMergeAgentScope $scope)
+    public function __construct(private TreeMergeProposalService $proposals, private TreeReadTools $reads, private TreeMergeDraftService $drafts)
     {
     }
 
@@ -76,15 +66,9 @@ final readonly class TreeMergeAgentTools
     /** @param array<string, mixed> $proposal
      * @return array<string, mixed>
      */
-    public function prepare(string $treeId, #[Schema(provider: TreeMergeToolSchema::class)] array $proposal): array
+    public function merge(string $treeId, #[Schema(provider: TreeMergeToolSchema::class)] array $proposal): array
     {
-        return $this->execute($treeId, fn () => $this->commands->prepare($treeId, $proposal));
-    }
-
-    /** @return array<string, mixed> */
-    public function reply(string $treeId, #[Schema(minLength: 1, maxLength: 350)] string $reply, ?string $proposalId = null, bool $needsClarification = false): array
-    {
-        return $this->execute($treeId, fn () => $this->commands->reply($treeId, $reply, $proposalId, $needsClarification));
+        return $this->execute($treeId, fn () => $this->proposals->merge($treeId, $proposal));
     }
 
     /** @param \Closure(): array<string, mixed> $command
@@ -93,7 +77,7 @@ final readonly class TreeMergeAgentTools
     private function execute(string $treeId, \Closure $command): array
     {
         try {
-            $this->scope->active($treeId);
+            $this->drafts->active($treeId);
 
             return $command();
         } catch (ApiException $error) {

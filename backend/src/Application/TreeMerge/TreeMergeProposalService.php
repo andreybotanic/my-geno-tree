@@ -6,9 +6,11 @@ use App\Api\ApiException;
 use App\Application\Tree\ChangeSet\TreeChangeSetExecutor;
 use App\Application\Tree\TreeVersion;
 use App\Entity\TreeMergeDraft;
+use App\Security\TreeMergeAgentContext;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\ClockInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final readonly class TreeMergeProposalService
 {
@@ -18,7 +20,72 @@ final readonly class TreeMergeProposalService
         private TreeVersion $versions,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
+        private TreeMergeDraftService $drafts,
+        private MergeActivity $activity,
+        private RequestStack $requests,
     ) {
+    }
+
+    /** @param array<string, mixed> $proposal
+     * @return array{newPeople: int, existingPeople: int, state: string, proposalVersion: int}
+     */
+    public function merge(string $treeId, array $proposal): array
+    {
+        $draft = $this->drafts->active($treeId);
+        $this->entityManager->refresh($draft->tree);
+        $etag = $this->versions->etag($draft->tree);
+        $this->activity->step($draft, 'validating');
+        $observed = [];
+        foreach ($this->activity->read($draft)['contexts'] as $context) {
+            foreach (is_array($context['people'] ?? null) ? $context['people'] : [] as $person) {
+                if (is_array($person) && is_string($person['id'] ?? null)) {
+                    $observed[] = $person['id'];
+                }
+            }
+        }
+        foreach (is_array($proposal['people'] ?? null) ? $proposal['people'] : [] as $person) {
+            if (is_array($person) && null !== ($person['existingPersonId'] ?? null)
+                && !in_array($person['existingPersonId'], $observed, true)) {
+                throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON', details: ['instruction' => 'Read the existing person with get_person_context before referencing it.']);
+            }
+        }
+        $validated = $this->validator->validate($draft, $proposal);
+        // Expected conflicts roll back without closing the entity manager used by the agent's next tool.
+        $this->entityManager->beginTransaction();
+        try {
+            $this->lock($draft);
+            $this->drafts->active($treeId);
+            if ($etag !== $this->versions->etag($draft->tree)) {
+                throw new ApiException(409, 'TREE_MERGE_TREE_CONFLICT');
+            }
+            $requestId = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role'])['requestId']
+                ?? throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
+            $draft->markSource($requestId);
+            $this->save($draft, $validated, false, true);
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+        } catch (\Throwable $error) {
+            $this->entityManager->rollback();
+            $this->entityManager->refresh($draft);
+            throw $error;
+        }
+        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
+        if ($context instanceof TreeMergeAgentContext) {
+            $context->version = $draft->version;
+        }
+        /** @var list<array{resolution: string}> $people */
+        $people = $validated->proposal['people'];
+
+        return [
+            'newPeople'      => count(array_filter($people, static fn ($person) => 'new' === $person['resolution'])),
+            'existingPeople' => count(array_filter($people, static fn ($person) => 'existing' === $person['resolution'])),
+            'state'          => match (true) {
+                [] !== $validated->questions => 'questions',
+                $validated->hasChanges       => 'ready',
+                default                      => 'no_changes',
+            },
+            'proposalVersion' => $draft->proposalVersion,
+        ];
     }
 
     /** @param array<string, mixed> $payload */
@@ -98,7 +165,7 @@ final readonly class TreeMergeProposalService
         }
     }
 
-    private function save(TreeMergeDraft $draft, ValidatedTreeMergeProposal $validated, bool $correction): void
+    private function save(TreeMergeDraft $draft, ValidatedTreeMergeProposal $validated, bool $correction, bool $keepProcessing = false): void
     {
         $state = match (true) {
             [] !== $validated->questions => 'questions',
@@ -106,7 +173,7 @@ final readonly class TreeMergeProposalService
             default                      => 'ready',
         };
         $draft->propose($validated->proposal, $validated->questions, $this->versions->etag($draft->tree),
-            $state, $correction, $this->clock->now());
+            $state, $correction, $this->clock->now(), $keepProcessing);
     }
 
     private function lock(TreeMergeDraft $draft): void

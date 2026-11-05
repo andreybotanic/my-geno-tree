@@ -5,6 +5,7 @@ namespace App\Application\TreeMerge;
 use App\Api\ApiException;
 use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
 use App\Entity\TreeMergeDraft;
+use App\Security\TreeMergeAgentContext;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -24,6 +25,7 @@ final readonly class TreeMergeConversationService
         #[Target('tree_merge')] private RateLimiterFactoryInterface $limiter,
         private RequestStack $requests,
         private TreeMergeEvents $events,
+        private TreeMergeDraftService $drafts,
     ) {
     }
 
@@ -59,25 +61,51 @@ final readonly class TreeMergeConversationService
         }
         $attemptVersion = $draft->version;
         $this->events->begin($draft);
-        $this->requests->getCurrentRequest()?->attributes->set(TreeMergeDraft::class, $draft);
-        $this->activity->step($draft, 'thinking');
-        $failure = 'reply_missing';
+        $request = $this->requests->getCurrentRequest() ?? throw new ApiException(401, 'TREE_MERGE_AGENT_REQUIRED');
+        $previousContext = $request->attributes->get(TreeMergeAgentContext::class);
+        $previousDraft = $request->attributes->get(TreeMergeDraft::class);
+        $context = new TreeMergeAgentContext($draft, $attempt);
+        $request->attributes->set(TreeMergeAgentContext::class, $context);
+        $request->attributes->set(TreeMergeDraft::class, $draft);
         try {
-            $this->activity->assertRunning($draft);
-            $this->ai->respond($draft, $attempt);
-        } catch (\Throwable $error) {
-            $this->logger->warning('Tree merge agent failed: ' . $error::class);
-            $failure = $error instanceof ApiException && 'TREE_MERGE_TOKEN_LIMIT' === $error->getErrorCode()
-                ? 'token_limit' : 'provider_unavailable';
-        }
-        // Reload committed state: Stop or another browser request may have superseded this attempt.
-        $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $failure): void {
-            $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
-            $this->entityManager->refresh($draft);
-            if ($draft->attemptId === $attempt && $draft->version === $attemptVersion && 'processing' === $draft->state) {
-                $draft->processingFailed($this->clock->now(), $requestId, $failure);
+            $this->activity->step($draft, 'thinking');
+            $answer = null;
+            $failure = 'empty_response';
+            try {
+                $this->drafts->active($context->treeId);
+                $text = $this->ai->respond($draft, $attempt);
+                if ('' !== trim($text)) {
+                    $answer = $text;
+                }
+            } catch (\Throwable $error) {
+                $this->logger->warning('Tree merge agent failed: ' . $error::class);
+                $failure = $error instanceof ApiException && 'TREE_MERGE_TOKEN_LIMIT' === $error->getErrorCode()
+                    ? 'token_limit' : 'provider_unavailable';
             }
-        });
+            $this->entityManager->wrapInTransaction(function () use ($draft, $context, $attemptVersion, $requestId, $answer, $failure): void {
+                $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($draft);
+                try {
+                    $this->drafts->active($context->treeId);
+                } catch (ApiException) {
+                    // A stopped, superseded or revoked turn cannot publish a late answer.
+                    return;
+                }
+                if (null === $answer) {
+                    $draft->processingFailed($this->clock->now(), $requestId, $failure, $context->version !== $attemptVersion);
+                } else {
+                    $draft->answer($requestId, $answer, $this->clock->now());
+                }
+            });
+        } finally {
+            foreach ([TreeMergeAgentContext::class => $previousContext, TreeMergeDraft::class => $previousDraft] as $key => $value) {
+                if (null === $value) {
+                    $request->attributes->remove($key);
+                } else {
+                    $request->attributes->set($key, $value);
+                }
+            }
+        }
     }
 
     public function stop(TreeMergeDraft $draft, mixed $requestId): void

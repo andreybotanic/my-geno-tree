@@ -74,13 +74,13 @@ export type TreeMergeMessage = {
     role: 'user' | 'assistant' | 'system';
     content: string;
     /**
-     * Whether this user message contributes source facts; the agent MCP command marks pending source messages.
+     * Whether this user message contributes source facts; a successful merge tool marks pending source messages.
      */
     source?: boolean;
     /**
      * System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
      */
-    failureCode?: 'reply_missing' | 'provider_unavailable' | 'token_limit' | 'stopped';
+    failureCode?: 'empty_response' | 'provider_unavailable' | 'token_limit' | 'stopped';
     createdAt: string;
 };
 
@@ -981,7 +981,7 @@ export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMerg
 
 export type ProcessTreeMergeResponses = {
     /**
-     * Ready, clarification, no changes or error draft. The agent receives MCP validation errors and corrects commands within its tool budget. Questions are sent explicitly through MCP and the next turn receives the whole conversation. Prior proposals cannot be applied while clarification is required. Provider failures are retryable.
+     * Updated conversation and proposal state. Tool validation errors are returned to the agent for correction. Clarification questions are ordinary assistant messages. A saved proposal remains reviewable if the final model response fails; provider failures are retryable.
      */
     200: TreeMergeDraft;
 };

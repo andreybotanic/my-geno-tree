@@ -153,21 +153,21 @@ questions and user answers; only user messages can substantiate source quotes.
 Sending starts the agent immediately. Private Mercure SSE delivers processing
 stages and draft updates; there is no periodic chat-status polling. While the agent
 runs, Send becomes Stop. `POST .../{mergeId}/stop` targets that message's requestId,
-invalidates subsequent MCP commands and preserves the conversation. Old commands cannot
+invalidates subsequent tool calls and preserves the conversation. Old commands cannot
 overwrite newer input, a stopped turn or a reviewed proposal. Interrupted
 attempts can be retried after five minutes.
 
-MCP validation errors include the field path, rule and diagnostic. The agent
+Tool validation errors include the field path, rule and diagnostic. The agent
 corrects its own commands within the tool budget, or sends one essential
 clarification question itself. The application does not invent fallback questions
-or replies. A provider failure or missing reply command produces a retryable
+or replies. A provider failure or empty model response produces a retryable
 system notice; the source and earlier reviewed proposal remain available.
 Application of tree changes still requires the separate preview confirmation.
 
 `backend/config/packages/ai.yaml` configures the stock Symfony AI Agent and
 Generic platform. The provider URL is `http://cli-proxy-api:8317`; the selected
 model is `gpt-5.6-luna`. Keep provider/model selection in this file, including the
-model's tool-calling capabilities. The agent has five explicitly registered
+model's tool-calling capabilities. The agent has four explicitly registered
 native PHP tools and a sixteen-tool-call limit. Symfony owns the complete tool
 loop; no custom agent, runner or remote tool executor is used.
 
@@ -197,22 +197,27 @@ digits, underscores or hyphens; the setup command above generates a random hex k
 No provider or application credential is placed in the model's messages or tool
 arguments. The model does not provide user identity, login session or attempt ID.
 
-`SymfonyTreeMergeAi` runs the configured agent within a backend-only
-`TreeMergeAgentContext` tied to the current authenticated request.
-`TreeMergeAgentVoter` authorizes agent use through Symfony Security: it rechecks
-the active login session and delegates tree ownership to `FamilyTreeVoter` using
-the same security token. `TreeMergeAgentScope` binds calls to the selected draft
-and checks the attempt, version and Stop state, including within write transactions.
-Logout, a newer message or a stopped attempt therefore prevents late reads and
-writes. The scope is restored in a finally block; the Symfony Security identity
-is never replaced.
-The separate internal MCP endpoint, service authentication and extra FPM pool
-have been removed. External authenticated clients still use `/mcp/tree`.
+`SymfonyTreeMergeAi` passes a normal MessageBag of user/assistant messages to the
+configured agent and returns its final text verbatim. A standard Symfony AI input
+processor adds selected-tree context and evidence-message IDs to the configured
+system prompt. Answers support ordinary paragraphs and are rendered as escaped
+plain text. Clarification questions are ordinary assistant messages.
 
-Only `reply_to_tree_merge` publishes the agent's exact single-sentence reply;
-free-form provider output is discarded. Proposals are staged and applied only
-through the existing separate UI confirmation. Application aliases remain
-attribute-based; test fixtures are discovered only in the test environment.
+`TreeMergeConversationService` binds each run to its backend-only attempt context,
+saves its final answer, and restores the previous request context in a finally
+block. `TreeMergeAgentVoter` checks the active login and delegates ownership to
+`FamilyTreeVoter`. `TreeMergeDraftService` rechecks the selected draft, attempt,
+version and Stop state before tools and final writes. The framework event listener
+also rejects tool calls and model rounds after revocation, Stop or a newer message.
+
+The local `merge` tool validates and commits a proposal directly through
+`TreeMergeProposalService`. Symfony AI's ToolCallSucceeded event publishes the
+updated preview through Mercure only when that tool returned a successful result.
+This happens before the next model request and independently of the final answer.
+Invalid or denied tools publish no preview. A committed proposal remains available
+for button confirmation even if generating the final model answer fails. While
+the agent is still processing, the preview is visible and Apply remains disabled.
+Tree mutations happen only through the separate UI confirmation.
 
 See the [Symfony AI Agent documentation](https://symfony.com/doc/current/ai/components/agent.html)
 and [CLIProxyAPI source and OAuth support](https://github.com/router-for-me/CLIProxyAPI).
@@ -302,13 +307,11 @@ conversion, without network ASR calls. Hugging Face activation remains deferred.
 The versioned `MergePrompt::SYSTEM` is entirely in English while requiring
 responses in the user's interface language and preserving original names/quotes.
 
-The agent performs all interpretation, matching, extraction and deductions using
-MCP and the full conversation. Application code does not classify prose, infer
-names or dates, or execute final model text/JSON. The agent sends the visible answer
-with `reply_to_tree_merge`: one short sentence, stored verbatim, including the
-number of new people and any omission reasons. The server never adds summaries,
-assumptions or explanations. Processing errors and Stop are localized system
-notices, separate from assistant messages.
+The agent performs interpretation, matching, extraction and deductions using
+native PHP tools and the full conversation. Its final text becomes the normal
+assistant message; JSON-looking prose remains plain text. Structured proposals
+are accepted only through `merge`, where source evidence and domain invariants
+are validated. Processing errors and Stop are localized system notices.
 
 The prompt requires every mentioned relative, including unnamed counted children,
 and supports approximate dates and inferred names when justified by MCP facts.
@@ -337,17 +340,13 @@ token. Available tools are `get_tree_context`, `find_people`,
 `get_person_context`, `prepare_tree_merge` and `get_tree_merge`. Preparation
 returns an absolute preview link (`APP_URL`); no MCP tool applies changes.
 
-The application's Symfony agent executes the three read tools,
-`prepare_tree_merge_proposal` and `reply_to_tree_merge` locally, with at most eight
-context reads and sixteen tool calls per attempt. Preparing stages a validated
-proposal for five minutes in ephemeral memory; replying with its proposalId
-atomically submits it for UI review and stores the agent's sentence. A stale
-version, changed tree, revoked session or stopped attempt cannot submit it.
-No tool applies mutations or recursively starts `prepare_tree_merge`.
-Search results are candidate hints: an existing person must occur in a full
-context read before a proposal can reference their ID. Context contains at most
-ten parent/child links and ten marriages; name search returns at most five
-candidates. External MCP sessions retain their cache and Symfony locks.
+The application's Symfony agent executes three read tools and `merge` locally,
+with at most eight context reads and sixteen tool calls per attempt. A successful
+merge immediately saves a validated proposal and publishes its preview; chat
+answers are saved separately. Existing-person references must come from a full
+context read. Context contains at most ten parent/child links and ten marriages;
+name search returns at most five candidates. External MCP sessions retain their
+cache and Symfony locks.
 
 Validation: backend API tests cover session isolation, retries, conflicts, source
 limits and ownership; component tests cover named-person input, timer/progress, errors and
@@ -470,7 +469,7 @@ Ivan's stored 1990 birth year. Refresh preserved the complete conversation and
 proposal. The proposal was left unapplied; the existing one-person tree was not
 modified. Progress and token usage arrived through the existing Mercure flow.
 
-Automated validation: 215 backend tests and 385 frontend tests; 92.65% backend
+Automated validation: 217 backend tests and 386 frontend tests; 92.61% backend
 line coverage and 90.17% frontend line coverage; every production file with
 measurable behavior is at least 75%. The two constructor-only Doctrine repository
 wrappers (EventPlaceRepository and MediaVariantRepository) have no custom behavior
@@ -483,12 +482,18 @@ and GEDCOM tests. Request-level tests cover the real configured Symfony tool loo
 absence of credentials from model bodies and tool schemas, current-user ownership,
 session revocation, stale/Stop behavior and the eight-read budget.
 
-Agent cleanup validation (2026-11-05): the shorter prompt uses the actual local
-tool workflow. Schema equality was checked against the previous committed version.
-Symfony's registered TreeMergeAgentVoter covers current-user ownership and active
-login sessions; tests also cover guest, missing, expired, revoked and mismatched
-sessions. Processing-attempt and Stop checks live in TreeMergeAgentScope and are
-reused by tool reads and transactional proposal/reply commands.
-In the HTTPS browser, adding Maria preserved the pending Anna/Petr proposal;
-Stop produced a separate notice, and continuing returned exactly
-"Предложено добавить 3 персоны." The tree changes remained unapplied.
+Normal Symfony AI chat validation (2026-11-05): a real MessageBag supplies user and
+assistant roles; the final provider text is an ordinary reply. The configured
+agent's request-level test observed the committed preview event before its next
+model request, and rejected tools emitted no preview. A saved merge remained
+confirmable after a later provider failure. Stale replies were rejected after
+Stop, a newer message, session revocation and manual proposal edits.
+
+In the HTTPS browser, the separate synthetic tree "Symfony AI — обычный чат 05.11"
+remained empty after a three-person proposal. An ordinary two-sentence answer
+retained that preview. Stop and continuing worked; clicking Apply then created
+exactly three people, and refresh preserved their dates, relationships and the
+complete conversation. The other trees and their pending proposals were retained.
+PhpStorm WARNING inspections were run for all affected PHP files; the nested
+ternary finding was corrected and re-inspected. The two existing false positives
+on TreeMergeDraft's entity constructor parameters remain documented above.

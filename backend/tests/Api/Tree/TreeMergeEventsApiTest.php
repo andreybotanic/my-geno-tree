@@ -63,8 +63,7 @@ final class TreeMergeEventsApiTest extends ApiWebTestCase
         self::assertSame('progress', $packets[1]['kind']);
         self::assertSame(['thinking'], $packets[1]['progress']);
         self::assertSame('draft', $packets[2]['kind']);
-        self::assertSame('draft', $packets[3]['kind']);
-        self::assertSame($this->responseData(), $packets[3]['draft']);
+        self::assertSame($this->responseData(), $packets[2]['draft']);
         foreach (TestMergeEvents::updates() as $event) {
             self::assertSame([$topic], $event->getTopics());
             self::assertTrue($event->isPrivate());
@@ -85,6 +84,6 @@ final class TreeMergeEventsApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Another tree'], $headers);
         $this->jsonRequest('POST', '/api/v1/trees/' . $this->responseString('id') . '/merges/' . basename($path) . '/events', [], $headers);
         self::assertResponseStatusCodeSame(404);
-        self::assertCount(4, TestMergeEvents::$updates);
+        self::assertCount(3, TestMergeEvents::$updates);
     }
 }

@@ -7,13 +7,13 @@ use Symfony\Component\DependencyInjection\Attribute\Exclude;
 
 /** Backend-only chat/attempt scope, present while the Symfony agent executes. */
 #[Exclude]
-final readonly class TreeMergeAgentContext
+final class TreeMergeAgentContext
 {
-    public string $draftId;
-    public string $treeId;
+    public readonly string $draftId;
+    public readonly string $treeId;
     public int $version;
 
-    public function __construct(TreeMergeDraft $draft, public string $attemptId)
+    public function __construct(TreeMergeDraft $draft, public readonly string $attemptId)
     {
         $this->draftId = $draft->id->toRfc4122();
         $this->treeId = $draft->tree->getId()->toRfc4122();

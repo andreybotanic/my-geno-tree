@@ -23,7 +23,7 @@ export const resources = {
           progress: { thinking: 'Request received', tree_loaded: 'Tree context received', names_searched: 'Names searched', people_loaded: 'Related people checked', validating: 'Checking the proposal', repairing: 'Correcting the proposal after validation', clarifying: 'Preparing clarification questions' },
         processingFailed: 'The description could not be processed. Your text is saved. Try again or add a clarification.',
         failure: {
-          reply_missing: 'The agent did not send a reply; please try again.',
+          empty_response: 'The AI returned an empty response; please try again.',
           stopped: 'Processing stopped.',
           token_limit: 'The daily token limit has been reached. Please continue later. Your proposal remains available for review.',
             provider_unavailable: 'The AI service is unavailable; please try again shortly.',
@@ -511,7 +511,7 @@ export const resources = {
           progress: { thinking: 'Запрос принят', tree_loaded: 'Контекст дерева получен', names_searched: 'Поиск по именам выполнен', people_loaded: 'Связанные персоны проверены', validating: 'Проверяю предложение', repairing: 'Исправляю предложение после проверки', clarifying: 'Уточняю, что нужно для продолжения' },
         processingFailed: 'Не удалось обработать описание. Текст сохранён. Повторите разбор или добавьте уточнение.',
         failure: {
-          reply_missing: 'Агент не отправил ответ; повторите попытку.',
+          empty_response: 'ИИ вернул пустой ответ; повторите попытку.',
           stopped: 'Обработка остановлена.',
           token_limit: 'Достигнут дневной лимит токенов. Продолжите позже. Ваше предложение доступно для проверки.',
             provider_unavailable: 'Сервис ИИ недоступен; повторите попытку чуть позже.',

@@ -3,6 +3,7 @@
 namespace App\Tests\Api\Tree;
 
 use App\Application\TreeMerge\TreeMergeConversationService;
+use App\Application\TreeMerge\TreeMergeProposalService;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Tests\Api\ApiWebTestCase;
@@ -30,20 +31,21 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         $this->path = $base . '/' . $this->responseString('id');
     }
 
-    public function testOnlyMcpCommandsSubmitProposalsAndRepliesAreVerbatim(): void
+    public function testMergeSavesThePreviewAndNormalRepliesPreserveItWithoutApplyingChanges(): void
     {
-        FixtureTreeMergeAi::$handler = fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Ready to add 1 person; Boris is omitted at your request.', $this->proposal($draft));
-        $this->message('Vera was born about 1938; skip Boris.', 'first');
+        $answer = "I prepared Vera's profile.\n\n" . str_repeat('Review the proposed details before applying them. ', 10);
+        FixtureTreeMergeAi::$handler = fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, $answer, $this->proposal($draft));
+        $this->message('Vera was born about 1938.', 'first');
         $this->process('first');
         self::assertSame('ready', $this->responseString('state'));
-        self::assertSame('Ready to add 1 person; Boris is omitted at your request.', $this->responseString('messages', '1', 'content'));
+        self::assertSame($answer, $this->responseString('messages', '1', 'content'));
         $prepared = $this->responseData();
         $this->process('first');
         self::assertSame(1, FixtureTreeMergeAi::$calls);
         self::assertSame($prepared, $this->responseData());
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertSame([], $this->responseData()['people']);
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Use the confirmation button to apply the proposal.');
+        FixtureTreeMergeAi::$handler = static fn () => 'Use the confirmation button to apply the proposal.';
         $this->message('Apply everything now.', 'apply');
         $this->process('apply');
         self::assertSame($prepared['proposal'], $this->responseData()['proposal']);
@@ -51,116 +53,134 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         self::assertSame('ready', $this->responseString('state'));
     }
 
-    public function testFreeTextAndJsonFromProviderHaveNoEffectsAndFailureIsNotAnAssistantReply(): void
+    public function testJsonLookingProviderTextIsAnOrdinaryMessageAndDoesNotCreateAProposal(): void
     {
-        FixtureTreeMergeAi::$handler = static fn () => '{"action":"proposal","reply":"Done","proposal":{"people":[]}}';
+        $text = '{"action":"proposal","reply":"Done","proposal":{"people":[]}}';
+        FixtureTreeMergeAi::$handler = static fn () => $text;
         $this->message('Add Vera.', 'first');
         $this->process('first');
-        self::assertSame('error', $this->responseString('state'));
         self::assertNull($this->responseData()['proposal']);
-        self::assertSame('system', $this->responseString('messages', '1', 'role'));
-        self::assertSame('', $this->responseString('messages', '1', 'content'));
-        self::assertSame('reply_missing', $this->responseString('messages', '1', 'failureCode'));
-        $failedId = $this->responseString('messages', '1', 'id');
-        FixtureTreeMergeAi::$handler = fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Ready to add 1 person.', $this->proposal($draft));
-        $this->process('first');
-        self::assertSame('ready', $this->responseString('state'));
-        self::assertSame($failedId, $this->responseString('messages', '1', 'id'));
-        self::assertIsArray($this->responseData()['messages']);
-        self::assertCount(2, $this->responseData()['messages']);
+        self::assertSame($text, $this->responseString('messages', '1', 'content'));
         self::assertSame('assistant', $this->responseString('messages', '1', 'role'));
     }
 
-    public function testAgentCorrectsRejectedCommandWithoutServerInferenceOrExtraModelInvocation(): void
+    public function testAgentCorrectsRejectedMergeAndThePreviewExistsBeforeItsAnswer(): void
     {
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): string {
             $proposal = $this->proposal($draft);
             $proposal['parents'] = [['parent' => 'missing', 'child' => 'v', 'role' => 'mother', 'evidence' => [['messageId' => $draft->messages[0]['id'], 'quote' => 'Vera.']]]];
-            $failed = $tools->prepare($this->treeId, $proposal);
+            $failed = $tools->merge($this->treeId, $proposal);
             self::assertArrayHasKey('error', $failed);
             self::assertStringContainsString('person_reference_unknown', json_encode($failed, JSON_THROW_ON_ERROR));
             self::assertNull($draft->proposal);
+            $result = $tools->merge($this->treeId, $this->proposal($draft));
+            self::assertArrayNotHasKey('error', $result);
+            self::assertSame(1, $result['newPeople']);
+            self::assertNotNull($draft->proposal);
+            self::assertSame('processing', $draft->state);
             self::assertCount(1, $draft->messages);
-            FixtureTreeMergeAi::reply($draft, 'Ready to add 1 person.', $this->proposal($draft));
+
+            return 'Ready to add Vera.';
         };
         $this->message('Vera.', 'first');
         $this->process('first');
         self::assertSame('ready', $this->responseString('state'));
-        self::assertSame(1, FixtureTreeMergeAi::$calls);
+        self::assertSame('Ready to add Vera.', $this->responseString('messages', '1', 'content'));
     }
 
-    public function testInvalidReplyIsRejectedNotRewrittenAndStagingAloneDoesNotSubmit(): void
+    public function testClarificationIsAnOrdinaryAnswerAndTheNextTurnRetainsTheHistory(): void
     {
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
-            $prepared = $tools->prepare($this->treeId, $this->proposal($draft));
-            self::assertArrayNotHasKey('error', $prepared);
-            self::assertIsString($prepared['proposalId']);
-            self::assertSame(1, $prepared['newPeople']);
-            foreach (['', "First.\nSecond.", 'First. Second.', str_repeat('x', 351)] as $text) {
-                self::assertArrayHasKey('error', $tools->reply($this->treeId, $text, $prepared['proposalId']));
-            }
-            self::assertNull($draft->proposal);
-            self::assertCount(1, $draft->messages);
-        };
-        $this->message('Vera.', 'first');
-        $this->process('first');
-        self::assertSame('error', $this->responseString('state'));
-        self::assertNull($this->responseData()['proposal']);
-    }
-
-    public function testClarificationUsesExactAgentSentenceAndRetainsWholeConversation(): void
-    {
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, '0 people ready; which Vera do you mean?', clarification: true);
+        FixtureTreeMergeAi::$handler = static fn () => 'Which Vera do you mean?';
         $this->message('Add Vera.', 'first');
         $this->process('first');
-        self::assertSame('questions', $this->responseString('state'));
-        self::assertSame(['0 people ready; which Vera do you mean?'], $this->responseData()['questions']);
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft): void {
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertSame('Which Vera do you mean?', $this->responseString('messages', '1', 'content'));
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft): string {
             self::assertSame('Add Vera.', $draft->messages[0]['content']);
-            self::assertSame('0 people ready; which Vera do you mean?', $draft->messages[1]['content']);
+            self::assertSame('Which Vera do you mean?', $draft->messages[1]['content']);
             self::assertSame('A new person.', $draft->messages[2]['content']);
-            FixtureTreeMergeAi::reply($draft, 'Ready to add 1 person.', $this->proposal($draft));
+
+            return FixtureTreeMergeAi::reply($draft, 'Ready to add Vera.', $this->proposal($draft));
         };
         $this->message('A new person.', 'answer');
         $this->process('answer');
         self::assertSame('ready', $this->responseString('state'));
     }
 
-    public function testProviderFailureDoesNotInventTextAndCannotUndoCompletedMcpReply(): void
+    public function testEmptyAnswerCreatesARetryableNoticeInsteadOfAnAssistantMessage(): void
     {
-        FixtureTreeMergeAi::$handler = static fn () => throw new \RuntimeException('offline');
+        FixtureTreeMergeAi::$handler = static fn () => " \n";
         $this->message('Vera.', 'first');
         $this->process('first');
-        self::assertSame('provider_unavailable', $this->responseString('messages', '1', 'failureCode'));
-        self::assertSame('', $this->responseString('messages', '1', 'content'));
-        FixtureTreeMergeAi::$handler = static function (TreeMergeDraft $draft): never {
-            FixtureTreeMergeAi::reply($draft, 'Please specify the relationship.');
-            throw new \RuntimeException('connection closed after command');
-        };
+        self::assertSame('empty_response', $this->responseString('messages', '1', 'failureCode'));
+        $noticeId = $this->responseString('messages', '1', 'id');
+        FixtureTreeMergeAi::$handler = static fn () => 'Please describe Vera.';
         $this->process('first');
-        self::assertSame('Please specify the relationship.', $this->responseString('messages', '1', 'content'));
+        self::assertSame($noticeId, $this->responseString('messages', '1', 'id'));
         self::assertSame('assistant', $this->responseString('messages', '1', 'role'));
+        self::assertSame('Please describe Vera.', $this->responseString('messages', '1', 'content'));
     }
 
-    public function testNewMessageAndStopInvalidateTheOldAgentCommands(): void
+    public function testACommittedMergeSurvivesProviderFailureAndCanBeAppliedByButton(): void
     {
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): never {
+            self::assertArrayNotHasKey('error', $tools->merge($this->treeId, $this->proposal($draft)));
+            throw new \RuntimeException('connection lost after merge');
+        };
+        $this->message('Vera.', 'first');
+        $this->process('first');
+        self::assertSame('ready', $this->responseString('state'));
+        self::assertSame('provider_unavailable', $this->responseString('messages', '1', 'failureCode'));
+        $data = $this->responseData();
+        $this->jsonRequest('POST', $this->path . '/apply', ['version' => $data['version'], 'proposalVersion' => $data['proposalVersion']],
+            $this->headers + ['If-Match' => $this->responseString('treeEtag')]);
+        self::assertResponseIsSuccessful();
+        self::assertSame('applied', $this->responseString('state'));
+    }
+
+    public function testNewMessageAndStopRejectLateToolResultsAndOrdinaryAnswers(): void
+    {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): string {
             $draft->addMessage('new', 'Her name is Veronika.', new \DateTimeImmutable());
             static::getContainer()->get(EntityManagerInterface::class)->flush();
-            self::assertArrayHasKey('error', $tools->reply($this->treeId, 'Obsolete reply.'));
+            self::assertArrayHasKey('error', $tools->merge($this->treeId, $this->proposal($draft)));
+
+            return 'Obsolete answer.';
         };
         $this->message('Vera.', 'first');
         $this->process('first');
         self::assertIsArray($this->responseData()['messages']);
         self::assertCount(2, $this->responseData()['messages']);
-        self::assertSame('collecting', $this->responseString('state'));
-        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): string {
             static::getContainer()->get(TreeMergeConversationService::class)->stop($draft, 'new');
-            self::assertArrayHasKey('error', $tools->reply($this->treeId, 'Obsolete reply.'));
+            self::assertArrayHasKey('error', $tools->tree($this->treeId));
+
+            return 'Obsolete answer.';
         };
         $this->process('new');
-        self::assertSame('system', $this->responseString('messages', '2', 'role'));
         self::assertSame('stopped', $this->responseString('messages', '2', 'failureCode'));
+        self::assertSame('system', $this->responseString('messages', '2', 'role'));
+    }
+
+    public function testReviewedProposalEditsSupersedeTheRunningAgentAnswer(): void
+    {
+        FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): string {
+            $proposal = $this->proposal($draft);
+            self::assertArrayNotHasKey('error', $tools->merge($this->treeId, $proposal));
+            self::assertIsArray($proposal['people']);
+            self::assertIsArray($proposal['people'][0]);
+            self::assertIsArray($proposal['people'][0]['fields']);
+            $proposal['people'][0]['fields']['givenName'] = ['state' => 'known', 'value' => 'Veronika'];
+            static::getContainer()->get(TreeMergeProposalService::class)->revise($draft, ['version' => $draft->version, 'proposal' => $proposal]);
+
+            return 'An obsolete answer about Vera.';
+        };
+        $this->message('Vera.', 'first');
+        $this->process('first');
+        self::assertSame('ready', $this->responseString('state'));
+        self::assertSame('Veronika', $this->responseString('proposal', 'people', '0', 'fields', 'givenName', 'value'));
+        self::assertIsArray($this->responseData()['messages']);
+        self::assertCount(1, $this->responseData()['messages']);
     }
 
     /** @return array<string, mixed> */

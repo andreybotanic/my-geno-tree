@@ -8,9 +8,13 @@ use App\Entity\FamilyTree;
 use App\Entity\TreeMergeDraft;
 use App\Repository\PersonRepository;
 use App\Repository\TreeMergeDraftRepository;
+use App\Security\TreeMergeAgentContext;
+use App\Security\TreeMergeAgentVoter;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\ClockInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Uid\Uuid;
 
 final readonly class TreeMergeDraftService
@@ -23,7 +27,33 @@ final readonly class TreeMergeDraftService
         private TreeVersion $versions,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
+        private RequestStack $requests,
+        private AuthorizationCheckerInterface $authorization,
+        private MergeActivity $activity,
     ) {
+    }
+
+    public function active(string $treeId): TreeMergeDraft
+    {
+        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
+        if (!$context instanceof TreeMergeAgentContext) {
+            throw new ApiException(401, 'TREE_MERGE_AGENT_REQUIRED');
+        }
+        if ($context->treeId !== $treeId) {
+            throw new ApiException(404, 'TREE_NOT_FOUND');
+        }
+        $draft = $this->drafts->find($context->draftId) ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        if (!$this->authorization->isGranted(TreeMergeAgentVoter::USE, $draft)) {
+            throw new ApiException(403, 'TREE_MERGE_AGENT_REQUIRED');
+        }
+        $this->entityManager->refresh($draft);
+        if ($draft->attemptId !== $context->attemptId || $draft->version !== $context->version
+            || 'processing' !== $draft->state || !$draft->chatSessionAvailable) {
+            throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
+        }
+        $this->activity->assertRunning($draft);
+
+        return $draft;
     }
 
     /** @return list<TreeMergeDraft> */

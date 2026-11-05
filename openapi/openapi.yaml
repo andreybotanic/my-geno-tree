@@ -64,7 +64,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: processTreeMerge
-      description: Runs an agent with the full session conversation and scoped MCP tools; the agent performs all interpretation, matching and deductions. Only MCP commands can submit proposals and send replies; final model text or JSON has no effects. The short, single-sentence AI reply is stored verbatim, including new-person counts and omission reasons. Processing failures are system notices. No tree mutations are applied.
+      description: Runs the standard Symfony AI agent with user and assistant message history. The final model text is stored verbatim as an ordinary chat reply. A successful merge tool validates and saves a proposal and immediately publishes the preview update independently of the final reply. Processing failures are system notices. Tree changes require the separate apply action.
       security:
         - bearerAuth: []
       requestBody:
@@ -80,7 +80,7 @@ paths:
                 requestId: { type: string }
       responses:
         "200":
-          description: Ready, clarification, no changes or error draft. The agent receives MCP validation errors and corrects commands within its tool budget. Questions are sent explicitly through MCP and the next turn receives the whole conversation. Prior proposals cannot be applied while clarification is required. Provider failures are retryable.
+          description: Updated conversation and proposal state. Tool validation errors are returned to the agent for correction. Clarification questions are ordinary assistant messages. A saved proposal remains reviewable if the final model response fails; provider failures are retryable.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TreeMergeDraft" }
@@ -106,7 +106,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: stopTreeMerge
-      description: Stops the latest message's processing without discarding the conversation or applying changes. The request ID prevents a stale stop from cancelling a newer turn. Repeated stops or an already completed answer are idempotent. Provider work is interrupted and late results cannot replace the stopped state.
+      description: Stops the latest message's processing without discarding the conversation or applying changes. The request ID prevents a stale stop from cancelling a newer turn. Repeated stops or an already completed answer are idempotent. Subsequent model/tool work is blocked and late results cannot replace the stopped state.
       security:
         - bearerAuth: []
       requestBody:
@@ -1879,10 +1879,10 @@ components:
         requestId: { type: string }
         role: { type: string, enum: [user, assistant, system] }
         content: { type: string }
-        source: { type: boolean, description: Whether this user message contributes source facts; the agent MCP command marks pending source messages. }
+        source: { type: boolean, description: Whether this user message contributes source facts; a successful merge tool marks pending source messages. }
         failureCode:
           type: string
-          enum: [reply_missing, provider_unavailable, token_limit, stopped]
+          enum: [empty_response, provider_unavailable, token_limit, stopped]
           description: System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
         createdAt: { type: string, format: date-time }
     TreeMergeSubscription:

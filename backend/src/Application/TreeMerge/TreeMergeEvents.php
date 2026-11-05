@@ -29,7 +29,7 @@ final readonly class TreeMergeEvents
         return $this->topicOrigin . '/api/v1/merge-events/sessions/' . $session->getId()->toRfc4122() . '/drafts/';
     }
 
-    /** Called only after beginAttempt has committed. MCP calls inherit this binding, never a browser cookie. */
+    /** Rebind progress to the committed attempt/proposal version for this login session. */
     public function begin(TreeMergeDraft $draft): void
     {
         $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);

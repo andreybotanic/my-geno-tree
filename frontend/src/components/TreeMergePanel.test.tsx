@@ -52,6 +52,40 @@ describe('TreeMergePanel', () => {
     expect(screen.getAllByRole('article', { name: 'Assistant' })).toHaveLength(1)
   })
 
+  it('shows a merge preview before the ordinary answer and applies it only after clicking confirm', async () => {
+    let finish: ((value: TreeMergeDraft) => void) | undefined
+    const userMessage = { id: 'user', requestId: 'request', role: 'user' as const, content: 'Add Vera.', createdAt: 'now' }
+    const sent = { ...draft, version: 2, messages: [userMessage] }
+    const preview: TreeMergeDraft = { ...ready, version: 4, state: 'processing', messages: [userMessage] }
+    const answer = `Vera is ready for review.\n\n${'Here are her details. '.repeat(20)}<b>Plain text</b>`
+    const completed: TreeMergeDraft = { ...preview, version: 5, state: 'ready', messages: [userMessage,
+      { id: 'answer', requestId: 'request', role: 'assistant', content: answer, createdAt: 'now' }] }
+    const { request } = renderPanel(async (path, init) => {
+      if (path.endsWith('/messages')) return sent
+      if (path.endsWith('/process')) return new Promise<TreeMergeDraft>((resolve) => { finish = resolve })
+      if (path.endsWith('/apply')) return { ...completed, version: 6, state: 'applied' }
+      return init?.method === 'POST' ? draft : { items: [draft] }
+    })
+    const input = await screen.findByRole('textbox')
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: userMessage.content } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByRole('button', { name: 'Stop response' })
+    const receive = vi.mocked(useTreeMergeEvents).mock.lastCall?.[2]
+    await act(async () => { receive?.(preview) })
+    const confirm = screen.getByRole('button', { name: 'Confirm and apply changes' })
+    expect(confirm).toBeDisabled()
+    expect(screen.queryByRole('article', { name: 'Assistant' })).not.toBeInTheDocument()
+    expect(vi.mocked(request).mock.calls.some(([path]) => String(path).endsWith('/apply'))).toBe(false)
+    await act(async () => { finish?.(completed) })
+    expect(screen.getByRole('article', { name: 'Assistant' }).textContent).toBe(answer)
+    expect(document.querySelector('.tree-merge-message b')).toBeNull()
+    expect(confirm).toBeEnabled()
+    fireEvent.click(confirm)
+    await screen.findByText(i18n.t('treeMerge.applied'))
+    expect(vi.mocked(request).mock.calls.filter(([path]) => String(path).endsWith('/apply'))).toHaveLength(1)
+  })
+
   it('grows the composer to seven lines, shrinks it after editing and shows the allowance before a draft exists', async () => {
     const { request } = renderPanel(async () => ({ items: [], tokenBudget: { remaining: 250, limit: 1000 } }))
     const input = await screen.findByRole('textbox')
