@@ -2,7 +2,7 @@
 
 namespace App\Tests\Infrastructure\Ai;
 
-use App\Application\TreeMerge\TreeMergeEvents;
+use App\Application\Chat\ChatEvents;
 use Psr\Log\NullLogger;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -31,10 +31,10 @@ final class TestMergeEvents
             }, $inner->getFactory(), cookieName: $inner->getCookieName());
     }
 
-    public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager): TreeMergeEvents
+    public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager): ChatEvents
     {
         $hub = new MockHub('https://localhost/.well-known/mercure', new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'), static fn () => 'event');
 
-        return new TreeMergeEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $entityManager, new \Symfony\Component\Clock\NativeClock());
+        return new ChatEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $entityManager, new \Symfony\Component\Clock\NativeClock());
     }
 }

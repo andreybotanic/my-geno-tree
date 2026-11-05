@@ -3,7 +3,7 @@
 namespace App\Tests\Api\Tree;
 
 use App\Entity\MediaObject;
-use App\Entity\TreeMergeDraft;
+use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,7 +54,7 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
         self::assertFileDoesNotExist($this->uploaded);
         $em = static::getContainer()->get(EntityManagerInterface::class);
         self::assertSame(0, $em->getRepository(MediaObject::class)->count([]));
-        self::assertSame(0, $em->getRepository(TreeMergeDraft::class)->count([]));
+        self::assertNotContains(Conversation::class, array_column($em->getMetadataFactory()->getAllMetadata(), 'name'));
     }
 
     public function testFailureAndInvalidTranscriptDiscardAudioAndRequireANewRecording(): void
@@ -63,7 +63,7 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
             FixtureTranscriptionProvider::$response = $reply;
             $this->upload();
             self::assertResponseStatusCodeSame(503);
-            self::assertSame('TREE_MERGE_TRANSCRIPTION_UNAVAILABLE', $this->responseString('code'));
+            self::assertSame('CHAT_TRANSCRIPTION_UNAVAILABLE', $this->responseString('code'));
             self::assertFileDoesNotExist($this->uploaded);
         }
         $this->upload(file: false);
@@ -109,7 +109,7 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
             copy($this->audio, $this->uploaded);
             $files['audio'] = new UploadedFile($this->uploaded, 'voice.wav', 'audio/wav', test: true);
         }
-        $this->client->request('POST', 'https://localhost/api/v1/tree-merge-transcriptions', $fields, $files,
+        $this->client->request('POST', 'https://localhost/api/v1/chat-transcriptions', $fields, $files,
             ['HTTPS' => 'on', 'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token]);
     }
 }

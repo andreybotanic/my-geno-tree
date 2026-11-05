@@ -25,7 +25,7 @@ security:
 
     # Note: Only the *first* matching rule is applied
     access_control:
-        - { path: ^/api/v1/merge-events/authorize$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/chat-events/authorize$, roles: PUBLIC_ACCESS }
         - { path: ^/mcp/, roles: ROLE_USER }
         - { path: ^/api/v1/(health|statistics)$, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/(register|login|refresh|logout)$, roles: PUBLIC_ACCESS }

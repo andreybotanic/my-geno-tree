@@ -14,7 +14,7 @@ services:
       - ./backend:/srv/backend
       - media_storage:/srv/backend/var/storage
     tmpfs:
-      - /run/tree-merge:size=512m,mode=1777
+      - /run/chat:size=512m,mode=1777
     depends_on:
       database:
         condition: service_healthy

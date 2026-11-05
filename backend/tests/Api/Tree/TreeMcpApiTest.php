@@ -2,19 +2,19 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Application\TreeMerge\TreeContextService;
+use App\Application\Tree\TreeContextService;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
 use App\Entity\Person;
-use App\Entity\TreeMergeDraft;
 use App\Entity\Value\DateKind;
 use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
+use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
-use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
+use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
 use Doctrine\ORM\EntityManagerInterface;
 use Mcp\Client\Stateless\HeaderFactory;
@@ -34,7 +34,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        FixtureTreeMergeAi::$handler = null;
+        FixtureTreeAgent::$handler = null;
         $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
         $this->headers = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
         $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'MCP family'], $this->headers);
@@ -67,15 +67,15 @@ final class TreeMcpApiTest extends ApiWebTestCase
 
     public function testExternalPreparationUsesTheConversationPipelineAndReturnsAPreviewLink(): void
     {
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => FixtureTreeMergeAi::reply($draft, 'Please describe your family.');
+        FixtureTreeAgent::$handler = static fn (Conversation $draft) => FixtureTreeAgent::reply($draft, 'Please describe your family.');
         $this->call('prepare_tree_merge', ['treeId' => $this->treeId, 'description' => 'A non-tree question']);
         self::assertResponseIsSuccessful();
         $draft = $this->toolData();
         self::assertIsString($draft['previewUrl']);
         self::assertIsArray($draft['messages']);
-        self::assertStringContainsString('/trees/' . $this->treeId . '/tree?merge=', $draft['previewUrl']);
+        self::assertStringContainsString('/trees/' . $this->treeId . '/tree?chat=', $draft['previewUrl']);
         self::assertCount(2, $draft['messages']);
-        self::assertNull($draft['proposal']);
+        self::assertSame([], $draft['tools']);
         $this->call('get_tree_merge', ['treeId' => $this->treeId, 'mergeId' => $draft['id']]);
         self::assertSame($draft, $this->toolData());
     }

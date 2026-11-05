@@ -5,7 +5,7 @@ mcp:
             session:
                 store: cache
                 lock: { factory: lock.default.factory }
-            registry: [App\Mcp\TreeReadTools, App\Mcp\TreeMergeTools]
+            registry: [App\Tool\TreeReadTools, App\Mcp\TreeAssistantTools]
             http:
                 path: /mcp/tree
                 allowed_hosts: [my-geno-tree.localhost, localhost]

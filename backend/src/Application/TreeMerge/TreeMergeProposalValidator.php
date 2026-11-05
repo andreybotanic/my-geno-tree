@@ -10,7 +10,7 @@ use App\Application\Tree\ChangeSet\ParentChange;
 use App\Application\Tree\ChangeSet\PersonChange;
 use App\Application\Tree\ChangeSet\TreeChangeSet;
 use App\Application\Tree\ChangeSet\TreeChangeSetProjector;
-use App\Entity\TreeMergeDraft;
+use App\Entity\FamilyTree;
 use App\Entity\Value\ParentRole;
 use App\Repository\PersonRepository;
 use Symfony\Component\Clock\ClockInterface;
@@ -26,11 +26,13 @@ final readonly class TreeMergeProposalValidator
         private PersonViewFactory $views,
         private TreeChangeSetProjector $projector,
         private ClockInterface $clock,
-        private TreeMergeChat $chat,
     ) {
     }
 
-    public function validate(TreeMergeDraft $draft, mixed $value, bool $manual = false, bool $validateGraph = true): ValidatedTreeMergeProposal
+    /** @param list<array{id: string, role: string, content: string}> $sources
+     * @param array<string, mixed>|null $savedProposal
+     */
+    public function validate(FamilyTree $tree, mixed $value, array $sources = [], ?array $savedProposal = null, bool $manual = false, bool $validateGraph = true): ValidatedTreeMergeProposal
     {
         $proposal = $this->object($value, ['people', 'parents', 'marriages', 'questions'], 'proposal');
         $personRows = $this->items($proposal['people'], 20, 'people');
@@ -50,7 +52,7 @@ final readonly class TreeMergeProposalValidator
             }
         }
         $existingPeople = [];
-        foreach ($this->people->findRelationshipPeopleByTreeAndIds($draft->tree, array_values(array_unique($existingIds))) as $person) {
+        foreach ($this->people->findRelationshipPeopleByTreeAndIds($tree, array_values(array_unique($existingIds))) as $person) {
             $existingPeople[$person->getId()->toRfc4122()] = $person;
         }
         $newCount = 0;
@@ -108,7 +110,7 @@ final readonly class TreeMergeProposalValidator
             if ('undecided' === $row['resolution'] && [] === $questions) {
                 $this->invalid($path . '.resolution', 'question_required', 'Supply the necessary clarification in questions when identity is undecided.');
             }
-            $this->evidence($draft, $row['evidence'], $manual, $path . '.evidence');
+            $this->evidence($sources, $savedProposal, $row['evidence'], $manual, $path . '.evidence');
             $normalized[] = ['id' => $id, 'existingPersonId' => $existingId, 'resolution' => $row['resolution'],
                 'fields'          => $fields, 'lifeStatus' => $row['lifeStatus'], 'evidence' => $row['evidence'],
                 'before'          => null === $existing ? null : $this->views->create($existing)];
@@ -126,7 +128,7 @@ final readonly class TreeMergeProposalValidator
             if (!is_string($row['role']) || null === ($role = ParentRole::tryFrom($row['role']))) {
                 $this->invalid($path . '.role', 'parent_role_invalid', 'Expected mother or father, consistent with the source and parent gender.');
             }
-            $this->evidence($draft, $row['evidence'], $manual, $path . '.evidence');
+            $this->evidence($sources, $savedProposal, $row['evidence'], $manual, $path . '.evidence');
             $parents[] = new ParentChange($parent, $child, $role);
         }
         $marriages = [];
@@ -138,13 +140,13 @@ final readonly class TreeMergeProposalValidator
             if (!is_bool($row['newPeriod'])) {
                 $this->invalid($path . '.newPeriod', 'new_period_invalid', 'Expected a boolean. A new marriage period requires explicit user choice.');
             }
-            $this->evidence($draft, $row['evidence'], $manual, $path . '.evidence');
+            $this->evidence($sources, $savedProposal, $row['evidence'], $manual, $path . '.evidence');
             $marriages[] = new MarriageChange($first, $second,
                 $this->data->dateValue($row['marriageDate'], 'marriageDate'),
                 $this->data->optionalDateValue($row['dissolutionDate'], 'dissolutionDate'), $row['newPeriod']);
         }
         $changeSet = new TreeChangeSet($changes, $parents, $marriages);
-        $hasChanges = $validateGraph && [] === $questions && $this->projector->project($draft->tree, $changeSet, $this->clock->now())->hasChanges;
+        $hasChanges = $validateGraph && [] === $questions && $this->projector->project($tree, $changeSet, $this->clock->now())->hasChanges;
 
         return new ValidatedTreeMergeProposal(
             ['people' => $normalized, 'parents' => $parentRows, 'marriages' => $marriageRows, 'questions' => $proposal['questions']],
@@ -237,7 +239,10 @@ final readonly class TreeMergeProposalValidator
         return $id;
     }
 
-    private function evidence(TreeMergeDraft $draft, mixed $value, bool $manual, string $path): void
+    /** @param list<array{id: string, role: string, content: string}> $sources
+     * @param array<string, mixed>|null $savedProposal
+     */
+    private function evidence(array $sources, ?array $savedProposal, mixed $value, bool $manual, string $path): void
     {
         $items = $this->items($value, 10, $path);
         if (!$manual && [] === $items) {
@@ -250,16 +255,16 @@ final readonly class TreeMergeProposalValidator
                 $this->invalid($itemPath, 'evidence_invalid', 'messageId and quote must be nonempty strings; quote must not exceed 300 characters.');
             }
             $found = false;
-            if ($manual && null !== $draft->proposal) {
+            if ($manual && null !== $savedProposal) {
                 foreach (['people', 'parents', 'marriages'] as $group) {
-                    foreach (is_array($draft->proposal[$group] ?? null) ? $draft->proposal[$group] : [] as $row) {
+                    foreach (is_array($savedProposal[$group] ?? null) ? $savedProposal[$group] : [] as $row) {
                         if (is_array($row) && is_array($row['evidence'] ?? null) && in_array($item, $row['evidence'], true)) {
                             $found = true;
                         }
                     }
                 }
             }
-            foreach ($this->chat->messages($draft) as $message) {
+            foreach ($sources as $message) {
                 if ($message['id'] === $item['messageId'] && 'user' === $message['role']
                     && str_contains($message['content'], $item['quote'])) {
                     $found = true;

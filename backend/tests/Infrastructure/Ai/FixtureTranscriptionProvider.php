@@ -2,7 +2,7 @@
 
 namespace App\Tests\Infrastructure\Ai;
 
-use App\Application\TreeMerge\Voice\TranscriptionProviderInterface;
+use App\Application\Chat\Voice\TranscriptionProviderInterface;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\When;
 

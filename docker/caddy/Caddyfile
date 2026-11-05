@@ -14,7 +14,7 @@ localhost, my-geno-tree.localhost {
 	handle /.well-known/mercure {
 		@subscriber method GET
 		forward_auth @subscriber 127.0.0.1:8081 {
-			uri /api/v1/merge-events/authorize
+			uri /api/v1/chat-events/authorize
 		}
 		reverse_proxy mercure:80 {
 			flush_interval -1

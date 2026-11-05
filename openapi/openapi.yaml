@@ -6,45 +6,30 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
-  /merge-events/authorize:
+  /chat-events/authorize:
     get:
-      operationId: authorizeMergeStream
-      summary: Validate the subscriber cookie and its active login session for the local reverse proxy
+      operationId: authorizeChatStream
+      summary: 'Validate the subscriber cookie and its active login session for the local reverse proxy'
       parameters:
-        - name: __Secure-mercure_access_token
+        -
+          name: __Secure-mercure_access_token
           in: cookie
           required: true
-          schema: { type: string, writeOnly: true }
+          schema:
+            type: string
+            writeOnly: true
       responses:
-        "204":
-          description: Subscription session is active; the hub validates topic grants separately
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /trees/{treeId}/merges/{mergeId}/events:
-    parameters:
-      - { name: treeId, in: path, required: true, schema: { type: string, format: uuid } }
-      - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
+        204:
+          description: 'Subscription session is active; the hub validates topic grants separately'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+  /chat-transcriptions:
     post:
-      operationId: subscribeTreeMergeEvents
-      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; expired or deleted conversations return 404. Events contain TreeMergeEvent JSON, including a cleared proposal after discard and a removal notification after conversation reset. The hub retains no history; fetch the conversation once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
+      operationId: transcribeChatAudio
+      description: 'Transcribes a temporary recording after normalization to mono PCM WAV at 16 kHz. Maximum 10 MiB and 90 seconds. No tree, draft, media object or recording is stored. The user reviews the text before sending it. Ten attempts per user per hour.'
       security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Subscription URL and cookie lifetime. Cache-Control no-store.
-          headers:
-            Set-Cookie: { schema: { type: string }, description: Private Mercure subscriber cookie; never exposed to JavaScript. }
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeSubscription" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /tree-merge-transcriptions:
-    post:
-      operationId: transcribeTreeMergeAudio
-      description: Transcribes a temporary recording after normalization to mono PCM WAV at 16 kHz. Maximum 10 MiB and 90 seconds. No tree, draft, media object or recording is stored. The user reviews the text before sending it. Ten attempts per user per hour.
-      security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
@@ -52,368 +37,442 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [audio]
+              required:
+                - audio
               properties:
-                audio: { type: string, format: binary, description: WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV; detected from content. }
+                audio:
+                  type: string
+                  format: binary
+                  description: 'WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV; detected from content.'
       responses:
-        "200":
-          description: Editable transcription; the uploaded audio has been discarded.
+        200:
+          description: 'Editable transcription; the uploaded audio has been discarded.'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeTranscription" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409": { $ref: "#/components/responses/Conflict" }
-        "422": { $ref: "#/components/responses/ValidationError" }
-        "429": { $ref: "#/components/responses/RateLimited" }
-  /trees/{treeId}/merges/{mergeId}/process:
+              schema:
+                $ref: '#/components/schemas/ChatTranscription'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+        429:
+          $ref: '#/components/responses/RateLimited'
+  '/trees/{treeId}/chat':
     parameters:
-      - name: treeId
+      -
+        name: treeId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: processTreeMerge
-      description: Runs the standard Symfony AI agent with user and assistant message history. The final model text is stored verbatim as an ordinary chat reply. A successful merge tool validates and saves a proposal and immediately publishes the preview update independently of the final reply. Processing failures are system notices. Tree changes require the separate apply action.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getTreeChat
       security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TreeChatCurrent'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+    post:
+      operationId: createTreeChat
+      security:
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [version, requestId]
-              properties:
-                version: { type: integer, minimum: 1 }
-                requestId: { type: string }
+              $ref: '#/components/schemas/TreeChatCreateRequest'
       responses:
-        "200":
-          description: Updated conversation and proposal state. Tool validation errors are returned to the agent for correction. Clarification questions are ordinary assistant messages. A saved proposal remains reviewable if the final model response fails; provider failures are retryable.
+        201:
+          description: 'Successful operation'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-        "429":
-          description: Processing rate limit reached; draft retained.
-  /trees/{treeId}/merges/{mergeId}/stop:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}':
     parameters:
-      - name: treeId
+      -
+        name: chatId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: stopTreeMerge
-      description: Stops the latest message's processing without discarding the conversation or applying changes. The request ID prevents a stale stop from cancelling a newer turn. Repeated stops or an already completed answer are idempotent. Subsequent model/tool work is blocked and late results cannot replace the stopped state.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getChat
       security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}/messages':
+    parameters:
+      -
+        name: chatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: appendChatMessage
+      security:
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [requestId]
-              properties:
-                requestId: { type: string, minLength: 1, maxLength: 100 }
+              $ref: '#/components/schemas/ChatMessageRequest'
       responses:
-        "200":
-          description: Stopped or already completed draft; messages and reviewed proposal retained.
+        200:
+          description: 'Successful operation'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409": { $ref: "#/components/responses/Conflict" }
-        "422": { $ref: "#/components/responses/ValidationError" }
-  /trees/{treeId}/merges/{mergeId}/proposal:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}/process':
     parameters:
-      - name: treeId
+      -
+        name: chatId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: processChat
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatProcessRequest'
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}/stop':
+    parameters:
+      -
+        name: chatId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: stopChat
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatStopRequest'
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}/reset':
+    parameters:
+      -
+        name: chatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: resetChat
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatVersionRequest'
+      responses:
+        204:
+          description: 'Successful operation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/chats/{chatId}/events':
+    parameters:
+      -
+        name: chatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: subscribeChatEvents
+      security:
+        -
+          bearerAuth: []
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSubscription'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      description: 'Private session-bound Mercure events. Renew the HttpOnly subscriber cookie before expiry. Fetch one conversation snapshot on stream open or reconnect. Tool results are transient; they are not replayed or saved. A reset removes history and pending tools together.'
+  '/trees/{treeId}/merge-proposals/{proposalId}':
+    parameters:
+      -
+        name: treeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      -
+        name: proposalId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
     put:
       operationId: reviseTreeMergeProposal
       security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeProposalRequest" }
+            schema:
+              $ref: '#/components/schemas/TreeMergeProposalRequest'
       responses:
-        "200":
-          description: Versioned merge draft
+        200:
+          description: 'Successful operation'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "412":
-          $ref: "#/components/responses/TreeVersionConflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}/revalidate:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      operationId: discardTreeMergeProposal
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatVersionRequest'
+      responses:
+        200:
+          description: 'Successful operation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/trees/{treeId}/merge-proposals/{proposalId}/revalidate':
     parameters:
-      - name: treeId
+      -
+        name: treeId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
+        schema:
+          type: string
+          format: uuid
+      -
+        name: proposalId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
     post:
       operationId: revalidateTreeMerge
       security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
+            schema:
+              $ref: '#/components/schemas/ChatVersionRequest'
       responses:
-        "200":
-          description: Versioned merge draft
+        200:
+          description: 'Successful operation'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "412":
-          $ref: "#/components/responses/TreeVersionConflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}/apply:
+              schema:
+                $ref: '#/components/schemas/ChatConversation'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+  '/trees/{treeId}/merge-proposals/{proposalId}/apply':
     parameters:
-      - name: treeId
+      -
+        name: treeId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
+        schema:
+          type: string
+          format: uuid
+      -
+        name: proposalId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-      - name: If-Match
-        in: header
-        required: true
-        schema: { type: string }
+        schema:
+          type: string
+          format: uuid
     post:
       operationId: applyTreeMerge
       security:
-        - bearerAuth: []
+        -
+          bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeApplyRequest" }
+            schema:
+              $ref: '#/components/schemas/ChatVersionRequest'
       responses:
-        "200":
-          description: Versioned merge draft
+        200:
+          description: 'Successful operation'
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "412":
-          $ref: "#/components/responses/TreeVersionConflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges:
-    parameters:
-      - name: treeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    get:
-      operationId: getCurrentTreeMerge
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Merge draft state
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeCurrent" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-    post:
-      operationId: createTreeMerge
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeCreateRequest" }
-      responses:
-        "201":
-          description: Merge draft state
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}:
-    parameters:
-      - name: treeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    get:
-      operationId: getTreeMerge
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Merge draft state
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}/messages:
-    parameters:
-      - name: treeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: appendTreeMergeMessage
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeMessageRequest" }
-      responses:
-        "200":
-          description: Merge draft state
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}/cancel:
-    parameters:
-      - name: treeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-      - name: mergeId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: cancelTreeMerge
-      description: Discard the pending proposal while keeping all conversation messages. A missing or expired conversation returns 404.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
-      responses:
-        "200":
-          description: Conversation preserved, proposal cleared
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/ValidationError"
-  /trees/{treeId}/merges/{mergeId}/reset:
-    parameters:
-      - { name: treeId, in: path, required: true, schema: { type: string, format: uuid } }
-      - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
-    post:
-      operationId: resetTreeMergeConversation
-      description: Start another conversation by deleting the current history and its proposal.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
-      responses:
-        "204": { description: Conversation and proposal deleted }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409": { $ref: "#/components/responses/Conflict" }
-        "422": { $ref: "#/components/responses/ValidationError" }
+              schema:
+                $ref: '#/components/schemas/TreeMergeApplied'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        422:
+          $ref: '#/components/responses/ValidationError'
+        412:
+          $ref: '#/components/responses/TreeVersionConflict'
+      parameters:
+        -
+          name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+      description: 'Consumes the pending proposal. The result is returned once in this response and a transient tool event; no proposal or receipt remains. Retries with the consumed identifier return 404. A tree version conflict refreshes the preview and requires another confirmation.'
   /health:
     get:
       operationId: getHealth
@@ -1877,169 +1936,400 @@ components:
     TreeMergeProposalRequest:
       type: object
       additionalProperties: false
-      required: [version, proposal]
+      required:
+        - version
+        - proposal
       properties:
-        version: { type: integer, minimum: 1 }
-        proposal: { $ref: "#/components/schemas/TreeMergeProposal" }
-    TreeMergeApplyRequest:
+        version:
+          type: integer
+          minimum: 1
+        proposal:
+          $ref: '#/components/schemas/TreeMergeProposal'
+    TreeMergePendingProposal:
       type: object
       additionalProperties: false
-      required: [version, proposalVersion]
+      required:
+        - id
+        - treeId
+        - version
+        - treeEtag
+        - proposal
+        - state
       properties:
-        version: { type: integer, minimum: 1 }
-        proposalVersion: { type: integer, minimum: 1 }
+        id:
+          type: string
+          format: uuid
+        treeId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        treeEtag:
+          type: string
+        proposal:
+          $ref: '#/components/schemas/TreeMergeProposal'
+        state:
+          type: string
+          enum:
+            - questions
+            - ready
+            - no_changes
+            - conflict
     TreeMergeResult:
       type: object
-      required: [personIds, affectedPersonIds, etag, proposalVersion]
+      required:
+        - personIds
+        - affectedPersonIds
+        - etag
       properties:
         personIds:
           type: object
-          additionalProperties: { type: string, format: uuid }
+          additionalProperties:
+            type: string
+            format: uuid
         affectedPersonIds:
           type: array
-          items: { type: string, format: uuid }
-        etag: { type: string }
-        proposalVersion: { type: integer }
-    TreeMergeMessage:
+          items:
+            type: string
+            format: uuid
+        etag:
+          type: string
+    TreeMergeApplied:
       type: object
       additionalProperties: false
-      required: [id, requestId, role, content, createdAt]
+      required:
+        - conversation
+        - operationId
+        - result
       properties:
-        id: { type: string, format: uuid }
-        requestId: { type: string }
-        role: { type: string, enum: [user, assistant, system] }
-        content: { type: string }
+        conversation:
+          $ref: '#/components/schemas/ChatConversation'
+        operationId:
+          type: string
+          format: uuid
+        result:
+          $ref: '#/components/schemas/TreeMergeResult'
+    ChatMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - requestId
+        - role
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        requestId:
+          type: string
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+        content:
+          type: string
         failureCode:
           type: string
-          enum: [empty_response, provider_unavailable, token_limit, stopped]
-          description: System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
-        createdAt: { type: string, format: date-time }
-    TreeMergeSubscription:
+          enum:
+            - empty_response
+            - provider_unavailable
+            - token_limit
+            - stopped
+          description: 'System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.'
+        createdAt:
+          type: string
+          format: date-time
+    ChatSubscription:
       type: object
       additionalProperties: false
-      required: [url, expiresIn]
+      required:
+        - url
+        - expiresIn
       properties:
-        url: { type: string, description: Same-origin Mercure subscription URL. }
-        expiresIn: { type: integer, minimum: 60 }
-    TreeMergeEvent:
-      oneOf:
-        - type: object
-          additionalProperties: false
-          required: [kind, id]
-          properties:
-            kind: { const: removed }
-            id: { type: string, format: uuid }
-        - type: object
-          additionalProperties: false
-          required: [kind, draft]
-          properties:
-            kind: { const: draft }
-            draft: { $ref: "#/components/schemas/TreeMergeDraft" }
-        - type: object
-          additionalProperties: false
-          required: [kind, id, version, attemptId, attemptStartedAt, progress, tokenUsage]
-          properties:
-            kind: { const: progress }
-            id: { type: string, format: uuid }
-            version: { type: integer, minimum: 1 }
-            attemptId: { type: string, format: uuid }
-            attemptStartedAt: { type: string, format: date-time }
-            progress: { type: array, items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing, clarifying] } }
-            tokenUsage: { $ref: "#/components/schemas/TreeMergeTokenUsage" }
-    TreeMergeDraft:
+        url:
+          type: string
+          description: 'Same-origin Mercure subscription URL.'
+        expiresIn:
+          type: integer
+          minimum: 60
+    ChatTokenUsage:
       type: object
-      description: Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
       additionalProperties: false
-      required: [id, treeId, referencePersonId, version, chatState, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptStartedAt]
+      required:
+        - input
+        - output
+        - total
       properties:
-        id: { type: string, format: uuid }
-        treeId: { type: string, format: uuid }
-        referencePersonId: { type: [string, "null"], format: uuid }
-        version: { type: integer, minimum: 1 }
-        chatState: { type: string, enum: [idle, processing, error] }
-        state: { type: string, enum: [collecting, questions, ready, no_changes, conflict, applied] }
-        attemptId: { type: [string, "null"], format: uuid }
-        attemptStartedAt: { type: [string, "null"], format: date-time }
-        proposalVersion: { type: integer, minimum: 0 }
-        proposal:
-          oneOf:
-            - { $ref: "#/components/schemas/TreeMergeProposal" }
-            - { type: "null" }
-        questions:
-          type: array
-          items: { type: string }
-        result:
-          oneOf:
-            - { $ref: "#/components/schemas/TreeMergeResult" }
-            - { type: "null" }
-        treeEtag: { type: string }
+        input:
+          type: integer
+          minimum: 0
+        output:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+    ChatTokenBudget:
+      type: object
+      additionalProperties: false
+      description: 'Remaining daily inference allowance shared by all trees and sessions of this user.'
+      required:
+        - remaining
+        - limit
+      properties:
+        remaining:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+    ChatTranscription:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - durationSeconds
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        durationSeconds:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 90
+    ChatConversation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - profile
+        - version
+        - status
+        - attemptId
+        - attemptStartedAt
+        - messages
+        - tools
+        - progress
+        - tokenUsage
+        - tokenBudget
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        profile:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+            - idle
+            - processing
+            - error
+        attemptId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        attemptStartedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
         messages:
           type: array
-          description: Session-only conversation; empty in another login session or after ephemeral memory expires.
-          items: { $ref: "#/components/schemas/TreeMergeMessage" }
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        tools:
+          type: object
+          additionalProperties: true
         progress:
           type: array
-          items: { type: string, enum: [thinking, tree_loaded, names_searched, people_loaded, validating, repairing, clarifying] }
+          items:
+            type: string
         tokenUsage:
-          $ref: "#/components/schemas/TreeMergeTokenUsage"
+          $ref: '#/components/schemas/ChatTokenUsage'
         tokenBudget:
-          $ref: "#/components/schemas/TreeMergeTokenBudget"
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    TreeMergeCreateRequest:
+          $ref: '#/components/schemas/ChatTokenBudget'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      description: 'Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat table or application receipt. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.'
+    ChatEvent:
+      oneOf:
+        -
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - id
+          properties:
+            kind:
+              const: removed
+            id:
+              type: string
+              format: uuid
+        -
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - conversation
+          properties:
+            kind:
+              const: conversation
+            conversation:
+              $ref: '#/components/schemas/ChatConversation'
+        -
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - id
+            - version
+            - attemptId
+            - attemptStartedAt
+            - progress
+            - tokenUsage
+          properties:
+            kind:
+              const: progress
+            id:
+              type: string
+              format: uuid
+            version:
+              type: integer
+              minimum: 1
+            attemptId:
+              type: string
+              format: uuid
+            attemptStartedAt:
+              type: string
+              format: date-time
+            progress:
+              type: array
+              items:
+                type: string
+            tokenUsage:
+              $ref: '#/components/schemas/ChatTokenUsage'
+        -
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - id
+            - version
+            - tool
+            - action
+            - operationId
+            - result
+          properties:
+            kind:
+              const: tool
+            id:
+              type: string
+              format: uuid
+            version:
+              type: integer
+              minimum: 1
+            tool:
+              type: string
+            action:
+              type: string
+            operationId:
+              type: string
+              format: uuid
+            result:
+              type: object
+              additionalProperties: true
+    ChatMessageRequest:
       type: object
       additionalProperties: false
-      required: [referencePersonId]
+      required:
+        - version
+        - requestId
+        - content
       properties:
-        referencePersonId: { type: [string, "null"], format: uuid, description: Optional narrative reference. Use null to name people directly in an empty or existing tree. }
-    TreeMergeTranscription:
+        version:
+          type: integer
+          minimum: 1
+        requestId:
+          type: string
+          pattern: '^[a-zA-Z0-9-]{1,64}$'
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+    ChatVersionRequest:
       type: object
       additionalProperties: false
-      required: [text, durationSeconds]
+      required:
+        - version
       properties:
-        text: { type: string, minLength: 1, maxLength: 10000 }
-        durationSeconds: { type: number, exclusiveMinimum: 0, maximum: 90 }
-    TreeMergeTokenUsage:
+        version:
+          type: integer
+          minimum: 1
+    ChatProcessRequest:
       type: object
       additionalProperties: false
-      required: [input, output, total]
+      required:
+        - version
+        - requestId
       properties:
-        input: { type: integer, minimum: 0 }
-        output: { type: integer, minimum: 0 }
-        total: { type: integer, minimum: 0 }
-    TreeMergeTokenBudget:
+        version:
+          type: integer
+          minimum: 1
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 64
+    ChatStopRequest:
       type: object
       additionalProperties: false
-      description: Remaining daily inference allowance shared by all trees and sessions of this user.
-      required: [remaining, limit]
+      required:
+        - requestId
       properties:
-        remaining: { type: integer, minimum: 0 }
-        limit: { type: integer, minimum: 1 }
-    TreeMergeMessageRequest:
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 64
+    TreeChatCreateRequest:
       type: object
       additionalProperties: false
-      required: [version, requestId, content]
+      required:
+        - referencePersonId
       properties:
-        version: { type: integer, minimum: 1 }
-        requestId: { type: string, pattern: "^[a-zA-Z0-9-]{1,64}$" }
-        content: { type: string, minLength: 1, maxLength: 10000 }
-    TreeMergeVersionRequest:
+        referencePersonId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: 'Optional narrative reference. Use null to name people directly in an empty or existing tree.'
+    TreeChatCurrent:
       type: object
       additionalProperties: false
-      required: [version]
+      required:
+        - conversation
+        - tokenBudget
       properties:
-        version: { type: integer, minimum: 1 }
-    TreeMergeCurrent:
-      type: object
-      additionalProperties: false
-      required: [draft, tokenBudget]
-      properties:
-        tokenBudget:
-          $ref: "#/components/schemas/TreeMergeTokenBudget"
-        draft:
+        conversation:
           oneOf:
-            - { $ref: "#/components/schemas/TreeMergeDraft" }
-            - { type: "null" }
+            - $ref: '#/components/schemas/ChatConversation'
+            - type: 'null'
+        tokenBudget:
+          $ref: '#/components/schemas/ChatTokenBudget'
     Health:
       type: object
       additionalProperties: false

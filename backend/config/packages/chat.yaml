@@ -1,0 +1,26 @@
+framework:
+    http_client:
+        scoped_clients:
+            chat_ai.client:
+                scope: '^https?://'
+                timeout: 270
+                max_duration: 270
+    rate_limiter:
+        chat_tokens:
+            policy: fixed_window
+            limit: '%env(int:CHAT_TOKEN_LIMIT)%'
+            interval: '1 day'
+            cache_pool: cache.chat_access
+            lock_factory: lock.default.factory
+        chat_voice:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+            cache_pool: cache.chat_access
+            lock_factory: lock.default.factory
+        chat:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
+            cache_pool: cache.chat_access
+            lock_factory: lock.default.factory

@@ -1,0 +1,8 @@
+ai:
+    agent:
+        general:
+            platform: ai.platform.generic.chatgpt
+            message_store: ai.message_store.cache.chat
+            model: 'gpt-5.6-luna'
+            prompt: 'Answer the user briefly.'
+            tools: []

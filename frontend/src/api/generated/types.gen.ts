@@ -53,9 +53,13 @@ export type TreeMergeProposalRequest = {
     proposal: TreeMergeProposal;
 };
 
-export type TreeMergeApplyRequest = {
+export type TreeMergePendingProposal = {
+    id: string;
+    treeId: string;
     version: number;
-    proposalVersion: number;
+    treeEtag: string;
+    proposal: TreeMergeProposal;
+    state: 'questions' | 'ready' | 'no_changes' | 'conflict';
 };
 
 export type TreeMergeResult = {
@@ -64,10 +68,15 @@ export type TreeMergeResult = {
     };
     affectedPersonIds: Array<string>;
     etag: string;
-    proposalVersion: number;
 };
 
-export type TreeMergeMessage = {
+export type TreeMergeApplied = {
+    conversation: ChatConversation;
+    operationId: string;
+    result: TreeMergeResult;
+};
+
+export type ChatMessage = {
     id: string;
     requestId: string;
     role: 'user' | 'assistant' | 'system';
@@ -79,7 +88,7 @@ export type TreeMergeMessage = {
     createdAt: string;
 };
 
-export type TreeMergeSubscription = {
+export type ChatSubscription = {
     /**
      * Same-origin Mercure subscription URL.
      */
@@ -87,63 +96,7 @@ export type TreeMergeSubscription = {
     expiresIn: number;
 };
 
-export type TreeMergeEvent = {
-    kind: 'removed';
-    id: string;
-} | {
-    kind: 'draft';
-    draft: TreeMergeDraft;
-} | {
-    kind: 'progress';
-    id: string;
-    version: number;
-    attemptId: string;
-    attemptStartedAt: string;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
-    tokenUsage: TreeMergeTokenUsage;
-};
-
-/**
- * Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
- */
-export type TreeMergeDraft = {
-    id: string;
-    treeId: string;
-    referencePersonId: string | null;
-    version: number;
-    chatState: 'idle' | 'processing' | 'error';
-    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied';
-    attemptId: string | null;
-    attemptStartedAt: string | null;
-    proposalVersion: number;
-    proposal: TreeMergeProposal | null;
-    questions: Array<string>;
-    result: TreeMergeResult | null;
-    treeEtag: string;
-    /**
-     * Session-only conversation; empty in another login session or after ephemeral memory expires.
-     */
-    messages: Array<TreeMergeMessage>;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
-    tokenUsage: TreeMergeTokenUsage;
-    tokenBudget: TreeMergeTokenBudget;
-    createdAt: string;
-    updatedAt: string;
-};
-
-export type TreeMergeCreateRequest = {
-    /**
-     * Optional narrative reference. Use null to name people directly in an empty or existing tree.
-     */
-    referencePersonId: string | null;
-};
-
-export type TreeMergeTranscription = {
-    text: string;
-    durationSeconds: number;
-};
-
-export type TreeMergeTokenUsage = {
+export type ChatTokenUsage = {
     input: number;
     output: number;
     total: number;
@@ -152,24 +105,92 @@ export type TreeMergeTokenUsage = {
 /**
  * Remaining daily inference allowance shared by all trees and sessions of this user.
  */
-export type TreeMergeTokenBudget = {
+export type ChatTokenBudget = {
     remaining: number;
     limit: number;
 };
 
-export type TreeMergeMessageRequest = {
+export type ChatTranscription = {
+    text: string;
+    durationSeconds: number;
+};
+
+/**
+ * Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat table or application receipt. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.
+ */
+export type ChatConversation = {
+    id: string;
+    profile: string;
+    version: number;
+    status: 'idle' | 'processing' | 'error';
+    attemptId: string | null;
+    attemptStartedAt: string | null;
+    messages: Array<ChatMessage>;
+    tools: {
+        [key: string]: unknown;
+    };
+    progress: Array<string>;
+    tokenUsage: ChatTokenUsage;
+    tokenBudget: ChatTokenBudget;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ChatEvent = {
+    kind: 'removed';
+    id: string;
+} | {
+    kind: 'conversation';
+    conversation: ChatConversation;
+} | {
+    kind: 'progress';
+    id: string;
+    version: number;
+    attemptId: string;
+    attemptStartedAt: string;
+    progress: Array<string>;
+    tokenUsage: ChatTokenUsage;
+} | {
+    kind: 'tool';
+    id: string;
+    version: number;
+    tool: string;
+    action: string;
+    operationId: string;
+    result: {
+        [key: string]: unknown;
+    };
+};
+
+export type ChatMessageRequest = {
     version: number;
     requestId: string;
     content: string;
 };
 
-export type TreeMergeVersionRequest = {
+export type ChatVersionRequest = {
     version: number;
 };
 
-export type TreeMergeCurrent = {
-    tokenBudget: TreeMergeTokenBudget;
-    draft: TreeMergeDraft | null;
+export type ChatProcessRequest = {
+    version: number;
+    requestId: string;
+};
+
+export type ChatStopRequest = {
+    requestId: string;
+};
+
+export type TreeChatCreateRequest = {
+    /**
+     * Optional narrative reference. Use null to name people directly in an empty or existing tree.
+     */
+    referencePersonId: string | null;
+};
+
+export type TreeChatCurrent = {
+    conversation: ChatConversation | null;
+    tokenBudget: ChatTokenBudget;
 };
 
 export type Health = {
@@ -798,53 +819,13 @@ export type TreeMergeProposalRequestWritable = {
     proposal: TreeMergeProposalWritable;
 };
 
-export type TreeMergeEventWritable = {
-    kind: 'removed';
-    id: string;
-} | {
-    kind: 'draft';
-    draft: TreeMergeDraftWritable;
-} | {
-    kind: 'progress';
-    id: string;
-    version: number;
-    attemptId: string;
-    attemptStartedAt: string;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
-    tokenUsage: TreeMergeTokenUsage;
-};
-
-/**
- * Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
- */
-export type TreeMergeDraftWritable = {
+export type TreeMergePendingProposalWritable = {
     id: string;
     treeId: string;
-    referencePersonId: string | null;
     version: number;
-    chatState: 'idle' | 'processing' | 'error';
-    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied';
-    attemptId: string | null;
-    attemptStartedAt: string | null;
-    proposalVersion: number;
-    proposal: TreeMergeProposalWritable | null;
-    questions: Array<string>;
-    result: TreeMergeResult | null;
     treeEtag: string;
-    /**
-     * Session-only conversation; empty in another login session or after ephemeral memory expires.
-     */
-    messages: Array<TreeMergeMessage>;
-    progress: Array<'thinking' | 'tree_loaded' | 'names_searched' | 'people_loaded' | 'validating' | 'repairing' | 'clarifying'>;
-    tokenUsage: TreeMergeTokenUsage;
-    tokenBudget: TreeMergeTokenBudget;
-    createdAt: string;
-    updatedAt: string;
-};
-
-export type TreeMergeCurrentWritable = {
-    tokenBudget: TreeMergeTokenBudget;
-    draft: TreeMergeDraftWritable | null;
+    proposal: TreeMergeProposalWritable;
+    state: 'questions' | 'ready' | 'no_changes' | 'conflict';
 };
 
 export type TreeLayoutPositionsWritable = {
@@ -862,76 +843,44 @@ export type EventId = string;
  */
 export type IfMatch = string;
 
-export type AuthorizeMergeStreamData = {
+export type AuthorizeChatStreamData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/merge-events/authorize';
+    url: '/chat-events/authorize';
 };
 
-export type AuthorizeMergeStreamErrors = {
+export type AuthorizeChatStreamErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
     401: ApiError;
 };
 
-export type AuthorizeMergeStreamError = AuthorizeMergeStreamErrors[keyof AuthorizeMergeStreamErrors];
+export type AuthorizeChatStreamError = AuthorizeChatStreamErrors[keyof AuthorizeChatStreamErrors];
 
-export type AuthorizeMergeStreamResponses = {
+export type AuthorizeChatStreamResponses = {
     /**
      * Subscription session is active; the hub validates topic grants separately
      */
     204: void;
 };
 
-export type AuthorizeMergeStreamResponse = AuthorizeMergeStreamResponses[keyof AuthorizeMergeStreamResponses];
+export type AuthorizeChatStreamResponse = AuthorizeChatStreamResponses[keyof AuthorizeChatStreamResponses];
 
-export type SubscribeTreeMergeEventsData = {
-    body?: never;
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/events';
-};
-
-export type SubscribeTreeMergeEventsErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-};
-
-export type SubscribeTreeMergeEventsError = SubscribeTreeMergeEventsErrors[keyof SubscribeTreeMergeEventsErrors];
-
-export type SubscribeTreeMergeEventsResponses = {
-    /**
-     * Subscription URL and cookie lifetime. Cache-Control no-store.
-     */
-    200: TreeMergeSubscription;
-};
-
-export type SubscribeTreeMergeEventsResponse = SubscribeTreeMergeEventsResponses[keyof SubscribeTreeMergeEventsResponses];
-
-export type TranscribeTreeMergeAudioData = {
+export type TranscribeChatAudioData = {
     body: {
         /**
-         * WebM/Opus
+         * WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV; detected from content.
          */
         audio: Blob | File;
     };
     path?: never;
     query?: never;
-    url: '/tree-merge-transcriptions';
+    url: '/chat-transcriptions';
 };
 
-export type TranscribeTreeMergeAudioErrors = {
+export type TranscribeChatAudioErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -954,77 +903,27 @@ export type TranscribeTreeMergeAudioErrors = {
     429: ApiError;
 };
 
-export type TranscribeTreeMergeAudioError = TranscribeTreeMergeAudioErrors[keyof TranscribeTreeMergeAudioErrors];
+export type TranscribeChatAudioError = TranscribeChatAudioErrors[keyof TranscribeChatAudioErrors];
 
-export type TranscribeTreeMergeAudioResponses = {
+export type TranscribeChatAudioResponses = {
     /**
      * Editable transcription; the uploaded audio has been discarded.
      */
-    200: TreeMergeTranscription;
+    200: ChatTranscription;
 };
 
-export type TranscribeTreeMergeAudioResponse = TranscribeTreeMergeAudioResponses[keyof TranscribeTreeMergeAudioResponses];
+export type TranscribeChatAudioResponse = TranscribeChatAudioResponses[keyof TranscribeChatAudioResponses];
 
-export type ProcessTreeMergeData = {
-    body: {
-        version: number;
-        requestId: string;
-    };
+export type GetTreeChatData = {
+    body?: never;
     path: {
         treeId: string;
-        mergeId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/process';
+    url: '/trees/{treeId}/chat';
 };
 
-export type ProcessTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-    /**
-     * Processing rate limit reached; draft retained.
-     */
-    429: unknown;
-};
-
-export type ProcessTreeMergeError = ProcessTreeMergeErrors[keyof ProcessTreeMergeErrors];
-
-export type ProcessTreeMergeResponses = {
-    /**
-     * Updated conversation and proposal state. Tool validation errors are returned to the agent for correction. Clarification questions are ordinary assistant messages. A saved proposal remains reviewable if the final model response fails; provider failures are retryable.
-     */
-    200: TreeMergeDraft;
-};
-
-export type ProcessTreeMergeResponse = ProcessTreeMergeResponses[keyof ProcessTreeMergeResponses];
-
-export type StopTreeMergeData = {
-    body: {
-        requestId: string;
-    };
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/stop';
-};
-
-export type StopTreeMergeErrors = {
+export type GetTreeChatErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -1043,25 +942,338 @@ export type StopTreeMergeErrors = {
     422: ApiError;
 };
 
-export type StopTreeMergeError = StopTreeMergeErrors[keyof StopTreeMergeErrors];
+export type GetTreeChatError = GetTreeChatErrors[keyof GetTreeChatErrors];
 
-export type StopTreeMergeResponses = {
+export type GetTreeChatResponses = {
     /**
-     * Stopped or already completed draft; messages and reviewed proposal retained.
+     * Successful operation
      */
-    200: TreeMergeDraft;
+    200: TreeChatCurrent;
 };
 
-export type StopTreeMergeResponse = StopTreeMergeResponses[keyof StopTreeMergeResponses];
+export type GetTreeChatResponse = GetTreeChatResponses[keyof GetTreeChatResponses];
+
+export type CreateTreeChatData = {
+    body: TreeChatCreateRequest;
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/chat';
+};
+
+export type CreateTreeChatErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type CreateTreeChatError = CreateTreeChatErrors[keyof CreateTreeChatErrors];
+
+export type CreateTreeChatResponses = {
+    /**
+     * Successful operation
+     */
+    201: ChatConversation;
+};
+
+export type CreateTreeChatResponse = CreateTreeChatResponses[keyof CreateTreeChatResponses];
+
+export type GetChatData = {
+    body?: never;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}';
+};
+
+export type GetChatErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type GetChatError = GetChatErrors[keyof GetChatErrors];
+
+export type GetChatResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatConversation;
+};
+
+export type GetChatResponse = GetChatResponses[keyof GetChatResponses];
+
+export type AppendChatMessageData = {
+    body: ChatMessageRequest;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}/messages';
+};
+
+export type AppendChatMessageErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type AppendChatMessageError = AppendChatMessageErrors[keyof AppendChatMessageErrors];
+
+export type AppendChatMessageResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatConversation;
+};
+
+export type AppendChatMessageResponse = AppendChatMessageResponses[keyof AppendChatMessageResponses];
+
+export type ProcessChatData = {
+    body: ChatProcessRequest;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}/process';
+};
+
+export type ProcessChatErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ProcessChatError = ProcessChatErrors[keyof ProcessChatErrors];
+
+export type ProcessChatResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatConversation;
+};
+
+export type ProcessChatResponse = ProcessChatResponses[keyof ProcessChatResponses];
+
+export type StopChatData = {
+    body: ChatStopRequest;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}/stop';
+};
+
+export type StopChatErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type StopChatError = StopChatErrors[keyof StopChatErrors];
+
+export type StopChatResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatConversation;
+};
+
+export type StopChatResponse = StopChatResponses[keyof StopChatResponses];
+
+export type ResetChatData = {
+    body: ChatVersionRequest;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}/reset';
+};
+
+export type ResetChatErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ResetChatError = ResetChatErrors[keyof ResetChatErrors];
+
+export type ResetChatResponses = {
+    /**
+     * Successful operation
+     */
+    204: void;
+};
+
+export type ResetChatResponse = ResetChatResponses[keyof ResetChatResponses];
+
+export type SubscribeChatEventsData = {
+    body?: never;
+    path: {
+        chatId: string;
+    };
+    query?: never;
+    url: '/chats/{chatId}/events';
+};
+
+export type SubscribeChatEventsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type SubscribeChatEventsError = SubscribeChatEventsErrors[keyof SubscribeChatEventsErrors];
+
+export type SubscribeChatEventsResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatSubscription;
+};
+
+export type SubscribeChatEventsResponse = SubscribeChatEventsResponses[keyof SubscribeChatEventsResponses];
+
+export type DiscardTreeMergeProposalData = {
+    body: ChatVersionRequest;
+    path: {
+        treeId: string;
+        proposalId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merge-proposals/{proposalId}';
+};
+
+export type DiscardTreeMergeProposalErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type DiscardTreeMergeProposalError = DiscardTreeMergeProposalErrors[keyof DiscardTreeMergeProposalErrors];
+
+export type DiscardTreeMergeProposalResponses = {
+    /**
+     * Successful operation
+     */
+    200: ChatConversation;
+};
+
+export type DiscardTreeMergeProposalResponse = DiscardTreeMergeProposalResponses[keyof DiscardTreeMergeProposalResponses];
 
 export type ReviseTreeMergeProposalData = {
     body: TreeMergeProposalRequestWritable;
     path: {
         treeId: string;
-        mergeId: string;
+        proposalId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/proposal';
+    url: '/trees/{treeId}/merge-proposals/{proposalId}';
 };
 
 export type ReviseTreeMergeProposalErrors = {
@@ -1078,10 +1290,6 @@ export type ReviseTreeMergeProposalErrors = {
      */
     409: ApiError;
     /**
-     * If-Match does not match the current tree version
-     */
-    412: ApiError;
-    /**
      * One or more fields are invalid
      */
     422: ApiError;
@@ -1091,21 +1299,21 @@ export type ReviseTreeMergeProposalError = ReviseTreeMergeProposalErrors[keyof R
 
 export type ReviseTreeMergeProposalResponses = {
     /**
-     * Versioned merge draft
+     * Successful operation
      */
-    200: TreeMergeDraft;
+    200: ChatConversation;
 };
 
 export type ReviseTreeMergeProposalResponse = ReviseTreeMergeProposalResponses[keyof ReviseTreeMergeProposalResponses];
 
 export type RevalidateTreeMergeData = {
-    body: TreeMergeVersionRequest;
+    body: ChatVersionRequest;
     path: {
         treeId: string;
-        mergeId: string;
+        proposalId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/revalidate';
+    url: '/trees/{treeId}/merge-proposals/{proposalId}/revalidate';
 };
 
 export type RevalidateTreeMergeErrors = {
@@ -1122,10 +1330,6 @@ export type RevalidateTreeMergeErrors = {
      */
     409: ApiError;
     /**
-     * If-Match does not match the current tree version
-     */
-    412: ApiError;
-    /**
      * One or more fields are invalid
      */
     422: ApiError;
@@ -1135,24 +1339,24 @@ export type RevalidateTreeMergeError = RevalidateTreeMergeErrors[keyof Revalidat
 
 export type RevalidateTreeMergeResponses = {
     /**
-     * Versioned merge draft
+     * Successful operation
      */
-    200: TreeMergeDraft;
+    200: ChatConversation;
 };
 
 export type RevalidateTreeMergeResponse = RevalidateTreeMergeResponses[keyof RevalidateTreeMergeResponses];
 
 export type ApplyTreeMergeData = {
-    body: TreeMergeApplyRequest;
+    body: ChatVersionRequest;
     headers: {
         'If-Match': string;
     };
     path: {
         treeId: string;
-        mergeId: string;
+        proposalId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/apply';
+    url: '/trees/{treeId}/merge-proposals/{proposalId}/apply';
 };
 
 export type ApplyTreeMergeErrors = {
@@ -1182,250 +1386,12 @@ export type ApplyTreeMergeError = ApplyTreeMergeErrors[keyof ApplyTreeMergeError
 
 export type ApplyTreeMergeResponses = {
     /**
-     * Versioned merge draft
+     * Successful operation
      */
-    200: TreeMergeDraft;
+    200: TreeMergeApplied;
 };
 
 export type ApplyTreeMergeResponse = ApplyTreeMergeResponses[keyof ApplyTreeMergeResponses];
-
-export type GetCurrentTreeMergeData = {
-    body?: never;
-    path: {
-        treeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges';
-};
-
-export type GetCurrentTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type GetCurrentTreeMergeError = GetCurrentTreeMergeErrors[keyof GetCurrentTreeMergeErrors];
-
-export type GetCurrentTreeMergeResponses = {
-    /**
-     * Merge draft state
-     */
-    200: TreeMergeCurrent;
-};
-
-export type GetCurrentTreeMergeResponse = GetCurrentTreeMergeResponses[keyof GetCurrentTreeMergeResponses];
-
-export type CreateTreeMergeData = {
-    body: TreeMergeCreateRequest;
-    path: {
-        treeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges';
-};
-
-export type CreateTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type CreateTreeMergeError = CreateTreeMergeErrors[keyof CreateTreeMergeErrors];
-
-export type CreateTreeMergeResponses = {
-    /**
-     * Merge draft state
-     */
-    201: TreeMergeDraft;
-};
-
-export type CreateTreeMergeResponse = CreateTreeMergeResponses[keyof CreateTreeMergeResponses];
-
-export type GetTreeMergeData = {
-    body?: never;
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}';
-};
-
-export type GetTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type GetTreeMergeError = GetTreeMergeErrors[keyof GetTreeMergeErrors];
-
-export type GetTreeMergeResponses = {
-    /**
-     * Merge draft state
-     */
-    200: TreeMergeDraft;
-};
-
-export type GetTreeMergeResponse = GetTreeMergeResponses[keyof GetTreeMergeResponses];
-
-export type AppendTreeMergeMessageData = {
-    body: TreeMergeMessageRequest;
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/messages';
-};
-
-export type AppendTreeMergeMessageErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type AppendTreeMergeMessageError = AppendTreeMergeMessageErrors[keyof AppendTreeMergeMessageErrors];
-
-export type AppendTreeMergeMessageResponses = {
-    /**
-     * Merge draft state
-     */
-    200: TreeMergeDraft;
-};
-
-export type AppendTreeMergeMessageResponse = AppendTreeMergeMessageResponses[keyof AppendTreeMergeMessageResponses];
-
-export type CancelTreeMergeData = {
-    body: TreeMergeVersionRequest;
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/cancel';
-};
-
-export type CancelTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type CancelTreeMergeError = CancelTreeMergeErrors[keyof CancelTreeMergeErrors];
-
-export type CancelTreeMergeResponses = {
-    /**
-     * Conversation preserved, proposal cleared
-     */
-    200: TreeMergeDraft;
-};
-
-export type CancelTreeMergeResponse = CancelTreeMergeResponses[keyof CancelTreeMergeResponses];
-
-export type ResetTreeMergeConversationData = {
-    body: TreeMergeVersionRequest;
-    path: {
-        treeId: string;
-        mergeId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merges/{mergeId}/reset';
-};
-
-export type ResetTreeMergeConversationErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type ResetTreeMergeConversationError = ResetTreeMergeConversationErrors[keyof ResetTreeMergeConversationErrors];
-
-export type ResetTreeMergeConversationResponses = {
-    /**
-     * Conversation and proposal deleted
-     */
-    204: void;
-};
-
-export type ResetTreeMergeConversationResponse = ResetTreeMergeConversationResponses[keyof ResetTreeMergeConversationResponses];
 
 export type GetHealthData = {
     body?: never;

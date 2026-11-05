@@ -68,85 +68,79 @@ committed to Git.
 
 ## Development commands
 
-### Tree merge chat and change sets
+### Chat profiles and the merge tool
 
-The AI panel is an ordinary Symfony AI conversation. The configured agent reads
-records, resolves identities, asks questions and prepares proposals through native
-PHP tools. Its final text is displayed verbatim as escaped plain text. Ctrl+Enter
-sends; Enter inserts a line break. Closing the panel preserves unsent input while
-the panel remains mounted. Nothing is written to browser storage.
+The AI panel is a reusable Symfony AI conversation. Its backend-selected profile
+chooses a ready agent from `ai.yaml`, with that agent's tools and prompt. The
+common chat module and `ChatPanel` handle messages, processing, Stop, events,
+voice and token usage without tree or merge types. `TreeAssistant` and
+`TreeChatPanel` connect the tree profile to its preview and confirmation UI.
+A test runs a second configured profile without tree tools or the tree prompt.
+There is no custom agent or inference loop.
 
-Each tree has one conversation coordinator and at most one active proposal.
-The unique tree constraint is on `tree_merge_conversation`; this SQL table holds
-only identifiers, versions and attempt status, not messages or proposal payloads.
-`GET /api/v1/trees/{treeId}/merges` returns `{draft, tokenBudget}`, where `draft`
-may be null. POST creates or returns that tree's current conversation. Discard
-(`/cancel`, 200) removes only the proposal and keeps messages and unsent input.
-Its button disappears when there is no pending proposal. Start another
-conversation (`/reset`, 204) deletes the history and proposal; the next message
-creates a new conversation. Both changes reach other tabs through private events.
-There is no list of historical proposals or correction archive.
+`TreeMergeService` prepares and applies a change set independently of chat, AI
+and MCP. Its validator accepts explicit evidence sources. The native `merge`
+tool adapts this service to the active conversation and publishes the validated
+preview before the next model request. Factual answers are escaped plain text;
+JSON-looking replies have no special meaning. Ctrl+Enter sends; Enter inserts a
+line break. Unsent input stays only in the mounted component.
 
-Proposal `state` and `chatState` are independent. A successful `merge` replaces
-the reviewed proposal. Review versions also advance on manual edits, discard and
-application so obsolete cache snapshots cannot restore a previous proposal.
-A factual reply, Stop or provider failure
-preserves the proposal. Apply is disabled during processing and requires the
-separate confirmation button, the current draft/proposal versions and tree ETag.
-A tree conflict revalidates the proposal and requires another confirmation.
-An applied receipt makes repeated Apply idempotent until another proposal replaces it or the conversation ends.
-A failed snapshot refresh can be retried with Reload conversation. The same chat stays usable after Apply, including live updates in other tabs.
+`GET /api/v1/trees/{treeId}/chat` returns `{conversation, tokenBudget}`; POST
+creates or returns the current conversation. Common operations use
+`/api/v1/chats/{chatId}`. Each authenticated login has one current conversation
+per context and at most one pending merge proposal for a tree. Another login
+cannot read or replace its history or proposal. There is no SQL chat table:
+`tree_merge_conversation` and its Doctrine coordinator were removed.
 
-Conversation persistence uses the official `symfony/ai-cache-message-store`,
-configured in `backend/config/packages/ai.yaml`. Symfony AI owns message history
-and the entire tool loop. Its cache uses Docker tmpfs with a one-hour TTL and a
-namespace for the authenticated login session. The store's conversation ID is
-independent of proposal versions: another login can change the shared proposal
-without invalidating this session's history. Another login cannot read that
-history, and container restarts discard it. Application code adds request IDs and
-localized failure metadata and projects messages for the UI; it implements no
-message-store backend or Doctrine persistence hooks. The proposal and application
-receipt live in `MessageBag` metadata, in the very same cache item as the history.
-Their shared TTL is configured once as `app.tree_merge_chat_ttl` (3600 seconds).
-Expiry, eviction and conversation deletion remove both payloads together, with
-no background job or subsequent HTTP request required. Reads may clean up an
-orphaned SQL coordinator, which contains no proposal data. A different login with
-no local history does not expire another session's live conversation. Stale links
-open an empty chat, and subscription renewal clears expired views in open tabs.
-The migration removes the old SQL proposal columns; the local upgrade had no
-proposals bound to a live conversation to transfer.
+Persistence uses the official `symfony/ai-cache-message-store`. Message history
+and pending tool state share one `MessageBag` cache item on Docker tmpfs. Its
+one-hour TTL (`app.chat_ttl`) advances on writes. Expiry, eviction, reset and
+container restart remove history and proposal together, without an HTTP cleanup
+or background job. A separate private cache index contains only the current
+conversation UUID for a login/context pair. It stores no history or proposal.
 
-User messages total at most 10,000 characters per session conversation, with at
-most 200 visible messages. The model receives each user message once, labelled
-with its evidence ID. Proposal evidence quotes are exact substrings of at most
-300 characters, checked in both schemas and the backend validator. Recordings are
-never attached to a tree or stored in conversation history.
+Symfony Lock coordinates short state changes. The `LockedMessageStore`
+decorator delegates storage to the official bridge and includes native agent
+saves in the same lock and attempt/version checks. Locks are released while
+waiting for the model, so Stop and concurrent actions remain available.
+`ChatVoter` checks the owning active login; `FamilyTreeVoter` enforces ownership
+for tree tools and tree endpoints. Obsolete responses cannot restore state after
+Stop, logout, reset, proposal edits, discard or a newer message.
 
-`TreeMergeAgentVoter` rechecks the active login and delegates tree ownership to
-`FamilyTreeVoter`. Backend attempt/version guards reject writes and final answers
-after Stop, logout, a reset, a reviewed edit or a newer message. The configured
-agent uses `get_tree_context`, `find_people`, `get_person_context` and `merge`, with
-at most eight context reads, sixteen tool calls and ten new people per proposal.
-Existing endpoints must have been observed through a current context read. The
-model receives no application credentials or user/session identity.
+`conversation.status` describes processing; `tools.merge.state` describes the
+pending proposal. A successful `merge` replaces that single proposal. Ordinary
+answers, Stop and provider failures preserve it. Proposal actions use
+`/api/v1/trees/{treeId}/merge-proposals/{proposalId}`: DELETE discards only the
+proposal; the chat and unsent input remain. Its button disappears immediately.
+Reset deletes the whole conversation. Both actions reach other tabs by Mercure.
 
-A successful `merge` saves the validated proposal, then its ToolCallSucceeded
-event publishes the preview before the next model request. Invalid tools produce
-field diagnostics and no preview. Final conversation updates are published after
-commit for both REST and MCP entry points. Only explicit confirmation applies
-people, links, automatic events, ETag and layout invalidation atomically.
-The change-set executor has no AI dependency. Graph validation uses three bounded
-queries without media variants, and application constructs the prospective graph
-once under the tree lock. Child-birth event updates load only affected children.
+Apply requires a separate button, the proposal version and tree ETag. It consumes
+the proposal before the structural tree transaction. People, links, automatic
+events, ETag and layout invalidation change atomically. The result is returned
+once in the HTTP response and a transient tool event, then discarded. Neither
+an applied proposal nor an application receipt is retained in chat state.
+Retries of the consumed proposal return 404 and cannot mutate the tree again.
+An ambiguous response triggers a tree/state refresh; a failed local refresh can
+reuse the transient result in the current tab. A tree version conflict refreshes
+the preview and requires another explicit confirmation.
 
-Private Mercure SSE carries committed drafts, progress and token usage. The hub
-has no event history. Opening or reconnecting fetches one snapshot; no periodic
-chat-state GET is used. A five-minute Secure, HttpOnly, SameSite=Strict cookie is
-renewed before expiry. Caddy checks its JWT and current login session through a
-loopback-only authorization subrequest before each connection. Publications also
-recheck revocation, so an already-open connection receives no private events after
-logout. Logout clears the subscriber cookie. Keep `MERCURE_URL`,
-`MERCURE_PUBLIC_URL`, `MERCURE_JWT_ISSUER` and both Caddy configurations consistent.
+The tree profile permits eight context reads, sixteen tool calls and ten new
+people per proposal. Existing endpoints must have been observed through a current
+context read. User messages total at most 10,000 characters and 200 visible
+messages per conversation. Evidence quotes must be exact user-message substrings
+of at most 300 characters. The model receives no application credentials or
+user/session identity. Graph validation uses three bounded queries; the
+independent change-set executor constructs the prospective graph once under the
+tree lock and loads automatic child-birth events only for affected children.
+
+Private Mercure events carry conversation snapshots, progress, token usage and
+transient tool results. The hub retains no history. Opening or reconnecting
+fetches one chat snapshot and refreshes the tree; there is no periodic chat GET.
+A five-minute Secure, HttpOnly, SameSite=Strict cookie is renewed before expiry.
+Caddy checks its JWT and active login through a loopback-only authorization
+subrequest. Publications also recheck revocation. Logout clears the subscriber
+cookie. Keep `MERCURE_URL`, `MERCURE_PUBLIC_URL`, `MERCURE_JWT_ISSUER` and both Caddy
+configurations consistent.
 
 ### CLIProxyAPI in Docker Compose
 
@@ -167,9 +161,9 @@ header. The startup script writes a private proxy configuration on tmpfs.
 The provider URL, model and tool capabilities stay in `ai.yaml`; the selected
 model is `gpt-5.6-luna` at `http://cli-proxy-api:8317`.
 
-The `tree_merge_tokens` Symfony limiter counts every model round, including input
+The `chat_tokens` Symfony limiter counts every model round, including input
 and completion usage. The initial limit is 10,000,000 tokens per user per day,
-configured by `TREE_MERGE_TOKEN_LIMIT`. Already spent tokens are counted even when
+configured by `CHAT_TOKEN_LIMIT`. Already spent tokens are counted even when
 a response crosses the remaining quota. New rounds then stop with a localized
 notice. Attempts are limited to twenty per user per hour; inference has a
 270-second timeout. Tests use prepared HTTP responses and require no live model.
@@ -196,7 +190,7 @@ The Symfony MCP Bundle exposes authenticated Streamable HTTP at
 `https://my-geno-tree.localhost/mcp/tree`. External clients use the application's
 Bearer session header. Tools are `get_tree_context`, `find_people`,
 `get_person_context`, `prepare_tree_merge` and `get_tree_merge`. Preparation uses
-the same current draft and returns a preview link; no MCP tool applies changes.
+the same current tree-profile conversation and returns a preview link; no MCP tool applies changes.
 The in-application agent invokes native PHP tools directly.
 
 Backend/API tests cover ownership, session isolation, one-draft persistence,
@@ -241,44 +235,32 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-05): 226 backend tests and 388 frontend tests pass. Line
-coverage is 92.66% backend and 90.12% frontend. Every production file
-with measurable behavior exceeds 75%; EventPlaceRepository and
-MediaVariantRepository contain only Doctrine constructor wiring (one uncovered
-line each) and have no custom behavior to measure. Backend/frontend quality,
-OpenAPI generation, production build, Composer validation, dev/prod container
-checks, schema validation and all 22 migrations on a fresh disposable PostgreSQL
-database pass. The backend suite retains nine existing PHPUnit mock-expectation
-notices in map and GEDCOM tests; Vite reports its existing bundle-size advisory.
+Validation (2026-11-05): 223 backend tests and 382 frontend tests pass. Line
+coverage is 92.81% backend and 90.16% frontend. Every production file with
+measurable behavior exceeds 75%; EventPlaceRepository and MediaVariantRepository
+contain only Doctrine constructor wiring (one uncovered line each). Backend and
+frontend quality checks, OpenAPI generation, the production build, Composer
+validation, dev/prod container checks, schema validation and all 23 migrations on
+a fresh disposable PostgreSQL database pass. The backend suite retains nine
+existing PHPUnit mock-expectation notices in map and GEDCOM tests; Vite reports
+its existing bundle-size advisory.
 
-PhpStorm WARNING inspections covered every affected PHP file, with changed files
-re-inspected. No actionable findings remain. The IDE mistakes the FamilyTree and
-Person constructor arguments of the Doctrine entity TreeMergeDraft for service
-injections; they are entity associations. Migration SQL also reports the absence
-of an IDE data source. These IDE configuration/association findings have no quick
-fix and are checked by Doctrine schema validation, real migrations and PHPStan.
-Composer audit separately reports 21 advisories in 12 pre-existing packages;
-this change adds the official message-store bridge without updating their
-versions.
+PhpStorm WARNING inspections covered all affected PHP files and were repeated
+after manual changes. No actionable findings remain. Migration SQL reports only
+the absence of an IDE data source; the statements are verified by applying the
+complete migration history and comparing the real schema to Doctrine mapping.
 
-Manual HTTPS/Chrome validation used the synthetic tree
-"Symfony AI — разделённые состояния 05.11": a live CLIProxyAPI/Symfony AI tool
-cycle prepared three people while the tree stayed empty until Apply. Stop kept
-the ready proposal; refresh restored the conversation and preview. A second tab
-received ordinary answers and the applied result through Mercure. After Apply,
-the same conversation prepared and applied Vera's rename to Veronika, preserving
-all three people, birth years and family links after refresh. A follow-up answer
-also reached the second tab without reload after both applications. Other trees
-were preserved. API tests additionally verify provider failures, stale answers,
-ownership, login-session isolation, revoked subscriptions, evidence limits and
-complete multi-round token usage.
-
-Independent-discard browser validation: the live agent prepared Veronika's rename
-to Vera, and reloading another tab restored the pending preview after the final
-answer. Discard removed only the preview and its button in both tabs; messages,
-the conversation URL and unsent input remained. A follow-up question returned
-Veronika's age, and refresh retained the conversation without restoring the
-discarded proposal. Start another conversation then cleared both tabs. No change
-was applied to the tree. API tests expire the real message-store entry with a
-short TTL and verify that both history and proposal are gone before any HTTP
-request. A native tool-loop race test also rejects an obsolete save after discard.
+Manual HTTPS/Chrome validation used the synthetic tree renamed to
+"Symfony AI — общий чат 05.11". A live CLIProxyAPI/Symfony AI cycle prepared
+Olga's birth-year correction from 1987 to 1988. The stored tree stayed unchanged
+until confirmation. Apply updated both open tabs through Mercure and immediately
+removed the proposal, preview and discard button, while preserving the chat.
+A second proposal conflicted with a concurrent tree rename: application stopped,
+the preview refreshed and another confirmation was required. Discard then
+removed only this proposal, leaving messages and the applied year 1988. An
+ordinary follow-up returned the current stored year without creating a proposal.
+Reset cleared both tabs; reload and reopening showed an empty chat and the same
+three fictional people. Other trees were preserved. API tests also cover TTL
+expiry without HTTP cleanup, stale native saves after discard, Stop, provider
+failures, revoked sessions, evidence limits, isolated logins, complete token
+accounting and a second configured agent profile without tree tools.

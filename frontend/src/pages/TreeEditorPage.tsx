@@ -40,7 +40,7 @@ import type {
   ResolvedEventPlace,
   SaveTreeLayoutRequest,
   TreeSnapshot,
-  TreeMergeDraft,
+  TreeMergePendingProposal,
   TreeReference,
   User,
 } from '../api/generated'
@@ -76,7 +76,7 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
-import { TreeMergeDrawer } from '../components/TreeMergeDrawer'
+import { TreeChatDrawer } from '../components/TreeChatDrawer'
 import { ActionIcon } from '../components/ActionIcon'
 import { PersonSearchPanel } from '../components/PersonSearchPanel'
 import { PersonFormDialog } from '../components/PersonFormDialog'
@@ -807,7 +807,7 @@ type TreeCanvasProps = {
   selectedPersonId: string | null
   mergeAffectedIds: string[]
   mergePanelOpen: boolean
-  mergeDraft: TreeMergeDraft | null
+  mergeProposal: TreeMergePendingProposal | null
   snapshot: TreeSnapshot
   user: User | null
   view: 'network' | 'tree'
@@ -832,7 +832,7 @@ function TreeCanvas({
   selectedPersonId,
   mergeAffectedIds,
   mergePanelOpen,
-  mergeDraft,
+  mergeProposal,
   snapshot,
   user,
   view,
@@ -933,8 +933,8 @@ function TreeCanvas({
   ])
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
-  const mergeProjection = useMemo(() => mergeDraft?.proposal ? projectTreeMerge(snapshot, mergeDraft.proposal) : null, [mergeDraft, snapshot])
-  const mergePreviewKey = mergeDraft ? `${mergeDraft.id}:${mergeDraft.proposalVersion}` : null
+  const mergeProjection = useMemo(() => mergeProposal?.proposal ? projectTreeMerge(snapshot, mergeProposal.proposal) : null, [mergeProposal, snapshot])
+  const mergePreviewKey = mergeProposal ? `${mergeProposal.id}:${mergeProposal.version}` : null
   const focusedSnapshot = useMemo(() => mergeAffectedIds.length > 0 ? snapshot : focusedTreeSnapshot(snapshot), [mergeAffectedIds, snapshot])
   // A merge result temporarily shows the complete branch. Its positions must
   // never replace the cache belonging to the ordinary reference projection.
@@ -2243,10 +2243,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }, [importWarningCount])
   const [creating, setCreating] = useState(false)
-  const [mergeOpen, setMergeOpen] = useState(() => new URLSearchParams(window.location.search).has('merge'))
-  const [mergeDraft, setMergeDraft] = useState<TreeMergeDraft | null>(null)
+  const [chatOpen, setChatOpen] = useState(() => new URLSearchParams(window.location.search).has('chat'))
+  const [mergeProposal, setMergeProposal] = useState<TreeMergePendingProposal | null>(null)
   const [mergeReviewContainer, setMergeReviewContainer] = useState<HTMLDivElement | null>(null)
-  const mergePreviewDraft = mergeOpen && mergeDraft?.proposal && mergeDraft.state !== 'applied' ? mergeDraft : null
+  const mergePreviewProposal = chatOpen ? mergeProposal : null
   const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -3108,10 +3108,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   }, [pathDisplay, snapshot, view])
 
   return (
-    <main className={`tree-editor-page${mergeOpen ? ' tree-merge-open' : ''}`}>
+    <main className={`tree-editor-page${chatOpen ? ' tree-chat-open' : ''}`}>
       {snapshot && (
-        <TreeMergeDrawer key={treeId} snapshot={snapshot} request={request} open={mergeOpen} onOpenChange={setMergeOpen}
-          onDraftChange={setMergeDraft} previewContainer={mergeReviewContainer}
+        <TreeChatDrawer key={treeId} snapshot={snapshot} request={request} open={chatOpen} onOpenChange={setChatOpen}
+          onProposalChange={setMergeProposal} previewContainer={mergeReviewContainer}
           onRefreshTree={async () => { replaceSnapshot(await treeApi.snapshot(request, treeId)) }}
           onApplied={async (result) => {
             const next = await treeApi.snapshot(request, treeId)
@@ -3149,7 +3149,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       )}
 
       <section className={`editor-workspace${
-        mergeOpen ? '' : view === 'network'
+        chatOpen ? '' : view === 'network'
           ? ' editor-workspace-network-sidebar-open'
           : selectedPerson ? ' editor-workspace-panel-open' : ''
       }`}>
@@ -3176,7 +3176,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         {status === 'ready' && snapshot && (
           <div className="tree-canvas">
             <div className="tree-merge-review-slot" ref={setMergeReviewContainer} />
-            {snapshot.people.length === 0 && !mergePreviewDraft ? (
+            {snapshot.people.length === 0 && !mergePreviewProposal ? (
               <div className="empty-tree-action">
                 <p>{t('trees.editorEmpty')}</p>
                 <button
@@ -3204,10 +3204,10 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
                   mergeAffectedIds={mergeAffectedIds}
-                  mergePanelOpen={mergeOpen}
-                  mergeDraft={mergePreviewDraft}
+                  mergePanelOpen={chatOpen}
+                  mergeProposal={mergePreviewProposal}
                   snapshot={snapshot}
-                  view={mergePreviewDraft ? 'tree' : view}
+                  view={mergePreviewProposal ? 'tree' : view}
                   onToggleNetworkView={toggleNetworkView}
                   onUpdateUser={updateUser}
                   request={request}

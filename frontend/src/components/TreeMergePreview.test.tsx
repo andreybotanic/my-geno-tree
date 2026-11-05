@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TreeMergeDraft, TreeMergeProposal } from '../api/generated'
+import type { TreeMergePendingProposal, TreeMergeProposal } from '../api/generated'
 import i18n from '../i18n'
 import { TreeMergePreview } from './TreeMergePreview'
 
@@ -12,15 +12,11 @@ const proposal: TreeMergeProposal = {
     evidence: [{ messageId: 'm', quote: '<b>Ирина</b>' }] }],
   parents: [], marriages: [], questions: [],
 }
-const draft: TreeMergeDraft & { proposal: TreeMergeProposal } = {
-  id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, chatState: 'idle',
-  progress: [], tokenBudget: { remaining: 10000000, limit: 10000000 }, tokenUsage: { input: 0, output: 0, total: 0 }, attemptId: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
-  messages: [], createdAt: 'now', updatedAt: 'now',
-}
+const draft: TreeMergePendingProposal = { id: 'proposal', treeId: 'tree', version: 1, state: 'ready', treeEtag: 'etag', proposal }
 function setup(value = draft, busy = false) {
   const onApply = vi.fn(async () => {})
   const onRevalidate = vi.fn(async () => {})
-  render(<TreeMergePreview draft={value} busy={busy} onApply={onApply} onRevalidate={onRevalidate} />)
+  render(<TreeMergePreview proposal={value} busy={busy} onApply={onApply} onRevalidate={onRevalidate} />)
   return { onApply, onRevalidate }
 }
 
@@ -38,7 +34,7 @@ describe('TreeMergePreview', () => {
     expect(onApply).toHaveBeenCalledOnce()
   })
 
-  it.each(['collecting', 'questions', 'conflict', 'no_changes'] as const)(
+  it.each(['questions', 'conflict', 'no_changes'] as const)(
     'does not apply an unchecked proposal in the %s state', (state) => {
       const { onApply } = setup({ ...draft, state })
       const apply = screen.getByRole('button', { name: 'Confirm and apply changes' })
@@ -68,10 +64,9 @@ describe('TreeMergePreview', () => {
     expect(onApply).not.toHaveBeenCalled()
   })
 
-  it('localizes the completed preview in Russian', async () => {
+  it('localizes the confirmation in Russian', async () => {
     await i18n.changeLanguage('ru')
-    setup({ ...draft, state: 'applied' })
-    expect(screen.getByRole('status')).toHaveTextContent('Изменения применены')
-    expect(screen.queryByRole('button', { name: 'Подтвердить и применить изменения' })).not.toBeInTheDocument()
+    setup()
+    expect(screen.getByRole('button', { name: 'Подтвердить и применить изменения' })).toBeEnabled()
   })
 })

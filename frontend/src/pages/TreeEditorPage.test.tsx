@@ -8,7 +8,7 @@ import type {
   Person,
   SearchRoutePlan,
   TreeSnapshot,
-  TreeMergeDraft,
+  ChatConversation,
   User,
 } from '../api/generated'
 import {
@@ -21,9 +21,9 @@ import i18n from '../i18n'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { TreeEditorPage } from './TreeEditorPage'
 
-vi.mock('../hooks/useTreeMergeEvents', async (original) => ({
-  ...await original<typeof import('../hooks/useTreeMergeEvents')>(),
-  useTreeMergeEvents: vi.fn(() => ({ error: null, reconnect: vi.fn() })),
+vi.mock('../hooks/useChatEvents', async (original) => ({
+  ...await original<typeof import('../hooks/useChatEvents')>(),
+  useChatEvents: vi.fn(() => ({ error: null, reconnect: vi.fn() })),
 }))
 
 vi.mock('../components/ImageCropDialog', () => ({
@@ -227,24 +227,24 @@ describe('TreeEditorPage', () => {
 
   it.each([false, true])('previews a merge on the canvas without changing real people (empty=%s)', async (empty) => {
     const original = snapshot(empty ? [] : [person])
-    const prepared: TreeMergeDraft = {
-      id: 'merge-preview', treeId, referencePersonId: null, version: 2, chatState: 'idle', proposalVersion: 1,
-      state: 'ready', attemptId: null, attemptStartedAt: null,
-      treeEtag: original.etag, messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
-      questions: [], result: null, createdAt: person.createdAt, updatedAt: person.updatedAt,
-      proposal: { people: [
+    const prepared: ChatConversation = {
+      id: 'chat-preview', profile: 'tree', version: 2, status: 'idle',
+      attemptId: null, attemptStartedAt: null,
+      messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
+      createdAt: person.createdAt, updatedAt: person.updatedAt,
+      tools: { merge: { id: 'proposal', treeId, version: 1, treeEtag: original.etag, state: 'ready', proposal: { people: [
         ...(empty ? [] : [{ id: 'a', existingPersonId: person.id, resolution: 'existing' as const, lifeStatus: 'alive' as const, fields: { deathDate: null }, evidence: [] }]),
         { id: 'b', existingPersonId: null, resolution: 'new', lifeStatus: 'alive', fields: { givenName: { state: 'known', value: 'Boris' }, gender: 'male', deathDate: null }, evidence: [] },
-      ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] },
+      ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] } } },
     }
-    const request = vi.fn(async (path: string) => path.endsWith('/merges') ? { draft: prepared, tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
+    const request = vi.fn(async (path: string) => path.endsWith('/chat') ? { conversation: prepared, tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
     const { container } = renderEditor(request)
     fireEvent.click(await screen.findByRole('button', { name: 'Open AI chat' }))
     const added = await screen.findByText('Boris')
     expect(added.closest('article')).not.toHaveClass('person-card-muted')
     if (!empty) expect(screen.getByText('Anna').closest('article')).toHaveClass('person-card-muted')
     expect(container.querySelector('.tree-canvas .tree-merge-graph-review')).toBeInTheDocument()
-    expect(container.querySelector('.tree-merge-panel .tree-merge-preview')).toBeNull()
+    expect(container.querySelector('.chat-panel .tree-merge-preview')).toBeNull()
     fireEvent.click(added)
     expect(screen.queryByLabelText('Match in this tree')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Given name' })).not.toBeInTheDocument()
@@ -260,7 +260,7 @@ describe('TreeEditorPage', () => {
   it.each(['tree', 'network'] as const)('releases the %s sidebar column while chatting and restores the previous selection', async (view) => {
     if (view === 'network') window.history.replaceState({}, '', `/trees/${treeId}/network`)
     const request = vi.fn(async (path: string) => {
-      if (path.endsWith('/merges')) return { draft: null }
+      if (path.endsWith('/chat')) return { conversation: null }
       if (path.endsWith('/events')) return { items: [] }
       return snapshot([person])
     }) as unknown as AuthorizedJsonRequest
@@ -274,7 +274,7 @@ describe('TreeEditorPage', () => {
     const sidebarClass = view === 'tree' ? 'editor-workspace-panel-open' : 'editor-workspace-network-sidebar-open'
     expect(workspace).toHaveClass(sidebarClass)
     fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled())
     expect(workspace).not.toHaveClass(sidebarClass)
     fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
     expect(workspace).toHaveClass(sidebarClass)

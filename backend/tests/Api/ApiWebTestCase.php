@@ -59,6 +59,23 @@ abstract class ApiWebTestCase extends WebTestCase
         return $data;
     }
 
+    /** @return array<array-key, mixed> */
+    protected function responseArray(string ...$path): array
+    {
+        $value = $this->responseValue(...$path);
+        self::assertIsArray($value);
+
+        return $value;
+    }
+
+    protected function responseInt(string ...$path): int
+    {
+        $value = $this->responseValue(...$path);
+        self::assertIsInt($value);
+
+        return $value;
+    }
+
     protected function responseString(string ...$path): string
     {
         $value = $this->responseValue(...$path);
