@@ -6,9 +6,14 @@ use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Mcp\TreeReadTools;
-use App\Security\TreeMergeAgentGrant;
+use App\Security\TreeMergeAgentContext;
+use App\Security\TreeMergeAgentTokenHandler;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+use Symfony\Component\DependencyInjection\Attribute\When;
 use Symfony\Component\HttpFoundation\RequestStack;
 
+#[When('test')]
+#[AsAlias(TreeMergeAiInterface::class, public: true)]
 final class FixtureTreeMergeAi implements TreeMergeAiInterface
 {
     public static ?\Closure $handler = null;
@@ -17,7 +22,7 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static string $accessToken;
     public static string $attemptId;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly RequestStack $requests, private readonly TreeReadTools $reads, private readonly TreeMergeAgentGrant $grants)
+    public function __construct(TreeMergeAgentTools $tools, private readonly RequestStack $requests, private readonly TreeReadTools $reads, private readonly TreeMergeAgentTokenHandler $tokenHandler)
     {
         self::$tools = $tools;
     }
@@ -25,18 +30,17 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
         ++self::$calls;
-        self::$accessToken = $this->grants->issue($draft);
+        self::$accessToken = $this->tokenHandler->issue($draft);
         self::$attemptId = $attemptId;
         $request = $this->requests->getCurrentRequest() ?? throw new \LogicException('Missing request');
-        $request->attributes->set(TreeMergeAgentGrant::class, ['draftId' => $draft->id->toRfc4122(),
-            'treeId'                                                     => $draft->tree->getId()->toRfc4122(), 'attemptId' => $attemptId, 'version' => $draft->version]);
+        $request->attributes->set(TreeMergeAgentContext::class, new TreeMergeAgentContext($draft, $attemptId));
         try {
             if (null === self::$handler) {
                 throw new \LogicException('Missing AI fixture');
             }
             (self::$handler)($draft, $attemptId, self::$tools, $this->reads);
         } finally {
-            $request->attributes->remove(TreeMergeAgentGrant::class);
+            $request->attributes->remove(TreeMergeAgentContext::class);
         }
     }
 

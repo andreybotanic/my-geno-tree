@@ -2,6 +2,7 @@
 
 namespace App\Tests\Infrastructure\Doctrine;
 
+use Doctrine\Bundle\DoctrineBundle\Attribute\AsMiddleware;
 use Doctrine\DBAL\Driver;
 use Doctrine\DBAL\Driver\Connection;
 use Doctrine\DBAL\Driver\Middleware;
@@ -10,7 +11,12 @@ use Doctrine\DBAL\Driver\Middleware\AbstractDriverMiddleware;
 use Doctrine\DBAL\Driver\Middleware\AbstractStatementMiddleware;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
+use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
+use Symfony\Component\DependencyInjection\Attribute\When;
 
+#[When('test')]
+#[Autoconfigure(public: true)]
+#[AsMiddleware]
 final class QueryCountingMiddleware implements Middleware
 {
     private int $queryCount = 0;

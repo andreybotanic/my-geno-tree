@@ -7,7 +7,7 @@ use App\Entity\AuthSession;
 use App\Entity\FamilyTree;
 use App\Entity\TreeMergeDraft;
 use App\Entity\User;
-use App\Security\TreeMergeAgentGrant;
+use App\Security\TreeMergeAgentTokenHandler;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\AI\Agent\Execution\ExecutionInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -24,8 +24,8 @@ final class SymfonyTreeMergeAiTest extends KernelTestCase
         $container = self::getContainer();
         $draft = $this->draft();
         $calls = 0;
-        $grants = $container->get(TreeMergeAgentGrant::class);
-        $http = new MockHttpClient(function (string $method, string $url, array $options) use ($draft, $grants, &$calls): MockResponse {
+        $tokenHandler = $container->get(TreeMergeAgentTokenHandler::class);
+        $http = new MockHttpClient(function (string $method, string $url, array $options) use ($draft, $tokenHandler, &$calls): MockResponse {
             ++$calls;
             self::assertSame('POST', $method);
             self::assertSame('http://hermes:8642/v1/chat/completions', $url);
@@ -37,12 +37,12 @@ final class SymfonyTreeMergeAiTest extends KernelTestCase
             self::assertArrayNotHasKey('tools', $body);
             self::assertArrayNotHasKey('mcp_servers', $body);
             self::assertStringContainsString('reply_to_tree_merge', $body['messages'][0]['content']);
-            /** @var array{accessToken: string, attemptId: string, messages: array<mixed>} $input */
+            /** @var array{accessToken: string, attemptId: string, treeId: string, messages: array<mixed>} $input */
             $input = json_decode($body['messages'][1]['content'], true, flags: JSON_THROW_ON_ERROR);
             self::assertSame('attempt', $input['attemptId']);
-            self::assertSame($draft->id->toRfc4122(), $grants->resolve($input['accessToken'])['draftId']);
+            self::assertSame($draft->tree->getId()->toRfc4122(), $input['treeId']);
             self::assertSame($draft->messages, $input['messages']);
-            self::assertSame($grants->issue($draft), $input['accessToken']);
+            self::assertSame($tokenHandler->issue($draft), $input['accessToken']);
 
             return new MockResponse(json_encode(['id' => 'http-agent', 'object' => 'chat.completion', 'created' => 1,
                 'model'                               => 'gpt-5.6-luna', 'choices' => [['index' => 0, 'finish_reason' => 'stop',
@@ -61,19 +61,19 @@ final class SymfonyTreeMergeAiTest extends KernelTestCase
     {
         self::bootKernel();
         $draft = $this->draft();
-        $grants = self::getContainer()->get(TreeMergeAgentGrant::class);
-        $token = $grants->issue($draft);
+        $tokenHandler = self::getContainer()->get(TreeMergeAgentTokenHandler::class);
+        $token = $tokenHandler->issue($draft);
         $execution = $this->createMock(ExecutionInterface::class);
         $execution->expects($this->once())->method('getResult')->willThrowException(new \RuntimeException('provider unavailable'));
         $agent = $this->createMock(AgentInterface::class);
         $agent->expects($this->once())->method('call')->willReturn($execution);
         try {
-            (new SymfonyTreeMergeAi($agent, $grants))->respond($draft, 'attempt');
+            (new SymfonyTreeMergeAi($agent, $tokenHandler))->respond($draft, 'attempt');
             self::fail('Provider failure was swallowed');
         } catch (\RuntimeException $error) {
             self::assertSame('provider unavailable', $error->getMessage());
         }
-        self::assertSame($token, $grants->issue($draft));
+        self::assertSame($token, $tokenHandler->issue($draft));
     }
 
     private function draft(): TreeMergeDraft

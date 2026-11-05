@@ -3,7 +3,11 @@
 namespace App\Tests\Infrastructure\Ai;
 
 use App\Application\TreeMerge\Voice\TranscriptionProviderInterface;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+use Symfony\Component\DependencyInjection\Attribute\When;
 
+#[When('test')]
+#[AsAlias(TranscriptionProviderInterface::class, public: true)]
 final class FixtureTranscriptionProvider implements TranscriptionProviderInterface
 {
     public static int $calls = 0;

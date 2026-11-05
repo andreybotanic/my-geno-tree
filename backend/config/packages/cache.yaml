@@ -1,3 +1,9 @@
+services:
+    # Third-party adapter: keep the RAM-backed cache wiring with its pools.
+    app.merge_memory_adapter:
+        class: Symfony\Component\Cache\Adapter\FilesystemAdapter
+        arguments: ['merge_%kernel.environment%', 3600, '%env(TREE_MERGE_SESSION_DIR)%']
+
 framework:
     cache:
         # Unique name of your app: used to compute stable namespaces for cache keys.

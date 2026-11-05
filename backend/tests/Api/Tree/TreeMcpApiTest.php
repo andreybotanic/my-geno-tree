@@ -14,7 +14,7 @@ use App\Entity\Value\Gender;
 use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use App\Entity\Value\ParentRole;
-use App\Security\TreeMergeAgentGrant;
+use App\Security\TreeMergeAgentTokenHandler;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
@@ -162,8 +162,8 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
         self::assertNotNull($draft);
         $attempt = $this->beginAttempt($draft);
-        $grants = static::getContainer()->get(TreeMergeAgentGrant::class);
-        $token = $grants->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        $tokenHandler = static::getContainer()->get(TreeMergeAgentTokenHandler::class);
+        $token = $tokenHandler->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
         $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
         $this->agentArguments = ['accessToken' => $token, 'attemptId' => $attempt];
@@ -188,7 +188,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         self::assertArrayHasKey('error', $this->responseData());
         $this->jsonRequest('POST', $base . '/' . $id . '/apply', ['version' => 2, 'proposalVersion' => 1], $this->headers);
         self::assertResponseStatusCodeSame(401);
-        $grants->revoke($token);
+        $tokenHandler->revoke($token);
         $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseIsSuccessful();
         $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
@@ -196,7 +196,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
         self::assertNotNull($draft);
-        $stale = $grants->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        $stale = $tokenHandler->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         $this->beginAttempt($draft);
         $this->agentArguments = ['accessToken' => $stale, 'attemptId' => $attempt];
         $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
@@ -218,7 +218,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
             $attemptId = $this->beginAttempt($draft);
             $session = $em->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]);
             self::assertNotNull($session);
-            $credentials[] = ['treeId' => $treeId, 'attemptId' => $attemptId, 'accessToken' => static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $session),
+            $credentials[] = ['treeId' => $treeId, 'attemptId' => $attemptId, 'accessToken' => static::getContainer()->get(TreeMergeAgentTokenHandler::class)->issue($draft, $session),
                 'sessionId'            => $session->getId()->toRfc4122()];
         }
         self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
@@ -268,7 +268,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $draft = $em->getRepository(TreeMergeDraft::class)->find($this->responseString('id'));
         self::assertNotNull($draft);
         $attempt = $this->beginAttempt($draft);
-        $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        $token = static::getContainer()->get(TreeMergeAgentTokenHandler::class)->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
         self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
         $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
         $this->agentArguments = ['accessToken' => $token, 'attemptId' => $attempt];
@@ -318,7 +318,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
             $em->refresh($draft);
             $attempt = $draft->beginAttempt($now);
             $em->flush();
-            $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft);
+            $token = static::getContainer()->get(TreeMergeAgentTokenHandler::class)->issue($draft);
         } finally {
             $requests->pop();
         }

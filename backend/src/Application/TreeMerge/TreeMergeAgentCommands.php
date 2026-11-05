@@ -8,7 +8,7 @@ use App\Application\Tree\TreeVersion;
 use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
 use App\Repository\TreeMergeDraftRepository;
-use App\Security\TreeMergeAgentGrant;
+use App\Security\TreeMergeAgentContext;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Cache\CacheItemPoolInterface;
@@ -127,14 +127,14 @@ final readonly class TreeMergeAgentCommands
 
     private function active(string $treeId): TreeMergeDraft
     {
-        $grant = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentGrant::class);
-        if (!is_array($grant) || ($grant['treeId'] ?? null) !== $treeId || !is_string($grant['draftId'] ?? null)) {
+        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
+        if (!$context instanceof TreeMergeAgentContext || $context->treeId !== $treeId) {
             throw new ApiException(403, 'TREE_MERGE_AGENT_REQUIRED');
         }
         $this->context->tree($treeId, true);
-        $draft = $this->drafts->find($grant['draftId']) ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        $draft = $this->drafts->find($context->draftId) ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
         $this->entityManager->refresh($draft);
-        if ($draft->attemptId !== ($grant['attemptId'] ?? null) || $draft->version !== ($grant['version'] ?? null)
+        if ($draft->attemptId !== $context->attemptId || $draft->version !== $context->version
             || 'processing' !== $draft->state || !$draft->chatSessionAvailable) {
             throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
         }

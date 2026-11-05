@@ -1,55 +1,7 @@
-# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
-
-# This file is the entry point to configure your own services.
-# Files in the packages/ subdirectory configure your dependencies.
-# See also https://symfony.com/doc/current/service_container/import.html
-
-# Put parameters here that don't need to change on each machine where the app is deployed
-# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
-parameters:
-
 services:
-    app.merge_memory_adapter:
-        class: Symfony\Component\Cache\Adapter\FilesystemAdapter
-        arguments: ['merge_%kernel.environment%', 3600, '%env(TREE_MERGE_SESSION_DIR)%']
-    # default configuration for services in *this* file
     _defaults:
-        autowire: true      # Automatically injects dependencies in your services.
-        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        autowire: true
+        autoconfigure: true
 
-    # makes classes in src/ available to be used as services
-    # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
-
-    App\Application\TreeMerge\Ai\TreeMergeAiInterface:
-        alias: App\Application\TreeMerge\Ai\SymfonyTreeMergeAi
-
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
-
-when@test:
-    services:
-        App\Application\TreeMerge\Ai\SymfonyTreeMergeAi:
-            autowire: true
-            public: true
-        app.test_mercure_hub:
-            decorates: mercure.hub.default
-            class: Symfony\Component\Mercure\MockHub
-            factory: ['App\Tests\Infrastructure\Ai\TestMergeEvents', 'hub']
-            arguments: ['@app.test_mercure_hub.inner']
-        App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider: ~
-        App\Application\TreeMerge\Voice\TranscriptionProviderInterface:
-            alias: App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider
-            public: true
-        App\Tests\Infrastructure\Ai\FixtureTreeMergeAi:
-            autowire: true
-        App\Application\TreeMerge\Ai\TreeMergeAiInterface:
-            alias: App\Tests\Infrastructure\Ai\FixtureTreeMergeAi
-            public: true
-        app.test_media_storage:
-            alias: media.storage
-            public: true
-        App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware:
-            public: true
-            tags: ['doctrine.middleware']

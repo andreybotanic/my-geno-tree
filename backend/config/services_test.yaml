@@ -1,0 +1,23 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\Tests\Infrastructure\:
+        resource: '../tests/Infrastructure/'
+        exclude: '../tests/Infrastructure/Ai/TestMergeEvents.php'
+
+    # Keep the real adapter available for its HTTP integration test alongside the fixture.
+    App\Application\TreeMerge\Ai\SymfonyTreeMergeAi:
+        public: true
+
+    # These vendor classes cannot be configured by attributes on application classes.
+    app.test_mercure_hub:
+        decorates: mercure.hub.default
+        class: Symfony\Component\Mercure\MockHub
+        factory: ['App\Tests\Infrastructure\Ai\TestMergeEvents', 'hub']
+        arguments: ['@app.test_mercure_hub.inner']
+
+    app.test_media_storage:
+        alias: media.storage
+        public: true

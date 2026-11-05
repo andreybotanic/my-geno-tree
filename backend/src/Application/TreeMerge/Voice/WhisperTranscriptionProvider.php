@@ -2,11 +2,13 @@
 
 namespace App\Application\TreeMerge\Voice;
 
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+#[AsAlias(TranscriptionProviderInterface::class, when: ['dev', 'prod'])]
 final readonly class WhisperTranscriptionProvider implements TranscriptionProviderInterface
 {
     public function __construct(private HttpClientInterface $http,

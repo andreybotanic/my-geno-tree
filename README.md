@@ -209,6 +209,21 @@ current attempt and tree ownership on every call. User identity exists only
 during that call, never on the shared MCP connection. Logout or Stop therefore
 blocks subsequent tool actions without reconfiguring Hermes or its connection.
 
+The chat credential is issued and authenticated by `TreeMergeAgentTokenHandler`,
+which implements Symfony Security's `AccessTokenHandlerInterface` and returns a
+`UserBadge` for the initiating login. `FamilyTreeVoter` authorizes issuing the
+credential and accessing the selected tree. `TreeMergeAgentAccess` installs that
+identity only for one tool invocation and always restores the previous security
+token; `TreeMergeAgentContext` carries the typed chat/attempt/version scope.
+The credential cache stores only the chat ID, login-session ID and expiry.
+
+Application aliases are declared with `#[AsAlias]`; test implementations use
+`#[When('test')]` and are discovered exclusively by `config/services_test.yaml`.
+`config/services.yaml` contains only the common autowiring/autoconfiguration
+rules and the application namespace. Vendor cache-adapter arguments remain beside
+the pools in `config/packages/cache.yaml`; the vendor mock-hub factory and exports
+needed by integration tests remain in `services_test.yaml`.
+
 The chat key is a cryptographically random UUIDv4; the tool schemas describe its
 format so small models can copy it reliably. Agents must stop after an authorization
 or stale-attempt error. Hermes 0.22.7 has a non-configurable per-server circuit
@@ -490,3 +505,12 @@ production file above 75%. PHPStan, linters, OpenAPI checks, production builds,
 clean-database migrations and affected-file PhpStorm WARNING inspections passed.
 The backend suite retains nine existing PHPUnit mock-expectation notices in map
 and GEDCOM tests.
+
+Service/security refactor verification (2026-11-05): 212 backend tests and 385
+frontend tests passed; backend line coverage is 92.82%, including 100% for the token
+handler and typed context. Container checks confirmed real implementations in
+dev/prod and fixture implementations only in test. In the HTTPS browser, a fresh
+login opened the existing tree, Hermes answered Anna's birth-year question through
+MCP, and logout followed by reopening the protected tree required authentication.
+PhpStorm WARNING inspections, static analysis, OpenAPI checks, builds and all 19
+migrations on a clean database passed.
