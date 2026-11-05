@@ -76,11 +76,12 @@ PHP tools. Its final text is displayed verbatim as escaped plain text. Ctrl+Ente
 sends; Enter inserts a line break. Closing the panel preserves unsent input while
 the panel remains mounted. Nothing is written to browser storage.
 
-Each tree has one `TreeMergeDraft`, enforced by a unique database constraint.
+Each tree has at most one `TreeMergeDraft`, enforced by a unique database constraint.
 `GET /api/v1/trees/{treeId}/merges` returns `{draft, tokenBudget}`, where `draft`
 may be null. POST creates or returns that tree's current draft. Cancellation and
-starting another conversation reset the same record, with a new internal
-conversation ID. There is no list of historical drafts or correction archive.
+starting another conversation delete the draft and its conversation, returning
+204; the next message creates a new record. Other tabs clear their draft through
+a private removal event. There is no list of historical drafts or correction archive.
 The migration retains the newest unfinished draft per tree, or its newest receipt
 when no unfinished draft exists, and removes obsolete drafts without changing
 people, relationships or events.
@@ -90,7 +91,7 @@ the reviewed proposal and its version. A factual reply, Stop or provider failure
 preserves the proposal. Apply is disabled during processing and requires the
 separate confirmation button, the current draft/proposal versions and tree ETag.
 A tree conflict revalidates the proposal and requires another confirmation.
-An applied receipt makes repeated Apply idempotent until another proposal replaces it or the draft is reset.
+An applied receipt makes repeated Apply idempotent until another proposal replaces it or the conversation ends.
 A failed snapshot refresh can be retried with Reload conversation. The same chat stays usable after Apply, including live updates in other tabs.
 
 Conversation persistence uses the official `symfony/ai-cache-message-store`,
@@ -101,7 +102,13 @@ independent of proposal versions: another login can change the shared proposal
 without invalidating this session's history. Another login cannot read that
 history, and container restarts discard it. Application code adds request IDs and
 localized failure metadata and projects messages for the UI; it implements no
-message-store backend or Doctrine persistence hooks.
+message-store backend or Doctrine persistence hooks. The draft records the login
+session of its bound conversation. Reads and actions check that history through
+the official store: if it has expired or been lost, the database row is removed
+and can no longer be read or applied. A different login with no local history
+does not expire another session's live draft. The binding migration leaves old
+unbound rows unavailable; they are removed on first access. Stale preview links
+open an empty chat, and subscription renewal clears an expired draft in open tabs.
 
 User messages total at most 10,000 characters per session conversation, with at
 most 200 visible messages. The model receives each user message once, labelled
@@ -228,13 +235,13 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-05): 222 backend tests (6,113 assertions) and 384 frontend tests
-pass. Line coverage is 92.68% backend and 90.16% frontend. Every production file
+Validation (2026-11-05): 224 backend tests (6,237 assertions) and 387 frontend tests
+pass. Line coverage is 92.66% backend and 90.11% frontend. Every production file
 with measurable behavior exceeds 75%; EventPlaceRepository and
 MediaVariantRepository contain only Doctrine constructor wiring (one uncovered
 line each) and have no custom behavior to measure. Backend/frontend quality,
 OpenAPI generation, production build, Composer validation, dev/prod container
-checks, schema validation and all 20 migrations on a fresh disposable PostgreSQL
+checks, schema validation and all 21 migrations on a fresh disposable PostgreSQL
 database pass. The backend suite retains nine existing PHPUnit mock-expectation
 notices in map and GEDCOM tests; Vite reports its existing bundle-size advisory.
 
@@ -259,3 +266,10 @@ also reached the second tab without reload after both applications. Other trees
 were preserved. API tests additionally verify provider failures, stale answers,
 ownership, login-session isolation, revoked subscriptions, evidence limits and
 complete multi-round token usage.
+
+Draft-lifetime browser validation: an obsolete preview link opened an empty chat
+without a discard button. A newly created test conversation returned a live
+answer; Discard removed its messages, button and URL identifier in both tabs.
+Reloading and reopening the panel kept it empty. API tests simulate missing
+cache history, assert physical deletion of the proposal and reject Apply without
+changing people or relationships.

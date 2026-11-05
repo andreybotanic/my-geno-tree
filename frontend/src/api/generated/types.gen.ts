@@ -88,6 +88,9 @@ export type TreeMergeSubscription = {
 };
 
 export type TreeMergeEvent = {
+    kind: 'removed';
+    id: string;
+} | {
     kind: 'draft';
     draft: TreeMergeDraft;
 } | {
@@ -101,7 +104,7 @@ export type TreeMergeEvent = {
 };
 
 /**
- * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
+ * Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
  */
 export type TreeMergeDraft = {
     id: string;
@@ -796,6 +799,9 @@ export type TreeMergeProposalRequestWritable = {
 };
 
 export type TreeMergeEventWritable = {
+    kind: 'removed';
+    id: string;
+} | {
     kind: 'draft';
     draft: TreeMergeDraftWritable;
 } | {
@@ -809,7 +815,7 @@ export type TreeMergeEventWritable = {
 };
 
 /**
- * Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
+ * Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
  */
 export type TreeMergeDraftWritable = {
     id: string;
@@ -1374,9 +1380,9 @@ export type CancelTreeMergeError = CancelTreeMergeErrors[keyof CancelTreeMergeEr
 
 export type CancelTreeMergeResponses = {
     /**
-     * Merge draft state
+     * Draft and conversation deleted
      */
-    200: TreeMergeDraft;
+    204: void;
 };
 
 export type CancelTreeMergeResponse = CancelTreeMergeResponses[keyof CancelTreeMergeResponses];

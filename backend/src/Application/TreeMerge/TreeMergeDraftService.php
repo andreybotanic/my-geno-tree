@@ -4,6 +4,7 @@ namespace App\Application\TreeMerge;
 
 use App\Api\ApiException;
 use App\Application\Tree\TreeVersion;
+use App\Entity\AuthSession;
 use App\Entity\FamilyTree;
 use App\Entity\TreeMergeDraft;
 use App\Repository\PersonRepository;
@@ -31,6 +32,7 @@ final readonly class TreeMergeDraftService
         private AuthorizationCheckerInterface $authorization,
         private MergeActivity $activity,
         private TreeMergeChat $chat,
+        private TreeMergeEvents $events,
     ) {
     }
 
@@ -48,7 +50,7 @@ final readonly class TreeMergeDraftService
             throw new ApiException(403, 'TREE_MERGE_AGENT_REQUIRED');
         }
         $this->entityManager->refresh($draft);
-        if ($draft->attemptId !== $context->attemptId || $draft->version !== $context->version
+        if (!$this->chat->exists($draft) || $draft->attemptId !== $context->attemptId || $draft->version !== $context->version
             || 'processing' !== $draft->chatState) {
             throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
         }
@@ -59,14 +61,15 @@ final readonly class TreeMergeDraftService
 
     public function current(FamilyTree $tree): ?TreeMergeDraft
     {
-        return $this->drafts->current($tree);
+        return $this->entityManager->wrapInTransaction(fn () => $this->findLive($tree));
     }
 
     public function get(FamilyTree $tree, string $id): TreeMergeDraft
     {
-        $draft = Uuid::isValid($id) ? $this->drafts->findInTree($tree, $id) : null;
+        $draft = Uuid::isValid($id) ? $this->current($tree) : null;
 
-        return $draft ?? throw new ApiException(404, 'TREE_MERGE_NOT_FOUND', 'tree_merge_not_found');
+        return null !== $draft && $draft->id->equals(Uuid::fromString($id))
+            ? $draft : throw new ApiException(404, 'TREE_MERGE_NOT_FOUND', 'tree_merge_not_found');
     }
 
     /** @param array<string, mixed> $payload */
@@ -85,14 +88,19 @@ final readonly class TreeMergeDraftService
         }
 
         return $this->entityManager->wrapInTransaction(function () use ($tree, $person): TreeMergeDraft {
-            $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
-            $draft = $this->drafts->current($tree);
+            $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
+            if (!$session instanceof AuthSession) {
+                throw new ApiException(401, 'AUTH_REQUIRED');
+            }
+            $draft = $this->findLive($tree);
             if (null === $draft) {
-                $draft = new TreeMergeDraft($tree, $person, $this->versions->etag($tree), $this->clock->now());
+                $draft = new TreeMergeDraft($tree, $person, $this->versions->etag($tree), $this->clock->now(), $session->getId());
                 $this->entityManager->persist($draft);
+                $this->chat->initialize($draft);
             } elseif ($draft->referencePerson !== $person) {
                 $this->chat->clear($draft);
-                $draft->reset($this->clock->now(), $person);
+                $draft->reset($this->clock->now(), $person, $session->getId());
+                $this->chat->initialize($draft);
             }
 
             return $draft;
@@ -143,7 +151,11 @@ final readonly class TreeMergeDraftService
             if (count($messages) >= 200) {
                 $this->invalid('content', 'tree_merge_message_limit');
             }
-            $draft->messageAdded($this->clock->now());
+            $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
+            if (!$session instanceof AuthSession) {
+                throw new ApiException(401, 'AUTH_REQUIRED');
+            }
+            $draft->messageAdded($this->clock->now(), $session->getId());
             $this->chat->append($draft, $requestId, $content);
         });
     }
@@ -153,15 +165,30 @@ final readonly class TreeMergeDraftService
         $this->entityManager->wrapInTransaction(function () use ($draft, $version): void {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
-            if (null === $draft->proposal && [] === $this->chat->messages($draft) && 'idle' === $draft->chatState) {
-                return;
-            }
             if ($draft->version !== $version) {
                 throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
             }
             $this->chat->clear($draft);
-            $draft->reset($this->clock->now());
+            $this->entityManager->remove($draft);
         });
+        $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
+        if ($session instanceof AuthSession) {
+            $this->events->removed($session, $draft->id->toRfc4122());
+        }
+    }
+
+    private function findLive(FamilyTree $tree): ?TreeMergeDraft
+    {
+        $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
+        $draft = $this->drafts->current($tree);
+        if (null !== $draft && !$this->chat->exists($draft)) {
+            $this->entityManager->remove($draft);
+            $this->entityManager->flush();
+
+            return null;
+        }
+
+        return $draft;
     }
 
     private function assertEditable(TreeMergeDraft $draft, mixed $version): void

@@ -87,7 +87,7 @@ final readonly class TreeMergeDraftController
         $draft = $this->drafts->get($tree, $mergeId);
         $this->drafts->cancel($draft, $this->body->decodeObject($request)['version'] ?? null);
 
-        return new JsonResponse($this->views->create($draft));
+        return new JsonResponse(null, 204);
     }
 
     #[Route('/{mergeId}/stop', name: 'api_tree_merge_stop', methods: ['POST'])]

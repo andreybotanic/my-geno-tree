@@ -6,6 +6,7 @@ use App\Api\ApiException;
 use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\AI\Agent\Bridge\Cache\MessageStore;
 use Symfony\AI\Agent\MessageStore\MessageStoreInterface;
 use Symfony\AI\Platform\Message\AssistantMessage;
 use Symfony\AI\Platform\Message\Message;
@@ -20,8 +21,11 @@ use Symfony\Contracts\Cache\NamespacedPoolInterface;
 /** Application metadata and UI projection of messages kept by Symfony AI. */
 final readonly class TreeMergeChat
 {
-    public function __construct(#[Target('tree_merge')] private MessageStoreInterface $store, private ClockInterface $clock)
-    {
+    public function __construct(
+        #[Target('tree_merge')] private MessageStoreInterface $store,
+        private ClockInterface $clock,
+        #[Target('cache.merge_session')] private CacheItemPoolInterface&NamespacedPoolInterface $cache,
+    ) {
     }
 
     public static function sessionCache(CacheItemPoolInterface&NamespacedPoolInterface $cache, RequestStack $requests): CacheItemPoolInterface
@@ -39,6 +43,26 @@ final readonly class TreeMergeChat
         return $this->store->load($draft->conversationId);
     }
 
+    public function initialize(TreeMergeDraft $draft): void
+    {
+        // An empty conversation must also have the official store's TTL.
+        $messages = MessageBag::forId($draft->conversationId);
+        $messages->getMetadata()->add('initialized', true);
+        $this->store->save($messages);
+    }
+
+    public function exists(TreeMergeDraft $draft): bool
+    {
+        if (null === $draft->chatSessionId) {
+            return false;
+        }
+        $store = new MessageStore($this->cache->withSubNamespace($draft->chatSessionId->toRfc4122()), 'tree_merge');
+
+        $messages = $store->load($draft->conversationId);
+
+        return count($messages) > 0 || $messages->getMetadata()->has('initialized');
+    }
+
     public function append(TreeMergeDraft $draft, string $requestId, string $content, bool $failure = false): void
     {
         $message = $failure ? Message::forSystem('') : Message::ofUser($content);
@@ -51,6 +75,10 @@ final readonly class TreeMergeChat
 
     public function clear(TreeMergeDraft $draft): void
     {
+        if (null !== $draft->chatSessionId) {
+            $store = new MessageStore($this->cache->withSubNamespace($draft->chatSessionId->toRfc4122()), 'tree_merge');
+            $store->delete($draft->conversationId);
+        }
         $this->store->delete($draft->conversationId);
     }
 

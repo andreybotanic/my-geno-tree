@@ -26,7 +26,7 @@ paths:
       - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       operationId: subscribeTreeMergeEvents
-      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; this endpoint does not read conversation state. Events contain TreeMergeEvent JSON. The hub retains no history; fetch the draft once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
+      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; expired or deleted drafts return 404. Events contain TreeMergeEvent JSON, including a removal notification after cancellation. The hub retains no history; fetch the draft once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
       security:
         - bearerAuth: []
       responses:
@@ -372,6 +372,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: cancelTreeMerge
+      description: Delete the current draft and its conversation. A missing or expired draft returns 404.
       security:
         - bearerAuth: []
       requestBody:
@@ -380,11 +381,8 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
       responses:
-        "200":
-          description: Merge draft state
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
+        "204":
+          description: Draft and conversation deleted
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1904,6 +1902,12 @@ components:
       oneOf:
         - type: object
           additionalProperties: false
+          required: [kind, id]
+          properties:
+            kind: { const: removed }
+            id: { type: string, format: uuid }
+        - type: object
+          additionalProperties: false
           required: [kind, draft]
           properties:
             kind: { const: draft }
@@ -1921,7 +1925,7 @@ components:
             tokenUsage: { $ref: "#/components/schemas/TreeMergeTokenUsage" }
     TreeMergeDraft:
       type: object
-      description: Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
+      description: Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
       additionalProperties: false
       required: [id, treeId, referencePersonId, version, chatState, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptStartedAt]
       properties:

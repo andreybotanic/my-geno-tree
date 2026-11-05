@@ -72,6 +72,11 @@ final readonly class TreeMergeEvents
         }
     }
 
+    public function removed(AuthSession $session, string $id): void
+    {
+        $this->publish($session, $this->sessionTopic($session) . $id, ['kind' => 'removed', 'id' => $id]);
+    }
+
     /** @param array<string, mixed> $payload */
     private function publish(AuthSession $session, string $topic, array $payload): void
     {

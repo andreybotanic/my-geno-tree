@@ -23,7 +23,7 @@ final readonly class TreeMergeResponseListener
         $session = $request->attributes->get(AuthSession::class);
         if (!$event->isMainRequest() || !$response instanceof JsonResponse || !$response->isSuccessful()
             || !$session instanceof AuthSession || !in_array($request->attributes->get('_route'), [
-                'api_tree_merge_create', 'api_tree_merge_message', 'api_tree_merge_cancel',
+                'api_tree_merge_create', 'api_tree_merge_message',
                 'api_tree_merge_stop', 'api_tree_merge_proposal', 'api_tree_merge_revalidate', 'api_tree_merge_apply',
             ], true)) {
             return;

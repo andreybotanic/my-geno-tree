@@ -15,20 +15,6 @@ final class TreeMergeDraftRepository extends ServiceEntityRepository
         parent::__construct($registry, TreeMergeDraft::class);
     }
 
-    public function findInTree(FamilyTree $tree, string $id): ?TreeMergeDraft
-    {
-        /** @var TreeMergeDraft|null $draft */
-        $draft = $this->createQueryBuilder('draft')
-            ->andWhere('draft.tree = :tree')
-            ->andWhere('draft.id = :id')
-            ->setParameter('tree', $tree)
-            ->setParameter('id', $id)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $draft;
-    }
-
     public function current(FamilyTree $tree): ?TreeMergeDraft
     {
         /** @var TreeMergeDraft|null $draft */

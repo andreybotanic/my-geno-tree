@@ -49,12 +49,13 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertSame('TREE_MERGE_VERSION_CONFLICT', $this->responseString('code'));
         $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
-        self::assertResponseIsSuccessful();
-        self::assertSame('collecting', $this->responseString('state'));
-        self::assertSame([], $this->responseData()['messages']);
+        self::assertResponseStatusCodeSame(204);
         $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
-        self::assertResponseIsSuccessful();
+        self::assertResponseStatusCodeSame(404);
         $this->jsonRequest('POST', $path . '/messages', array_replace($message, ['version' => 3, 'requestId' => 'new']), $this->headers);
+        self::assertResponseStatusCodeSame(404);
+        $path = $this->createDraft();
+        $this->jsonRequest('POST', $path . '/messages', array_replace($message, ['requestId' => 'new']), $this->headers);
         self::assertResponseIsSuccessful();
     }
 
@@ -103,7 +104,7 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         self::assertSame($people[0]['id'], $this->responseString('referencePersonId'));
     }
 
-    public function testThereIsExactlyOneDraftPerTreeAndResetReusesIt(): void
+    public function testThereIsAtMostOneDraftAndDiscardDeletesIt(): void
     {
         $path = $this->createDraft();
         $id = $this->responseString('id');
@@ -112,14 +113,32 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         self::assertSame($id, $this->responseString('id'));
         $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'old', 'content' => 'Old chat.'], $this->headers);
         $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
-        self::assertSame([], $this->responseData()['messages']);
-        self::assertSame($id, $this->responseString('id'));
+        self::assertResponseStatusCodeSame(204);
         $this->jsonRequest('GET', $this->base(), headers: $this->headers);
-        $current = $this->responseData()['draft'];
-        self::assertIsArray($current);
-        self::assertSame($id, $current['id']);
+        self::assertNull($this->responseData()['draft']);
+        $repository = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->getRepository(\App\Entity\TreeMergeDraft::class);
+        self::assertSame(0, $repository->count([]));
+        $this->createDraft();
+        self::assertNotSame($id, $this->responseString('id'));
         $repository = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->getRepository(\App\Entity\TreeMergeDraft::class);
         self::assertSame(1, $repository->count([]));
+    }
+
+    public function testMissingConversationExpiresTheDraftOnLoadAndAllowsANewConversation(): void
+    {
+        $path = $this->createDraft();
+        $id = $this->responseString('id');
+        $manager = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $draft = $manager->find(\App\Entity\TreeMergeDraft::class, $id);
+        self::assertNotNull($draft);
+        static::getContainer()->get(\App\Application\TreeMerge\TreeMergeChat::class)->clear($draft);
+        $this->jsonRequest('GET', $path, headers: $this->headers);
+        self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('GET', $this->base(), headers: $this->headers);
+        self::assertNull($this->responseData()['draft']);
+        $this->createDraft();
+        self::assertNotSame($id, $this->responseString('id'));
+        self::assertSame([], $this->responseData()['messages']);
     }
 
     public function testProtectsTreeDraftsAndNestedResources(): void

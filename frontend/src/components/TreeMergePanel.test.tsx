@@ -126,6 +126,9 @@ describe('TreeMergePanel', () => {
     expect(close).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
     expect(await screen.findByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument())
+    expect(screen.queryByText('<script>family</script>')).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
   })
 
   it('sends with Ctrl+Enter, keeps Enter for newlines and prevents duplicate sends while busy', async () => {
@@ -410,7 +413,19 @@ describe('TreeMergePanel', () => {
     expect(await screen.findByText('The conversation continues in another tab.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Start another conversation' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled())
-    expect(window.location.search).toBe('?merge=merge')
+    expect(window.location.search).toBe('')
+  })
+
+  it('opens an expired preview link as an empty conversation without a discard button', async () => {
+    window.history.replaceState({}, '', '/?merge=expired')
+    renderPanel(async (path) => {
+      if (path.endsWith('/expired')) throw new ApiRequestError(404, { code: 'TREE_MERGE_NOT_FOUND', message: null, fields: {}, details: {} })
+      return { draft: null }
+    })
+    await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
   })
 
   it('fetches the updated proposal after a tree conflict and waits for another explicit apply', async () => {

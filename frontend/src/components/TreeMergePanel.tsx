@@ -66,6 +66,10 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     const selectedId = new URLSearchParams(window.location.search).get('merge')
     const loading = selectedId
       ? request<TreeMergeDraft>(`${base}/${encodeURIComponent(selectedId)}`, { signal: controller.signal }).then((item) => ({ draft: item, tokenBudget: item.tokenBudget }))
+        .catch((cause: unknown) => {
+          if (cause instanceof ApiRequestError && cause.status === 404) return request<TreeMergeCurrent>(base, { signal: controller.signal })
+          throw cause
+        })
       : request<TreeMergeCurrent>(base, { signal: controller.signal })
     loading.then(({ draft: restored, tokenBudget }) => {
         if (controller.signal.aborted) return
@@ -111,11 +115,12 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   }, [content, open, draft?.state])
 
   useEffect(() => {
-    if (!draft || !open) return
+    if (!open || busy) return
     const url = new URL(window.location.href)
-    url.searchParams.set('merge', draft.id)
+    if (draft) url.searchParams.set('merge', draft.id)
+    else url.searchParams.delete('merge')
     window.history.replaceState(window.history.state, '', url)
-  }, [draft, open])
+  }, [draft, open, busy])
 
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [draft?.messages.length, draft?.state])
 
@@ -124,6 +129,11 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
   }, [busy, draft?.id, open])
 
   function showError(cause: unknown) {
+    if (cause instanceof ApiRequestError && cause.status === 404 && cause.body.code === 'TREE_MERGE_NOT_FOUND') {
+      setDraft(null)
+      setError(null)
+      return
+    }
     setError(cause instanceof ApiRequestError && cause.status === 412 ? 'treeMerge.treeConflict'
       : cause instanceof ApiRequestError && cause.status === 409 ? 'treeMerge.conflict'
       : cause instanceof ApiRequestError && cause.status === 401 ? 'treeMerge.unauthorized'
@@ -254,11 +264,15 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     if (!draft) return
     setBusy(true)
     try {
-      const cancelled = await request<TreeMergeDraft>(`${base}/${draft.id}/cancel`, {
+      await request<void>(`${base}/${draft.id}/cancel`, {
         method: 'POST', body: JSON.stringify({ version: draft.version }),
       })
-      setBudget(cancelled.tokenBudget ?? draft.tokenBudget ?? budget)
-      setDraft(cancelled)
+      setBudget(draft.tokenBudget ?? budget)
+      ++generation.current
+      activeRequest.current?.controller.abort()
+      activeRequest.current = null
+      setThinkingSince(null)
+      setDraft(null)
       setContent('')
       setError(null)
       pending.current = null

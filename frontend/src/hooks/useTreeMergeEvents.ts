@@ -5,6 +5,7 @@ import type { TreeMergeDraft, TreeMergeEvent, TreeMergeSubscription } from '../a
 // REST responses and SSE can cross in flight. Never roll back a newer draft or a finished attempt.
 export function mergeTreeMergeEvent(current: TreeMergeDraft | null, event: TreeMergeEvent): TreeMergeDraft | null {
   if (!current) return current
+  if (event.kind === 'removed') return event.id === current.id ? null : current
   if (event.kind === 'draft') {
     const next = event.draft
     if (next.id !== current.id || next.treeId !== current.treeId || next.version < current.version) return current
@@ -46,7 +47,12 @@ export function useTreeMergeEvents(path: string | null, request: AuthorizedJsonR
       source?.close()
       source = null
       window.clearTimeout(timer)
-      const unauthorized = cause instanceof ApiRequestError && (cause.status === 401 || cause.status === 404)
+      if (cause instanceof ApiRequestError && cause.status === 404) {
+        setDraft(null)
+        setError(null)
+        return
+      }
+      const unauthorized = cause instanceof ApiRequestError && cause.status === 401
       setError(unauthorized ? 'treeMerge.unauthorized' : 'treeMerge.streamDisconnected')
       if (!unauthorized) timer = window.setTimeout(() => void authorize(), Math.min(30000, 2000 * 2 ** failures++))
     }

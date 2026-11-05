@@ -37,6 +37,24 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->newDraft();
     }
 
+    public function testExpiredConversationDeletesTheProposalAndBlocksApply(): void
+    {
+        $this->revise($this->family());
+        self::assertResponseIsSuccessful();
+        $id = $this->responseString('id');
+        $manager = static::getContainer()->get(EntityManagerInterface::class);
+        $draft = $manager->find(\App\Entity\TreeMergeDraft::class, $id);
+        self::assertNotNull($draft);
+        static::getContainer()->get(\App\Application\TreeMerge\TreeMergeChat::class)->clear($draft);
+        $this->apply();
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame('TREE_MERGE_NOT_FOUND', $this->responseString('code'));
+        $manager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertNull($manager->find(\App\Entity\TreeMergeDraft::class, $id));
+        $this->snapshot();
+        self::assertSame([], $this->responseData()['people']);
+    }
+
     public function testPreviewIsReadOnlyAndApplyIsAtomicAndIdempotent(): void
     {
         $proposal = $this->family();
@@ -263,8 +281,9 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->revise($proposal);
         self::assertSame('questions', $this->responseString('state'));
         $this->jsonRequest('POST', $this->path . '/cancel', ['version' => 2], $this->headers);
-        self::assertResponseIsSuccessful();
-        $this->revise($this->family(), 3);
+        self::assertResponseStatusCodeSame(204);
+        $this->newDraft();
+        $this->revise($this->family());
         self::assertResponseIsSuccessful();
         self::assertSame('ready', $this->responseString('state'));
         $this->jsonRequest('POST', $this->path . '/apply', ['version' => 3], $this->headers);
@@ -361,7 +380,10 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->path = $base . '/' . $this->responseString('id');
         if ('applied' === $this->responseString('state')) {
             $this->jsonRequest('POST', $this->path . '/cancel', ['version' => $this->responseData()['version']], $this->headers);
+            self::assertResponseStatusCodeSame(204);
+            $this->jsonRequest('POST', $base, ['referencePersonId' => $reference], $this->headers);
             self::assertResponseIsSuccessful();
+            $this->path = $base . '/' . $this->responseString('id');
         }
         $version = $this->responseData()['version'];
         $proposalVersion = $this->responseData()['proposalVersion'];

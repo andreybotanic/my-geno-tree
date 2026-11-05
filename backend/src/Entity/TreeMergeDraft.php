@@ -62,14 +62,17 @@ class TreeMergeDraft
         public private(set) string $treeEtag,
         #[ORM\Column]
         public private(set) \DateTimeImmutable $createdAt,
+        #[ORM\Column(type: 'uuid', nullable: true)]
+        public private(set) ?Uuid $chatSessionId = null,
     ) {
         $this->id = Uuid::v7();
         $this->conversationId = Uuid::v7();
         $this->updatedAt = $createdAt;
     }
 
-    public function messageAdded(\DateTimeImmutable $now): void
+    public function messageAdded(\DateTimeImmutable $now, Uuid $sessionId): void
     {
+        $this->chatSessionId = $sessionId;
         $this->chatState = 'idle';
         $this->attemptId = null;
         ++$this->version;
@@ -95,8 +98,9 @@ class TreeMergeDraft
         $this->updatedAt = $now;
     }
 
-    public function reset(\DateTimeImmutable $now, ?Person $referencePerson = null): void
+    public function reset(\DateTimeImmutable $now, ?Person $referencePerson = null, ?Uuid $sessionId = null): void
     {
+        $this->chatSessionId = $sessionId ?? $this->chatSessionId;
         $this->referencePerson = $referencePerson;
         $this->conversationId = Uuid::v7();
         $this->proposal = $this->result = null;

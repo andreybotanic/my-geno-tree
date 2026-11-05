@@ -85,6 +85,24 @@ describe('private tree merge SSE', () => {
     expect(calls).toHaveBeenCalledTimes(3)
   })
 
+  it('clears a discarded draft in another tab and ignores removal of another draft', async () => {
+    const { result } = setup()
+    await act(async () => {})
+    act(() => Source.instances[0]!.message({ kind: 'removed', id: 'other' }))
+    expect(result.current.saved).toEqual(draft)
+    act(() => Source.instances[0]!.message({ kind: 'removed', id: draft.id }))
+    expect(result.current.saved).toBeNull()
+  })
+
+  it('clears expired drafts when renewing the subscription without retrying missing resources', async () => {
+    const { result, calls } = setup(async () => { throw new ApiRequestError(404, { code: 'TREE_MERGE_NOT_FOUND', message: null, fields: {}, details: {} }) })
+    await act(async () => {})
+    expect(result.current.saved).toBeNull()
+    expect(result.current.error).toBeNull()
+    await act(async () => vi.advanceTimersByTimeAsync(300000))
+    expect(calls).toHaveBeenCalledOnce()
+  })
+
   it('backs off authorization errors, stops on unauthorized and supports manual reconnection', async () => {
     let status = 503
     const { result, calls } = setup(async () => { throw new ApiRequestError(status, { code: 'UNAVAILABLE', message: 'Unavailable', fields: {}, details: {} }) })
