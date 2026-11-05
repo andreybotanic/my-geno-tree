@@ -32,7 +32,8 @@ final class TreeMergeToolSchema
                     'required'             => ['id', 'existingPersonId', 'resolution', 'fields', 'lifeStatus', 'evidence'],
                     'properties'           => ['id' => self::REFERENCE, 'existingPersonId' => ['type' => ['string', 'null']],
                         'resolution'                => ['enum' => ['new', 'existing', 'undecided']], 'lifeStatus' => ['enum' => ['alive', 'deceased', 'uncertain']],
-                        'fields'                    => ['type' => 'object', 'additionalProperties' => false, 'properties' => [
+                        // The MCP SDK decodes an empty JSON object as an empty PHP array before validation.
+                        'fields' => ['type' => ['object', 'array'], 'maxItems' => 0, 'additionalProperties' => false, 'properties' => [
                             'birthSurname' => self::TEXT, 'givenName' => self::TEXT, 'patronymic' => self::TEXT,
                             'gender'       => ['enum' => ['male', 'female', 'unknown']], 'birthDate' => self::DATE, 'deathDate' => self::OPTIONAL_DATE,
                         ]], 'evidence' => self::EVIDENCE]]],

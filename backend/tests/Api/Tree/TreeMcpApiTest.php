@@ -258,7 +258,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $evidence = [['messageId' => $messageId, 'quote' => 'Vera has a daughter also called Vera']];
         $proposal = ['people' => [
             ['id'        => 'm', 'existingPersonId' => $motherId, 'resolution' => 'existing', 'lifeStatus' => 'alive',
-                'fields' => ['gender' => 'female'], 'evidence' => $evidence],
+                'fields' => new \stdClass(), 'evidence' => $evidence],
             ['id'        => 'v', 'existingPersonId' => null, 'resolution' => 'new', 'lifeStatus' => 'alive',
                 'fields' => ['givenName' => ['state' => 'known', 'value' => 'Vera'], 'gender' => 'female'], 'evidence' => $evidence],
         ], 'parents' => [['parent' => 'm', 'child' => 'v', 'role' => 'mother', 'evidence' => $evidence]], 'marriages' => [], 'questions' => []];
@@ -266,6 +266,10 @@ final class TreeMcpApiTest extends ApiWebTestCase
         self::assertStringContainsString('TREE_MERGE_UNOBSERVED_PERSON', json_encode($this->responseData(), JSON_THROW_ON_ERROR));
         $this->call('get_person_context', ['treeId' => $this->treeId, 'personId' => $motherId], '/mcp/agent');
         self::assertResponseIsSuccessful();
+        $bad = $proposal;
+        $bad['people'][0]['fields'] = ['female'];
+        $this->call('prepare_tree_merge_proposal', ['treeId' => $this->treeId, 'proposal' => $bad], '/mcp/agent');
+        self::assertArrayHasKey('error', $this->responseData());
         $bad = $proposal;
         $bad['people'][1]['evidence'][0]['quote'] = 'Invented quote';
         $this->call('prepare_tree_merge_proposal', ['treeId' => $this->treeId, 'proposal' => $bad], '/mcp/agent');
