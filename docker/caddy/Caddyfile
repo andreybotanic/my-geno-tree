@@ -27,7 +27,7 @@ localhost, my-geno-tree.localhost {
 	}
 }
 
-# Scoped MCP calls from Docker and the local ACP agent use their own FPM workers.
+# Agent MCP calls use their own FPM workers, on the Compose network only.
 http://:8082 {
 	handle /mcp/agent {
 		root * /srv/backend/public

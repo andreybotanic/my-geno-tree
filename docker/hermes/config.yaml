@@ -1,0 +1,32 @@
+# Provider authentication belongs to this service; the application chooses the model in ai.yaml.
+model:
+  provider: openai-codex
+  default: gpt-5.6-luna
+agent:
+  max_turns: 16
+gateway:
+  standalone: true
+  platforms:
+    api_server:
+      direct_model_requests: true
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+platform_toolsets:
+  api_server: [tree]
+  cli: []
+tools:
+  tool_search:
+    enabled: 'off'
+mcp_servers:
+  tree:
+    url: http://proxy:8082/mcp/agent
+    headers:
+      Authorization: 'Bearer ${TREE_MERGE_MCP_KEY}'
+    tools:
+      include:
+        - get_tree_context
+        - find_people
+        - get_person_context
+        - prepare_tree_merge_proposal
+        - reply_to_tree_merge

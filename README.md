@@ -11,13 +11,13 @@ No host PHP, Composer, Node.js, npm or PostgreSQL installation is required.
 
 ## Start
 
-Set `MERCURE_JWT_SECRET` in the root `.env` to a random secret of at least 32 bytes.
-It is shared by the backend and the private Mercure hub and must not be committed.
-For a new checkout, this command generates it inside Docker (the temporary
-`setup` value only permits Compose configuration parsing; it never starts the hub):
+Set `MERCURE_JWT_SECRET`, `TREE_MERGE_AGENT_KEY` and `TREE_MERGE_MCP_KEY` in the
+ignored root `.env` to independent random secrets of at least 32 bytes.
+For a new checkout, this command generates them inside Docker (the temporary
+`setup` values only permit Compose configuration parsing):
 
 ```bash
-MERCURE_JWT_SECRET=setup docker compose run --rm --no-deps -v .:/workspace --entrypoint node frontend -e 'const fs=require("node:fs"); const p="/workspace/.env"; const s=fs.existsSync(p)?fs.readFileSync(p,"utf8"):""; if(!/^MERCURE_JWT_SECRET=.+$/m.test(s)) fs.appendFileSync(p,"\nMERCURE_JWT_SECRET="+require("node:crypto").randomBytes(32).toString("hex")+"\n",{mode:0o600});'
+MERCURE_JWT_SECRET=setup TREE_MERGE_AGENT_KEY=setup TREE_MERGE_MCP_KEY=setup docker compose run --rm --no-deps -v .:/workspace --entrypoint node frontend -e 'const fs=require("node:fs"); const p="/workspace/.env"; const s=fs.existsSync(p)?fs.readFileSync(p,"utf8"):""; for(const key of ["MERCURE_JWT_SECRET","TREE_MERGE_AGENT_KEY","TREE_MERGE_MCP_KEY"]) if(!new RegExp("^"+key+"=.+$","m").test(s)) fs.appendFileSync(p,"\n"+key+"="+require("node:crypto").randomBytes(32).toString("hex")+"\n",{mode:0o600});'
 ```
 
 ```bash
@@ -164,69 +164,64 @@ or replies. A provider failure or missing reply command produces a retryable
 system notice; the source and earlier reviewed proposal remain available.
 Application of tree changes still requires the separate preview confirmation.
 
-`backend/config/packages/ai.yaml` selects the ordinary chat's agent through
-`services.app.tree_merge.agent`. It points to `app.tree_merge.hermes`, whose
-`$agent` argument specifies the ACP transport and whose `$model` argument is
-`openai-codex:gpt-5.6-luna`. This model was the lightest visible model in the
-signed-in account's live catalog on 2026-11-05. The ACP model selection overrides
-the Hermes profile's default. An unavailable model fails the attempt.
+`backend/config/packages/ai.yaml` configures the ordinary chat through the stock
+Symfony AI Generic platform and `ai.agent.tree_merge`. The HTTP endpoint is
+`http://hermes:8642`; the selected model is `gpt-5.6-luna`, the lightest model
+verified in this account's catalog on 2026-11-05. Change the endpoint, API key
+reference and model in this file to select another OpenAI-compatible agent.
+The application does not launch agents or use an ACP client, custom runner or
+local MCP toolbox. Clear the Symfony cache after production configuration changes.
 
-The pinned stock `acpx` 0.21.1 client performs ACP initialization, creates a fresh
-session per message, selects the configured model, supplies that session's MCP
-server and sends the complete prompt. It runs in the backend container. The
-application adapter issues and revokes the short-lived grant, passes it through
-ACP `mcpServers[].headers`, and records ACP token accounting. The credentials
-and client home occupy a private temporary directory in the RAM-backed
-`/run/tree-merge`, removed when the attempt finishes. Agent text has no effects.
-Each agent response is published exclusively by `reply_to_tree_merge`.
+### Hermes in Docker Compose
 
-Configure another ACP agent by changing `$agent` and `$model` in `ai.yaml`.
-The command must speak ACP on stdin/stdout and accept per-session MCP servers.
-The application always uses one-shot sessions and disables ACP client filesystem
-and terminal capabilities. Keep native tools disabled in the agent's own profile.
-Alternatively, point `app.tree_merge.agent` at
-`App\Application\TreeMerge\Ai\SymfonyTreeMergeAi` to use the existing Symfony AI
-agent defined under `ai.agent.tree_merge`, with its configurable platform,
-model and MCP toolbox. After production configuration changes, clear the Symfony cache.
+The pinned official Hermes image runs independently as the `hermes` service.
+Its native `/v1/chat/completions` API and the internal MCP port are accessible
+only on the Compose network. `docker/hermes/config.yaml` selects ChatGPT browser
+authentication (`openai-codex`), permits the HTTP request's model selection,
+disables memory and native tools, and registers one permanent MCP connection.
+Only the five named tree-chat tools are enabled.
 
-### Hermes in WSL
-
-Hermes uses the ChatGPT browser authorization already stored by its WSL installation.
-Create the dedicated profile once with
-`hermes profile create mygenotree --no-alias --no-skills` and set its provider to
-`openai-codex`. In `~/.hermes/profiles/mygenotree/config.yaml`, set
-`memory.memory_enabled: false`, `memory.user_profile_enabled: false`,
-`tools.tool_search.enabled: off`, `agent.max_turns: 16` and
-`platform_toolsets.acp: [no_mcp]`. Its tools come from each ACP session's
-MCP configuration. The stock `socat` relay exposes a filesystem socket to the
-backend. Start it in WSL after starting or restarting WSL, from the repository root.
-Install `socat` in WSL first if needed.
+Authenticate once inside the service (open the displayed login URL in your browser):
 
 ```sh
-mkdir -p backend/var/acp-host
-sudo chgrp www-data backend/var/acp-host
-chmod 710 backend/var/acp-host
-sudo -u "$(id -un)" -g www-data socat \
-  "UNIX-LISTEN:$PWD/backend/var/acp-host/hermes.sock,fork,mode=0660" \
-  "EXEC:$HOME/.local/bin/hermes -p mygenotree acp,pipes"
+docker compose up -d
+docker compose exec -u hermes hermes hermes auth add openai-codex --type oauth --no-browser
+docker compose restart hermes
 ```
 
-Run this relay as a supervised WSL service for automatic startup. The `pipes`
-option supplies separate stdin/stdout pipes to the ACP SDK. Docker Compose
-publishes the scoped MCP endpoint only on host loopback port 17082, and every
-request still requires its message's grant. The PHP container receives the Unix
-socket through the existing backend bind mount. ChatGPT credentials stay in WSL.
-Hermes controls its own external session storage and logs.
+Existing Hermes authentication can instead be imported once using
+`docker compose cp /path/to/auth.json hermes:/opt/data/auth.json`, followed by
+`docker compose exec -u root hermes chown hermes:hermes /opt/data/auth.json`
+and a service restart. Keep credentials out of the repository.
+The `hermes_data` volume stores Hermes authentication, sessions and logs;
+backend has no access to it. Recreating the container preserves that data.
+Do not enable memory or extra native tools for this shared web-chat service.
 
-The MCP Bundle configures the HTTP connection in `config/packages/mcp.yaml`.
-Its PSR-18 client adds the current attempt's short-lived credential only for the
-configured endpoint. The agent discovers tools and drives all tool calls through
-the standard Symfony AI MCP toolbox. Server-side authorization and context
-limits apply independently of the agent. No chat adapter chooses MCP commands,
-constructs a model, launches a subprocess or reads external CLI credentials.
-Agent final free text is ignored: only MCP commands produce proposals and the
-verbatim single-sentence reply. See the
-[Symfony AI Bundle configuration](https://symfony.com/doc/current/ai/bundles/ai-bundle.html).
+`TREE_MERGE_AGENT_KEY` authenticates backend requests to Hermes.
+`TREE_MERGE_MCP_KEY` authenticates Hermes to the internal MCP endpoint.
+These independent random secrets belong in the ignored root `.env`.
+The service key permits discovery; it does not identify a website user or grant
+access to any tree. Each tool also requires the backend-issued `accessToken`
+for a particular chat/login session and the current `attemptId`.
+The chat key is reused between messages, expires after one hour of inactivity,
+and cannot be used as a REST login token. Backend rechecks the active login,
+current attempt and tree ownership on every call. User identity exists only
+during that call, never on the shared MCP connection. Logout or Stop therefore
+blocks subsequent tool actions without reconfiguring Hermes or its connection.
+
+The chat key is a cryptographically random UUIDv4; the tool schemas describe its
+format so small models can copy it reliably. Agents must stop after an authorization
+or stale-attempt error. Hermes 0.22.7 has a non-configurable per-server circuit
+breaker: three consecutive MCP failures pause that connection for 60 seconds,
+including other HTTP requests using it. This affects availability, not tree access;
+the UI preserves the conversation and permits another message after recovery.
+
+The external agent chooses and executes MCP commands independently. Its HTTP
+response text is discarded; only `reply_to_tree_merge` publishes the exact
+single-sentence reply. The Generic platform uses the standard HTTP request and
+usage fields, with no Hermes-specific application code. See the
+[Symfony AI Generic bridge](https://symfony.com/doc/current/ai/platform/generic.html)
+and [Hermes documentation](https://hermes-agent.nousresearch.com/).
 
 The chat displays elapsed thinking time, completed MCP read stages, validation
 progress. A donut in the composer shows the remaining daily token
@@ -240,10 +235,9 @@ reasoning output. Its initial limit
 is **10,000,000 tokens per user per day** (`TREE_MERGE_TOKEN_LIMIT`). Calls are
 checked before starting; already spent tokens are recorded even if an in-flight
 response crosses the limit. Further calls then stop with a localized explanation.
-Symfony AI invocation/result events account for each local agent model round.
-For ACP, the client records the complete turn's reported usage, including cached
-tokens. The next attempt checks the updated quota. A remote turn can finish
-across the remaining token limit, with a 235-second client timeout.
+Symfony AI invocation/result events account for the external HTTP agent's reported
+aggregate usage. The next attempt checks the updated quota. A remote turn can
+finish across the remaining token limit, with a 270-second client timeout.
 
 The optional Ollama provider can be started with Docker Compose (CPU is supported).
 
@@ -252,9 +246,9 @@ docker compose --profile ai up -d --build
 docker compose exec -T ollama ollama pull qwen3:4b-instruct
 ```
 
-`OLLAMA_URL`, `TREE_MERGE_MODEL` and `TREE_MERGE_MCP_URL` are backend settings.
-The pinned Ollama image stores models in `ollama_models`; its context window is
-32,768 tokens. Tests use prepared responses and do not require a running model.
+Ollama remains an optional standalone development service and is not used by the
+web chat. It stores models in `ollama_models`; its context window is 32,768 tokens.
+Automated tests use prepared HTTP responses and do not require a running model.
 
 For an NVIDIA GPU available to Docker, enable `compose.gpu.yaml`. Add these
 settings to the ignored root `.env` so ordinary Compose commands keep using it
@@ -342,31 +336,27 @@ Stop appeared as a separate system notice; continuing preserved the conversation
 and existing people, and applying then refreshing retained eight people. Agent
 instructions explicitly require empty fields for unchanged existing endpoints.
 
-The official `mcp/sdk`, Symfony MCP Bundle and Symfony AI MCP bridge expose
+The official `mcp/sdk` and Symfony MCP Bundle expose
 Streamable HTTP at `https://my-geno-tree.localhost/mcp/tree`. External clients
 authenticate with the existing application's `Authorization: Bearer` session
 token. Available tools are `get_tree_context`, `find_people`,
 `get_person_context`, `prepare_tree_merge` and `get_tree_merge`. Preparation
 returns an absolute preview link (`APP_URL`); no MCP tool applies changes.
 
-The embedded agent uses real HTTP MCP requests to the separate internal
+The external agent uses real HTTP MCP requests to the separate internal
 `/mcp/agent` endpoint on proxy port 8082 and a separate PHP-FPM pool. That port is
-not published to the host. Backend-issued access lasts five minutes, is bound
-to the user/login session/tree/processing attempt/version, permits at most 64 protocol requests and
-is revoked after processing. It is rejected by REST mutations. The agent's
-toolbox contains the three read tools, `prepare_tree_merge_proposal` and
-`reply_to_tree_merge`, with at most eight context reads; the configured agent
-allows sixteen tool-calling rounds and the scoped grant bounds total HTTP requests.
-Preparing validates and stages a proposal for five minutes in ephemeral memory;
-replying with its proposalId atomically submits it for UI review and stores the
-agent's sentence. A stale version, changed tree, expired session or stopped
-attempt cannot submit it. No tool applies tree mutations or recursively starts
-`prepare_tree_merge`. Local tools and structured-output extraction
-are disabled.
-The protocol budget includes discovery and Streamable HTTP GET/POST overhead;
-it must not expire before the eighth permitted read. Search results are candidate
-hints: an existing person must also occur in a full context read before a proposal
-can reference their ID.
+not published to the host. A service credential permits protocol discovery,
+while each tool independently validates its chat key and current attempt.
+The tool registry contains the three read tools, `prepare_tree_merge_proposal`
+and `reply_to_tree_merge`, with at most eight context reads per attempt.
+Hermes allows sixteen agent turns. Preparing validates and stages a proposal
+for five minutes in ephemeral memory; replying with its proposalId atomically
+submits it for UI review and stores the agent's sentence.
+A stale version, changed tree, expired session or stopped attempt cannot submit
+it. No tool applies tree mutations or recursively starts `prepare_tree_merge`.
+Discovery and HTTP transport requests do not consume the context-read budget.
+Search results are candidate hints: an existing person must also occur in a
+full context read before a proposal can reference their ID.
 Every tool checks the tree voter; context contains at most ten parent/child
 links and ten marriages, and name search returns at most five candidates.
 MCP sessions use separate cache prefixes and Symfony locks for each endpoint.
@@ -482,3 +472,21 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
+
+Hermes HTTP browser validation (2026-11-05): the original Ivan/Anna example
+produced a verbatim one-sentence proposal for six new people, Anna's approximate
+1992 birth year, Petr Ivanovich's inferred surname/patronymic and both unnamed sons.
+Applying and refreshing retained seven people and the existing Ivan's exact date.
+Stopping Hermes showed a recoverable provider notice; after restart the agent
+answered the saved question about Anna. Stop rejected late commands and a later
+message completed. Progress arrived through Mercure without periodic chat polling.
+The smallest model remains fallible: in a follow-up factual answer it confused
+the father's patronymic despite correct MCP records; the stored relationships and
+names were unchanged. No application code rewrites these answers.
+
+Validation for this transport change: 209 backend tests and 385 frontend tests;
+92.81% backend line coverage and 90.17% frontend line coverage, with every measured
+production file above 75%. PHPStan, linters, OpenAPI checks, production builds,
+clean-database migrations and affected-file PhpStorm WARNING inspections passed.
+The backend suite retains nine existing PHPUnit mock-expectation notices in map
+and GEDCOM tests.

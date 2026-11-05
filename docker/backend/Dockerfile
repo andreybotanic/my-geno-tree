@@ -1,8 +1,3 @@
-FROM node:24.18.0-bookworm-slim AS acp-client
-WORKDIR /opt/acp-client
-COPY docker/backend/acpx/package*.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
-
 FROM php:8.5.8-fpm-bookworm
 
 RUN apt-get update \
@@ -23,11 +18,7 @@ RUN apt-get update \
     && docker-php-ext-enable pcov \
     && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y --no-install-recommends socat && rm -rf /var/lib/apt/lists/*
-
 COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer
-COPY --from=acp-client /usr/local/bin/node /usr/local/bin/node
-COPY --from=acp-client /opt/acp-client /opt/acp-client
 COPY docker/backend/entrypoint.sh /usr/local/bin/mygenotree-entrypoint
 
 RUN chmod +x /usr/local/bin/mygenotree-entrypoint

@@ -10,58 +10,65 @@ use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
+use Symfony\Component\Uid\Uuid;
 
 final readonly class TreeMergeAgentGrant
 {
     public function __construct(
-        #[Target('cache.merge_access')] private CacheItemPoolInterface $cache,
+        #[Target('cache.merge_agent')] private CacheItemPoolInterface $cache,
         private LockFactory $locks,
         private ClockInterface $clock,
         private RequestStack $requests,
     ) {
     }
 
-    public function issue(TreeMergeDraft $draft, string $attemptId, ?AuthSession $session = null): string
+    public function issue(TreeMergeDraft $draft, ?AuthSession $session = null): string
     {
         $session ??= $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
         if (!$session instanceof AuthSession || !$session->isRefreshActive($this->clock->now())
             || !$session->getUser()->getId()->equals($draft->owner->getId())) {
             throw new CustomUserMessageAuthenticationException('invalid_merge_session');
         }
-        $token = bin2hex(random_bytes(32));
-        $item = $this->cache->getItem('merge_grant_' . hash('sha256', $token));
-        $item->set(['userId' => $draft->owner->getId()->toRfc4122(), 'treeId' => $draft->tree->getId()->toRfc4122(),
-            'draftId'        => $draft->id->toRfc4122(), 'attemptId' => $attemptId, 'version' => $draft->version,
-            'sessionId'      => $session->getId()->toRfc4122(),
-            // Streamable HTTP discovery and notifications count as requests, too.
-            'expires' => $this->clock->now()->getTimestamp() + 300, 'remaining' => 64]);
-        $item->expiresAfter(300);
-        $this->cache->save($item);
-
-        return $token;
-    }
-
-    /** @return array{userId: string, treeId: string, draftId: string, attemptId: string, version: int, sessionId: string, expires: int, remaining: int} */
-    public function consume(string $token): array
-    {
-        $key = 'merge_grant_' . hash('sha256', $token);
-        $lock = $this->locks->createLock($key);
+        $scope = 'merge_chat_' . $session->getId() . '_' . $draft->id;
+        $lock = $this->locks->createLock($scope);
         $lock->acquire(true);
         try {
-            $item = $this->cache->getItem($key);
-            $grant = $item->get();
-            /** @var array{userId: string, treeId: string, draftId: string, attemptId: string, version: int, sessionId: string, expires: int, remaining: int}|null $grant */
-            if (!$item->isHit() || !is_array($grant) || $grant['expires'] <= $this->clock->now()->getTimestamp() || $grant['remaining'] <= 0) {
-                throw new CustomUserMessageAuthenticationException('invalid_merge_access');
+            $slot = $this->cache->getItem($scope);
+            $token = $slot->get();
+            if (is_string($token)) {
+                try {
+                    $this->resolve($token);
+                } catch (CustomUserMessageAuthenticationException) {
+                    $token = null;
+                }
             }
-            --$grant['remaining'];
-            $item->set($grant);
-            $this->cache->save($item);
+            if (!is_string($token)) {
+                $token = Uuid::v4()->toRfc4122();
+            }
+            $item = $this->cache->getItem('merge_grant_' . hash('sha256', $token));
+            $item->set(['userId' => $draft->owner->getId()->toRfc4122(), 'treeId' => $draft->tree->getId()->toRfc4122(),
+                'draftId'        => $draft->id->toRfc4122(), 'sessionId' => $session->getId()->toRfc4122(),
+                'expires'        => $this->clock->now()->getTimestamp() + 3600]);
+            $this->cache->save($item->expiresAfter(3600));
+            $this->cache->save($slot->set($token)->expiresAfter(3600));
 
-            return $grant;
+            return $token;
         } finally {
             $lock->release();
         }
+    }
+
+    /** @return array{userId: string, treeId: string, draftId: string, sessionId: string, expires: int} */
+    public function resolve(string $token): array
+    {
+        $item = $this->cache->getItem('merge_grant_' . hash('sha256', $token));
+        /** @var array{userId: string, treeId: string, draftId: string, sessionId: string, expires: int}|null $grant */
+        $grant = $item->get();
+        if (!$item->isHit() || !is_array($grant) || $grant['expires'] <= $this->clock->now()->getTimestamp()) {
+            throw new CustomUserMessageAuthenticationException('invalid_merge_access');
+        }
+
+        return $grant;
     }
 
     public function revoke(string $token): void

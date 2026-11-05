@@ -9,6 +9,8 @@ services:
     environment:
       DATABASE_URL: postgresql://mygenotree:${LOCAL_SERVICE_PASSWORD}@database:5432/mygenotree?serverVersion=18&charset=utf8
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:?Set MERCURE_JWT_SECRET in the root .env}
+      TREE_MERGE_AGENT_KEY: ${TREE_MERGE_AGENT_KEY:?Set TREE_MERGE_AGENT_KEY in the root .env}
+      TREE_MERGE_MCP_KEY: ${TREE_MERGE_MCP_KEY:?Set TREE_MERGE_MCP_KEY in the root .env}
     volumes:
       - ./backend:/srv/backend
       - media_storage:/srv/backend/var/storage
@@ -36,6 +38,27 @@ services:
       OLLAMA_CONTEXT_LENGTH: 32768
     volumes:
       - ollama_models:/root/.ollama
+
+  hermes:
+    image: nousresearch/hermes-agent:v0.22.7@sha256:e6d81ae52ebf6a43efa529701405509f20054ba818f179ddd748bed4f8af584c
+    command: [gateway, run]
+    restart: unless-stopped
+    environment:
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 0.0.0.0
+      API_SERVER_KEY: ${TREE_MERGE_AGENT_KEY:?Set TREE_MERGE_AGENT_KEY in the root .env}
+      TREE_MERGE_MCP_KEY: ${TREE_MERGE_MCP_KEY:?Set TREE_MERGE_MCP_KEY in the root .env}
+    volumes:
+      - hermes_data:/opt/data
+      - ./docker/hermes/config.yaml:/opt/data/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "/opt/hermes/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8642/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    depends_on:
+      - proxy
 
   whisper:
     image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
@@ -76,7 +99,6 @@ services:
     ports:
       - "443:443"
       - "127.0.0.1:7081:8080"
-      - "127.0.0.1:17082:8082"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./backend:/srv/backend:ro
@@ -90,6 +112,7 @@ services:
 volumes:
   whisper_models:
   ollama_models:
+  hermes_data:
   postgres_data:
   media_storage:
   caddy_data:

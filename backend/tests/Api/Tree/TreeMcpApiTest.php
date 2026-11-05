@@ -34,6 +34,8 @@ final class TreeMcpApiTest extends ApiWebTestCase
     private string $treeId;
     /** @var array<string, string> */
     private array $headers;
+    /** @var array{accessToken?: string, attemptId?: string} */
+    private array $agentArguments = [];
 
     protected function setUp(): void
     {
@@ -151,7 +153,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $this->headers = $original;
     }
 
-    public function testInternalGrantIsLimitedToReadToolsTreeAndAttemptAndRejectedByRest(): void
+    public function testInternalToolsHaveSeparateTransportAndChatCredentialsAndRejectStaleAttempts(): void
     {
         $base = '/api/v1/trees/' . $this->treeId . '/merges';
         $this->jsonRequest('POST', $base, ['referencePersonId' => null], $this->headers);
@@ -159,35 +161,102 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
         self::assertNotNull($draft);
-        $attempt = $draft->beginAttempt(new \DateTimeImmutable());
-        $em->flush();
+        $attempt = $this->beginAttempt($draft);
         $grants = static::getContainer()->get(TreeMergeAgentGrant::class);
-        $token = $grants->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
-        $this->headers = ['Authorization' => 'Merge ' . $token];
+        $token = $grants->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
+        $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
+        $this->agentArguments = ['accessToken' => $token, 'attemptId' => $attempt];
         $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseIsSuccessful();
         $tools = $this->responseData()['result'];
         self::assertIsArray($tools);
         self::assertIsArray($tools['tools']);
         self::assertCount(5, $tools['tools']);
+        foreach ($tools['tools'] as $tool) {
+            self::assertIsArray($tool);
+            self::assertIsArray($tool['inputSchema']);
+            self::assertIsArray($tool['inputSchema']['required']);
+            self::assertContains('accessToken', $tool['inputSchema']['required']);
+            self::assertContains('attemptId', $tool['inputSchema']['required']);
+        }
         $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
         self::assertSame($this->treeId, $this->toolData()['treeId']);
         $this->call('get_tree_context', ['treeId' => Uuid::v7()->toRfc4122()], '/mcp/agent');
-        self::assertArrayHasKey('error', $this->responseData());
+        $this->assertToolError('TREE_NOT_FOUND');
         $this->call('prepare_tree_merge', ['treeId' => $this->treeId, 'description' => 'Vera'], '/mcp/agent');
         self::assertArrayHasKey('error', $this->responseData());
         $this->jsonRequest('POST', $base . '/' . $id . '/apply', ['version' => 2, 'proposalVersion' => 1], $this->headers);
         self::assertResponseStatusCodeSame(401);
         $grants->revoke($token);
         $this->rpc('tools/list', endpoint: '/mcp/agent');
-        self::assertResponseStatusCodeSame(401);
+        self::assertResponseIsSuccessful();
+        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
+        $this->assertToolError('TREE_MERGE_AGENT_REQUIRED');
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $em->getRepository(TreeMergeDraft::class)->find($id);
         self::assertNotNull($draft);
-        $stale = $grants->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
-        $draft->beginAttempt(new \DateTimeImmutable());
+        $stale = $grants->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        $this->beginAttempt($draft);
+        $this->agentArguments = ['accessToken' => $stale, 'attemptId' => $attempt];
+        $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
+        $this->assertToolError('TREE_MERGE_VERSION_CONFLICT');
+    }
+
+    public function testSharedServiceConnectionResolvesEachUserAndRevokedLoginIndependently(): void
+    {
+        $credentials = [];
+        foreach (['alice', 'bobby'] as $username) {
+            $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration(['username' => $username, 'email' => $username . '@example.test']));
+            $browserHeaders = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+            $this->jsonRequest('POST', '/api/v1/trees', ['name' => $username], $browserHeaders);
+            $treeId = $this->responseString('id');
+            $this->jsonRequest('POST', '/api/v1/trees/' . $treeId . '/merges', ['referencePersonId' => null], $browserHeaders);
+            $em = static::getContainer()->get(EntityManagerInterface::class);
+            $draft = $em->getRepository(TreeMergeDraft::class)->find($this->responseString('id'));
+            self::assertNotNull($draft);
+            $attemptId = $this->beginAttempt($draft);
+            $session = $em->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]);
+            self::assertNotNull($session);
+            $credentials[] = ['treeId' => $treeId, 'attemptId' => $attemptId, 'accessToken' => static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $session),
+                'sessionId'            => $session->getId()->toRfc4122()];
+        }
+        self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
+        $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
+        foreach ([0, 1, 0, 1] as $index) {
+            $own = $credentials[$index];
+            $other = $credentials[1 - $index];
+            $this->agentArguments = ['accessToken' => $own['accessToken'], 'attemptId' => $own['attemptId']];
+            $this->call('get_tree_context', ['treeId' => $own['treeId']], '/mcp/agent');
+            self::assertSame($own['treeId'], $this->toolData()['treeId']);
+            foreach (['get_tree_context'      => [], 'find_people' => ['query' => 'Vera'],
+                'get_person_context'          => ['personId' => Uuid::v7()->toRfc4122()],
+                'prepare_tree_merge_proposal' => ['proposal' => ['people' => [], 'parents' => [], 'marriages' => [], 'questions' => []]],
+                'reply_to_tree_merge'         => ['reply' => 'Unauthorized reply.']] as $name => $arguments) {
+                $this->call($name, ['treeId' => $other['treeId']] + $arguments, '/mcp/agent');
+                $this->assertToolError(in_array($name, ['prepare_tree_merge_proposal', 'reply_to_tree_merge'], true) ? 'TREE_MERGE_AGENT_REQUIRED' : 'TREE_NOT_FOUND');
+                self::assertStringNotContainsString($other['sessionId'], json_encode($this->responseData(), JSON_THROW_ON_ERROR));
+            }
+            $this->call('get_tree_context', ['treeId' => $own['treeId'], 'attemptId' => $other['attemptId']], '/mcp/agent');
+            $this->assertToolError('TREE_MERGE_VERSION_CONFLICT');
+        }
+        $this->call('get_tree_context', ['treeId' => $credentials[1]['treeId'], 'accessToken' => Uuid::v4()->toRfc4122()], '/mcp/agent');
+        $this->assertToolError('TREE_MERGE_AGENT_REQUIRED');
+        $this->rpc('tools/call', ['name' => 'get_tree_context', 'arguments' => ['treeId' => $credentials[1]['treeId']]], '/mcp/agent');
+        self::assertArrayHasKey('error', $this->responseData());
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $session = $em->find(AuthSession::class, $credentials[1]['sessionId']);
+        self::assertNotNull($session);
+        $session->revoke(new \DateTimeImmutable());
         $em->flush();
-        $this->headers = ['Authorization' => 'Merge ' . $stale];
+        $this->call('get_tree_context', ['treeId' => $credentials[1]['treeId']], '/mcp/agent');
+        $this->assertToolError('TREE_MERGE_AGENT_REQUIRED');
+        $this->rpc('tools/list', endpoint: '/mcp/agent');
+        self::assertResponseIsSuccessful();
+        $this->headers = [];
+        $this->rpc('tools/list', endpoint: '/mcp/agent');
+        self::assertResponseStatusCodeSame(401);
+        $this->headers = ['Authorization' => 'Bearer invalid-service'];
         $this->rpc('tools/list', endpoint: '/mcp/agent');
         self::assertResponseStatusCodeSame(401);
     }
@@ -198,15 +267,16 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $em->getRepository(TreeMergeDraft::class)->find($this->responseString('id'));
         self::assertNotNull($draft);
-        $attempt = $draft->beginAttempt(new \DateTimeImmutable());
-        $em->flush();
-        $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $attempt, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
-        $this->headers = ['Authorization' => 'Merge ' . $token];
+        $attempt = $this->beginAttempt($draft);
+        $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, static::getContainer()->get(EntityManagerInterface::class)->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]));
+        self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
+        $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
+        $this->agentArguments = ['accessToken' => $token, 'attemptId' => $attempt];
         for ($i = 0; $i < 3; ++$i) {
             $this->rpc('tools/list', endpoint: '/mcp/agent');
             self::assertResponseIsSuccessful();
         }
-        // Discovery/transport requests consume authentication budget, not the tool-read budget.
+        // Discovery/transport requests are service-authenticated and do not consume the tool-read budget.
         for ($i = 0; $i < 8; ++$i) {
             $this->rpc('tools/list', endpoint: '/mcp/agent');
             self::assertResponseIsSuccessful();
@@ -215,8 +285,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
             self::assertSame($this->treeId, $this->toolData()['treeId']);
         }
         $this->call('get_tree_context', ['treeId' => $this->treeId], '/mcp/agent');
-        self::assertResponseStatusCodeSame(400);
-        self::assertArrayHasKey('error', $this->responseData());
+        $this->assertToolError('TREE_CONTEXT_LIMIT');
     }
 
     public function testAgentCommandsOverHttpRestoreSessionValidateEvidenceAndCommitVerbatimReply(): void
@@ -249,12 +318,14 @@ final class TreeMcpApiTest extends ApiWebTestCase
             $em->refresh($draft);
             $attempt = $draft->beginAttempt($now);
             $em->flush();
-            $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft, $attempt);
+            $token = static::getContainer()->get(TreeMergeAgentGrant::class)->issue($draft);
         } finally {
             $requests->pop();
         }
         $browserHeaders = $this->headers;
-        $this->headers = ['Authorization' => 'Merge ' . $token];
+        self::assertIsString($_ENV['TREE_MERGE_MCP_KEY']);
+        $this->headers = ['Authorization' => 'Bearer ' . $_ENV['TREE_MERGE_MCP_KEY']];
+        $this->agentArguments = ['accessToken' => $token, 'attemptId' => $attempt];
         $evidence = [['messageId' => $messageId, 'quote' => 'Vera has a daughter also called Vera']];
         $proposal = ['people' => [
             ['id'        => 'm', 'existingPersonId' => $motherId, 'resolution' => 'existing', 'lifeStatus' => 'alive',
@@ -283,7 +354,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $this->call('reply_to_tree_merge', ['treeId' => $this->treeId, 'reply' => $reply, 'proposalId' => $prepared['proposalId']], '/mcp/agent');
         self::assertSame('ready', $this->toolData()['state']);
         $this->call('reply_to_tree_merge', ['treeId' => $this->treeId, 'reply' => 'Overwrite.'], '/mcp/agent');
-        self::assertResponseStatusCodeSame(401);
+        $this->assertToolError('TREE_MERGE_VERSION_CONFLICT');
         $this->headers = $browserHeaders;
         $this->jsonRequest('GET', $base . '/' . $id, headers: $this->headers);
         self::assertSame($reply, $this->responseString('messages', '1', 'content'));
@@ -299,7 +370,7 @@ final class TreeMcpApiTest extends ApiWebTestCase
     /** @param array<string, mixed> $arguments */
     private function call(string $name, array $arguments, string $endpoint = '/mcp/tree'): void
     {
-        $this->rpc('tools/call', ['name' => $name, 'arguments' => $arguments], $endpoint);
+        $this->rpc('tools/call', ['name' => $name, 'arguments' => $arguments + ('/mcp/agent' === $endpoint ? $this->agentArguments : [])], $endpoint);
     }
 
     /** @param array<string, mixed> $params */
@@ -310,6 +381,34 @@ final class TreeMcpApiTest extends ApiWebTestCase
         $body = $envelope->stamp(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => $params]);
         $headers = (new HeaderFactory(new ToolCatalog()))->forMessage($body, $version);
         $this->jsonRequest('POST', $endpoint, $body, $this->headers + $headers + ['Accept' => 'application/json, text/event-stream']);
+    }
+
+    private function assertToolError(string $code): void
+    {
+        self::assertResponseIsSuccessful();
+        $result = $this->responseData()['result'];
+        self::assertIsArray($result);
+        self::assertTrue($result['isError']);
+        self::assertStringContainsString($code, json_encode($result, JSON_THROW_ON_ERROR));
+    }
+
+    private function beginAttempt(TreeMergeDraft $draft): string
+    {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $session = $em->getRepository(AuthSession::class)->findOneBy(['user' => $draft->owner]);
+        $request = new Request();
+        $request->attributes->set(AuthSession::class, $session);
+        $requests = static::getContainer()->get(RequestStack::class);
+        $requests->push($request);
+        try {
+            $em->refresh($draft);
+            $attempt = $draft->beginAttempt(new \DateTimeImmutable());
+            $em->flush();
+
+            return $attempt;
+        } finally {
+            $requests->pop();
+        }
     }
 
     /** @return array<string, mixed> */

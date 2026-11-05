@@ -76,7 +76,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
             $proposal = $this->proposal($draft);
             $proposal['parents'] = [['parent' => 'missing', 'child' => 'v', 'role' => 'mother', 'evidence' => [['messageId' => $draft->messages[0]['id'], 'quote' => 'Vera.']]]];
-            $failed = $tools->prepare($this->treeId, $proposal);
+            $failed = $tools->prepare($this->treeId, $proposal, FixtureTreeMergeAi::$accessToken, $attempt);
             self::assertTrue($failed->isError);
             self::assertStringContainsString('person_reference_unknown', json_encode($failed, JSON_THROW_ON_ERROR));
             self::assertNull($draft->proposal);
@@ -92,13 +92,13 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     public function testInvalidReplyIsRejectedNotRewrittenAndStagingAloneDoesNotSubmit(): void
     {
         FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
-            $prepared = $tools->prepare($this->treeId, $this->proposal($draft));
+            $prepared = $tools->prepare($this->treeId, $this->proposal($draft), FixtureTreeMergeAi::$accessToken, $attempt);
             self::assertFalse($prepared->isError);
             self::assertIsArray($prepared->structuredContent);
             self::assertIsString($prepared->structuredContent['proposalId']);
             self::assertSame(1, $prepared->structuredContent['newPeople']);
             foreach (['', "First.\nSecond.", 'First. Second.', str_repeat('x', 351)] as $text) {
-                self::assertTrue($tools->reply($this->treeId, $text, $prepared->structuredContent['proposalId'])->isError);
+                self::assertTrue($tools->reply($this->treeId, $text, FixtureTreeMergeAi::$accessToken, $attempt, $prepared->structuredContent['proposalId'])->isError);
             }
             self::assertNull($draft->proposal);
             self::assertCount(1, $draft->messages);
@@ -148,7 +148,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
             $draft->addMessage('new', 'Her name is Veronika.', new \DateTimeImmutable());
             static::getContainer()->get(EntityManagerInterface::class)->flush();
-            self::assertTrue($tools->reply($this->treeId, 'Obsolete reply.')->isError);
+            self::assertTrue($tools->reply($this->treeId, 'Obsolete reply.', FixtureTreeMergeAi::$accessToken, $attempt)->isError);
         };
         $this->message('Vera.', 'first');
         $this->process('first');
@@ -157,7 +157,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         self::assertSame('collecting', $this->responseString('state'));
         FixtureTreeMergeAi::$handler = function (TreeMergeDraft $draft, string $attempt, TreeMergeAgentTools $tools): void {
             static::getContainer()->get(TreeMergeConversationService::class)->stop($draft, 'new');
-            self::assertTrue($tools->reply($this->treeId, 'Obsolete reply.')->isError);
+            self::assertTrue($tools->reply($this->treeId, 'Obsolete reply.', FixtureTreeMergeAi::$accessToken, $attempt)->isError);
         };
         $this->process('new');
         self::assertSame('system', $this->responseString('messages', '2', 'role'));

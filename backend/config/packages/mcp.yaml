@@ -1,21 +1,11 @@
 mcp:
-    clients:
-        tree_merge:
-            servers:
-                tree:
-                    transport: http
-                    url: '%env(TREE_MERGE_MCP_URL)%'
-                    http_client: App\Application\TreeMerge\Ai\MergeMcpHttpClient
-                    max_retries: 0
-                    init_timeout: 15
-                    request_timeout: 20
     servers:
         tree_agent:
             name: MyGenoTree scoped chat agent
             session:
                 store: cache
                 lock: { factory: lock.default.factory }
-            registry: [App\Mcp\TreeReadTools, App\Mcp\TreeMergeAgentTools]
+            registry: [App\Mcp\TreeMergeAgentTools]
             http:
                 path: /mcp/agent
                 allowed_hosts: [proxy, localhost]

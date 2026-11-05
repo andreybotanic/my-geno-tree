@@ -14,8 +14,10 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static ?\Closure $handler = null;
     public static int $calls = 0;
     private static TreeMergeAgentTools $tools;
+    public static string $accessToken;
+    public static string $attemptId;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly RequestStack $requests, private readonly TreeReadTools $reads)
+    public function __construct(TreeMergeAgentTools $tools, private readonly RequestStack $requests, private readonly TreeReadTools $reads, private readonly TreeMergeAgentGrant $grants)
     {
         self::$tools = $tools;
     }
@@ -23,6 +25,8 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
         ++self::$calls;
+        self::$accessToken = $this->grants->issue($draft);
+        self::$attemptId = $attemptId;
         $request = $this->requests->getCurrentRequest() ?? throw new \LogicException('Missing request');
         $request->attributes->set(TreeMergeAgentGrant::class, ['draftId' => $draft->id->toRfc4122(),
             'treeId'                                                     => $draft->tree->getId()->toRfc4122(), 'attemptId' => $attemptId, 'version' => $draft->version]);
@@ -41,7 +45,7 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     {
         $id = null;
         if (null !== $proposal) {
-            $prepared = self::$tools->prepare($draft->tree->getId()->toRfc4122(), $proposal);
+            $prepared = self::$tools->prepare($draft->tree->getId()->toRfc4122(), $proposal, self::$accessToken, self::$attemptId);
             if ($prepared->isError) {
                 throw new \LogicException(json_encode($prepared, JSON_THROW_ON_ERROR));
             }
@@ -51,7 +55,7 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
             }
             $id = $data['proposalId'];
         }
-        $result = self::$tools->reply($draft->tree->getId()->toRfc4122(), $reply, $id, $clarification);
+        $result = self::$tools->reply($draft->tree->getId()->toRfc4122(), $reply, self::$accessToken, self::$attemptId, $id, $clarification);
         if ($result->isError) {
             throw new \LogicException(json_encode($result, JSON_THROW_ON_ERROR));
         }

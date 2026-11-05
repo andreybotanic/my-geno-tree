@@ -1,44 +1,15 @@
-services:
-    # Select the ordinary chat's agent here. The Symfony AI / Ollama alternative is
-    # App\Application\TreeMerge\Ai\SymfonyTreeMergeAi.
-    app.tree_merge.agent: '@app.tree_merge.hermes'
-    app.tree_merge.hermes:
-        class: App\Application\TreeMerge\Ai\AcpTreeMergeAi
-        autowire: true
-        arguments:
-            $agent: 'socat STDIO UNIX-CONNECT:/srv/backend/var/acp-host/hermes.sock'
-            $model: 'openai-codex:gpt-5.6-luna'
-            $mcpUrl: 'http://localhost:17082/mcp/agent'
-            $client: ['/usr/local/bin/node', '/opt/acp-client/node_modules/acpx/dist/cli.js']
-
+# The application speaks only OpenAI-compatible HTTP. Switch the external agent
+# by changing this URL/key and model; its MCP transport belongs to that service.
 ai:
     platform:
-        ollama:
-            endpoint: '%env(OLLAMA_URL)%'
-            http_client: merge_ai.client
-            # The API catalog in this bridge version does not parse model options.
-            model_catalog:
-                models:
-                    '%env(TREE_MERGE_MODEL)%':
-                        class: Symfony\AI\Platform\Bridge\Ollama\Ollama
-                        capabilities:
-                            - !php/const Symfony\AI\Platform\Capability::INPUT_MESSAGES
-                            - !php/const Symfony\AI\Platform\Capability::OUTPUT_TEXT
-                            - !php/const Symfony\AI\Platform\Capability::TOOL_CALLING
+        generic:
+            tree_merge:
+                base_url: 'http://hermes:8642'
+                api_key: '%env(TREE_MERGE_AGENT_KEY)%'
+                http_client: merge_ai.client
+                supports_embeddings: false
     agent:
         tree_merge:
-            platform: ai.platform.ollama
-            model:
-                name: '%env(TREE_MERGE_MODEL)%'
-                options: { temperature: 0.7, think: false }
+            platform: ai.platform.generic.tree_merge
+            model: 'gpt-5.6-luna'
             prompt: !php/const App\Application\TreeMerge\Ai\MergePrompt::SYSTEM
-            tools:
-                - { mcp_server: 'tree_merge.tree' }
-            max_tool_calls: 16
-            fault_tolerant_toolbox: true
-
-when@test:
-    services:
-        app.tree_merge.agent:
-            alias: app.tree_merge.hermes
-            public: true

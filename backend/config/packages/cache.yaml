@@ -20,6 +20,8 @@ framework:
                 adapter: app.merge_memory_adapter
             cache.merge_access:
                 adapter: cache.adapter.filesystem
+            cache.merge_agent:
+                adapter: app.merge_memory_adapter
             cache.map_rate_limiter:
                 adapter: cache.adapter.filesystem
             cache.map_geocoding:
