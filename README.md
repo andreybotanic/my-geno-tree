@@ -11,13 +11,13 @@ No host PHP, Composer, Node.js, npm or PostgreSQL installation is required.
 
 ## Start
 
-Set `MERCURE_JWT_SECRET`, `TREE_MERGE_AGENT_KEY` and `TREE_MERGE_MCP_KEY` in the
+Set `MERCURE_JWT_SECRET` and `CLI_PROXY_API_KEY` in the
 ignored root `.env` to independent random secrets of at least 32 bytes.
 For a new checkout, this command generates them inside Docker (the temporary
 `setup` values only permit Compose configuration parsing):
 
 ```bash
-MERCURE_JWT_SECRET=setup TREE_MERGE_AGENT_KEY=setup TREE_MERGE_MCP_KEY=setup docker compose run --rm --no-deps -v .:/workspace --entrypoint node frontend -e 'const fs=require("node:fs"); const p="/workspace/.env"; const s=fs.existsSync(p)?fs.readFileSync(p,"utf8"):""; for(const key of ["MERCURE_JWT_SECRET","TREE_MERGE_AGENT_KEY","TREE_MERGE_MCP_KEY"]) if(!new RegExp("^"+key+"=.+$","m").test(s)) fs.appendFileSync(p,"\n"+key+"="+require("node:crypto").randomBytes(32).toString("hex")+"\n",{mode:0o600});'
+MERCURE_JWT_SECRET=setup CLI_PROXY_API_KEY=setup docker compose run --rm --no-deps -v .:/workspace --entrypoint node frontend -e 'const fs=require("node:fs"); const p="/workspace/.env"; const s=fs.existsSync(p)?fs.readFileSync(p,"utf8"):""; for(const key of ["MERCURE_JWT_SECRET","CLI_PROXY_API_KEY"]) if(!new RegExp("^"+key+"=.+$","m").test(s)) fs.appendFileSync(p,"\n"+key+"="+require("node:crypto").randomBytes(32).toString("hex")+"\n",{mode:0o600});'
 ```
 
 ```bash
@@ -164,79 +164,55 @@ or replies. A provider failure or missing reply command produces a retryable
 system notice; the source and earlier reviewed proposal remain available.
 Application of tree changes still requires the separate preview confirmation.
 
-`backend/config/packages/ai.yaml` configures the ordinary chat through the stock
-Symfony AI Generic platform and `ai.agent.tree_merge`. The HTTP endpoint is
-`http://hermes:8642`; the selected model is `gpt-5.6-luna`, the lightest model
-verified in this account's catalog on 2026-11-05. Change the endpoint, API key
-reference and model in this file to select another OpenAI-compatible agent.
-The application does not launch agents or use an ACP client, custom runner or
-local MCP toolbox. Clear the Symfony cache after production configuration changes.
+`backend/config/packages/ai.yaml` configures the stock Symfony AI Agent and
+Generic platform. The provider URL is `http://cli-proxy-api:8317`; the selected
+model is `gpt-5.6-luna`. Keep provider/model selection in this file, including the
+model's tool-calling capabilities. The agent has five explicitly registered
+native PHP tools and a sixteen-tool-call limit. Symfony owns the complete tool
+loop; no custom agent, runner or remote tool executor is used.
 
-### Hermes in Docker Compose
+### CLIProxyAPI in Docker Compose
 
-The pinned official Hermes image runs independently as the `hermes` service.
-Its native `/v1/chat/completions` API and the internal MCP port are accessible
-only on the Compose network. `docker/hermes/config.yaml` selects ChatGPT browser
-authentication (`openai-codex`), permits the HTTP request's model selection,
-disables memory and native tools, and registers one permanent MCP connection.
-Only the five named tree-chat tools are enabled.
+CLIProxyAPI v8.0.56 provides an OpenAI-compatible API backed by ChatGPT/Codex OAuth.
+The model API is available only on the Compose network. Port 1455 is bound to
+127.0.0.1 solely for the temporary browser OAuth callback. The management API and
+request-body logging are disabled.
 
-Authenticate once inside the service (open the displayed login URL in your browser):
+Authenticate once, opening the displayed URL in the browser on this computer:
 
 ```sh
-docker compose up -d
-docker compose exec -u hermes hermes hermes auth add openai-codex --type oauth --no-browser
-docker compose restart hermes
+docker compose up -d cli-proxy-api
+docker compose exec cli-proxy-api /CLIProxyAPI/CLIProxyAPI -config /run/cli-proxy-api/config.yaml -codex-login -no-browser
 ```
 
-Existing Hermes authentication can instead be imported once using
-`docker compose cp /path/to/auth.json hermes:/opt/data/auth.json`, followed by
-`docker compose exec -u root hermes chown hermes:hermes /opt/data/auth.json`
-and a service restart. Keep credentials out of the repository.
-The `hermes_data` volume stores Hermes authentication, sessions and logs;
-backend has no access to it. Recreating the container preserves that data.
-Do not enable memory or extra native tools for this shared web-chat service.
+Complete the browser sign-in and consent. Do not paste passwords, authorization
+codes or tokens into the genealogy chat. The proxy stores and renews OAuth
+credentials in the persistent `cli_proxy_auth` volume; backend cannot access it.
+Recreating the service preserves the login.
 
-`TREE_MERGE_AGENT_KEY` authenticates backend requests to Hermes.
-`TREE_MERGE_MCP_KEY` authenticates Hermes to the internal MCP endpoint.
-These independent random secrets belong in the ignored root `.env`.
-The service key permits discovery; it does not identify a website user or grant
-access to any tree. Each tool also requires the backend-issued `accessToken`
-for a particular chat/login session and the current `attemptId`.
-The chat key is reused between messages, expires after one hour of inactivity,
-and cannot be used as a REST login token. Backend rechecks the active login,
-current attempt and tree ownership on every call. User identity exists only
-during that call, never on the shared MCP connection. Logout or Stop therefore
-blocks subsequent tool actions without reconfiguring Hermes or its connection.
+`CLI_PROXY_API_KEY` belongs in the ignored root `.env`. It authenticates backend
+HTTP requests to the proxy, using an Authorization header. The startup script
+writes a private runtime proxy config on tmpfs. The key must contain only letters,
+digits, underscores or hyphens; the setup command above generates a random hex key.
+No provider or application credential is placed in the model's messages or tool
+arguments. The model does not provide user identity, login session or attempt ID.
 
-The chat credential is issued and authenticated by `TreeMergeAgentTokenHandler`,
-which implements Symfony Security's `AccessTokenHandlerInterface` and returns a
-`UserBadge` for the initiating login. `FamilyTreeVoter` authorizes issuing the
-credential and accessing the selected tree. `TreeMergeAgentAccess` installs that
-identity only for one tool invocation and always restores the previous security
-token; `TreeMergeAgentContext` carries the typed chat/attempt/version scope.
-The credential cache stores only the chat ID, login-session ID and expiry.
+`SymfonyTreeMergeAi` runs the configured agent within a backend-only
+`TreeMergeAgentContext` tied to the current authenticated request. Before every
+tool, `TreeMergeAgentAccess` reloads the login session and draft, checks the real
+`FamilyTreeVoter`, selected tree, attempt, version and Stop state. Logout, a newer
+message or a stopped attempt therefore prevents late reads and writes. The scope
+is restored in a finally block; the Symfony Security identity is never replaced.
+The separate internal MCP endpoint, service authentication and extra FPM pool
+have been removed. External authenticated clients still use `/mcp/tree`.
 
-Application aliases are declared with `#[AsAlias]`; test implementations use
-`#[When('test')]` and are discovered exclusively by `config/services_test.yaml`.
-`config/services.yaml` contains only the common autowiring/autoconfiguration
-rules and the application namespace. Vendor cache-adapter arguments remain beside
-the pools in `config/packages/cache.yaml`; the vendor mock-hub factory and exports
-needed by integration tests remain in `services_test.yaml`.
+Only `reply_to_tree_merge` publishes the agent's exact single-sentence reply;
+free-form provider output is discarded. Proposals are staged and applied only
+through the existing separate UI confirmation. Application aliases remain
+attribute-based; test fixtures are discovered only in the test environment.
 
-The chat key is a cryptographically random UUIDv4; the tool schemas describe its
-format so small models can copy it reliably. Agents must stop after an authorization
-or stale-attempt error. Hermes 0.22.7 has a non-configurable per-server circuit
-breaker: three consecutive MCP failures pause that connection for 60 seconds,
-including other HTTP requests using it. This affects availability, not tree access;
-the UI preserves the conversation and permits another message after recovery.
-
-The external agent chooses and executes MCP commands independently. Its HTTP
-response text is discarded; only `reply_to_tree_merge` publishes the exact
-single-sentence reply. The Generic platform uses the standard HTTP request and
-usage fields, with no Hermes-specific application code. See the
-[Symfony AI Generic bridge](https://symfony.com/doc/current/ai/platform/generic.html)
-and [Hermes documentation](https://hermes-agent.nousresearch.com/).
+See the [Symfony AI Agent documentation](https://symfony.com/doc/current/ai/components/agent.html)
+and [CLIProxyAPI source and OAuth support](https://github.com/router-for-me/CLIProxyAPI).
 
 The chat displays elapsed thinking time, completed MCP read stages, validation
 progress. A donut in the composer shows the remaining daily token
@@ -358,23 +334,17 @@ token. Available tools are `get_tree_context`, `find_people`,
 `get_person_context`, `prepare_tree_merge` and `get_tree_merge`. Preparation
 returns an absolute preview link (`APP_URL`); no MCP tool applies changes.
 
-The external agent uses real HTTP MCP requests to the separate internal
-`/mcp/agent` endpoint on proxy port 8082 and a separate PHP-FPM pool. That port is
-not published to the host. A service credential permits protocol discovery,
-while each tool independently validates its chat key and current attempt.
-The tool registry contains the three read tools, `prepare_tree_merge_proposal`
-and `reply_to_tree_merge`, with at most eight context reads per attempt.
-Hermes allows sixteen agent turns. Preparing validates and stages a proposal
-for five minutes in ephemeral memory; replying with its proposalId atomically
-submits it for UI review and stores the agent's sentence.
-A stale version, changed tree, expired session or stopped attempt cannot submit
-it. No tool applies tree mutations or recursively starts `prepare_tree_merge`.
-Discovery and HTTP transport requests do not consume the context-read budget.
-Search results are candidate hints: an existing person must also occur in a
-full context read before a proposal can reference their ID.
-Every tool checks the tree voter; context contains at most ten parent/child
-links and ten marriages, and name search returns at most five candidates.
-MCP sessions use separate cache prefixes and Symfony locks for each endpoint.
+The application's Symfony agent executes the three read tools,
+`prepare_tree_merge_proposal` and `reply_to_tree_merge` locally, with at most eight
+context reads and sixteen tool calls per attempt. Preparing stages a validated
+proposal for five minutes in ephemeral memory; replying with its proposalId
+atomically submits it for UI review and stores the agent's sentence. A stale
+version, changed tree, revoked session or stopped attempt cannot submit it.
+No tool applies mutations or recursively starts `prepare_tree_merge`.
+Search results are candidate hints: an existing person must occur in a full
+context read before a proposal can reference their ID. Context contains at most
+ten parent/child links and ten marriages; name search returns at most five
+candidates. External MCP sessions retain their cache and Symfony locks.
 
 Validation: backend API tests cover session isolation, retries, conflicts, source
 limits and ownership; component tests cover named-person input, timer/progress, errors and
@@ -488,29 +458,24 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Hermes HTTP browser validation (2026-11-05): the original Ivan/Anna example
-produced a verbatim one-sentence proposal for six new people, Anna's approximate
-1992 birth year, Petr Ivanovich's inferred surname/patronymic and both unnamed sons.
-Applying and refreshing retained seven people and the existing Ivan's exact date.
-Stopping Hermes showed a recoverable provider notice; after restart the agent
-answered the saved question about Anna. Stop rejected late commands and a later
-message completed. Progress arrived through Mercure without periodic chat polling.
-The smallest model remains fallible: in a follow-up factual answer it confused
-the father's patronymic despite correct MCP records; the stored relationships and
-names were unchanged. No application code rewrites these answers.
+CLIProxyAPI validation (2026-11-05): in the local HTTPS browser, the configured
+Symfony agent proposed Anna and Petr as two new people, retained Anna's approximate
+1992 birth year and Petr Ivanovich's inferred name, and returned exactly one short
+sentence. Stopping the proxy produced a recoverable provider notice without
+losing the reviewed proposal; restarting it allowed a follow-up question to return
+Ivan's stored 1990 birth year. Refresh preserved the complete conversation and
+proposal. The proposal was left unapplied; the existing one-person tree was not
+modified. Progress and token usage arrived through the existing Mercure flow.
 
-Validation for this transport change: 209 backend tests and 385 frontend tests;
-92.81% backend line coverage and 90.17% frontend line coverage, with every measured
-production file above 75%. PHPStan, linters, OpenAPI checks, production builds,
-clean-database migrations and affected-file PhpStorm WARNING inspections passed.
+Automated validation: 207 backend tests and 385 frontend tests; 92.63% backend
+line coverage and 90.17% frontend line coverage; every production file with
+measurable behavior is at least 75%. The two constructor-only Doctrine repository
+wrappers (EventPlaceRepository and MediaVariantRepository) have no custom behavior
+and are excluded from the per-file threshold. Backend/frontend quality checks, OpenAPI generation checks,
+production build, dev/prod container checks, PhpStorm WARNING inspections and all
+19 migrations on a fresh disposable database passed. The frontend coverage run
+used four workers after a parallel run timed out in the unrelated force-map test.
 The backend suite retains nine existing PHPUnit mock-expectation notices in map
-and GEDCOM tests.
-
-Service/security refactor verification (2026-11-05): 212 backend tests and 385
-frontend tests passed; backend line coverage is 92.82%, including 100% for the token
-handler and typed context. Container checks confirmed real implementations in
-dev/prod and fixture implementations only in test. In the HTTPS browser, a fresh
-login opened the existing tree, Hermes answered Anna's birth-year question through
-MCP, and logout followed by reopening the protected tree required authentication.
-PhpStorm WARNING inspections, static analysis, OpenAPI checks, builds and all 19
-migrations on a clean database passed.
+and GEDCOM tests. Request-level tests cover the real configured Symfony tool loop,
+absence of credentials from model bodies and tool schemas, current-user ownership,
+session revocation, stale/Stop behavior and the eight-read budget.

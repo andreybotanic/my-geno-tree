@@ -15,12 +15,6 @@ security:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
-        merge_agent:
-            pattern: ^/mcp/agent$
-            stateless: true
-            provider: app_users
-            custom_authenticators: [App\Security\TreeMergeAgentAuthenticator]
-            entry_point: App\Security\TreeMergeAgentAuthenticator
         main:
             lazy: true
             stateless: true
@@ -31,7 +25,6 @@ security:
 
     # Note: Only the *first* matching rule is applied
     access_control:
-        - { path: ^/mcp/agent$, roles: ROLE_MCP_AGENT }
         - { path: ^/mcp/, roles: ROLE_USER }
         - { path: ^/api/v1/(health|statistics)$, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/(register|login|refresh|logout)$, roles: PUBLIC_ACCESS }

@@ -1,15 +1,25 @@
-# The application speaks only OpenAI-compatible HTTP. Switch the external agent
-# by changing this URL/key and model; its MCP transport belongs to that service.
+# Symfony executes tools in the authenticated request. The proxy only calls the model.
 ai:
     platform:
         generic:
             tree_merge:
-                base_url: 'http://hermes:8642'
-                api_key: '%env(TREE_MERGE_AGENT_KEY)%'
+                base_url: 'http://cli-proxy-api:8317'
+                api_key: '%env(CLI_PROXY_API_KEY)%'
                 http_client: merge_ai.client
                 supports_embeddings: false
+                model_catalog:
+                    models:
+                        gpt-5.6-luna:
+                            class: Symfony\AI\Platform\Bridge\Generic\CompletionsModel
+                            capabilities:
+                                - !php/const Symfony\AI\Platform\Capability::INPUT_MESSAGES
+                                - !php/const Symfony\AI\Platform\Capability::OUTPUT_TEXT
+                                - !php/const Symfony\AI\Platform\Capability::TOOL_CALLING
     agent:
         tree_merge:
             platform: ai.platform.generic.tree_merge
             model: 'gpt-5.6-luna'
             prompt: !php/const App\Application\TreeMerge\Ai\MergePrompt::SYSTEM
+            max_tool_calls: 16
+            tools:
+                - App\Mcp\TreeMergeAgentTools

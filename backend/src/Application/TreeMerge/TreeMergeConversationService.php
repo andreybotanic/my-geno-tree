@@ -70,7 +70,7 @@ final readonly class TreeMergeConversationService
             $failure = $error instanceof ApiException && 'TREE_MERGE_TOKEN_LIMIT' === $error->getErrorCode()
                 ? 'token_limit' : 'provider_unavailable';
         }
-        // MCP writes through a separate request; reload its committed result before deciding whether it failed.
+        // Reload committed state: Stop or another browser request may have superseded this attempt.
         $this->entityManager->wrapInTransaction(function () use ($draft, $attempt, $attemptVersion, $requestId, $failure): void {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);

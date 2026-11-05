@@ -5,7 +5,7 @@ namespace App\Security;
 use App\Entity\TreeMergeDraft;
 use Symfony\Component\DependencyInjection\Attribute\Exclude;
 
-/** Authenticated chat/attempt scope, present only while an internal MCP tool executes. */
+/** Backend-only chat/attempt scope, present while the Symfony agent executes. */
 #[Exclude]
 final readonly class TreeMergeAgentContext
 {

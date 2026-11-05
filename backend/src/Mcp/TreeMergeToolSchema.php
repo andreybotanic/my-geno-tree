@@ -2,8 +2,10 @@
 
 namespace App\Mcp;
 
+use Symfony\AI\Platform\Contract\JsonSchema\Provider\SchemaProviderInterface;
+
 /** Explicit MCP input schema; the same value objects are validated by the REST proposal validator. */
-final class TreeMergeToolSchema
+final class TreeMergeToolSchema implements SchemaProviderInterface
 {
     private const array UNKNOWN = ['type' => 'object', 'properties' => ['state' => ['const' => 'unknown']], 'required' => ['state'], 'additionalProperties' => false];
     private const array TEXT = ['oneOf' => [self::UNKNOWN, [
@@ -49,4 +51,9 @@ final class TreeMergeToolSchema
             'questions' => ['type' => 'array', 'maxItems' => 30, 'items' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 1000]],
         ],
     ];
+
+    public function getSchemaFragment(array $context = []): array
+    {
+        return self::PROPOSAL;
+    }
 }

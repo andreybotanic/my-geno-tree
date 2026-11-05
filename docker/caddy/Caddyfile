@@ -26,14 +26,3 @@ localhost, my-geno-tree.localhost {
 		reverse_proxy frontend:5173
 	}
 }
-
-# Agent MCP calls use their own FPM workers, on the Compose network only.
-http://:8082 {
-	handle /mcp/agent {
-		root * /srv/backend/public
-		php_fastcgi backend:9001
-	}
-	handle {
-		respond 404
-	}
-}

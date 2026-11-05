@@ -6,11 +6,9 @@ use App\Application\TreeMerge\Ai\TreeMergeAiInterface;
 use App\Entity\TreeMergeDraft;
 use App\Mcp\TreeMergeAgentTools;
 use App\Mcp\TreeReadTools;
-use App\Security\TreeMergeAgentContext;
-use App\Security\TreeMergeAgentTokenHandler;
+use App\Security\TreeMergeAgentAccess;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\When;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 #[When('test')]
 #[AsAlias(TreeMergeAiInterface::class, public: true)]
@@ -19,10 +17,8 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static ?\Closure $handler = null;
     public static int $calls = 0;
     private static TreeMergeAgentTools $tools;
-    public static string $accessToken;
-    public static string $attemptId;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly RequestStack $requests, private readonly TreeReadTools $reads, private readonly TreeMergeAgentTokenHandler $tokenHandler)
+    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads, private readonly TreeMergeAgentAccess $access)
     {
         self::$tools = $tools;
     }
@@ -30,18 +26,12 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
         ++self::$calls;
-        self::$accessToken = $this->tokenHandler->issue($draft);
-        self::$attemptId = $attemptId;
-        $request = $this->requests->getCurrentRequest() ?? throw new \LogicException('Missing request');
-        $request->attributes->set(TreeMergeAgentContext::class, new TreeMergeAgentContext($draft, $attemptId));
-        try {
+        $this->access->run($draft, $attemptId, function () use ($draft, $attemptId): void {
             if (null === self::$handler) {
                 throw new \LogicException('Missing AI fixture');
             }
             (self::$handler)($draft, $attemptId, self::$tools, $this->reads);
-        } finally {
-            $request->attributes->remove(TreeMergeAgentContext::class);
-        }
+        });
     }
 
     /** @param array<string, mixed>|null $proposal */
@@ -49,18 +39,18 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     {
         $id = null;
         if (null !== $proposal) {
-            $prepared = self::$tools->prepare($draft->tree->getId()->toRfc4122(), $proposal, self::$accessToken, self::$attemptId);
-            if ($prepared->isError) {
+            $prepared = self::$tools->prepare($draft->tree->getId()->toRfc4122(), $proposal);
+            if (isset($prepared['error'])) {
                 throw new \LogicException(json_encode($prepared, JSON_THROW_ON_ERROR));
             }
-            $data = $prepared->structuredContent;
-            if (!is_array($data) || !is_string($data['proposalId'] ?? null)) {
+            $data = $prepared;
+            if (!is_string($data['proposalId'] ?? null)) {
                 throw new \LogicException('Missing proposal id');
             }
             $id = $data['proposalId'];
         }
-        $result = self::$tools->reply($draft->tree->getId()->toRfc4122(), $reply, self::$accessToken, self::$attemptId, $id, $clarification);
-        if ($result->isError) {
+        $result = self::$tools->reply($draft->tree->getId()->toRfc4122(), $reply, $id, $clarification);
+        if (isset($result['error'])) {
             throw new \LogicException(json_encode($result, JSON_THROW_ON_ERROR));
         }
     }

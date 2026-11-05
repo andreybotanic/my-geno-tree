@@ -1,0 +1,15 @@
+config-version: 8
+server:
+  host: ''
+  port: 8317
+management:
+  allow-remote: false
+  secret-key: ''
+  disable-control-panel: true
+oauth:
+  auth-dir: /root/.cli-proxy-api
+observability:
+  logs:
+    debug: false
+    logging-to-file: false
+    request-log: false

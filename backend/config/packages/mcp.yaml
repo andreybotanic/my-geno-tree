@@ -1,14 +1,5 @@
 mcp:
     servers:
-        tree_agent:
-            name: MyGenoTree scoped chat agent
-            session:
-                store: cache
-                lock: { factory: lock.default.factory }
-            registry: [App\Mcp\TreeMergeAgentTools]
-            http:
-                path: /mcp/agent
-                allowed_hosts: [proxy, localhost]
         tree:
             name: MyGenoTree
             session:
