@@ -58,7 +58,9 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             self::assertStringNotContainsString($proxyKey, $options['body']);
             self::assertStringNotContainsString($this->headers['Authorization'], $options['body']);
             self::assertSame('user', $body['messages'][1]['role']);
-            self::assertSame('Vera is my mother.', $body['messages'][1]['content']);
+            self::assertStringEndsWith("\nVera is my mother.", $body['messages'][1]['content']);
+            $messageId = substr(explode("\n", $body['messages'][1]['content'])[0], strlen('messageId: '));
+            self::assertTrue(Uuid::isValid($messageId));
             $offset = strpos($body['messages'][0]['content'], '{"promptVersion"');
             self::assertNotFalse($offset);
             $input = json_decode(substr($body['messages'][0]['content'], $offset), true, flags: JSON_THROW_ON_ERROR);
@@ -89,13 +91,12 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             self::assertIsArray($result);
             if (2 === $calls) {
                 self::assertSame(0, $result['personCount']);
-                self::assertIsArray($input['sources']);
-                self::assertIsArray($input['sources'][0]);
+                self::assertArrayNotHasKey('sources', $input);
 
                 return $this->toolResponse('merge', ['treeId' => $this->treeId, 'proposal' => [
                     'people' => [['id' => 'v', 'existingPersonId' => null, 'resolution' => 'new', 'lifeStatus' => 'alive',
                         'fields'       => ['givenName' => ['state' => 'known', 'value' => 'Vera'], 'gender' => 'female'],
-                        'evidence'     => [['messageId' => $input['sources'][0]['id'], 'quote' => 'Vera is my mother.']]]],
+                        'evidence'     => [['messageId' => $messageId, 'quote' => 'Vera is my mother.']]]],
                     'parents' => [], 'marriages' => [], 'questions' => [],
                 ]]);
             }
@@ -109,7 +110,8 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 }
             }
             self::assertCount(1, $previews, 'Merge must publish the preview before the final model answer.');
-            self::assertSame('processing', $previews[0]['state']);
+            self::assertSame('processing', $previews[0]['chatState']);
+            self::assertSame('ready', $previews[0]['state']);
             self::assertIsArray($previews[0]['messages']);
             self::assertCount(1, $previews[0]['messages']);
             self::assertSame('ready', $result['state']);
@@ -117,9 +119,14 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             return $this->textResponse("I prepared Vera's profile.\nPlease review the preview.");
         });
         static::getContainer()->set('merge_ai.client', $http);
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft, $attempt);
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft);
         $this->process();
         self::assertSame(3, $calls);
+        self::assertSame(['input' => 300, 'output' => 30, 'total' => 330], $this->responseData()['tokenUsage']);
+        $budget = $this->responseData()['tokenBudget'];
+        self::assertIsArray($budget);
+        self::assertIsInt($budget['limit']);
+        self::assertSame($budget['limit'] - 330, $budget['remaining']);
         self::assertSame('ready', $this->responseString('state'));
         self::assertSame("I prepared Vera's profile.\nPlease review the preview.", $this->responseString('messages', '1', 'content'));
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
@@ -142,7 +149,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
 
             return $this->textResponse($text);
         }));
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft, $attempt);
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft);
         $this->process();
         self::assertSame($text, $this->responseString('messages', '1', 'content'));
         self::assertNull($this->responseData()['proposal']);
@@ -174,7 +181,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             return $this->textResponse('Please describe the person you want to add.');
         });
         static::getContainer()->set('merge_ai.client', $http);
-        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft, $attempt);
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft, string $attempt) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft);
         $this->process();
         self::assertSame(3, $calls);
         self::assertNull($this->responseData()['proposal']);
@@ -197,7 +204,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             self::assertNotNull($request);
             $before = $request->attributes->get(TreeMergeAgentContext::class);
             try {
-                return static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft, $attempt);
+                return static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft);
             } finally {
                 self::assertSame($before, $request->attributes->get(TreeMergeAgentContext::class));
             }

@@ -20,7 +20,6 @@ export type TreeMergePersonProposal = {
     lifeStatus: 'alive' | 'deceased' | 'uncertain';
     evidence: Array<TreeMergeEvidence>;
     readonly before?: Person | null;
-    readonly candidates?: Array<PersonSearchResult>;
 };
 
 export type TreeMergeParentProposal = {
@@ -74,10 +73,6 @@ export type TreeMergeMessage = {
     role: 'user' | 'assistant' | 'system';
     content: string;
     /**
-     * Whether this user message contributes source facts; a successful merge tool marks pending source messages.
-     */
-    source?: boolean;
-    /**
      * System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
      */
     failureCode?: 'empty_response' | 'provider_unavailable' | 'token_limit' | 'stopped';
@@ -113,10 +108,9 @@ export type TreeMergeDraft = {
     treeId: string;
     referencePersonId: string | null;
     version: number;
-    sourceVersion: number;
-    state: 'collecting' | 'processing' | 'error' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    chatState: 'idle' | 'processing' | 'error';
+    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied';
     attemptId: string | null;
-    attemptSourceVersion: number | null;
     attemptStartedAt: string | null;
     proposalVersion: number;
     proposal: TreeMergeProposal | null;
@@ -170,9 +164,9 @@ export type TreeMergeVersionRequest = {
     version: number;
 };
 
-export type TreeMergeList = {
+export type TreeMergeCurrent = {
     tokenBudget: TreeMergeTokenBudget;
-    items: Array<TreeMergeDraft>;
+    draft: TreeMergeDraft | null;
 };
 
 export type Health = {
@@ -822,10 +816,9 @@ export type TreeMergeDraftWritable = {
     treeId: string;
     referencePersonId: string | null;
     version: number;
-    sourceVersion: number;
-    state: 'collecting' | 'processing' | 'error' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied' | 'cancelled';
+    chatState: 'idle' | 'processing' | 'error';
+    state: 'collecting' | 'questions' | 'ready' | 'no_changes' | 'conflict' | 'applied';
     attemptId: string | null;
-    attemptSourceVersion: number | null;
     attemptStartedAt: string | null;
     proposalVersion: number;
     proposal: TreeMergeProposalWritable | null;
@@ -843,9 +836,9 @@ export type TreeMergeDraftWritable = {
     updatedAt: string;
 };
 
-export type TreeMergeListWritable = {
+export type TreeMergeCurrentWritable = {
     tokenBudget: TreeMergeTokenBudget;
-    items: Array<TreeMergeDraftWritable>;
+    draft: TreeMergeDraftWritable | null;
 };
 
 export type TreeLayoutPositionsWritable = {
@@ -862,6 +855,31 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type AuthorizeMergeStreamData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/merge-events/authorize';
+};
+
+export type AuthorizeMergeStreamErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+};
+
+export type AuthorizeMergeStreamError = AuthorizeMergeStreamErrors[keyof AuthorizeMergeStreamErrors];
+
+export type AuthorizeMergeStreamResponses = {
+    /**
+     * Subscription session is active; the hub validates topic grants separately
+     */
+    204: void;
+};
+
+export type AuthorizeMergeStreamResponse = AuthorizeMergeStreamResponses[keyof AuthorizeMergeStreamResponses];
 
 export type SubscribeTreeMergeEventsData = {
     body?: never;
@@ -1165,7 +1183,7 @@ export type ApplyTreeMergeResponses = {
 
 export type ApplyTreeMergeResponse = ApplyTreeMergeResponses[keyof ApplyTreeMergeResponses];
 
-export type ListTreeMergesData = {
+export type GetCurrentTreeMergeData = {
     body?: never;
     path: {
         treeId: string;
@@ -1174,7 +1192,7 @@ export type ListTreeMergesData = {
     url: '/trees/{treeId}/merges';
 };
 
-export type ListTreeMergesErrors = {
+export type GetCurrentTreeMergeErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -1193,16 +1211,16 @@ export type ListTreeMergesErrors = {
     422: ApiError;
 };
 
-export type ListTreeMergesError = ListTreeMergesErrors[keyof ListTreeMergesErrors];
+export type GetCurrentTreeMergeError = GetCurrentTreeMergeErrors[keyof GetCurrentTreeMergeErrors];
 
-export type ListTreeMergesResponses = {
+export type GetCurrentTreeMergeResponses = {
     /**
      * Merge draft state
      */
-    200: TreeMergeList;
+    200: TreeMergeCurrent;
 };
 
-export type ListTreeMergesResponse = ListTreeMergesResponses[keyof ListTreeMergesResponses];
+export type GetCurrentTreeMergeResponse = GetCurrentTreeMergeResponses[keyof GetCurrentTreeMergeResponses];
 
 export type CreateTreeMergeData = {
     body: TreeMergeCreateRequest;

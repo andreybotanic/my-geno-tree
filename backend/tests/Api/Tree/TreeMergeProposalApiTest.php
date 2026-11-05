@@ -23,6 +23,8 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
     private string $treeId;
     private string $etag;
     private string $path;
+    private int $baseVersion;
+    private int $baseProposalVersion;
 
     protected function setUp(): void
     {
@@ -93,11 +95,10 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $irina = $em->getRepository(Person::class)->find($ids['i']);
         self::assertInstanceOf(Person::class, $irina);
         self::assertSame('Ирина Михайловна', $irina->getGivenName()->getValue());
-        foreach ($em->getRepository(GenealogicalEvent::class)->findAll() as $event) {
-            if ('child_birth' === $event->getType()->value && ($event->getData()['childId'] ?? null) === $ids['i']) {
-                self::assertSame(1962, $event->getDate()->getYear());
-            }
-        }
+        $events = array_values(array_filter($em->getRepository(GenealogicalEvent::class)->findAll(),
+            static fn (GenealogicalEvent $event) => 'child_birth' === $event->getType()->value && ($event->getData()['childId'] ?? null) === $ids['i']));
+        self::assertCount(1, $events);
+        self::assertSame(1962, $events[0]->getDate()->getYear());
     }
 
     public function testQuestionsAndVersionConflictRequireAnotherConfirmation(): void
@@ -191,7 +192,7 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->apply(5, 4);
         self::assertResponseStatusCodeSame(409);
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
-        self::assertSame('collecting', $this->responseString('state'));
+        self::assertSame('ready', $this->responseString('state'));
         self::assertCount(1, $this->arrayAt('messages'));
     }
 
@@ -264,8 +265,8 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', $this->path . '/cancel', ['version' => 2], $this->headers);
         self::assertResponseIsSuccessful();
         $this->revise($this->family(), 3);
-        self::assertResponseStatusCodeSame(409);
-        self::assertSame('TREE_MERGE_CLOSED', $this->responseString('code'));
+        self::assertResponseIsSuccessful();
+        self::assertSame('ready', $this->responseString('state'));
         $this->jsonRequest('POST', $this->path . '/apply', ['version' => 3], $this->headers);
         self::assertResponseStatusCodeSame(422);
     }
@@ -337,12 +338,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
     /** @param array<string, mixed> $proposal */
     private function revise(array $proposal, int $version = 1): void
     {
-        $this->jsonRequest('PUT', $this->path . '/proposal', ['version' => $version, 'proposal' => $proposal], $this->headers);
+        $this->jsonRequest('PUT', $this->path . '/proposal', ['version' => $this->baseVersion + $version - 1, 'proposal' => $proposal], $this->headers);
     }
 
     private function apply(int $version = 2, int $proposalVersion = 1): void
     {
-        $this->jsonRequest('POST', $this->path . '/apply', ['version' => $version, 'proposalVersion' => $proposalVersion],
+        $this->jsonRequest('POST', $this->path . '/apply', ['version' => $this->baseVersion + $version - 1, 'proposalVersion' => $this->baseProposalVersion + $proposalVersion],
             $this->headers + ['If-Match' => $this->etag]);
     }
 
@@ -358,6 +359,16 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', $base, ['referencePersonId' => $reference], $this->headers);
         self::assertResponseIsSuccessful();
         $this->path = $base . '/' . $this->responseString('id');
+        if ('applied' === $this->responseString('state')) {
+            $this->jsonRequest('POST', $this->path . '/cancel', ['version' => $this->responseData()['version']], $this->headers);
+            self::assertResponseIsSuccessful();
+        }
+        $version = $this->responseData()['version'];
+        $proposalVersion = $this->responseData()['proposalVersion'];
+        self::assertIsInt($version);
+        self::assertIsInt($proposalVersion);
+        $this->baseVersion = $version;
+        $this->baseProposalVersion = $proposalVersion;
     }
 
     /** @return array{people: list<array{id: string, existingPersonId: mixed, resolution: string, fields: array<string, mixed>, lifeStatus: string, evidence: list<mixed>}>, parents: list<array<string, mixed>>, marriages: list<array<string, mixed>>, questions: list<string>} */

@@ -6,8 +6,8 @@ import type { TreeMergeDraft, TreeMergeEvent } from '../api/generated'
 import { mergeTreeMergeEvent, useTreeMergeEvents } from './useTreeMergeEvents'
 
 const draft: TreeMergeDraft = {
-  id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, sourceVersion: 1,
-  state: 'collecting', attemptId: null, attemptSourceVersion: null, attemptStartedAt: null,
+  id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, chatState: 'idle',
+  state: 'collecting', attemptId: null, attemptStartedAt: null,
   proposalVersion: 0, proposal: null, questions: [], result: null, treeEtag: 'etag', messages: [],
   progress: [], tokenUsage: { input: 0, output: 0, total: 0 }, tokenBudget: { remaining: 1000, limit: 1000 },
   createdAt: '2026-11-04', updatedAt: '2026-11-04',
@@ -51,7 +51,7 @@ describe('private tree merge SSE', () => {
     expect(source.options).toEqual({ withCredentials: true })
     await act(async () => source.onopen?.())
     act(() => source.message(progress))
-    expect(result.current.saved?.state).toBe('processing')
+    expect(result.current.saved?.chatState).toBe('processing')
     expect(result.current.saved?.progress).toEqual(['thinking', 'tree_loaded'])
     await act(async () => vi.advanceTimersByTimeAsync(20000))
     expect(calls).toHaveBeenCalledTimes(2)
@@ -132,9 +132,9 @@ describe('private tree merge SSE', () => {
     for (const invalid of [{ ...draft, id: 'other' }, { ...draft, treeId: 'other' }, draft]) {
       expect(mergeTreeMergeEvent(running, { kind: 'draft', draft: invalid })).toBe(running)
     }
-    const finished = { ...running, state: 'ready' as const }
+    const finished = { ...running, state: 'ready' as const, chatState: 'idle' as const }
     expect(mergeTreeMergeEvent(finished, progress)).toBe(finished)
     expect(mergeTreeMergeEvent(running, { ...progress, version: 5, attemptId: 'new' })?.version).toBe(5)
-    expect(mergeTreeMergeEvent(running, { kind: 'draft', draft: { ...draft, version: 5, state: 'cancelled' } })).toBeNull()
+    expect(mergeTreeMergeEvent(running, { kind: 'draft', draft: { ...draft, version: 5 } })).toEqual({ ...draft, version: 5 })
   })
 })

@@ -2246,7 +2246,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [mergeOpen, setMergeOpen] = useState(() => new URLSearchParams(window.location.search).has('merge'))
   const [mergeDraft, setMergeDraft] = useState<TreeMergeDraft | null>(null)
   const [mergeReviewContainer, setMergeReviewContainer] = useState<HTMLDivElement | null>(null)
-  const mergePreviewDraft = mergeOpen && mergeDraft?.proposal && !['applied', 'cancelled'].includes(mergeDraft.state) ? mergeDraft : null
+  const mergePreviewDraft = mergeOpen && mergeDraft?.proposal && mergeDraft.state !== 'applied' ? mergeDraft : null
   const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)

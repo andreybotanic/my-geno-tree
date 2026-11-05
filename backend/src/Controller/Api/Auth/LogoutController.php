@@ -14,6 +14,7 @@ final readonly class LogoutController
     public function __construct(
         private LogoutService $logout,
         private RefreshCookieFactory $cookies,
+        private \Symfony\Component\Mercure\Authorization $mercure,
     ) {
     }
 
@@ -29,6 +30,7 @@ final readonly class LogoutController
 
         $response = new Response(status: Response::HTTP_NO_CONTENT);
         $response->headers->setCookie($this->cookies->expire());
+        $response->headers->setCookie($this->mercure->createClearCookie($request)->withDomain(null));
 
         return $response;
     }

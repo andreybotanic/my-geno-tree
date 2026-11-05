@@ -1,5 +1,10 @@
 # Symfony executes tools in the authenticated request. The proxy only calls the model.
 ai:
+    message_store:
+        cache:
+            tree_merge:
+                service: app.merge_chat_cache
+                ttl: 3600
     platform:
         generic:
             tree_merge:
@@ -18,6 +23,7 @@ ai:
     agent:
         tree_merge:
             platform: ai.platform.generic.tree_merge
+            message_store: ai.message_store.cache.tree_merge
             model: 'gpt-5.6-luna'
             prompt: !php/const App\Application\TreeMerge\Ai\MergePrompt::SYSTEM
             max_tool_calls: 16

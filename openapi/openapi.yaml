@@ -6,6 +6,20 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /merge-events/authorize:
+    get:
+      operationId: authorizeMergeStream
+      summary: Validate the subscriber cookie and its active login session for the local reverse proxy
+      parameters:
+        - name: __Secure-mercure_access_token
+          in: cookie
+          required: true
+          schema: { type: string, writeOnly: true }
+      responses:
+        "204":
+          description: Subscription session is active; the hub validates topic grants separately
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /trees/{treeId}/merges/{mergeId}/events:
     parameters:
       - { name: treeId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -245,7 +259,7 @@ paths:
         required: true
         schema: { type: string, format: uuid }
     get:
-      operationId: listTreeMerges
+      operationId: getCurrentTreeMerge
       security:
         - bearerAuth: []
       responses:
@@ -253,7 +267,7 @@ paths:
           description: Merge draft state
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TreeMergeList" }
+              schema: { $ref: "#/components/schemas/TreeMergeCurrent" }
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1765,7 +1779,7 @@ components:
       required: [messageId, quote]
       properties:
         messageId: { type: string, format: uuid }
-        quote: { type: string, minLength: 1 }
+        quote: { type: string, minLength: 1, maxLength: 300 }
     TreeMergePersonProposal:
       type: object
       additionalProperties: false
@@ -1788,11 +1802,6 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/Person" }
             - { type: "null" }
-        candidates:
-          readOnly: true
-          type: array
-          maxItems: 5
-          items: { $ref: "#/components/schemas/PersonSearchResult" }
     TreeMergeParentProposal:
       type: object
       additionalProperties: false
@@ -1879,7 +1888,6 @@ components:
         requestId: { type: string }
         role: { type: string, enum: [user, assistant, system] }
         content: { type: string }
-        source: { type: boolean, description: Whether this user message contributes source facts; a successful merge tool marks pending source messages. }
         failureCode:
           type: string
           enum: [empty_response, provider_unavailable, token_limit, stopped]
@@ -1915,16 +1923,15 @@ components:
       type: object
       description: Durable reviewed proposal and application receipt. Full messages are ephemeral and visible only within the current authenticated login session; recordings are never attached to the draft.
       additionalProperties: false
-      required: [id, treeId, referencePersonId, version, sourceVersion, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptSourceVersion, attemptStartedAt]
+      required: [id, treeId, referencePersonId, version, chatState, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptStartedAt]
       properties:
         id: { type: string, format: uuid }
         treeId: { type: string, format: uuid }
         referencePersonId: { type: [string, "null"], format: uuid }
         version: { type: integer, minimum: 1 }
-        sourceVersion: { type: integer, minimum: 0 }
-        state: { type: string, enum: [collecting, processing, error, questions, ready, no_changes, conflict, applied, cancelled] }
+        chatState: { type: string, enum: [idle, processing, error] }
+        state: { type: string, enum: [collecting, questions, ready, no_changes, conflict, applied] }
         attemptId: { type: [string, "null"], format: uuid }
-        attemptSourceVersion: { type: [integer, "null"] }
         attemptStartedAt: { type: [string, "null"], format: date-time }
         proposalVersion: { type: integer, minimum: 0 }
         proposal:
@@ -1995,16 +2002,17 @@ components:
       required: [version]
       properties:
         version: { type: integer, minimum: 1 }
-    TreeMergeList:
+    TreeMergeCurrent:
       type: object
       additionalProperties: false
-      required: [items, tokenBudget]
+      required: [draft, tokenBudget]
       properties:
         tokenBudget:
           $ref: "#/components/schemas/TreeMergeTokenBudget"
-        items:
-          type: array
-          items: { $ref: "#/components/schemas/TreeMergeDraft" }
+        draft:
+          oneOf:
+            - { $ref: "#/components/schemas/TreeMergeDraft" }
+            - { type: "null" }
     Health:
       type: object
       additionalProperties: false

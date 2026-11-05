@@ -43,7 +43,7 @@ final readonly class MergeActivity
 
     public function isStopped(TreeMergeDraft $draft): bool
     {
-        $requestId = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role'])['requestId'] ?? '';
+        $requestId = $draft->attemptRequestId ?? '';
 
         return $this->cache->getItem('stop_' . $draft->id->toRfc4122() . '_' . hash('sha256', $requestId))->isHit();
     }

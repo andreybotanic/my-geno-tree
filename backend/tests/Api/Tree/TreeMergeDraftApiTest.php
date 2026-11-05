@@ -29,8 +29,7 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', $path . '/messages', $message, $this->headers);
         self::assertResponseIsSuccessful();
         self::assertSame(2, $this->responseData()['version']);
-        // A saved message is classified before it can change the prepared package.
-        self::assertSame(0, $this->responseData()['sourceVersion']);
+        self::assertSame('idle', $this->responseData()['chatState']);
         $saved = $this->responseData();
         $this->jsonRequest('POST', $path . '/messages', $message, $this->headers);
         self::assertResponseIsSuccessful();
@@ -38,7 +37,7 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         $this->jsonRequest('GET', $path, headers: $this->headers);
         self::assertSame($saved, $this->responseData());
         $this->jsonRequest('GET', $this->base(), headers: $this->headers);
-        self::assertSame([$saved], $this->responseData()['items']);
+        self::assertSame($saved, $this->responseData()['draft']);
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertSame($this->etag, $this->responseData()['etag']);
         self::assertSame([], $this->responseData()['people']);
@@ -51,12 +50,12 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         self::assertSame('TREE_MERGE_VERSION_CONFLICT', $this->responseString('code'));
         $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
         self::assertResponseIsSuccessful();
-        self::assertSame('cancelled', $this->responseString('state'));
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertSame([], $this->responseData()['messages']);
         $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
         self::assertResponseIsSuccessful();
         $this->jsonRequest('POST', $path . '/messages', array_replace($message, ['version' => 3, 'requestId' => 'new']), $this->headers);
-        self::assertResponseStatusCodeSame(409);
-        self::assertSame('TREE_MERGE_CLOSED', $this->responseString('code'));
+        self::assertResponseIsSuccessful();
     }
 
     public function testValidatesShapeLimitsAndReference(): void
@@ -104,6 +103,25 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         self::assertSame($people[0]['id'], $this->responseString('referencePersonId'));
     }
 
+    public function testThereIsExactlyOneDraftPerTreeAndResetReusesIt(): void
+    {
+        $path = $this->createDraft();
+        $id = $this->responseString('id');
+        $this->jsonRequest('POST', $this->base(), ['referencePersonId' => null], $this->headers);
+        self::assertResponseStatusCodeSame(201);
+        self::assertSame($id, $this->responseString('id'));
+        $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'old', 'content' => 'Old chat.'], $this->headers);
+        $this->jsonRequest('POST', $path . '/cancel', ['version' => 2], $this->headers);
+        self::assertSame([], $this->responseData()['messages']);
+        self::assertSame($id, $this->responseString('id'));
+        $this->jsonRequest('GET', $this->base(), headers: $this->headers);
+        $current = $this->responseData()['draft'];
+        self::assertIsArray($current);
+        self::assertSame($id, $current['id']);
+        $repository = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class)->getRepository(\App\Entity\TreeMergeDraft::class);
+        self::assertSame(1, $repository->count([]));
+    }
+
     public function testProtectsTreeDraftsAndNestedResources(): void
     {
         $path = $this->createDraft();
@@ -148,7 +166,8 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         $this->jsonRequest('GET', $path, headers: $otherSession);
         self::assertSame([], $this->responseData()['messages']);
         $this->jsonRequest('GET', $this->base(), headers: $otherSession);
-        self::assertSame([], $this->responseData()['items']);
+        self::assertIsArray($this->responseData()['draft']);
+        self::assertSame([], $this->responseData()['draft']['messages']);
         $this->jsonRequest('GET', $path, headers: $this->headers);
         self::assertIsArray($messages = $this->responseData()['messages']);
         self::assertCount(1, $messages);
@@ -165,23 +184,18 @@ final class TreeMergeDraftApiTest extends ApiWebTestCase
         return $this->base() . '/' . $this->responseString('id');
     }
 
-    public function testSourceLimitSurvivesTheEndOfTheChatSession(): void
+    public function testChatBudgetIsSessionScopedAndOtherSessionWritesPreserveTheFirstHistory(): void
     {
         $path = $this->createDraft();
         $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'full', 'content' => str_repeat('Я', 10000)], $this->headers);
         self::assertResponseIsSuccessful();
-        $manager = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
-        $draft = $manager->find(\App\Entity\TreeMergeDraft::class, basename($path));
-        self::assertNotNull($draft);
-        $draft->markSource('full');
-        $manager->flush();
-        self::assertSame(10000, $draft->sourceLength);
         $this->jsonRequest('POST', '/api/v1/auth/login', ['identifier' => 'family_admin', 'password' => 'StrongPass1!']);
         $otherSession = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
         $this->jsonRequest('GET', $path, headers: $otherSession);
         self::assertSame([], $this->responseData()['messages']);
         $this->jsonRequest('POST', $path . '/messages', ['version' => 2, 'requestId' => 'overflow', 'content' => 'Ещё'], $otherSession);
-        self::assertResponseStatusCodeSame(422);
-        self::assertSame('tree_merge_source_too_long', $this->responseString('message'));
+        self::assertResponseIsSuccessful();
+        $this->jsonRequest('GET', $path, headers: $this->headers);
+        self::assertSame(str_repeat('Я', 10000), $this->responseString('messages', '0', 'content'));
     }
 }

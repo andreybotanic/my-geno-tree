@@ -9,6 +9,75 @@ use App\Tests\Infrastructure\Ai\TestMergeEvents;
 
 final class TreeMergeEventsApiTest extends ApiWebTestCase
 {
+    public function testSubscriberCookieIsRejectedImmediatelyAfterLogoutAndWhenForgedOrExpired(): void
+    {
+        $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
+        $headers = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+        $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Revoked stream'], $headers);
+        $base = '/api/v1/trees/' . $this->responseString('id') . '/merges';
+        $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
+        $path = $base . '/' . $this->responseString('id');
+        $this->jsonRequest('GET', '/api/v1/merge-events/authorize');
+        self::assertResponseStatusCodeSame(401);
+        $this->jsonRequest('POST', $path . '/events', [], $headers);
+        $cookie = array_find($this->client->getResponse()->headers->getCookies(), static fn ($cookie) => '__Secure-mercure_access_token' === $cookie->getName());
+        self::assertNotNull($cookie);
+        $value = (string)$cookie->getValue();
+        // Caddy forwards the hub cookie to its authorization subrequest, irrespective of its browser path.
+        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), $value, null, '/', 'localhost', true));
+        $this->jsonRequest('GET', '/api/v1/merge-events/authorize');
+        self::assertResponseStatusCodeSame(204);
+        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), 'invalid.token.signature', null, '/', 'localhost', true));
+        $this->jsonRequest('GET', '/api/v1/merge-events/authorize');
+        self::assertResponseStatusCodeSame(401);
+        $authorization = static::getContainer()->get(\Symfony\Component\Mercure\Authorization::class);
+        $expired = $authorization->createCookie(\Symfony\Component\HttpFoundation\Request::create('https://localhost'), [],
+            additionalClaims: ['exp' => new \DateTimeImmutable('-1 minute')]);
+        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), (string)$expired->getValue(), null, '/', 'localhost', true));
+        $this->jsonRequest('GET', '/api/v1/merge-events/authorize');
+        self::assertResponseStatusCodeSame(401);
+        $this->jsonRequest('POST', '/api/v1/auth/logout', [], $headers);
+        self::assertResponseStatusCodeSame(204);
+        self::assertNotNull(array_find($this->client->getResponse()->headers->getCookies(), static fn ($cookie) => '__Secure-mercure_access_token' === $cookie->getName() && 1 === $cookie->getExpiresTime()));
+        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), $value, null, '/', 'localhost', true));
+        $this->jsonRequest('GET', '/api/v1/merge-events/authorize');
+        self::assertResponseStatusCodeSame(401);
+    }
+
+    public function testRevokedSessionDoesNotReceiveLatePrivateEvents(): void
+    {
+        $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
+        $headers = ['Authorization' => 'Bearer ' . $this->responseString('accessToken')];
+        $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Private events'], $headers);
+        $base = '/api/v1/trees/' . $this->responseString('id') . '/merges';
+        $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
+        $path = $base . '/' . $this->responseString('id');
+        $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'turn', 'content' => 'My family'], $headers);
+        $version = $this->responseData()['version'];
+        FixtureTreeMergeAi::$handler = static function (): string {
+            $container = static::getContainer();
+            $request = $container->get(\Symfony\Component\HttpFoundation\RequestStack::class)->getMainRequest();
+            self::assertNotNull($request);
+            $session = $request->attributes->get(\App\Entity\AuthSession::class);
+            self::assertInstanceOf(\App\Entity\AuthSession::class, $session);
+            $session->revoke(new \DateTimeImmutable());
+            $container->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
+            TestMergeEvents::$updates = [];
+            $container->get(\App\Application\TreeMerge\TreeMergeEvents::class)->draft($session, ['id' => 'late', 'messages' => ['private']]);
+
+            return 'Late private answer.';
+        };
+        try {
+            $this->jsonRequest('POST', $path . '/process', ['version' => $version, 'requestId' => 'turn'], $headers);
+            self::assertSame([], TestMergeEvents::$updates);
+            $messages = $this->responseData()['messages'];
+            self::assertIsArray($messages);
+            self::assertCount(1, $messages);
+        } finally {
+            FixtureTreeMergeAi::$handler = null;
+        }
+    }
+
     public function testSubscriptionCookieAndEventsArePrivateAndLoginSessionScoped(): void
     {
         $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());

@@ -33,7 +33,7 @@ final class TreeMergeEventsTest extends TestCase
             return 'event';
         });
         $requests = new RequestStack();
-        $events = new TreeMergeEvents($hub, new ArrayAdapter(), $requests, new NullLogger(), 'https://localhost');
+        $events = new TreeMergeEvents($hub, new ArrayAdapter(), $requests, new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock());
         $now = new \DateTimeImmutable();
         $user = new User('test', 'test@example.test', 'hash', 'en', $now);
         $draft = new TreeMergeDraft(new FamilyTree($user, 'tree', $now), null, 'etag', $now);
@@ -46,7 +46,6 @@ final class TreeMergeEventsTest extends TestCase
         $request->attributes->set(AuthSession::class, $session);
         $requests->push($request);
         $events->begin($draft);
-        $requests->pop();
         $events->progress($draft->id->toRfc4122(), $attempt, ['thinking', 'tree_loaded'], ['input' => 10, 'output' => 5, 'total' => 15]);
         self::assertCount(1, $updates);
         self::assertNotNull($updates[0]);
@@ -65,12 +64,13 @@ final class TreeMergeEventsTest extends TestCase
     public function testHubFailureDoesNotUndoCommittedMutationAndSubscriptionRequiresActiveSession(): void
     {
         $hub = new MockHub('https://localhost/.well-known/mercure', new StaticTokenProvider('test'), static fn () => throw new \RuntimeException('offline'));
-        $events = new TreeMergeEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost');
+        $events = new TreeMergeEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock());
         $now = new \DateTimeImmutable();
         $user = new User('test', 'test@example.test', 'hash', 'en', $now);
         $session = new AuthSession($user, 'hash', $now, $now, $now);
         $events->draft($session, ['id' => 'draft']);
-        $subscription = new TreeMergeSubscription(new Authorization(new HubRegistry($hub)), $events, new MockClock($now));
+        $subscription = new TreeMergeSubscription(new Authorization(new HubRegistry($hub)), $events, new MockClock($now),
+            new \App\Repository\AuthSessionRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)), str_repeat('s', 32), 'https://localhost');
         $request = new Request();
         $request->attributes->set(AuthSession::class, $session);
         $this->expectException(ApiException::class);

@@ -31,10 +31,10 @@ final class TestMergeEvents
             }, $inner->getFactory(), cookieName: $inner->getCookieName());
     }
 
-    public static function publisher(): TreeMergeEvents
+    public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager): TreeMergeEvents
     {
         $hub = new MockHub('https://localhost/.well-known/mercure', new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'), static fn () => 'event');
 
-        return new TreeMergeEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost');
+        return new TreeMergeEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $entityManager, new \Symfony\Component\Clock\NativeClock());
     }
 }

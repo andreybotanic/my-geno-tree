@@ -30,14 +30,6 @@ services:
       - ./frontend:/srv/frontend
       - ./openapi:/srv/openapi:ro
 
-  ollama:
-    image: ollama/ollama:0.40.12
-    profiles: [ai]
-    environment:
-      OLLAMA_CONTEXT_LENGTH: 32768
-    volumes:
-      - ollama_models:/root/.ollama
-
   cli-proxy-api:
     image: eceasy/cli-proxy-api:v8.0.56
     entrypoint: [/bin/sh, /CLIProxyAPI/entrypoint.sh]
@@ -104,7 +96,6 @@ services:
 
 volumes:
   whisper_models:
-  ollama_models:
   cli_proxy_auth:
   postgres_data:
   media_storage:

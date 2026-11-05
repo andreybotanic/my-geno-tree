@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8c70c9fecb9fcd4b5af535b43fa1591c",
+    "content-hash": "b052f14af05a0b52cc835bf1630e6c1a",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -3053,6 +3053,93 @@
             "description": "Integration bundle for Symfony AI components",
             "support": {
                 "source": "https://github.com/symfony/ai-bundle/tree/v1.0.0-BETA1"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-10-26T14:03:07+00:00"
+        },
+        {
+            "name": "symfony/ai-cache-message-store",
+            "version": "v1.0.0-BETA1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/ai-cache-message-store.git",
+                "reference": "fa36e5318542779352114162651d5ac5bd2f662c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/ai-cache-message-store/zipball/fa36e5318542779352114162651d5ac5bd2f662c",
+                "reference": "fa36e5318542779352114162651d5ac5bd2f662c",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2",
+                "symfony/ai-agent": "^1.0",
+                "symfony/ai-platform": "^1.0",
+                "symfony/cache": "^7.3|^8.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^11.5.53"
+            },
+            "type": "symfony-ai-message-store",
+            "extra": {
+                "thanks": {
+                    "url": "https://github.com/symfony/ai",
+                    "name": "symfony/ai"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\AI\\Agent\\Bridge\\Cache\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Christopher Hertel",
+                    "email": "mail@christopher-hertel.de"
+                },
+                {
+                    "name": "Oskar Stark",
+                    "email": "oskarstark@googlemail.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Cache message store bridge for Symfony AI Agent",
+            "keywords": [
+                "Agent",
+                "Bridge",
+                "ai",
+                "cache",
+                "message-store"
+            ],
+            "support": {
+                "source": "https://github.com/symfony/ai-cache-message-store/tree/v1.0.0-BETA1"
             },
             "funding": [
                 {
@@ -12138,6 +12225,7 @@
     "stability-flags": {
         "symfony/ai-agent": 10,
         "symfony/ai-bundle": 10,
+        "symfony/ai-cache-message-store": 10,
         "symfony/ai-generic-platform": 10,
         "symfony/ai-platform": 10,
         "symfony/mcp-bundle": 10

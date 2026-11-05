@@ -18,16 +18,19 @@ use Symfony\Component\Uid\Uuid;
 
 final readonly class TreeMergeProposalValidator
 {
+    public const int MAX_QUOTE_LENGTH = 300;
+
     public function __construct(
         private PersonDataPolicy $data,
         private PersonRepository $people,
         private PersonViewFactory $views,
         private TreeChangeSetProjector $projector,
         private ClockInterface $clock,
+        private TreeMergeChat $chat,
     ) {
     }
 
-    public function validate(TreeMergeDraft $draft, mixed $value, bool $manual = false): ValidatedTreeMergeProposal
+    public function validate(TreeMergeDraft $draft, mixed $value, bool $manual = false, bool $validateGraph = true): ValidatedTreeMergeProposal
     {
         $proposal = $this->object($value, ['people', 'parents', 'marriages', 'questions'], 'proposal');
         $personRows = $this->items($proposal['people'], 20, 'people');
@@ -108,7 +111,7 @@ final readonly class TreeMergeProposalValidator
             $this->evidence($draft, $row['evidence'], $manual, $path . '.evidence');
             $normalized[] = ['id' => $id, 'existingPersonId' => $existingId, 'resolution' => $row['resolution'],
                 'fields'          => $fields, 'lifeStatus' => $row['lifeStatus'], 'evidence' => $row['evidence'],
-                'candidates'      => [], 'before' => null === $existing ? null : $this->views->create($existing)];
+                'before'          => null === $existing ? null : $this->views->create($existing)];
             $changes[] = new PersonChange($id, $existingId, $personData);
         }
         if ($newCount > 10) {
@@ -141,7 +144,7 @@ final readonly class TreeMergeProposalValidator
                 $this->data->optionalDateValue($row['dissolutionDate'], 'dissolutionDate'), $row['newPeriod']);
         }
         $changeSet = new TreeChangeSet($changes, $parents, $marriages);
-        $hasChanges = [] === $questions && $this->projector->project($draft->tree, $changeSet, $this->clock->now())->hasChanges;
+        $hasChanges = $validateGraph && [] === $questions && $this->projector->project($draft->tree, $changeSet, $this->clock->now())->hasChanges;
 
         return new ValidatedTreeMergeProposal(
             ['people' => $normalized, 'parents' => $parentRows, 'marriages' => $marriageRows, 'questions' => $proposal['questions']],
@@ -159,7 +162,7 @@ final readonly class TreeMergeProposalValidator
         if (is_array($proposal['people'] ?? null)) {
             foreach ($proposal['people'] as &$person) {
                 if (is_array($person)) {
-                    unset($person['before'], $person['candidates']);
+                    unset($person['before']);
                 }
             }
             unset($person);
@@ -243,8 +246,8 @@ final readonly class TreeMergeProposalValidator
         foreach ($items as $index => $item) {
             $itemPath = $path . '[' . $index . ']';
             $item = $this->object($item, ['messageId', 'quote'], $itemPath);
-            if (!is_string($item['messageId']) || !is_string($item['quote']) || '' === trim($item['quote'])) {
-                $this->invalid($itemPath, 'evidence_invalid', 'messageId and quote must be nonempty strings from a user source message.');
+            if (!is_string($item['messageId']) || !is_string($item['quote']) || '' === trim($item['quote']) || mb_strlen($item['quote']) > self::MAX_QUOTE_LENGTH) {
+                $this->invalid($itemPath, 'evidence_invalid', 'messageId and quote must be nonempty strings; quote must not exceed 300 characters.');
             }
             $found = false;
             if ($manual && null !== $draft->proposal) {
@@ -256,7 +259,7 @@ final readonly class TreeMergeProposalValidator
                     }
                 }
             }
-            foreach ($draft->messages as $message) {
+            foreach ($this->chat->messages($draft) as $message) {
                 if ($message['id'] === $item['messageId'] && 'user' === $message['role']
                     && str_contains($message['content'], $item['quote'])) {
                     $found = true;

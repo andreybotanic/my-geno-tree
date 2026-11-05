@@ -228,8 +228,8 @@ describe('TreeEditorPage', () => {
   it.each([false, true])('previews a merge on the canvas without changing real people (empty=%s)', async (empty) => {
     const original = snapshot(empty ? [] : [person])
     const prepared: TreeMergeDraft = {
-      id: 'merge-preview', treeId, referencePersonId: null, version: 2, sourceVersion: 1, proposalVersion: 1,
-      state: 'ready', attemptId: null, attemptSourceVersion: null, attemptStartedAt: null,
+      id: 'merge-preview', treeId, referencePersonId: null, version: 2, chatState: 'idle', proposalVersion: 1,
+      state: 'ready', attemptId: null, attemptStartedAt: null,
       treeEtag: original.etag, messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
       questions: [], result: null, createdAt: person.createdAt, updatedAt: person.updatedAt,
       proposal: { people: [
@@ -237,7 +237,7 @@ describe('TreeEditorPage', () => {
         { id: 'b', existingPersonId: null, resolution: 'new', lifeStatus: 'alive', fields: { givenName: { state: 'known', value: 'Boris' }, gender: 'male', deathDate: null }, evidence: [] },
       ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] },
     }
-    const request = vi.fn(async (path: string) => path.endsWith('/merges') ? { items: [prepared], tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
+    const request = vi.fn(async (path: string) => path.endsWith('/merges') ? { draft: prepared, tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
     const { container } = renderEditor(request)
     fireEvent.click(await screen.findByRole('button', { name: 'Open AI chat' }))
     const added = await screen.findByText('Boris')
@@ -260,7 +260,7 @@ describe('TreeEditorPage', () => {
   it.each(['tree', 'network'] as const)('releases the %s sidebar column while chatting and restores the previous selection', async (view) => {
     if (view === 'network') window.history.replaceState({}, '', `/trees/${treeId}/network`)
     const request = vi.fn(async (path: string) => {
-      if (path.endsWith('/merges')) return { items: [] }
+      if (path.endsWith('/merges')) return { draft: null }
       if (path.endsWith('/events')) return { items: [] }
       return snapshot([person])
     }) as unknown as AuthorizedJsonRequest

@@ -4,8 +4,10 @@ namespace App\Application\TreeMerge;
 
 use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -21,6 +23,8 @@ final readonly class TreeMergeEvents
         private RequestStack $requests,
         private LoggerInterface $logger,
         #[Autowire('%env(MERCURE_JWT_ISSUER)%')] private string $topicOrigin,
+        private EntityManagerInterface $entityManager,
+        private ClockInterface $clock,
     ) {
     }
 
@@ -33,14 +37,14 @@ final readonly class TreeMergeEvents
     public function begin(TreeMergeDraft $draft): void
     {
         $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-        if (!$session instanceof AuthSession) {
+        if (!$session instanceof AuthSession || null === $draft->attemptStartedAt || null === $draft->attemptId) {
             return;
         }
         $item = $this->cache->getItem('stream_' . $draft->id->toRfc4122() . '_' . $draft->attemptId);
         $this->cache->save($item->set([
             'topic'            => $this->sessionTopic($session) . $draft->id->toRfc4122(),
             'version'          => $draft->version,
-            'attemptStartedAt' => $draft->attemptStartedAt?->format(\DateTimeInterface::ATOM),
+            'attemptStartedAt' => $draft->attemptStartedAt->format(\DateTimeInterface::ATOM),
         ])->expiresAfter(3600));
     }
 
@@ -51,11 +55,12 @@ final readonly class TreeMergeEvents
     {
         /** @var array{topic: string, version: int, attemptStartedAt: string}|null $binding */
         $binding = $this->cache->getItem('stream_' . $draftId . '_' . $attemptId)->get();
-        if (null === $binding) {
+        $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
+        if (null === $binding || !$session instanceof AuthSession || !str_starts_with($binding['topic'], $this->sessionTopic($session))) {
             return;
         }
-        $this->publish($binding['topic'], ['kind' => 'progress', 'id' => $draftId, 'version' => $binding['version'],
-            'attemptId'                           => $attemptId, 'attemptStartedAt' => $binding['attemptStartedAt'], 'progress' => $progress, 'tokenUsage' => $usage]);
+        $this->publish($session, $binding['topic'], ['kind' => 'progress', 'id' => $draftId, 'version' => $binding['version'],
+            'attemptId'                                     => $attemptId, 'attemptStartedAt' => $binding['attemptStartedAt'], 'progress' => $progress, 'tokenUsage' => $usage]);
     }
 
     /** @param array<string, mixed> $draft */
@@ -63,14 +68,18 @@ final readonly class TreeMergeEvents
     {
         $id = $draft['id'] ?? null;
         if (is_string($id)) {
-            $this->publish($this->sessionTopic($session) . $id, ['kind' => 'draft', 'draft' => $draft]);
+            $this->publish($session, $this->sessionTopic($session) . $id, ['kind' => 'draft', 'draft' => $draft]);
         }
     }
 
     /** @param array<string, mixed> $payload */
-    private function publish(string $topic, array $payload): void
+    private function publish(AuthSession $session, string $topic, array $payload): void
     {
         try {
+            $this->entityManager->refresh($session);
+            if (!$session->isRefreshActive($this->clock->now())) {
+                return;
+            }
             $this->hub->publish(new Update($topic, json_encode($payload, JSON_THROW_ON_ERROR), private: true));
         } catch (\Throwable $error) {
             // A committed mutation remains successful when the hub is temporarily unavailable.

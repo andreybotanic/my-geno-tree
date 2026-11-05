@@ -9,12 +9,12 @@ const proposal: TreeMergeProposal = {
     fields: { givenName: { state: 'known', value: 'Ирина' }, birthSurname: { state: 'unknown' },
       patronymic: { state: 'unknown' }, gender: 'female',
       birthDate: { state: 'known', kind: 'approximate', year: 1960 }, deathDate: { state: 'unknown' } },
-    evidence: [{ messageId: 'm', quote: '<b>Ирина</b>' }], candidates: [{ id: 'existing', fullName: 'Ирина Петрова', birthYear: 1960, deathYear: null }] }],
+    evidence: [{ messageId: 'm', quote: '<b>Ирина</b>' }] }],
   parents: [], marriages: [], questions: [],
 }
 const draft: TreeMergeDraft & { proposal: TreeMergeProposal } = {
-  id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, sourceVersion: 1,
-  progress: [], tokenBudget: { remaining: 10000000, limit: 10000000 }, tokenUsage: { input: 0, output: 0, total: 0 }, attemptId: null, attemptSourceVersion: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
+  id: 'draft', treeId: 'tree', referencePersonId: null, version: 2, chatState: 'idle',
+  progress: [], tokenBudget: { remaining: 10000000, limit: 10000000 }, tokenUsage: { input: 0, output: 0, total: 0 }, attemptId: null, attemptStartedAt: null, proposalVersion: 1, proposal, questions: [], result: null, state: 'ready', treeEtag: 'etag',
   messages: [], createdAt: 'now', updatedAt: 'now',
 }
 function setup(value = draft, busy = false) {
@@ -38,7 +38,7 @@ describe('TreeMergePreview', () => {
     expect(onApply).toHaveBeenCalledOnce()
   })
 
-  it.each(['collecting', 'processing', 'questions', 'error', 'conflict', 'no_changes', 'cancelled'] as const)(
+  it.each(['collecting', 'questions', 'conflict', 'no_changes'] as const)(
     'does not apply an unchecked proposal in the %s state', (state) => {
       const { onApply } = setup({ ...draft, state })
       const apply = screen.getByRole('button', { name: 'Confirm and apply changes' })

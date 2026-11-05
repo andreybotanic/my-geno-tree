@@ -16,20 +16,38 @@ final class FixtureTreeMergeAi implements TreeMergeAiInterface
     public static ?\Closure $handler = null;
     public static int $calls = 0;
     private static TreeMergeAgentTools $tools;
+    private static \App\Application\TreeMerge\TreeMergeChat $chat;
 
-    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads)
+    public function __construct(TreeMergeAgentTools $tools, private readonly TreeReadTools $reads, \App\Application\TreeMerge\TreeMergeChat $chat,
+        #[\Symfony\Component\DependencyInjection\Attribute\Target('tree_merge')] private readonly \Symfony\AI\Agent\MessageStore\MessageStoreInterface $store,
+        private readonly \App\Application\TreeMerge\TreeMergeDraftService $drafts)
     {
         self::$tools = $tools;
+        self::$chat = $chat;
     }
 
-    public function respond(TreeMergeDraft $draft, string $attemptId): string
+    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, failureCode?: string}> */
+    public static function messages(TreeMergeDraft $draft): array
+    {
+        return self::$chat->messages($draft);
+    }
+
+    public function respond(TreeMergeDraft $draft): string
     {
         ++self::$calls;
         if (null === self::$handler) {
             throw new \LogicException('Missing AI fixture');
         }
 
-        return (string)(self::$handler)($draft, $attemptId, self::$tools, $this->reads);
+        $text = (string)(self::$handler)($draft, $draft->attemptId, self::$tools, $this->reads);
+        $this->drafts->active($draft->tree->getId()->toRfc4122());
+        if ('' !== trim($text) && !array_any(self::$chat->messages($draft), static fn ($message) => 'assistant' === $message['role'] && $draft->attemptRequestId === $message['requestId'])) {
+            $message = \Symfony\AI\Platform\Message\Message::ofAssistant($text);
+            $message->getMetadata()->add('requestId', $draft->attemptRequestId);
+            $this->store->save($this->store->load($draft->conversationId)->with($message));
+        }
+
+        return $text;
     }
 
     /** @param array<string, mixed>|null $proposal */

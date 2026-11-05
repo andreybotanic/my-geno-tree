@@ -4,6 +4,7 @@ namespace App\Application\TreeMerge\Ai;
 
 use App\Entity\TreeMergeDraft;
 use Symfony\AI\Agent\AgentInterface;
+use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 
@@ -14,8 +15,8 @@ final readonly class SymfonyTreeMergeAi implements TreeMergeAiInterface
     {
     }
 
-    public function respond(TreeMergeDraft $draft, string $attemptId): string
+    public function respond(TreeMergeDraft $draft): string
     {
-        return $this->agent->call(MergePrompt::input($draft))->asText();
+        return $this->agent->call(MessageBag::forId($draft->conversationId))->asText();
     }
 }

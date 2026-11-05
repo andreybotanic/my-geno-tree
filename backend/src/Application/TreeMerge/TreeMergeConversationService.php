@@ -26,6 +26,8 @@ final readonly class TreeMergeConversationService
         private RequestStack $requests,
         private TreeMergeEvents $events,
         private TreeMergeDraftService $drafts,
+        private TreeMergeChat $chat,
+        private \App\Api\TreeMergeDraftViewFactory $views,
     ) {
     }
 
@@ -37,29 +39,28 @@ final readonly class TreeMergeConversationService
         $attempt = $this->entityManager->wrapInTransaction(function () use ($draft, $version, $requestId): ?string {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
-            foreach ($draft->messages as $message) {
+            $messages = $this->chat->messages($draft);
+            foreach ($messages as $message) {
                 if ('assistant' === $message['role'] && $requestId === $message['requestId'] && !isset($message['failureCode'])) {
                     return null;
                 }
             }
-            $last = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role']);
-            if ($draft->version !== $version || null === $last || $last['requestId'] !== $requestId
-                || 'user' !== $last['role'] || in_array($draft->state, ['applied', 'cancelled'], true)) {
+            $last = array_find(array_reverse($messages), static fn ($message) => 'user' === $message['role']);
+            if ($draft->version !== $version || null === $last || $last['requestId'] !== $requestId) {
                 throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
             }
-            if ('processing' === $draft->state && $draft->attemptStartedAt > $this->clock->now()->modify('-5 minutes')) {
+            if ('processing' === $draft->chatState && $draft->attemptStartedAt > $this->clock->now()->modify('-5 minutes')) {
                 throw new ApiException(409, 'TREE_MERGE_PROCESSING');
             }
             if (!$this->limiter->create($draft->owner->getId()->toRfc4122())->consume()->isAccepted()) {
                 throw new ApiException(429, 'TREE_MERGE_RATE_LIMIT');
             }
 
-            return $draft->beginAttempt($this->clock->now());
+            return $draft->beginAttempt($this->clock->now(), $requestId);
         });
         if (null === $attempt) {
             return;
         }
-        $attemptVersion = $draft->version;
         $this->events->begin($draft);
         $request = $this->requests->getCurrentRequest() ?? throw new ApiException(401, 'TREE_MERGE_AGENT_REQUIRED');
         $previousContext = $request->attributes->get(TreeMergeAgentContext::class);
@@ -73,7 +74,7 @@ final readonly class TreeMergeConversationService
             $failure = 'empty_response';
             try {
                 $this->drafts->active($context->treeId);
-                $text = $this->ai->respond($draft, $attempt);
+                $text = $this->ai->respond($draft);
                 if ('' !== trim($text)) {
                     $answer = $text;
                 }
@@ -82,7 +83,7 @@ final readonly class TreeMergeConversationService
                 $failure = $error instanceof ApiException && 'TREE_MERGE_TOKEN_LIMIT' === $error->getErrorCode()
                     ? 'token_limit' : 'provider_unavailable';
             }
-            $this->entityManager->wrapInTransaction(function () use ($draft, $context, $attemptVersion, $requestId, $answer, $failure): void {
+            $this->entityManager->wrapInTransaction(function () use ($draft, $context, $requestId, $answer, $failure): void {
                 $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
                 $this->entityManager->refresh($draft);
                 try {
@@ -92,11 +93,14 @@ final readonly class TreeMergeConversationService
                     return;
                 }
                 if (null === $answer) {
-                    $draft->processingFailed($this->clock->now(), $requestId, $failure, $context->version !== $attemptVersion);
-                } else {
-                    $draft->answer($requestId, $answer, $this->clock->now());
+                    $this->chat->append($draft, $requestId, $failure, true);
                 }
+                $draft->finishAttempt($this->clock->now(), null === $answer);
             });
+            $session = $request->attributes->get(\App\Entity\AuthSession::class);
+            if ($session instanceof \App\Entity\AuthSession) {
+                $this->events->draft($session, $this->views->create($draft));
+            }
         } finally {
             foreach ([TreeMergeAgentContext::class => $previousContext, TreeMergeDraft::class => $previousDraft] as $key => $value) {
                 if (null === $value) {
@@ -116,15 +120,17 @@ final readonly class TreeMergeConversationService
         $this->entityManager->wrapInTransaction(function () use ($draft, $requestId): void {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
-            $last = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role']);
-            if (null === $last || $last['requestId'] !== $requestId || in_array($draft->state, ['applied', 'cancelled'], true)) {
+            $messages = $this->chat->messages($draft);
+            $last = array_find(array_reverse($messages), static fn ($message) => 'user' === $message['role']);
+            if (null === $last || $last['requestId'] !== $requestId) {
                 throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
             }
-            if (array_any($draft->messages, static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId && !isset($message['failureCode']))) {
+            if (array_any($messages, static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId)) {
                 return;
             }
             $this->activity->stop($draft, $requestId);
-            $draft->stop($requestId, $this->clock->now());
+            $this->chat->append($draft, $requestId, 'stopped', true);
+            $draft->finishAttempt($this->clock->now());
         });
     }
 }

@@ -62,7 +62,7 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
             'type'       => 'object',
             'properties' => [
                 'messageId' => ['type' => 'string'],
-                'quote'     => ['type' => 'string', 'minLength' => 1],
+                'quote'     => ['type' => 'string', 'minLength' => 1, 'maxLength' => 300],
             ],
             'required'             => ['messageId', 'quote'],
             'additionalProperties' => false,

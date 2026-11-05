@@ -33,9 +33,11 @@ final readonly class TreeMergeDraftController
     }
 
     #[Route('', name: 'api_tree_merge_list', methods: ['GET'])]
-    public function list(#[MapEntity(id: 'treeId')] FamilyTree $tree): JsonResponse
+    public function current(#[MapEntity(id: 'treeId')] FamilyTree $tree): JsonResponse
     {
-        return new JsonResponse(['items' => array_map($this->views->create(...), $this->drafts->recent($tree)),
+        $draft = $this->drafts->current($tree);
+
+        return new JsonResponse(['draft' => null === $draft ? null : $this->views->create($draft),
             'tokenBudget'                => $this->budget->remaining($tree->getOwner())]);
     }
 
@@ -55,7 +57,7 @@ final readonly class TreeMergeDraftController
     public function message(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
     {
         $draft = $this->drafts->get($tree, $mergeId);
-        $this->drafts->append($draft, $this->body->decodeObject($request), false);
+        $this->drafts->append($draft, $this->body->decodeObject($request));
 
         return new JsonResponse($this->views->create($draft));
     }

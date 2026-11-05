@@ -62,6 +62,27 @@ final class ParentLinkRepository extends ServiceEntityRepository
         return $this->findOneBy(['tree' => $tree, 'id' => $id]);
     }
 
+    /** @param list<string> $childIds
+     * @return list<ParentLink>
+     */
+    public function findForChildren(FamilyTree $tree, array $childIds): array
+    {
+        if ([] === $childIds) {
+            return [];
+        }
+        /** @var list<ParentLink> $links */
+        $links = $this->createQueryBuilder('link')
+            ->addSelect('parent', 'child')
+            ->join('link.parent', 'parent')
+            ->join('link.child', 'child')
+            ->andWhere('link.tree = :tree AND link.child IN (:children)')
+            ->setParameter('tree', $tree)
+            ->setParameter('children', $childIds)
+            ->getQuery()->getResult();
+
+        return $links;
+    }
+
     /** @return list<array{parentId: string, childId: string, role: string}> */
     public function findBoundedContext(FamilyTree $tree, Person $person): array
     {

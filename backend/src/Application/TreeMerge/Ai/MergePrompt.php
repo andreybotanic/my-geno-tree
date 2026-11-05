@@ -8,12 +8,13 @@ use Symfony\AI\Agent\Input;
 use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Message\UserMessage;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 #[AsInputProcessor(agent: 'ai.agent.tree_merge', priority: -100)]
 final readonly class MergePrompt implements InputProcessorInterface
 {
-    public const string VERSION = 'tree-merge-v14-chat';
+    public const string VERSION = 'tree-merge-v15-chat-store';
     public const string SYSTEM = <<<'PROMPT'
         You help the user read and prepare changes to the selected family tree using the provided tools.
         Answer naturally in interfaceLanguage, using the conversation and reviewedProposal.
@@ -32,6 +33,7 @@ final readonly class MergePrompt implements InputProcessorInterface
         Base marriage and parenthood on separate supporting facts from the user.
         Retain pending changes until the user revises or cancels them.
         Cite exact user-message substrings and their message IDs as evidence.
+        Each user message begins with its messageId. Keep each evidence quote at most 300 characters.
 
         Represent unknown names and dates with {"state":"unknown"}, and known text with {"state":"known","value":"..."}.
         Use numeric date parts and the date kind exact, approximate, before, after or between; between includes an end object.
@@ -66,27 +68,17 @@ final readonly class MergePrompt implements InputProcessorInterface
             'interfaceLanguage'          => $draft->owner->getPreferredLanguage(),
             'treeId'                     => $draft->tree->getId()->toRfc4122(),
             'narrativeReferencePersonId' => $draft->referencePerson?->getId()->toRfc4122(),
-            'reviewedProposal'           => $draft->proposal,
-            'corrections'                => array_slice($draft->corrections, -1),
-            'sources'                    => array_map(static fn ($message) => ['id' => $message['id'], 'content' => $message['content']],
-                array_values(array_filter($draft->messages, static fn ($message) => 'user' === $message['role']))),
+            'reviewedProposal'           => 'applied' === $draft->state ? null : $draft->proposal,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-        $messages = $input->getMessageBag();
+        $messages = $input->getMessageBag()->withoutToolMessages();
         $system = $messages->getSystemMessage()?->getContent() ?? self::SYSTEM;
-        $input->setMessageBag($messages->withSystemMessage(Message::forSystem($system . "\n\nTree context and evidence sources:\n" . $context)));
-    }
-
-    public static function input(TreeMergeDraft $draft): MessageBag
-    {
-        $messages = new MessageBag();
-        foreach ($draft->messages as $message) {
-            if ('user' === $message['role']) {
-                $messages = $messages->with(Message::ofUser($message['content']));
-            } elseif ('assistant' === $message['role']) {
-                $messages = $messages->with(Message::ofAssistant($message['content']));
+        $prepared = MessageBag::forId($messages->getId());
+        foreach ($messages->withoutSystemMessage() as $message) {
+            if ($message instanceof UserMessage) {
+                $message = Message::ofUser('messageId: ' . $message->getId()->toRfc4122() . "\n" . $message->asText())->withId($message->getId());
             }
+            $prepared = $prepared->with($message);
         }
-
-        return $messages;
+        $input->setMessageBag($prepared->withSystemMessage(Message::forSystem($system . "\n\nTree context:\n" . $context)));
     }
 }

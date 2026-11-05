@@ -9,6 +9,9 @@ use App\Application\TreeMerge\TreeMergeEvents;
 use App\Entity\AuthSession;
 use App\Mcp\TreeMergeAgentTools;
 use App\Security\TreeMergeAgentContext;
+use Symfony\AI\Agent\Attribute\AsOutputProcessor;
+use Symfony\AI\Agent\Output;
+use Symfony\AI\Agent\OutputProcessorInterface;
 use Symfony\AI\Agent\Toolbox\Event\ToolCallRequested;
 use Symfony\AI\Agent\Toolbox\Event\ToolCallSucceeded;
 use Symfony\AI\Agent\Toolbox\ToolResult;
@@ -16,7 +19,8 @@ use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\RequestStack;
 
-final readonly class TreeMergeToolListener
+#[AsOutputProcessor(agent: 'ai.agent.tree_merge')]
+final readonly class TreeMergeToolListener implements OutputProcessorInterface
 {
     public function __construct(
         private TreeMergeDraftService $drafts,
@@ -28,6 +32,14 @@ final readonly class TreeMergeToolListener
 
     #[AsEventListener(priority: 10)]
     public function beforeModel(InvocationEvent $event): void
+    {
+        $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
+        if ($context instanceof TreeMergeAgentContext) {
+            $this->drafts->active($context->treeId);
+        }
+    }
+
+    public function processOutput(Output $output): void
     {
         $context = $this->requests->getCurrentRequest()?->attributes->get(TreeMergeAgentContext::class);
         if ($context instanceof TreeMergeAgentContext) {

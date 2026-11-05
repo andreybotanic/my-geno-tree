@@ -58,10 +58,7 @@ final readonly class TreeMergeProposalService
             if ($etag !== $this->versions->etag($draft->tree)) {
                 throw new ApiException(409, 'TREE_MERGE_TREE_CONFLICT');
             }
-            $requestId = array_find(array_reverse($draft->messages), static fn ($message) => 'user' === $message['role'])['requestId']
-                ?? throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
-            $draft->markSource($requestId);
-            $this->save($draft, $validated, false, true);
+            $this->save($draft, $validated);
             $this->entityManager->flush();
             $this->entityManager->commit();
         } catch (\Throwable $error) {
@@ -124,7 +121,7 @@ final readonly class TreeMergeProposalService
             }
             $this->editable($draft, $payload['version']);
             if ($draft->proposalVersion !== $payload['proposalVersion']
-                || $draft->preparedSourceVersion !== $draft->sourceVersion || 'ready' !== $draft->state
+                || 'processing' === $draft->chatState || 'ready' !== $draft->state
                 || null === $draft->proposal) {
                 throw new ApiException(409, 'TREE_MERGE_NOT_READY', 'tree_merge_not_ready');
             }
@@ -134,7 +131,7 @@ final readonly class TreeMergeProposalService
 
                 return true;
             }
-            $validated = $this->validator->validate($draft, $this->validator->input($draft->proposal), true);
+            $validated = $this->validator->validate($draft, $this->validator->input($draft->proposal), true, false);
             if (null === $validated->changes) {
                 throw new ApiException(409, 'TREE_MERGE_NOT_READY', 'tree_merge_not_ready');
             }
@@ -151,29 +148,27 @@ final readonly class TreeMergeProposalService
 
     private function validateSaved(TreeMergeDraft $draft): void
     {
-        if (null === $draft->proposal || $draft->preparedSourceVersion !== $draft->sourceVersion
-            || in_array($draft->state, ['collecting', 'processing', 'error'], true)) {
+        if (null === $draft->proposal || in_array($draft->state, ['collecting', 'applied'], true)) {
             throw new ApiException(409, 'TREE_MERGE_NOT_READY', 'tree_merge_not_ready');
         }
         $proposal = $draft->proposal;
         try {
             $validated = $this->validator->validate($draft, $this->validator->input($proposal), true);
-            $this->save($draft, $validated, false);
+            $this->save($draft, $validated, true);
         } catch (ApiException $error) {
-            $draft->propose($proposal, [$error->getErrorCode()],
-                $this->versions->etag($draft->tree), 'conflict', false, $this->clock->now());
+            $proposal['questions'] = [$error->getErrorCode()];
+            $draft->propose($proposal, $this->versions->etag($draft->tree), 'conflict', $this->clock->now(), true);
         }
     }
 
-    private function save(TreeMergeDraft $draft, ValidatedTreeMergeProposal $validated, bool $correction, bool $keepProcessing = false): void
+    private function save(TreeMergeDraft $draft, ValidatedTreeMergeProposal $validated, bool $supersedeAttempt = false): void
     {
         $state = match (true) {
             [] !== $validated->questions => 'questions',
             !$validated->hasChanges      => 'no_changes',
             default                      => 'ready',
         };
-        $draft->propose($validated->proposal, $validated->questions, $this->versions->etag($draft->tree),
-            $state, $correction, $this->clock->now(), $keepProcessing);
+        $draft->propose($validated->proposal, $this->versions->etag($draft->tree), $state, $this->clock->now(), $supersedeAttempt);
     }
 
     private function lock(TreeMergeDraft $draft): void
@@ -189,9 +184,6 @@ final readonly class TreeMergeProposalService
     {
         if ($draft->version !== $version) {
             throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT', 'tree_merge_version_conflict');
-        }
-        if (in_array($draft->state, ['cancelled', 'applied'], true)) {
-            throw new ApiException(409, 'TREE_MERGE_CLOSED', 'tree_merge_closed');
         }
     }
 }

@@ -13,7 +13,7 @@ use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeMergeAi;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class TreeMergeExtractionApiTest extends ApiWebTestCase
+final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
 {
     public function testWholeFamilyIncludingUnnamedChildrenAndContextInferencesIsReviewedAndApplied(): void
     {
@@ -37,7 +37,7 @@ final class TreeMergeExtractionApiTest extends ApiWebTestCase
         $text = 'Добавь Ивану родителей - Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980). У нах есть еще один сын - Петр. У Ивана Ивановича с его женой Анной (она на пару лет младше) есть два сына, но о них ничего не известно.';
         $this->jsonRequest('POST', $path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => 'family', 'content' => $text], $headers);
         FixtureTreeMergeAi::$handler = static function (TreeMergeDraft $draft) use ($ivanId, $text): string {
-            $evidence = [['messageId' => $draft->messages[0]['id'], 'quote' => $text]];
+            $evidence = [['messageId' => FixtureTreeMergeAi::messages($draft)[0]['id'], 'quote' => $text]];
             $people = [];
             foreach (['i' => [], 'f' => ['givenName' => 'Иван', 'patronymic' => 'Васильевич', 'birthDate' => '1970-10-10', 'gender' => 'male'],
                 'm'       => ['givenName' => 'Ирина', 'patronymic' => 'Геннадьевна', 'birthDate' => '1980', 'gender' => 'female'],

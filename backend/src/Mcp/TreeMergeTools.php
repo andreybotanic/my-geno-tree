@@ -30,7 +30,7 @@ final readonly class TreeMergeTools
         }
         $draft = $this->drafts->create($tree, ['referencePersonId' => $referencePersonId]);
         $requestId = Uuid::v7()->toRfc4122();
-        $this->drafts->append($draft, ['version' => $draft->version, 'requestId' => $requestId, 'content' => $description], false);
+        $this->drafts->append($draft, ['version' => $draft->version, 'requestId' => $requestId, 'content' => $description]);
         $this->conversation->process($draft, $draft->version, $requestId);
 
         return $this->get($treeId, $draft->id->toRfc4122());

@@ -29,19 +29,15 @@ final class TreeMergeDraftRepository extends ServiceEntityRepository
         return $draft;
     }
 
-    /** @return list<TreeMergeDraft> */
-    public function recentForTree(FamilyTree $tree): array
+    public function current(FamilyTree $tree): ?TreeMergeDraft
     {
-        /** @var list<TreeMergeDraft> $drafts */
-        $drafts = $this->createQueryBuilder('draft')
+        /** @var TreeMergeDraft|null $draft */
+        $draft = $this->createQueryBuilder('draft')
             ->andWhere('draft.tree = :tree')
             ->setParameter('tree', $tree)
-            ->orderBy('draft.updatedAt', 'DESC')
-            ->addOrderBy('draft.id', 'DESC')
-            ->setMaxResults(20)
             ->getQuery()
-            ->getResult();
+            ->getOneOrNullResult();
 
-        return $drafts;
+        return $draft;
     }
 }

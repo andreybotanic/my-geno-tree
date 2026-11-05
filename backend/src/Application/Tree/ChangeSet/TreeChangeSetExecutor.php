@@ -74,13 +74,11 @@ final readonly class TreeChangeSetExecutor
             foreach ($affected as $id => $_) {
                 $this->events->synchronizePersonLifecycle($managed[$id], $now);
             }
-            $newParents = [];
             foreach ($projection->addedParents as $link) {
                 $p = $link->getParent()->getId()->toRfc4122();
                 $c = $link->getChild()->getId()->toRfc4122();
                 $new = new ParentLink($tree, $managed[$p], $managed[$c], $link->getRole());
                 $this->entityManager->persist($new);
-                $newParents[] = $new;
                 $affected[$p] = $affected[$c] = true;
             }
             $newMarriages = [];
@@ -97,10 +95,8 @@ final readonly class TreeChangeSetExecutor
             }
             $this->entityManager->flush();
             // Also refresh child-birth events for previously linked parents after a child's date changed.
-            foreach ($this->parents->findAllForTree($tree) as $link) {
-                if (isset($affected[$link->getChild()->getId()->toRfc4122()]) || in_array($link, $newParents, true)) {
-                    $this->events->synchronizeParentLink($link, $now);
-                }
+            foreach ($this->parents->findForChildren($tree, array_keys($affected)) as $link) {
+                $this->events->synchronizeParentLink($link, $now);
             }
             foreach ($newMarriages as $marriage) {
                 $this->events->synchronizeMarriage($marriage, null, null, $now);

@@ -21,10 +21,10 @@ final class CancellableMergeHttpClientTest extends TestCase
 {
     public function testStopsInferenceDuringProgressAndDoesNotStartAnotherRequest(): void
     {
-        $activity = new MergeActivity(new ArrayAdapter(), new LockFactory(new InMemoryStore()), \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher());
+        $activity = new MergeActivity(new ArrayAdapter(), new LockFactory(new InMemoryStore()), \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher($this->createStub(\Doctrine\ORM\EntityManagerInterface::class)));
         $now = new \DateTimeImmutable();
         $draft = new TreeMergeDraft(new FamilyTree(new User('user', 'user@example.test', 'hash', 'en', $now), 'tree', $now), null, 'etag', $now);
-        $draft->addMessage('turn', 'Add Vera.', $now);
+        $draft->beginAttempt($now, 'turn');
         $requests = new RequestStack();
         $request = new Request();
         $request->attributes->set(TreeMergeDraft::class, $draft);
@@ -55,7 +55,7 @@ final class CancellableMergeHttpClientTest extends TestCase
             }
         }
         self::assertSame(1, $calls);
-        $draft->addMessage('next', 'Continue with Vera.', $now);
+        $draft->beginAttempt($now, 'next');
         self::assertSame('OK', $client->request('POST', 'http://model.test')->getContent());
         $requests->pop();
         self::assertSame('OK', $client->request('GET', 'http://unrelated.test')->getContent());

@@ -19,23 +19,24 @@ final class PersonRepository extends ServiceEntityRepository
         parent::__construct($registry, Person::class);
     }
 
-    /** Exact supplied name parts only. Two rows suffice to prove ambiguity without truncation hiding a namesake.
-     * @param array<string, string> $names
-     *
-     * @return list<Person>
-     */
-    public function findExactNamedCandidates(FamilyTree $tree, array $names): array
+    /** @return list<Person> */
+    public function findAllForChangeSet(FamilyTree $tree, bool $refresh = false): array
     {
-        $query = $this->createQueryBuilder('person')->where('person.tree = :tree')->setParameter('tree', $tree)->setMaxResults(2);
-        foreach (['givenName', 'patronymic', 'birthSurname'] as $field) {
-            if (isset($names[$field])) {
-                $query->andWhere('LOWER(person.' . $field . '.value) = :' . $field)->setParameter($field, mb_strtolower(trim($names[$field])));
-            }
+        // Join the inverse one-to-one to avoid its per-person lazy lookup; media variants are unnecessary.
+        $query = $this->createQueryBuilder('person')
+            ->addSelect('photoAttachment')
+            ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->andWhere('person.tree = :tree')
+            ->setParameter('tree', $tree)
+            ->orderBy('person.id', 'ASC')
+            ->getQuery();
+        if ($refresh) {
+            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
         }
-        /** @var list<Person> $matches */
-        $matches = $query->getQuery()->getResult();
+        /** @var list<Person> $people */
+        $people = $query->getResult();
 
-        return $matches;
+        return $people;
     }
 
     /**

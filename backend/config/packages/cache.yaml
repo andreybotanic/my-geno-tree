@@ -1,4 +1,9 @@
 services:
+    app.merge_chat_cache:
+        class: Symfony\Component\Cache\Adapter\AdapterInterface
+        lazy: true
+        factory: ['App\Application\TreeMerge\TreeMergeChat', 'sessionCache']
+        arguments: ['@cache.merge_session', '@request_stack']
     # Third-party adapter: keep the RAM-backed cache wiring with its pools.
     app.merge_memory_adapter:
         class: Symfony\Component\Cache\Adapter\FilesystemAdapter

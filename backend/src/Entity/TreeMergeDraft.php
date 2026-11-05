@@ -5,45 +5,29 @@ namespace App\Entity;
 use App\Repository\TreeMergeDraftRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Uid\UuidV7;
 
 #[ORM\Entity(repositoryClass: TreeMergeDraftRepository::class)]
-#[ORM\Index(columns: ['tree_id', 'updated_at'], name: 'idx_merge_tree_updated')]
 class TreeMergeDraft
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
     public private(set) Uuid $id;
 
-    #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    public private(set) User $owner;
+    #[ORM\Column(type: 'uuid')]
+    public private(set) UuidV7 $conversationId;
+
+    public User $owner { get => $this->tree->getOwner(); }
 
     #[ORM\Column]
     public private(set) int $version = 1;
 
     #[ORM\Column]
-    public private(set) int $sourceVersion = 0;
-
-    #[ORM\Column(options: ['default' => 0])]
-    public private(set) int $sourceLength = 0;
-
-    #[ORM\Column]
     public private(set) int $proposalVersion = 0;
-
-    #[ORM\Column(nullable: true)]
-    public private(set) ?int $preparedSourceVersion = null;
 
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: 'json', nullable: true)]
     public private(set) ?array $proposal = null;
-
-    /** @var list<array<string, mixed>> */
-    #[ORM\Column(type: 'json')]
-    public private(set) array $corrections = [];
-
-    /** @var list<string> */
-    #[ORM\Column(type: 'json')]
-    public private(set) array $questions = [];
 
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: 'json', nullable: true)]
@@ -52,28 +36,23 @@ class TreeMergeDraft
     #[ORM\Column(length: 30)]
     public private(set) string $state = 'collecting';
 
+    #[ORM\Column(length: 20)]
+    public private(set) string $chatState = 'idle';
+
     #[ORM\Column(length: 36, nullable: true)]
     public private(set) ?string $attemptId = null;
 
-    #[ORM\Column(nullable: true)]
-    public private(set) ?int $attemptSourceVersion = null;
+    #[ORM\Column(length: 64, nullable: true)]
+    public private(set) ?string $attemptRequestId = null;
 
     #[ORM\Column(nullable: true)]
     public private(set) ?\DateTimeImmutable $attemptStartedAt = null;
-
-    #[ORM\Column(length: 30, nullable: true)]
-    public private(set) ?string $stateBeforeAttempt = null;
-
-    /** @var list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> */
-    public private(set) array $messages = [];
-
-    public bool $chatSessionAvailable = false;
 
     #[ORM\Column]
     public private(set) \DateTimeImmutable $updatedAt;
 
     public function __construct(
-        #[ORM\ManyToOne]
+        #[ORM\OneToOne]
         #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
         public private(set) FamilyTree $tree,
         #[ORM\ManyToOne]
@@ -85,140 +64,61 @@ class TreeMergeDraft
         public private(set) \DateTimeImmutable $createdAt,
     ) {
         $this->id = Uuid::v7();
-        $this->owner = $tree->getOwner();
+        $this->conversationId = Uuid::v7();
         $this->updatedAt = $createdAt;
     }
 
-    public function addMessage(string $requestId, string $content, \DateTimeImmutable $now, bool $source = true): void
+    public function messageAdded(\DateTimeImmutable $now): void
     {
-        $message = [
-            'id'        => Uuid::v7()->toRfc4122(),
-            'requestId' => $requestId,
-            'role'      => 'user',
-            'content'   => $content,
-            'createdAt' => $now->format(\DateTimeInterface::ATOM),
-            'source'    => $source,
-        ];
-        $this->messages[] = $message;
-        if ($source) {
-            $this->sourceLength += mb_strlen($content);
-            ++$this->sourceVersion;
-            ++$this->proposalVersion;
-            $this->state = 'collecting';
-        } else {
-            if (!in_array($this->state, ['processing', 'error', 'collecting'], true)) {
-                $this->stateBeforeAttempt = $this->state;
-            }
-            $this->state = 'collecting';
-        }
+        $this->chatState = 'idle';
+        $this->attemptId = null;
         ++$this->version;
         $this->updatedAt = $now;
     }
 
-    public function beginAttempt(\DateTimeImmutable $now): string
+    public function beginAttempt(\DateTimeImmutable $now, ?string $requestId = null): string
     {
-        if (null === $this->stateBeforeAttempt) {
-            $this->stateBeforeAttempt = $this->state;
-        }
         $this->attemptId = Uuid::v7()->toRfc4122();
-        $this->attemptSourceVersion = $this->sourceVersion;
+        $this->attemptRequestId = $requestId;
         $this->attemptStartedAt = $now;
-        $this->state = 'processing';
+        $this->chatState = 'processing';
         ++$this->version;
         $this->updatedAt = $now;
 
         return $this->attemptId;
     }
 
-    /** @param list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> $messages */
-    public function restoreSessionMessages(array $messages, bool $available): void
+    public function finishAttempt(\DateTimeImmutable $now, bool $failed = false): void
     {
-        $this->messages = $messages;
-        $this->chatSessionAvailable = $available;
-    }
-
-    public function markSource(string $requestId): void
-    {
-        $pending = array_column($this->sourceMessages(), 'id');
-        foreach ($this->messages as &$message) {
-            if (in_array($message['id'], $pending, true) && !($message['source'] ?? true)) {
-                $message['source'] = true;
-                $this->sourceLength += mb_strlen($message['content']);
-                ++$this->sourceVersion;
-                ++$this->proposalVersion;
-            }
-            if ($message['requestId'] === $requestId) {
-                break;
-            }
-        }
-    }
-
-    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, source?: bool, failureCode?: string}> */
-    public function sourceMessages(): array
-    {
-        $answered = array_column(array_filter($this->messages, static fn ($message) => 'assistant' === $message['role'] && !isset($message['failureCode'])), 'requestId');
-
-        return array_values(array_filter($this->messages, static fn ($message) => 'user' === $message['role']
-            && (($message['source'] ?? true) || !in_array($message['requestId'], $answered, true))));
-    }
-
-    public function answer(string $requestId, string $content, \DateTimeImmutable $now): void
-    {
-        $index = array_find_key($this->messages, static fn ($message) => 'system' === $message['role']
-            && $message['requestId'] === $requestId && isset($message['failureCode'])) ?? count($this->messages);
-        $this->messages[$index] = ['id' => $this->messages[$index]['id'] ?? Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
-            'role'                      => 'assistant', 'content' => $content, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
-        if ('processing' === $this->state) {
-            $this->state = $this->stateBeforeAttempt ?? 'collecting';
-        }
-        $this->stateBeforeAttempt = null;
+        $this->chatState = $failed ? 'error' : 'idle';
         ++$this->version;
         $this->updatedAt = $now;
     }
 
-    public function processingFailed(\DateTimeImmutable $now, string $requestId, string $code, bool $preserveProposal = false): void
+    public function reset(\DateTimeImmutable $now, ?Person $referencePerson = null): void
     {
-        $previousState = $this->stateBeforeAttempt;
-        $index = array_find_key($this->messages, static fn ($message) => 'system' === $message['role']
-            && $message['requestId'] === $requestId) ?? count($this->messages);
-        $this->messages[$index] = ['id' => $this->messages[$index]['id'] ?? Uuid::v7()->toRfc4122(), 'requestId' => $requestId,
-            'role'                      => 'system', 'content' => '', 'failureCode' => $code, 'createdAt' => $now->format(\DateTimeInterface::ATOM)];
-        ++$this->version;
-        $this->updatedAt = $now;
-        $this->state = $preserveProposal ? ($previousState ?? 'error') : 'error';
-        $this->stateBeforeAttempt = $previousState;
-    }
-
-    public function cancel(\DateTimeImmutable $now): void
-    {
-        $this->state = 'cancelled';
-        ++$this->version;
-        $this->updatedAt = $now;
-    }
-
-    public function stop(string $requestId, \DateTimeImmutable $now): void
-    {
-        $this->markSource($requestId);
-        $this->processingFailed($now, $requestId, 'stopped');
+        $this->referencePerson = $referencePerson;
+        $this->conversationId = Uuid::v7();
+        $this->proposal = $this->result = null;
         $this->state = 'collecting';
+        $this->chatState = 'idle';
+        $this->attemptId = $this->attemptRequestId = null;
+        $this->attemptStartedAt = null;
+        ++$this->proposalVersion;
+        ++$this->version;
+        $this->updatedAt = $now;
     }
 
-    /** @param array<string, mixed> $proposal
-     * @param list<string> $questions
-     */
-    public function propose(array $proposal, array $questions, string $etag, string $state, bool $correction, \DateTimeImmutable $now, bool $keepProcessing = false): void
+    /** @param array<string, mixed> $proposal */
+    public function propose(array $proposal, string $etag, string $state, \DateTimeImmutable $now, bool $supersedeAttempt = false): void
     {
-        if ($correction) {
-            $this->corrections[] = ['sourceVersion' => ++$this->sourceVersion, 'proposal' => $proposal];
-        }
         $this->proposal = $proposal;
-        $this->questions = $questions;
-        $this->preparedSourceVersion = $this->sourceVersion;
+        $this->result = null;
         $this->treeEtag = $etag;
-        if ($keepProcessing && 'processing' === $this->state) {
-            $this->stateBeforeAttempt = $state;
-        } else {
-            $this->state = $state;
+        $this->state = $state;
+        if ($supersedeAttempt) {
+            $this->chatState = 'idle';
+            $this->attemptId = null;
         }
         ++$this->proposalVersion;
         ++$this->version;

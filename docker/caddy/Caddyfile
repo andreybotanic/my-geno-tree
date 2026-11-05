@@ -2,11 +2,20 @@ http://:8080 {
 	redir https://my-geno-tree.localhost{uri} 302
 }
 
+http://127.0.0.1:8081 {
+	root * /srv/backend/public
+	php_fastcgi backend:9000
+}
+
 localhost, my-geno-tree.localhost {
 	tls internal
 	encode zstd gzip
 
 	handle /.well-known/mercure {
+		@subscriber method GET
+		forward_auth @subscriber 127.0.0.1:8081 {
+			uri /api/v1/merge-events/authorize
+		}
 		reverse_proxy mercure:80 {
 			flush_interval -1
 		}

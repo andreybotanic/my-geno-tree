@@ -30,7 +30,7 @@ final readonly class TreeChangeSetProjector
         bool $refresh = false,
     ): ProjectedTreeChangeSet {
         $originals = $people = [];
-        foreach ($this->people->findAllForTree($tree, $refresh) as $person) {
+        foreach ($this->people->findAllForChangeSet($tree, $refresh) as $person) {
             $id = $person->getId()->toRfc4122();
             $originals[$id] = $person;
             $people[$id] = clone $person;

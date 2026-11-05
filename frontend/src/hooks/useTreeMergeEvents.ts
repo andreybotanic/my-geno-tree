@@ -8,16 +8,15 @@ export function mergeTreeMergeEvent(current: TreeMergeDraft | null, event: TreeM
   if (event.kind === 'draft') {
     const next = event.draft
     if (next.id !== current.id || next.treeId !== current.treeId || next.version < current.version) return current
-    if (next.state === 'cancelled') return null
     if (next.version !== current.version || next.attemptId !== current.attemptId) return next
     return { ...next, progress: current.progress.length > next.progress.length ? current.progress : next.progress,
       tokenUsage: current.tokenUsage.total > next.tokenUsage.total ? current.tokenUsage : next.tokenUsage }
   }
   if (event.kind !== 'progress' || event.id !== current.id || event.version < current.version
-    || (event.version === current.version && (event.attemptId !== current.attemptId || current.state !== 'processing'))) return current
+    || (event.version === current.version && (event.attemptId !== current.attemptId || current.chatState !== 'processing'))) return current
   const sameAttempt = event.attemptId === current.attemptId
-  return { ...current, version: event.version, state: 'processing', attemptId: event.attemptId,
-    attemptStartedAt: event.attemptStartedAt, attemptSourceVersion: current.sourceVersion,
+  return { ...current, version: event.version, chatState: 'processing', attemptId: event.attemptId,
+    attemptStartedAt: event.attemptStartedAt,
     progress: sameAttempt && current.progress.length > event.progress.length ? current.progress : event.progress,
     tokenUsage: sameAttempt && current.tokenUsage.total > event.tokenUsage.total ? current.tokenUsage : event.tokenUsage }
 }

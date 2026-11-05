@@ -30,7 +30,7 @@ final class MergeTokenBudgetTest extends TestCase
     {
         $cache = new ArrayAdapter();
         $locks = new LockFactory(new InMemoryStore());
-        $activity = new MergeActivity($cache, $locks, \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher());
+        $activity = new MergeActivity($cache, $locks, \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher($this->createStub(\Doctrine\ORM\EntityManagerInterface::class)));
         $factory = new RateLimiterFactory(['id' => 'tokens', 'policy' => 'fixed_window', 'limit' => 100, 'interval' => '1 day'], new CacheStorage($cache), $locks);
         $budget = new MergeTokenBudget($factory, $activity);
         $now = new \DateTimeImmutable();
@@ -68,7 +68,7 @@ final class MergeTokenBudgetTest extends TestCase
     {
         $cache = new ArrayAdapter();
         $locks = new LockFactory(new InMemoryStore());
-        $activity = new MergeActivity($cache, $locks, \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher());
+        $activity = new MergeActivity($cache, $locks, \App\Tests\Infrastructure\Ai\TestMergeEvents::publisher($this->createStub(\Doctrine\ORM\EntityManagerInterface::class)));
         $factory = new RateLimiterFactory(['id' => 'tokens', 'policy' => 'fixed_window', 'limit' => 100, 'interval' => '1 day'], new CacheStorage($cache), $locks);
         $budget = new MergeTokenBudget($factory, $activity);
         $now = new \DateTimeImmutable();
