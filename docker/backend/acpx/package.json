@@ -1,0 +1,7 @@
+{
+  "name": "mygenotree-acp-client",
+  "private": true,
+  "dependencies": {
+    "acpx": "0.21.1"
+  }
+}

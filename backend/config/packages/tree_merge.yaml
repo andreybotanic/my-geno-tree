@@ -2,7 +2,7 @@ framework:
     http_client:
         scoped_clients:
             merge_ai.client:
-                base_uri: '%env(OLLAMA_URL)%'
+                scope: '^https?://'
                 timeout: 270
                 max_duration: 270
     rate_limiter:

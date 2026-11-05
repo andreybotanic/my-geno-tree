@@ -23,13 +23,16 @@ services:
         resource: '../src/'
 
     App\Application\TreeMerge\Ai\TreeMergeAiInterface:
-        alias: App\Application\TreeMerge\Ai\ConfiguredTreeMergeAi
+        alias: app.tree_merge.agent
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
 when@test:
     services:
+        App\Application\TreeMerge\Ai\SymfonyTreeMergeAi:
+            autowire: true
+            public: true
         app.test_mercure_hub:
             decorates: mercure.hub.default
             class: Symfony\Component\Mercure\MockHub

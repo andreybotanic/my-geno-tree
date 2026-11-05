@@ -76,6 +76,7 @@ services:
     ports:
       - "443:443"
       - "127.0.0.1:7081:8080"
+      - "127.0.0.1:17082:8082"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./backend:/srv/backend:ro

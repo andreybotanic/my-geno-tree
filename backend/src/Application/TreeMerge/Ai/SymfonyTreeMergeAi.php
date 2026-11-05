@@ -4,53 +4,36 @@ namespace App\Application\TreeMerge\Ai;
 
 use App\Entity\TreeMergeDraft;
 use App\Security\TreeMergeAgentGrant;
-use Mcp\Client;
-use Mcp\Client\Transport\HttpTransport;
-use Symfony\AI\Agent\Agent;
-use Symfony\AI\Agent\Bridge\Mcp\ClientToolset;
-use Symfony\AI\Agent\Bridge\Mcp\McpToolbox;
-use Symfony\AI\Agent\Toolbox\FaultTolerantToolbox;
-use Symfony\AI\Platform\Message\Message;
-use Symfony\AI\Platform\Message\MessageBag;
-use Symfony\AI\Platform\PlatformInterface;
+use Symfony\AI\Agent\AgentInterface;
+use Symfony\AI\McpBundle\Client\ServerConnectionInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\DependencyInjection\Attribute\Target;
-use Symfony\Component\HttpClient\Psr18Client;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final readonly class SymfonyTreeMergeAi implements TreeMergeAiInterface
 {
     public function __construct(
-        #[Target('ollama')] private PlatformInterface $platform,
+        #[Autowire(service: 'ai.agent.tree_merge')] private AgentInterface $agent,
+        #[Autowire(service: 'mcp.client.tree_merge.server.tree')] private ServerConnectionInterface $connection,
         private TreeMergeAgentGrant $grants,
-        private HttpClientInterface $http,
-        #[Autowire(env: 'TREE_MERGE_MODEL')] private string $model,
-        #[Autowire(env: 'TREE_MERGE_MCP_URL')] private string $mcpUrl,
-        private ?MergeTokenBudget $budget = null,
+        private RequestStack $requests,
     ) {
     }
 
     public function respond(TreeMergeDraft $draft, string $attemptId): void
     {
-        if ('' === $this->model) {
-            throw new \RuntimeException('TREE_MERGE_MODEL_MISSING');
-        }
+        $request = $this->requests->getCurrentRequest() ?? throw new \LogicException('MERGE_REQUEST_REQUIRED');
         $token = $this->grants->issue($draft, $attemptId);
-        $remote = new ClientToolset('tree', Client::builder()->build(), new HttpTransport($this->mcpUrl,
-            ['Authorization' => 'Merge ' . $token], new Psr18Client($this->http->withOptions(['timeout' => 15, 'max_duration' => 20]))));
+        $request->attributes->set(MergeMcpHttpClient::class, $token);
         try {
-            $platform = null === $this->budget ? $this->platform : new MeteredMergePlatform($this->platform, $this->budget, $draft);
-            $tools = new BoundedTreeToolset($remote, $draft->tree->getId()->toRfc4122());
-            $agent = new Agent($platform, $this->model, toolbox: new FaultTolerantToolbox(new McpToolbox($tools)), maxToolCalls: 16);
-            // Only MCP commands can produce a proposal or a visible reply; free text is never interpreted.
-            $agent->call(new MessageBag(Message::forSystem(MergePrompt::SYSTEM), Message::ofUser(MergePrompt::input($draft))),
-                ['temperature' => 0, 'think' => false])->getContent();
+            // The configured agent chooses and executes MCP tools; its free text has no effects.
+            $this->agent->call(MergePrompt::input($draft))->getResult();
         } finally {
             $this->grants->revoke($token);
+            $request->attributes->remove(MergeMcpHttpClient::class);
             try {
-                $remote->disconnect();
+                $this->connection->disconnect();
             } catch (\Throwable) {
-                // A completed attempt already invalidates its scoped MCP credential.
+                // Finishing the attempt invalidates the scoped MCP credential first.
             }
         }
     }

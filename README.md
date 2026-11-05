@@ -143,19 +143,18 @@ The preview URL contains `?merge={mergeId}` and restores the conversation after
 refresh within the same login session. Applying refreshes the snapshot, highlights the affected people and
 focuses the camera on them without changing the layout reference.
 
-The Symfony AI agent and the development OpenCode adapter use the same versioned
+The agent configured in `backend/config/packages/ai.yaml` uses the versioned
 tree-only prompt and MCP tool contract. `POST .../{mergeId}/process` starts a
 scoped attempt for the latest message's requestId and draft version. No model
 request runs inside an ORM transaction. Each user is limited to 20 attempts per
-hour. Both adapters receive the entire session conversation, including earlier
+hour. The agent receives the entire session conversation, including earlier
 questions and user answers; only user messages can substantiate source quotes.
 
 Sending starts the agent immediately. Private Mercure SSE delivers processing
 stages and draft updates; there is no periodic chat-status polling. While the agent
 runs, Send becomes Stop. `POST .../{mergeId}/stop` targets that message's requestId,
-interrupts the provider and preserves the conversation. Old commands cannot
-overwrite newer input, a stopped turn or a reviewed proposal. OpenCode also
-receives a session abort before its isolated runtime is removed. Interrupted
+invalidates subsequent MCP commands and preserves the conversation. Old commands cannot
+overwrite newer input, a stopped turn or a reviewed proposal. Interrupted
 attempts can be retried after five minutes.
 
 MCP validation errors include the field path, rule and diagnostic. The agent
@@ -165,30 +164,69 @@ or replies. A provider failure or missing reply command produces a retryable
 system notice; the source and earlier reviewed proposal remain available.
 Application of tree changes still requires the separate preview confirmation.
 
-The selected local development agent is OpenCode 1.18.32 from WSL using
-`openai/gpt-5.6-luna` (the installed provider catalogue does not list gpt6-luna).
-`compose.opencode.yaml` mounts the installed Linux executable and credentials
-read-only. Set `OPENCODE_BINARY_PATH` and `OPENCODE_AUTH_PATH` in the ignored root
-`.env`, and include the override in `COMPOSE_FILE`; never commit credentials.
-The backend seeds only the selected provider into a private credential volume
-with mode 0600. Rotated OAuth credentials survive calls and container restarts;
-concurrent calls cannot refresh the same credential simultaneously. WSL files
-remain unchanged. After a fresh `opencode auth login` in WSL, recreate the backend
-to refresh its seed (`docker compose up -d --force-recreate backend`). Conversation
-data stays in RAM and is never written into the credential volume.
+`backend/config/packages/ai.yaml` selects the ordinary chat's agent through
+`services.app.tree_merge.agent`. It points to `app.tree_merge.hermes`, whose
+`$agent` argument specifies the ACP transport and whose `$model` argument is
+`openai-codex:gpt-5.6-luna`. This model was the lightest visible model in the
+signed-in account's live catalog on 2026-11-05. The ACP model selection overrides
+the Hermes profile's default. An unavailable model fails the attempt.
 
-Each call starts a separate loopback OpenCode server with random Basic auth, an
-isolated RAM home and no project configuration. All built-in tools are denied;
-only the five scoped tree MCP tools are allowed. No personal MCP servers are
-inherited. Runtime data, SQLite sessions, logs and temporary credentials are
-removed when the call finishes, including failures. OpenCode is rejected outside
-the Symfony dev environment. The default provider remains Ollama unless
-`TREE_MERGE_AI=opencode` is set by this Compose override.
+The pinned stock `acpx` 0.21.1 client performs ACP initialization, creates a fresh
+session per message, selects the configured model, supplies that session's MCP
+server and sends the complete prompt. It runs in the backend container. The
+application adapter issues and revokes the short-lived grant, passes it through
+ACP `mcpServers[].headers`, and records ACP token accounting. The credentials
+and client home occupy a private temporary directory in the RAM-backed
+`/run/tree-merge`, removed when the attempt finishes. Agent text has no effects.
+Each agent response is published exclusively by `reply_to_tree_merge`.
 
-OpenCode final free text is ignored. The adapter neither requests structured
-output nor parses a response DTO; proposals and replies arrive exclusively through
-MCP commands. See [OpenCode server configuration](https://opencode.ai/docs/server/) and
-[tool permissions](https://opencode.ai/docs/permissions/).
+Configure another ACP agent by changing `$agent` and `$model` in `ai.yaml`.
+The command must speak ACP on stdin/stdout and accept per-session MCP servers.
+The application always uses one-shot sessions and disables ACP client filesystem
+and terminal capabilities. Keep native tools disabled in the agent's own profile.
+Alternatively, point `app.tree_merge.agent` at
+`App\Application\TreeMerge\Ai\SymfonyTreeMergeAi` to use the existing Symfony AI
+agent defined under `ai.agent.tree_merge`, with its configurable platform,
+model and MCP toolbox. After production configuration changes, clear the Symfony cache.
+
+### Hermes in WSL
+
+Hermes uses the ChatGPT browser authorization already stored by its WSL installation.
+Create the dedicated profile once with
+`hermes profile create mygenotree --no-alias --no-skills` and set its provider to
+`openai-codex`. In `~/.hermes/profiles/mygenotree/config.yaml`, set
+`memory.memory_enabled: false`, `memory.user_profile_enabled: false`,
+`tools.tool_search.enabled: off`, `agent.max_turns: 16` and
+`platform_toolsets.acp: [no_mcp]`. Its tools come from each ACP session's
+MCP configuration. The stock `socat` relay exposes a filesystem socket to the
+backend. Start it in WSL after starting or restarting WSL, from the repository root.
+Install `socat` in WSL first if needed.
+
+```sh
+mkdir -p backend/var/acp-host
+sudo chgrp www-data backend/var/acp-host
+chmod 710 backend/var/acp-host
+sudo -u "$(id -un)" -g www-data socat \
+  "UNIX-LISTEN:$PWD/backend/var/acp-host/hermes.sock,fork,mode=0660" \
+  "EXEC:$HOME/.local/bin/hermes -p mygenotree acp,pipes"
+```
+
+Run this relay as a supervised WSL service for automatic startup. The `pipes`
+option supplies separate stdin/stdout pipes to the ACP SDK. Docker Compose
+publishes the scoped MCP endpoint only on host loopback port 17082, and every
+request still requires its message's grant. The PHP container receives the Unix
+socket through the existing backend bind mount. ChatGPT credentials stay in WSL.
+Hermes controls its own external session storage and logs.
+
+The MCP Bundle configures the HTTP connection in `config/packages/mcp.yaml`.
+Its PSR-18 client adds the current attempt's short-lived credential only for the
+configured endpoint. The agent discovers tools and drives all tool calls through
+the standard Symfony AI MCP toolbox. Server-side authorization and context
+limits apply independently of the agent. No chat adapter chooses MCP commands,
+constructs a model, launches a subprocess or reads external CLI credentials.
+Agent final free text is ignored: only MCP commands produce proposals and the
+verbatim single-sentence reply. See the
+[Symfony AI Bundle configuration](https://symfony.com/doc/current/ai/bundles/ai-bundle.html).
 
 The chat displays elapsed thinking time, completed MCP read stages, validation
 progress. A donut in the composer shows the remaining daily token
@@ -202,13 +240,16 @@ reasoning output. Its initial limit
 is **10,000,000 tokens per user per day** (`TREE_MERGE_TOKEN_LIMIT`). Calls are
 checked before starting; already spent tokens are recorded even if an in-flight
 response crosses the limit. Further calls then stop with a localized explanation.
-Ollama calls use the same accounting via a Platform decorator.
+Symfony AI invocation/result events account for each local agent model round.
+For ACP, the client records the complete turn's reported usage, including cached
+tokens. The next attempt checks the updated quota. A remote turn can finish
+across the remaining token limit, with a 235-second client timeout.
 
-The alternative local text provider can be started with Docker Compose (CPU is supported):
+The optional Ollama provider can be started with Docker Compose (CPU is supported).
 
 ```sh
 docker compose --profile ai up -d --build
-docker compose exec -T ollama ollama pull qwen3:8b
+docker compose exec -T ollama ollama pull qwen3:4b-instruct
 ```
 
 `OLLAMA_URL`, `TREE_MERGE_MODEL` and `TREE_MERGE_MCP_URL` are backend settings.
@@ -314,12 +355,13 @@ not published to the host. Backend-issued access lasts five minutes, is bound
 to the user/login session/tree/processing attempt/version, permits at most 64 protocol requests and
 is revoked after processing. It is rejected by REST mutations. The agent's
 toolbox contains the three read tools, `prepare_tree_merge_proposal` and
-`reply_to_tree_merge`, with at most eight context reads and sixteen tool calls.
+`reply_to_tree_merge`, with at most eight context reads; the configured agent
+allows sixteen tool-calling rounds and the scoped grant bounds total HTTP requests.
 Preparing validates and stages a proposal for five minutes in ephemeral memory;
 replying with its proposalId atomically submits it for UI review and stores the
 agent's sentence. A stale version, changed tree, expired session or stopped
 attempt cannot submit it. No tool applies tree mutations or recursively starts
-`prepare_tree_merge`. Built-in OpenCode tools and structured-output extraction
+`prepare_tree_merge`. Local tools and structured-output extraction
 are disabled.
 The protocol budget includes discovery and Streamable HTTP GET/POST overhead;
 it must not expire before the eighth permitted read. Search results are candidate
@@ -332,10 +374,9 @@ MCP sessions use separate cache prefixes and Symfony locks for each endpoint.
 Validation: backend API tests cover session isolation, retries, conflicts, source
 limits and ownership; component tests cover named-person input, timer/progress, errors and
 input preservation. PhpStorm inspections report two non-actionable environment
-findings: constructor arguments on `TreeMergeDraft` and the per-attempt
-`MeteredMergePlatform` are misidentified as service injections,
-and generated migration SQL has no IDE data source. Both objects are
-created explicitly by application services; Doctrine migration and schema
+findings: constructor arguments on `TreeMergeDraft` are misidentified as
+service injections, and generated migration SQL has no IDE data source.
+The draft is created explicitly by application services; Doctrine migration and schema
 checks validate the SQL against PostgreSQL. The generated Symfony configuration
 reference also triggers IDE-only `list<...>` type warnings; it is regenerated by
 Symfony, not edited manually. PHPStan and container checks validate application
@@ -360,7 +401,7 @@ empty until the separate confirmation control was used. Two-tab ETag conflicts,
 reconfirmation and existing-person updates were also checked.
 
 
-Current revision: a real OpenCode request prepared two people and a mother link
+Earlier runtime validation: a real OpenCode request prepared two people and a mother link
 through HTTP MCP in 22 seconds, with 10,340 tokens recorded and no tree mutation.
 An existing-tree check resolved the only Ivan and proposed Ivan Vitalyevich and
 Anna Andreyevna as new parents in 30 seconds, using 20,558 tokens, with no

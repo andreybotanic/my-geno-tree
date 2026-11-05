@@ -27,7 +27,7 @@ localhost, my-geno-tree.localhost {
 	}
 }
 
-# Internal HTTP MCP calls have their own FPM workers and no published host port.
+# Scoped MCP calls from Docker and the local ACP agent use their own FPM workers.
 http://:8082 {
 	handle /mcp/agent {
 		root * /srv/backend/public

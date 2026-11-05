@@ -1,27 +1,44 @@
+services:
+    # Select the ordinary chat's agent here. The Symfony AI / Ollama alternative is
+    # App\Application\TreeMerge\Ai\SymfonyTreeMergeAi.
+    app.tree_merge.agent: '@app.tree_merge.hermes'
+    app.tree_merge.hermes:
+        class: App\Application\TreeMerge\Ai\AcpTreeMergeAi
+        autowire: true
+        arguments:
+            $agent: 'socat STDIO UNIX-CONNECT:/srv/backend/var/acp-host/hermes.sock'
+            $model: 'openai-codex:gpt-5.6-luna'
+            $mcpUrl: 'http://localhost:17082/mcp/agent'
+            $client: ['/usr/local/bin/node', '/opt/acp-client/node_modules/acpx/dist/cli.js']
+
 ai:
     platform:
-        # Inference Platform configuration
-        # see https://github.com/symfony/ai/tree/main/src/platform#platform-bridges
-
-        # openai:
-        #    api_key: '%env(OPENAI_API_KEY)%'
-
+        ollama:
+            endpoint: '%env(OLLAMA_URL)%'
+            http_client: merge_ai.client
+            # The API catalog in this bridge version does not parse model options.
+            model_catalog:
+                models:
+                    '%env(TREE_MERGE_MODEL)%':
+                        class: Symfony\AI\Platform\Bridge\Ollama\Ollama
+                        capabilities:
+                            - !php/const Symfony\AI\Platform\Capability::INPUT_MESSAGES
+                            - !php/const Symfony\AI\Platform\Capability::OUTPUT_TEXT
+                            - !php/const Symfony\AI\Platform\Capability::TOOL_CALLING
     agent:
-        # Agent configuration
-        # see https://symfony.com/doc/current/ai/bundles/ai-bundle.html
+        tree_merge:
+            platform: ai.platform.ollama
+            model:
+                name: '%env(TREE_MERGE_MODEL)%'
+                options: { temperature: 0.7, think: false }
+            prompt: !php/const App\Application\TreeMerge\Ai\MergePrompt::SYSTEM
+            tools:
+                - { mcp_server: 'tree_merge.tree' }
+            max_tool_calls: 16
+            fault_tolerant_toolbox: true
 
-        # default:
-        #    platform: 'ai.platform.openai'
-        #    model: 'gpt-5-mini'
-        #    prompt: |
-        #        You are a pirate and you write funny.
-        #    tools:
-        #        - 'Symfony\AI\Agent\Bridge\Clock\Clock'
-
-    store:
-        # Store configuration
-
-        # chromadb:
-        #    default:
-        #        client: 'client.service.id'
-        #        collection: 'my_collection'
+when@test:
+    services:
+        app.tree_merge.agent:
+            alias: app.tree_merge.hermes
+            public: true
