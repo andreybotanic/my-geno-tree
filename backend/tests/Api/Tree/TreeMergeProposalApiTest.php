@@ -39,18 +39,59 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
 
     public function testExpiredConversationDeletesTheProposalAndBlocksApply(): void
     {
+        $this->jsonRequest('POST', $this->path . '/messages', ['version' => 1, 'requestId' => 'expiry', 'content' => 'Fictional family for the expiry test.'], $this->headers);
+        ++$this->baseVersion;
         $this->revise($this->family());
         self::assertResponseIsSuccessful();
         $id = $this->responseString('id');
         $manager = static::getContainer()->get(EntityManagerInterface::class);
         $draft = $manager->find(\App\Entity\TreeMergeDraft::class, $id);
         self::assertNotNull($draft);
-        static::getContainer()->get(\App\Application\TreeMerge\TreeMergeChat::class)->clear($draft);
+        $pool = static::getContainer()->get('cache.merge_session');
+        self::assertInstanceOf(\Symfony\Contracts\Cache\NamespacedPoolInterface::class, $pool);
+        self::assertNotNull($draft->chatSessionId);
+        $store = new \Symfony\AI\Agent\Bridge\Cache\MessageStore($pool->withSubNamespace($draft->chatSessionId->toRfc4122()), 'tree_merge', ttl: 1);
+        $messages = $store->load($draft->conversationId);
+        self::assertInstanceOf(\App\Model\TreeMergeReview::class, $messages->getMetadata()->get(\App\Application\TreeMerge\TreeMergeChat::REVIEW_METADATA));
+        self::assertSame('Fictional family for the expiry test.', $messages->getUserMessage()?->asText());
+        $store->save($messages);
+        usleep(1_100_000);
+        $expired = $store->load($draft->conversationId);
+        self::assertCount(0, $expired);
+        self::assertFalse($expired->getMetadata()->has(\App\Application\TreeMerge\TreeMergeChat::REVIEW_METADATA));
+        // Both payloads have already expired, before any HTTP request or SQL cleanup.
+        self::assertNotNull($manager->find(\App\Entity\TreeMergeDraft::class, $id));
         $this->apply();
         self::assertResponseStatusCodeSame(404);
         self::assertSame('TREE_MERGE_NOT_FOUND', $this->responseString('code'));
         $manager = static::getContainer()->get(EntityManagerInterface::class);
         self::assertNull($manager->find(\App\Entity\TreeMergeDraft::class, $id));
+        $this->snapshot();
+        self::assertSame([], $this->responseData()['people']);
+    }
+
+    public function testDiscardRemovesOnlyTheProposalAndPreservesConversationAndUnappliedTree(): void
+    {
+        $this->jsonRequest('POST', $this->path . '/messages', ['version' => 1, 'requestId' => 'family', 'content' => 'Vera and her family.'], $this->headers);
+        ++$this->baseVersion;
+        $this->revise($this->family());
+        $before = $this->responseData();
+        $this->jsonRequest('POST', $this->path . '/cancel', ['version' => $before['version']], $this->headers);
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->responseData()['proposal']);
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertSame($before['id'], $this->responseData()['id']);
+        self::assertSame($before['messages'], $this->responseData()['messages']);
+        $cancelled = $this->responseData();
+        $this->jsonRequest('POST', $this->path . '/cancel', ['version' => $cancelled['version']], $this->headers);
+        self::assertSame($cancelled, $this->responseData());
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertNull($this->responseData()['proposal']);
+        self::assertSame($before['messages'], $this->responseData()['messages']);
+        $this->jsonRequest('POST', $this->path . '/messages', ['version' => $cancelled['version'], 'requestId' => 'next', 'content' => 'Let us continue.'], $this->headers);
+        self::assertResponseIsSuccessful();
+        self::assertCount(2, $this->arrayAt('messages'));
+        self::assertSame('Vera and her family.', $this->responseString('messages', '0', 'content'));
         $this->snapshot();
         self::assertSame([], $this->responseData()['people']);
     }
@@ -280,7 +321,7 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $proposal['questions'] = ['Which person?'];
         $this->revise($proposal);
         self::assertSame('questions', $this->responseString('state'));
-        $this->jsonRequest('POST', $this->path . '/cancel', ['version' => 2], $this->headers);
+        $this->jsonRequest('POST', $this->path . '/reset', ['version' => 2], $this->headers);
         self::assertResponseStatusCodeSame(204);
         $this->newDraft();
         $this->revise($this->family());
@@ -379,7 +420,7 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         $this->path = $base . '/' . $this->responseString('id');
         if ('applied' === $this->responseString('state')) {
-            $this->jsonRequest('POST', $this->path . '/cancel', ['version' => $this->responseData()['version']], $this->headers);
+            $this->jsonRequest('POST', $this->path . '/reset', ['version' => $this->responseData()['version']], $this->headers);
             self::assertResponseStatusCodeSame(204);
             $this->jsonRequest('POST', $base, ['referencePersonId' => $reference], $this->headers);
             self::assertResponseIsSuccessful();

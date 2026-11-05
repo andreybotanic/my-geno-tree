@@ -4,7 +4,7 @@ ai:
         cache:
             tree_merge:
                 service: app.merge_chat_cache
-                ttl: 3600
+                ttl: '%app.tree_merge_chat_ttl%'
     platform:
         generic:
             tree_merge:

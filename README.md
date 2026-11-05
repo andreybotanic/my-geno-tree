@@ -76,18 +76,21 @@ PHP tools. Its final text is displayed verbatim as escaped plain text. Ctrl+Ente
 sends; Enter inserts a line break. Closing the panel preserves unsent input while
 the panel remains mounted. Nothing is written to browser storage.
 
-Each tree has at most one `TreeMergeDraft`, enforced by a unique database constraint.
+Each tree has one conversation coordinator and at most one active proposal.
+The unique tree constraint is on `tree_merge_conversation`; this SQL table holds
+only identifiers, versions and attempt status, not messages or proposal payloads.
 `GET /api/v1/trees/{treeId}/merges` returns `{draft, tokenBudget}`, where `draft`
-may be null. POST creates or returns that tree's current draft. Cancellation and
-starting another conversation delete the draft and its conversation, returning
-204; the next message creates a new record. Other tabs clear their draft through
-a private removal event. There is no list of historical drafts or correction archive.
-The migration retains the newest unfinished draft per tree, or its newest receipt
-when no unfinished draft exists, and removes obsolete drafts without changing
-people, relationships or events.
+may be null. POST creates or returns that tree's current conversation. Discard
+(`/cancel`, 200) removes only the proposal and keeps messages and unsent input.
+Its button disappears when there is no pending proposal. Start another
+conversation (`/reset`, 204) deletes the history and proposal; the next message
+creates a new conversation. Both changes reach other tabs through private events.
+There is no list of historical proposals or correction archive.
 
-Proposal `state` and `chatState` are independent. Only successful `merge` changes
-the reviewed proposal and its version. A factual reply, Stop or provider failure
+Proposal `state` and `chatState` are independent. A successful `merge` replaces
+the reviewed proposal. Review versions also advance on manual edits, discard and
+application so obsolete cache snapshots cannot restore a previous proposal.
+A factual reply, Stop or provider failure
 preserves the proposal. Apply is disabled during processing and requires the
 separate confirmation button, the current draft/proposal versions and tree ETag.
 A tree conflict revalidates the proposal and requires another confirmation.
@@ -102,17 +105,20 @@ independent of proposal versions: another login can change the shared proposal
 without invalidating this session's history. Another login cannot read that
 history, and container restarts discard it. Application code adds request IDs and
 localized failure metadata and projects messages for the UI; it implements no
-message-store backend or Doctrine persistence hooks. The draft records the login
-session of its bound conversation. Reads and actions check that history through
-the official store: if it has expired or been lost, the database row is removed
-and can no longer be read or applied. A different login with no local history
-does not expire another session's live draft. The binding migration leaves old
-unbound rows unavailable; they are removed on first access. Stale preview links
-open an empty chat, and subscription renewal clears an expired draft in open tabs.
+message-store backend or Doctrine persistence hooks. The proposal and application
+receipt live in `MessageBag` metadata, in the very same cache item as the history.
+Their shared TTL is configured once as `app.tree_merge_chat_ttl` (3600 seconds).
+Expiry, eviction and conversation deletion remove both payloads together, with
+no background job or subsequent HTTP request required. Reads may clean up an
+orphaned SQL coordinator, which contains no proposal data. A different login with
+no local history does not expire another session's live conversation. Stale links
+open an empty chat, and subscription renewal clears expired views in open tabs.
+The migration removes the old SQL proposal columns; the local upgrade had no
+proposals bound to a live conversation to transfer.
 
 User messages total at most 10,000 characters per session conversation, with at
 most 200 visible messages. The model receives each user message once, labelled
-with its evidence ID. Durable evidence quotes are exact substrings of at most
+with its evidence ID. Proposal evidence quotes are exact substrings of at most
 300 characters, checked in both schemas and the backend validator. Recordings are
 never attached to a tree or stored in conversation history.
 
@@ -235,13 +241,13 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-05): 224 backend tests (6,237 assertions) and 387 frontend tests
-pass. Line coverage is 92.66% backend and 90.11% frontend. Every production file
+Validation (2026-11-05): 226 backend tests and 388 frontend tests pass. Line
+coverage is 92.66% backend and 90.12% frontend. Every production file
 with measurable behavior exceeds 75%; EventPlaceRepository and
 MediaVariantRepository contain only Doctrine constructor wiring (one uncovered
 line each) and have no custom behavior to measure. Backend/frontend quality,
 OpenAPI generation, production build, Composer validation, dev/prod container
-checks, schema validation and all 21 migrations on a fresh disposable PostgreSQL
+checks, schema validation and all 22 migrations on a fresh disposable PostgreSQL
 database pass. The backend suite retains nine existing PHPUnit mock-expectation
 notices in map and GEDCOM tests; Vite reports its existing bundle-size advisory.
 
@@ -267,9 +273,12 @@ were preserved. API tests additionally verify provider failures, stale answers,
 ownership, login-session isolation, revoked subscriptions, evidence limits and
 complete multi-round token usage.
 
-Draft-lifetime browser validation: an obsolete preview link opened an empty chat
-without a discard button. A newly created test conversation returned a live
-answer; Discard removed its messages, button and URL identifier in both tabs.
-Reloading and reopening the panel kept it empty. API tests simulate missing
-cache history, assert physical deletion of the proposal and reject Apply without
-changing people or relationships.
+Independent-discard browser validation: the live agent prepared Veronika's rename
+to Vera, and reloading another tab restored the pending preview after the final
+answer. Discard removed only the preview and its button in both tabs; messages,
+the conversation URL and unsent input remained. A follow-up question returned
+Veronika's age, and refresh retained the conversation without restoring the
+discarded proposal. Start another conversation then cleared both tabs. No change
+was applied to the tree. API tests expire the real message-store entry with a
+short TTL and verify that both history and proposal are gone before any HTTP
+request. A native tool-loop race test also rejects an obsolete save after discard.

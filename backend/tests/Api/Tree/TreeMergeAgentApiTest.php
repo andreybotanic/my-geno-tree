@@ -129,6 +129,9 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         self::assertSame($budget['limit'] - 330, $budget['remaining']);
         self::assertSame('ready', $this->responseString('state'));
         self::assertSame("I prepared Vera's profile.\nPlease review the preview.", $this->responseString('messages', '1', 'content'));
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertSame('ready', $this->responseString('state'));
+        self::assertSame('Vera', $this->responseString('proposal', 'people', '0', 'fields', 'givenName', 'value'));
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertSame([], $this->responseData()['people']);
     }
@@ -194,6 +197,42 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertNull($packet['draft']['proposal']);
             }
         }
+    }
+
+    public function testDiscardDuringTheNativeToolLoopCannotResurrectTheCachedProposal(): void
+    {
+        $calls = 0;
+        static::getContainer()->set('merge_ai.client', new MockHttpClient(function () use (&$calls): MockResponse {
+            ++$calls;
+            if (1 === $calls) {
+                return $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]);
+            }
+            $request = static::getContainer()->get(RequestStack::class)->getCurrentRequest();
+            self::assertNotNull($request);
+            $draft = $request->attributes->get(TreeMergeDraft::class);
+            self::assertInstanceOf(TreeMergeDraft::class, $draft);
+            if (2 === $calls) {
+                return $this->toolResponse('merge', ['treeId' => $this->treeId, 'proposal' => [
+                    'people' => [['id' => 'v', 'existingPersonId' => null, 'resolution' => 'new', 'lifeStatus' => 'alive',
+                        'fields'       => ['givenName' => ['state' => 'known', 'value' => 'Vera'], 'gender' => 'female'],
+                        'evidence'     => [['messageId' => FixtureTreeMergeAi::messages($draft)[0]['id'], 'quote' => 'Vera is my mother.']]]],
+                    'parents' => [], 'marriages' => [], 'questions' => [],
+                ]]);
+            }
+            self::assertSame(3, $calls);
+            static::getContainer()->get(TreeMergeDraftService::class)->cancel($draft, $draft->version);
+
+            return $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]);
+        }));
+        FixtureTreeMergeAi::$handler = static fn (TreeMergeDraft $draft) => static::getContainer()->get(SymfonyTreeMergeAi::class)->respond($draft);
+        $this->process();
+        self::assertSame(3, $calls);
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertNull($this->responseData()['proposal']);
+        self::assertSame('collecting', $this->responseString('state'));
+        self::assertSame('Vera is my mother.', $this->responseString('messages', '0', 'content'));
+        self::assertIsArray($this->responseData()['messages']);
+        self::assertCount(1, $this->responseData()['messages']);
     }
 
     public function testProviderFailureRestoresRequestScope(): void

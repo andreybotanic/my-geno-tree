@@ -2,12 +2,14 @@
 
 namespace App\Entity;
 
+use App\Model\TreeMergeReview;
 use App\Repository\TreeMergeDraftRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
 
 #[ORM\Entity(repositoryClass: TreeMergeDraftRepository::class)]
+#[ORM\Table(name: 'tree_merge_conversation')]
 class TreeMergeDraft
 {
     #[ORM\Id]
@@ -26,15 +28,14 @@ class TreeMergeDraft
     public private(set) int $proposalVersion = 0;
 
     /** @var array<string, mixed>|null */
-    #[ORM\Column(type: 'json', nullable: true)]
-    public private(set) ?array $proposal = null;
+    public ?array $proposal { get => $this->review?->proposal; }
 
     /** @var array<string, mixed>|null */
-    #[ORM\Column(type: 'json', nullable: true)]
-    public private(set) ?array $result = null;
+    public ?array $result { get => $this->review?->result; }
 
-    #[ORM\Column(length: 30)]
-    public private(set) string $state = 'collecting';
+    public string $state { get => $this->review->state ?? 'collecting'; }
+
+    public ?TreeMergeReview $review = null;
 
     #[ORM\Column(length: 20)]
     public private(set) string $chatState = 'idle';
@@ -103,38 +104,55 @@ class TreeMergeDraft
         $this->chatSessionId = $sessionId ?? $this->chatSessionId;
         $this->referencePerson = $referencePerson;
         $this->conversationId = Uuid::v7();
-        $this->proposal = $this->result = null;
-        $this->state = 'collecting';
         $this->chatState = 'idle';
         $this->attemptId = $this->attemptRequestId = null;
         $this->attemptStartedAt = null;
         ++$this->proposalVersion;
         ++$this->version;
+        $this->review = new TreeMergeReview($this->proposalVersion, $this->version);
+        $this->updatedAt = $now;
+    }
+
+    public function discardProposal(\DateTimeImmutable $now): void
+    {
+        $this->attemptId = $this->attemptRequestId = null;
+        $this->attemptStartedAt = null;
+        $this->chatState = 'idle';
+        ++$this->proposalVersion;
+        ++$this->version;
+        $this->review = new TreeMergeReview($this->proposalVersion, $this->version);
         $this->updatedAt = $now;
     }
 
     /** @param array<string, mixed> $proposal */
     public function propose(array $proposal, string $etag, string $state, \DateTimeImmutable $now, bool $supersedeAttempt = false): void
     {
-        $this->proposal = $proposal;
-        $this->result = null;
+        $review = $this->review ??= new TreeMergeReview();
+        $review->proposal = $proposal;
+        $review->result = null;
         $this->treeEtag = $etag;
-        $this->state = $state;
+        $review->state = $state;
         if ($supersedeAttempt) {
             $this->chatState = 'idle';
             $this->attemptId = null;
         }
         ++$this->proposalVersion;
         ++$this->version;
+        $review->version = $this->proposalVersion;
+        $review->revision = $this->version;
         $this->updatedAt = $now;
     }
 
     /** @param array<string, mixed> $result */
     public function applied(array $result, \DateTimeImmutable $now): void
     {
-        $this->result = $result;
-        $this->state = 'applied';
+        $review = $this->review ??= new TreeMergeReview();
+        ++$this->proposalVersion;
         ++$this->version;
+        $review->result = $result + ['proposalVersion' => $this->proposalVersion];
+        $review->state = 'applied';
+        $review->version = $this->proposalVersion;
+        $review->revision = $this->version;
         $this->updatedAt = $now;
     }
 }

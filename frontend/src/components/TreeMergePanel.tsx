@@ -260,25 +260,27 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
     finally { setBusy(false) }
   }
 
-  async function cancel() {
+  async function conversationAction(action: 'cancel' | 'reset') {
     if (!draft) return
     setBusy(true)
     try {
-      await request<void>(`${base}/${draft.id}/cancel`, {
+      const next = await request<TreeMergeDraft | undefined>(`${base}/${draft.id}/${action}`, {
         method: 'POST', body: JSON.stringify({ version: draft.version }),
       })
-      setBudget(draft.tokenBudget ?? budget)
+      setBudget(next?.tokenBudget ?? draft.tokenBudget ?? budget)
       ++generation.current
       activeRequest.current?.controller.abort()
       activeRequest.current = null
       setThinkingSince(null)
-      setDraft(null)
-      setContent('')
+      setDraft((saved) => next ? mergeTreeMergeEvent(saved, { kind: 'draft', draft: next }) : null)
       setError(null)
-      pending.current = null
-      const url = new URL(window.location.href)
-      url.searchParams.delete('merge')
-      window.history.replaceState(window.history.state, '', url)
+      if (action === 'reset') {
+        setContent('')
+        pending.current = null
+        const url = new URL(window.location.href)
+        url.searchParams.delete('merge')
+        window.history.replaceState(window.history.state, '', url)
+      }
     } catch (cause) { showError(cause) }
     finally { setBusy(false) }
   }
@@ -288,8 +290,12 @@ export function TreeMergePanel({ snapshot, request, onClose, onApplied, onRefres
       onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
       <header className="tree-merge-heading">
         <h2>{t('treeMerge.title')}</h2>
-        {draft && <button type="button" className="tree-merge-reset"
-          disabled={busy || voiceBusy} onClick={() => void cancel()}>{t(draft.state === 'applied' ? 'treeMerge.newConversation' : 'treeMerge.cancel')}</button>}
+        {draft && <div className="tree-merge-actions">
+          {draft.proposal && draft.state !== 'applied' && <button type="button" className="tree-merge-reset"
+            disabled={busy || voiceBusy} onClick={() => void conversationAction('cancel')}>{t('treeMerge.cancel')}</button>}
+          <button type="button" className="tree-merge-reset" disabled={busy || voiceBusy}
+            onClick={() => void conversationAction('reset')}>{t('treeMerge.newConversation')}</button>
+        </div>}
       </header>
       <div className="tree-merge-content">
         {stream.error && <div role="status"><p>{t(stream.error)}</p>

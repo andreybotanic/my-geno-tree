@@ -87,6 +87,15 @@ final readonly class TreeMergeDraftController
         $draft = $this->drafts->get($tree, $mergeId);
         $this->drafts->cancel($draft, $this->body->decodeObject($request)['version'] ?? null);
 
+        return new JsonResponse($this->views->create($draft));
+    }
+
+    #[Route('/{mergeId}/reset', name: 'api_tree_merge_reset', methods: ['POST'])]
+    public function reset(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $mergeId, Request $request): JsonResponse
+    {
+        $draft = $this->drafts->get($tree, $mergeId);
+        $this->drafts->reset($draft, $this->body->decodeObject($request)['version'] ?? null);
+
         return new JsonResponse(null, 204);
     }
 

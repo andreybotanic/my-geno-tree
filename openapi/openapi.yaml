@@ -26,7 +26,7 @@ paths:
       - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       operationId: subscribeTreeMergeEvents
-      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; expired or deleted drafts return 404. Events contain TreeMergeEvent JSON, including a removal notification after cancellation. The hub retains no history; fetch the draft once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
+      description: Issues a Secure HttpOnly SameSite=Strict cookie for private Mercure 1.0 events in the current login session. Subscribe to the returned same-origin URL using EventSource with credentials. Renew the cookie before expiresIn seconds; expired or deleted conversations return 404. Events contain TreeMergeEvent JSON, including a cleared proposal after discard and a removal notification after conversation reset. The hub retains no history; fetch the conversation once whenever the stream opens or reconnects. Discard older versions and progress from obsolete attempts. Other login sessions cannot receive the chat.
       security:
         - bearerAuth: []
       responses:
@@ -372,7 +372,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: cancelTreeMerge
-      description: Delete the current draft and its conversation. A missing or expired draft returns 404.
+      description: Discard the pending proposal while keeping all conversation messages. A missing or expired conversation returns 404.
       security:
         - bearerAuth: []
       requestBody:
@@ -381,8 +381,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
       responses:
-        "204":
-          description: Draft and conversation deleted
+        "200":
+          description: Conversation preserved, proposal cleared
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeMergeDraft" }
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -391,6 +394,26 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /trees/{treeId}/merges/{mergeId}/reset:
+    parameters:
+      - { name: treeId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: mergeId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: resetTreeMergeConversation
+      description: Start another conversation by deleting the current history and its proposal.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TreeMergeVersionRequest" }
+      responses:
+        "204": { description: Conversation and proposal deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
   /health:
     get:
       operationId: getHealth
@@ -1925,7 +1948,7 @@ components:
             tokenUsage: { $ref: "#/components/schemas/TreeMergeTokenUsage" }
     TreeMergeDraft:
       type: object
-      description: Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
+      description: Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
       additionalProperties: false
       required: [id, treeId, referencePersonId, version, chatState, proposalVersion, proposal, questions, result, state, treeEtag, messages, progress, tokenUsage, tokenBudget, createdAt, updatedAt, attemptId, attemptStartedAt]
       properties:

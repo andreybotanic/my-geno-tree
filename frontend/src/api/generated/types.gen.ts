@@ -104,7 +104,7 @@ export type TreeMergeEvent = {
 };
 
 /**
- * Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
+ * Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
  */
 export type TreeMergeDraft = {
     id: string;
@@ -815,7 +815,7 @@ export type TreeMergeEventWritable = {
 };
 
 /**
- * Reviewed proposal and application receipt, available only while its bound ephemeral conversation exists. Missing history expires the draft on access. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
+ * Conversation view with at most one pending proposal. History, proposal and application receipt share one ephemeral message-store item and expire together. SQL retains only concurrency identifiers and versions. Discard preserves the conversation; reset removes it. Full messages are visible only within the current authenticated login session; recordings are never attached to the draft.
  */
 export type TreeMergeDraftWritable = {
     id: string;
@@ -1380,12 +1380,52 @@ export type CancelTreeMergeError = CancelTreeMergeErrors[keyof CancelTreeMergeEr
 
 export type CancelTreeMergeResponses = {
     /**
-     * Draft and conversation deleted
+     * Conversation preserved, proposal cleared
+     */
+    200: TreeMergeDraft;
+};
+
+export type CancelTreeMergeResponse = CancelTreeMergeResponses[keyof CancelTreeMergeResponses];
+
+export type ResetTreeMergeConversationData = {
+    body: TreeMergeVersionRequest;
+    path: {
+        treeId: string;
+        mergeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/merges/{mergeId}/reset';
+};
+
+export type ResetTreeMergeConversationErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ResetTreeMergeConversationError = ResetTreeMergeConversationErrors[keyof ResetTreeMergeConversationErrors];
+
+export type ResetTreeMergeConversationResponses = {
+    /**
+     * Conversation and proposal deleted
      */
     204: void;
 };
 
-export type CancelTreeMergeResponse = CancelTreeMergeResponses[keyof CancelTreeMergeResponses];
+export type ResetTreeMergeConversationResponse = ResetTreeMergeConversationResponses[keyof ResetTreeMergeConversationResponses];
 
 export type GetHealthData = {
     body?: never;

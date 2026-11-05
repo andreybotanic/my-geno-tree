@@ -5,6 +5,7 @@ namespace App\Application\TreeMerge;
 use App\Api\ApiException;
 use App\Entity\AuthSession;
 use App\Entity\TreeMergeDraft;
+use App\Model\TreeMergeReview;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\AI\Agent\Bridge\Cache\MessageStore;
 use Symfony\AI\Agent\MessageStore\MessageStoreInterface;
@@ -14,6 +15,7 @@ use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\SystemMessage;
 use Symfony\AI\Platform\Message\UserMessage;
 use Symfony\Component\Clock\ClockInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Contracts\Cache\NamespacedPoolInterface;
@@ -21,10 +23,13 @@ use Symfony\Contracts\Cache\NamespacedPoolInterface;
 /** Application metadata and UI projection of messages kept by Symfony AI. */
 final readonly class TreeMergeChat
 {
+    public const string REVIEW_METADATA = 'treeMergeReview';
+
     public function __construct(
         #[Target('tree_merge')] private MessageStoreInterface $store,
         private ClockInterface $clock,
         #[Target('cache.merge_session')] private CacheItemPoolInterface&NamespacedPoolInterface $cache,
+        #[Autowire('%app.tree_merge_chat_ttl%')] private int $ttl,
     ) {
     }
 
@@ -48,7 +53,40 @@ final readonly class TreeMergeChat
         // An empty conversation must also have the official store's TTL.
         $messages = MessageBag::forId($draft->conversationId);
         $messages->getMetadata()->add('initialized', true);
+        $draft->review = new TreeMergeReview($draft->proposalVersion, $draft->version);
+        $messages->getMetadata()->add(self::REVIEW_METADATA, $draft->review);
         $this->store->save($messages);
+    }
+
+    public function restoreReview(TreeMergeDraft $draft): void
+    {
+        $review = null;
+        if (null !== $draft->chatSessionId) {
+            $store = new MessageStore($this->cache->withSubNamespace($draft->chatSessionId->toRfc4122()), 'tree_merge');
+            $review = $store->load($draft->conversationId)->getMetadata()->get(self::REVIEW_METADATA);
+        }
+        $draft->review = $review instanceof TreeMergeReview && $review->version === $draft->proposalVersion && $review->revision <= $draft->version
+            ? $review : new TreeMergeReview($draft->proposalVersion, $draft->version);
+    }
+
+    public function saveReview(TreeMergeDraft $draft, bool $supersedeTurn = false): void
+    {
+        if (null === $draft->chatSessionId) {
+            throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        }
+        $store = new MessageStore($this->cache->withSubNamespace($draft->chatSessionId->toRfc4122()), 'tree_merge', $this->ttl);
+        $messages = $store->load($draft->conversationId);
+        if (0 === count($messages) && !$messages->getMetadata()->has('initialized')) {
+            throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        }
+        if ($supersedeTurn) {
+            // Make the official store reject an agent saving an older conversation after a manual edit.
+            $message = Message::forSystem('');
+            $message->getMetadata()->add('reviewChanged', true);
+            $messages = $messages->with($message);
+        }
+        $messages->getMetadata()->add(self::REVIEW_METADATA, $draft->review);
+        $store->save($messages);
     }
 
     public function exists(TreeMergeDraft $draft): bool
@@ -70,7 +108,9 @@ final readonly class TreeMergeChat
         if ($failure) {
             $message->getMetadata()->add('failureCode', $content);
         }
-        $this->store->save($this->load($draft)->with($message));
+        $messages = $this->load($draft)->with($message);
+        $messages->getMetadata()->add(self::REVIEW_METADATA, $draft->review);
+        $this->store->save($messages);
     }
 
     public function clear(TreeMergeDraft $draft): void

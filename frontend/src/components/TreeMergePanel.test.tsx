@@ -105,12 +105,13 @@ describe('TreeMergePanel', () => {
     expect(request).toHaveBeenCalledOnce()
   })
 
-  it('creates an empty-tree draft, saves escaped messages and discards it', async () => {
+  it('creates an empty-tree conversation, saves escaped messages and resets the whole conversation', async () => {
     const sent = { ...draft, version: 2, messages: [{
       id: 'message', requestId: 'request', role: 'user' as const, content: '<script>family</script>', createdAt: '2026-11-03',
     }] }
     const { request, close } = renderPanel(async (_path, init) => {
       if (init?.method !== 'POST') return { draft: null }
+      if (_path.endsWith('/reset')) return undefined
       if (_path.endsWith('/process')) return sent
       return JSON.parse(String(init.body)).content ? sent : draft
     })
@@ -124,11 +125,34 @@ describe('TreeMergePanel', () => {
     expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/messages', expect.objectContaining({ method: 'POST' }))
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(close).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start another conversation' }))
     expect(await screen.findByRole('textbox', { name: 'Family description or clarification' })).toBeEnabled()
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Start another conversation' })).not.toBeInTheDocument())
     expect(screen.queryByText('<script>family</script>')).not.toBeInTheDocument()
     expect(window.location.search).toBe('')
+  })
+
+  it('discards only the proposal, keeps messages and unsent input, and continues in the same conversation', async () => {
+    const messages: TreeMergeDraft['messages'] = [{ id: 'source', requestId: 'first', role: 'user', content: 'Vera is my mother.', createdAt: 'now' }]
+    const cancelled: TreeMergeDraft = { ...draft, version: 3, proposalVersion: 2, messages }
+    const { request } = renderPanel(async (path) => {
+      if (path.endsWith('/cancel')) return cancelled
+      if (path.endsWith('/messages') || path.endsWith('/process')) return { ...cancelled, version: 4 }
+      return { draft: { ...ready, version: 2, messages } }
+    })
+    await screen.findByText('Vera is my mother.')
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'A follow-up question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument())
+    expect(screen.getByText('Vera is my mother.')).toBeInTheDocument()
+    expect(input).toHaveValue('A follow-up question')
+    expect(window.location.search).toBe('?merge=merge')
+    expect(screen.queryByRole('button', { name: 'Confirm and apply changes' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/trees/tree/merges/merge/messages', expect.objectContaining({ method: 'POST' })))
+    expect(vi.mocked(request).mock.calls.filter(([path, init]) => path === '/trees/tree/merges' && init?.method === 'POST')).toHaveLength(0)
   })
 
   it('sends with Ctrl+Enter, keeps Enter for newlines and prevents duplicate sends while busy', async () => {
@@ -382,7 +406,7 @@ describe('TreeMergePanel', () => {
   it('reports expired authorization and failed cancellation without dropping the draft', async () => {
     renderPanel(async (_path, init) => {
       if (init?.method === 'POST') throw new ApiRequestError(401, { code: 'UNAUTHORIZED', message: null, fields: {}, details: {} })
-      return { draft: draft }
+      return { draft: ready }
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('session has expired')
@@ -394,7 +418,7 @@ describe('TreeMergePanel', () => {
     const result = { personIds: { p: 'person' }, affectedPersonIds: ['person'], etag: 'new-etag', proposalVersion: 2 }
     const { request, applied } = renderPanel(async (path) => {
       if (path.endsWith('/apply')) return { ...ready, version: 3, proposalVersion: 2, state: 'applied', result }
-      if (path.endsWith('/cancel')) return { ...draft, version: 4, proposalVersion: 3 }
+      if (path.endsWith('/reset')) return undefined
       return { ...ready, version: 2, proposalVersion: 2 }
     })
     const apply = await screen.findByRole('button', { name: 'Confirm and apply changes' })

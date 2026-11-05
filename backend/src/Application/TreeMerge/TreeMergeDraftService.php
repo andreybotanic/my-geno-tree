@@ -165,6 +165,20 @@ final readonly class TreeMergeDraftService
         $this->entityManager->wrapInTransaction(function () use ($draft, $version): void {
             $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($draft);
+            $this->assertEditable($draft, $version);
+            if (null === $draft->proposal && null === $draft->result) {
+                return;
+            }
+            $draft->discardProposal($this->clock->now());
+            $this->chat->saveReview($draft, true);
+        });
+    }
+
+    public function reset(TreeMergeDraft $draft, mixed $version): void
+    {
+        $this->entityManager->wrapInTransaction(function () use ($draft, $version): void {
+            $this->entityManager->lock($draft, LockMode::PESSIMISTIC_WRITE);
+            $this->entityManager->refresh($draft);
             if ($draft->version !== $version) {
                 throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
             }
@@ -186,6 +200,9 @@ final readonly class TreeMergeDraftService
             $this->entityManager->flush();
 
             return null;
+        }
+        if (null !== $draft) {
+            $this->chat->restoreReview($draft);
         }
 
         return $draft;

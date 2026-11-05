@@ -23,6 +23,7 @@ final readonly class TreeMergeProposalService
         private TreeMergeDraftService $drafts,
         private MergeActivity $activity,
         private RequestStack $requests,
+        private TreeMergeChat $chat,
     ) {
     }
 
@@ -136,7 +137,8 @@ final readonly class TreeMergeProposalService
                 throw new ApiException(409, 'TREE_MERGE_NOT_READY', 'tree_merge_not_ready');
             }
             $result = $this->executor->execute($draft->tree, $validated->changes, $etag);
-            $draft->applied($result + ['proposalVersion' => $draft->proposalVersion], $this->clock->now());
+            $draft->applied($result, $this->clock->now());
+            $this->chat->saveReview($draft, true);
 
             return false;
         });
@@ -158,6 +160,7 @@ final readonly class TreeMergeProposalService
         } catch (ApiException $error) {
             $proposal['questions'] = [$error->getErrorCode()];
             $draft->propose($proposal, $this->versions->etag($draft->tree), 'conflict', $this->clock->now(), true);
+            $this->chat->saveReview($draft, true);
         }
     }
 
@@ -169,6 +172,7 @@ final readonly class TreeMergeProposalService
             default                      => 'ready',
         };
         $draft->propose($validated->proposal, $this->versions->etag($draft->tree), $state, $this->clock->now(), $supersedeAttempt);
+        $this->chat->saveReview($draft, $supersedeAttempt);
     }
 
     private function lock(TreeMergeDraft $draft): void

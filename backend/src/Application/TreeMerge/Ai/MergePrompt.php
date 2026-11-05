@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 #[AsInputProcessor(agent: 'ai.agent.tree_merge', priority: -100)]
 final readonly class MergePrompt implements InputProcessorInterface
 {
-    public const string VERSION = 'tree-merge-v15-chat-store';
+    public const string VERSION = 'tree-merge-v16-ephemeral-review';
     public const string SYSTEM = <<<'PROMPT'
         You help the user read and prepare changes to the selected family tree using the provided tools.
         Answer naturally in interfaceLanguage, using the conversation and reviewedProposal.
@@ -71,7 +71,10 @@ final readonly class MergePrompt implements InputProcessorInterface
             'reviewedProposal'           => 'applied' === $draft->state ? null : $draft->proposal,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         $messages = $input->getMessageBag()->withoutToolMessages();
-        $system = $messages->getSystemMessage()?->getContent() ?? self::SYSTEM;
+        $system = $messages->getSystemMessage()?->getContent() ?? '';
+        if ('' === trim($system)) {
+            $system = self::SYSTEM;
+        }
         $prepared = MessageBag::forId($messages->getId());
         foreach ($messages->withoutSystemMessage() as $message) {
             if ($message instanceof UserMessage) {
