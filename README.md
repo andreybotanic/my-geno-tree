@@ -68,6 +68,81 @@ committed to Git.
 
 ## Development commands
 
+### External MCP and OAuth
+
+Connect a remote HTTP MCP client to
+https://my-geno-tree.localhost/api/v1/mcp. It discovers OAuth automatically,
+registers a client, opens the existing MyGenoTree sign-in and asks for consent.
+Consent grants scope mcp: reading and changing **all trees owned by that user**.
+The local development CA must be trusted by the client. Cloud agents require an
+externally reachable HTTPS installation; this change does not deploy one.
+
+After installing dependencies, initialize the ignored signing/encryption keys
+and migrate through the application container:
+
+~~~bash
+docker compose exec backend php bin/console league:oauth2-server:generate-keypair --skip-if-exists --no-interaction
+docker compose exec backend php -r 'file_exists("config/jwt/encryption.key") || file_put_contents("config/jwt/encryption.key", bin2hex(random_bytes(32)));'
+docker compose exec backend chown root:www-data config/jwt/private.pem config/jwt/encryption.key
+docker compose exec backend chmod 640 config/jwt/private.pem config/jwt/encryption.key
+docker compose exec backend php bin/console doctrine:migrations:migrate --no-interaction
+~~~
+
+Keep these keys stable across container restarts. Configure APP_URL as the
+canonical HTTPS origin and OAUTH_MCP_HOST as its hostname. OAUTH_MCP_ORIGIN
+adds an allowed browser-client origin; local MCP Inspector origins are included.
+Discovery uses RFC 8414 and RFC 9728. Client registration supports public HTTPS
+CIMD documents and DCR public or confidential clients. CIMD requests reject
+private networks, redirects and documents larger than 64 KiB.
+
+OAuth uses authorization code + PKCE S256, five-minute one-time consent/code,
+15-minute resource-bound access tokens, and rotating 30-day refresh tokens.
+Refresh-token replay and /api/v1/oauth/revoke revoke the user's connection to
+that client, including its tokens and outstanding codes. MCP credentials do not
+authorize ordinary site APIs. Legacy MCP sessions are bound to user and client;
+current stateless MCP requests authenticate independently.
+
+The external tools are find_trees(query), get_tree_context(treeId,
+referencePersonId?), find_people(treeId, query), get_person_context(treeId,
+personId) and merge(treeId, ifMatch, proposal, sources). Tree discovery accepts
+a fuzzy title or an exact UUID and returns up to five {id, name} candidates.
+It queries only the authenticated owner's trees. Names use the existing
+normalization, PostgreSQL trigram matching and Levenshtein distance.
+
+Read person context before selecting identities; ask the user about ambiguous
+matches. Each call explicitly names its tree. The merge tool uses the existing
+proposal schema and evidence quotes; sources is a list of original user messages
+{id, role: "user", content}. Quotes must occur in the supplied source message.
+These sources come from the external client, not from the site's chat history.
+
+**External merge applies immediately.** It is marked as a modifying,
+non-idempotent tool; the client controls approval and may auto-approve according
+to the user's settings. There is no additional elicitation or site confirmation.
+Send the latest ETag as ifMatch. Success returns personIds,
+affectedPersonIds and the new etag; conflicts return TREE_VERSION_CONFLICT
+without applying changes. Refresh context and review a new proposal after a
+conflict rather than repeating a mutation blindly.
+
+The site chat has its own explicit tool registry: no tree discovery, no tree
+switching, and its existing preview plus Apply button remain the confirmation
+mechanism. REST OAuth endpoints and consent types are documented in OpenAPI.
+
+Both registries reuse TreeReadTools and TreeMergeTool. ChatAgentHooks enforce the
+selected tree and record context reads for the site agent; the MCP registry adds
+TreeReadTools::findTrees and exposes direct application through the merge tool's separate
+MCP method. McpToolExecutor only translates application exceptions into MCP tool
+errors. Tree search lives in FamilyTreeRepository, without a forwarding service.
+
+OAuthConsent implements the one-time, session-bound consent workflow;
+OAuthClientRegistration implements DCR and safe CIMD document retrieval. These
+application operations are not provided by the OAuth bundle. OAuthConnections
+delegates token validation and issuing to League's TokenController and adds a
+short transaction, serialized refresh rotation and per-user/client revocation.
+Authentication uses Symfony's access_token firewall and League's ResourceServer;
+FamilyTreeVoter continues to authorize each tree. OAuthClient extends the bundle's
+supported client model with normal ORM attributes; no metadata event listener is
+needed. REST and MCP exception listeners use the matched firewall configuration.
+
 ### Chat profiles and the merge tool
 
 The AI panel is a reusable Symfony AI conversation. Its backend-selected profile
@@ -253,7 +328,7 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-06): 220 backend tests and 385 frontend tests pass. Line
+Previous chat validation (before external MCP, 2026-11-06): 220 backend tests and 385 frontend tests pass. Line
 coverage is 93.00% backend and 90.18% frontend. Every production file with
 measurable behavior exceeds 75%; EventPlaceRepository and MediaVariantRepository
 contain only Doctrine constructor wiring (one uncovered line each). Backend and
@@ -291,3 +366,26 @@ late private publications. A reset publishes its removal notification even after
 the MessageStore item has been deleted. Existing tests also cover session
 isolation, ETag conflicts, TTL expiry, stale agent saves, Stop/provider failures,
 evidence/read limits, token accounting and another configured agent profile.
+
+External MCP validation (2026-11-06): 235 backend tests and 391 frontend tests
+pass, with line coverage of 93.05% and 90.20%. Backend/frontend quality checks,
+OpenAPI type verification, the production build, Composer validation and schema
+validation pass. All 25 migrations were replayed and schema-validated in a fresh
+disposable PostgreSQL database. The existing nine PHPUnit notices and Vite
+bundle-size advisory remain.
+
+PhpStorm WARNING inspections are clean for application and test PHP files.
+The generated Symfony config/reference.php retains the IDE's unrecognized
+PHPDoc list-type warnings; migration SQL retains its missing-IDE-data-source
+warnings. Generated types and executable migrations were verified by PHPStan,
+Symfony container checks and a fresh PostgreSQL migration replay instead of
+editing generated framework documentation or suppressing SQL inspections.
+
+Manual HTTPS validation used MCP Inspector 2.14.0 and the separate synthetic tree
+"Романовы — внешний MCP 06.11". Discovery, DCR, sign-in, consent approval/denial,
+the five-tool registry and tree/person reads were checked. After reconnecting
+with the existing OAuth connection, merge added Ivan as Anna Pavlovna's husband
+and returned person UUIDs plus a new ETag. The site showed two people and the
+marriage. Editing Ivan's patronymic to Petrovich in another tab made the earlier
+ETag stale: Inspector returned TREE_VERSION_CONFLICT (412), and refreshing the
+site retained exactly two people and the saved change.

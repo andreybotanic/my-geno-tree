@@ -1,0 +1,26 @@
+league_oauth2_server:
+    authorization_server:
+        private_key: '%env(resolve:OAUTH_PRIVATE_KEY)%'
+        private_key_passphrase: '%env(resolve:OAUTH_PASSPHRASE)%'
+        encryption_key: '%env(file:resolve:OAUTH_ENCRYPTION_KEY)%'
+        access_token_ttl: PT15M
+        refresh_token_ttl: P30D
+        auth_code_ttl: PT5M
+        enable_client_credentials_grant: false
+    resource_server:
+        public_key: '%env(resolve:OAUTH_PUBLIC_KEY)%'
+    scopes:
+        available: ['mcp']
+        default: ['mcp']
+    persistence:
+        doctrine: null
+    client:
+        classname: App\Entity\OAuthClient
+
+when@test:
+    services:
+        # Use the lowest bcrypt cost to speed up client secret hashing in tests.
+        league.oauth2_server.password_hasher:
+            class: Symfony\Component\PasswordHasher\Hasher\NativePasswordHasher
+            arguments:
+                $cost: 4 # Lowest possible value for bcrypt

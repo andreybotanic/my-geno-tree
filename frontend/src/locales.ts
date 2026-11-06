@@ -1,6 +1,17 @@
 export const resources = {
   en: {
     translation: {
+      oauth: {
+        title: 'Connect an external agent',
+        request: '“{{name}}” requests access to your MyGenoTree account.',
+        access: 'Allow this application to read and change all trees you own, including people and family relationships.',
+        approvals: 'Approval of individual changes follows your agent’s settings. Automatic approval lets it apply changes without another prompt.',
+        redirect: 'After your decision, return to:',
+        allow: 'Allow access', deny: 'Deny', retry: 'Start again',
+        invalid: 'This authorization request is invalid or unavailable. Start the connection again in your agent.',
+        failed: 'The request may have expired or already been used. Start again to review a new request.',
+        redirecting: 'Returning to the application…',
+      },
       chat: {
         "voice": {
           "record": "Record voice",
@@ -478,6 +489,17 @@ export const resources = {
   },
   ru: {
     translation: {
+      oauth: {
+        title: 'Подключение внешнего агента',
+        request: '«{{name}}» запрашивает доступ к вашему аккаунту MyGenoTree.',
+        access: 'Разрешить приложению читать и изменять все ваши деревья, включая персон и родственные связи.',
+        approvals: 'Подтверждение отдельных изменений зависит от настроек агента. При автоподтверждении он сможет применять изменения без дополнительного запроса.',
+        redirect: 'После вашего решения вернуться в:',
+        allow: 'Разрешить доступ', deny: 'Отказать', retry: 'Начать заново',
+        invalid: 'Запрос авторизации недействителен или недоступен. Начните подключение заново во внешнем агенте.',
+        failed: 'Запрос мог истечь или уже был использован. Начните заново, чтобы проверить новый запрос.',
+        redirecting: 'Возвращаемся в приложение…',
+      },
       chat: {
         "voice": {
           "record": "Записать голос",

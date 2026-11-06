@@ -6,6 +6,163 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /mcp:
+    post:
+      operationId: externalMcpCall
+      description: 'Streamable HTTP JSON-RPC. Tools: find_trees, get_tree_context, find_people, get_person_context, merge. merge applies immediately according to client approval settings.'
+      security: [{ mcpOAuth: [mcp] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        200:
+          description: JSON-RPC result or SSE stream
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+            text/event-stream:
+              schema: { type: string }
+        202: { description: Notification accepted }
+        401: { description: OAuth token required; WWW-Authenticate points to resource metadata }
+  /.well-known/oauth-authorization-server:
+    servers: [{ url: 'https://localhost' }]
+    get:
+      operationId: oauthServerMetadata
+      responses:
+        200:
+          description: RFC 8414 metadata
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /.well-known/oauth-protected-resource/api/v1/mcp:
+    servers: [{ url: 'https://localhost' }]
+    get:
+      operationId: mcpResourceMetadata
+      responses:
+        200:
+          description: RFC 9728 metadata
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /oauth/register:
+    post:
+      operationId: registerOAuthClient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirect_uris]
+              properties:
+                client_name: { type: string, maxLength: 200 }
+                redirect_uris: { type: array, minItems: 1, maxItems: 10, items: { type: string, format: uri } }
+                token_endpoint_auth_method: { type: string, enum: [none, client_secret_post, client_secret_basic], default: none }
+                grant_types: { type: array, items: { type: string, enum: [authorization_code, refresh_token] } }
+                response_types: { type: array, items: { type: string, enum: [code] } }
+                scope: { type: string, enum: [mcp] }
+      responses:
+        201:
+          description: Registered client; a confidential secret is returned once
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        400: { $ref: '#/components/responses/OAuthFailure' }
+  /oauth/authorization-requests:
+    post:
+      operationId: createOAuthAuthorizationRequest
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OAuthAuthorizationParameters' }
+      responses:
+        201:
+          description: One-time consent bound to the active login, valid for five minutes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthAuthorizationView' }
+        400: { $ref: '#/components/responses/OAuthFailure' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+  '/oauth/authorization-requests/{id}/decision':
+    post:
+      operationId: decideOAuthAuthorizationRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approved]
+              additionalProperties: false
+              properties:
+                approved: { type: boolean }
+      responses:
+        200:
+          description: Validated callback URL with code or access_denied, original state and issuer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthDecisionResponse' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+  /oauth/token:
+    post:
+      operationId: exchangeOAuthToken
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, resource]
+              properties:
+                grant_type: { type: string, enum: [authorization_code, refresh_token] }
+                resource: { type: string, format: uri }
+                client_id: { type: string }
+                client_secret: { type: string }
+                code: { type: string }
+                redirect_uri: { type: string, format: uri }
+                code_verifier: { type: string }
+                refresh_token: { type: string }
+      responses:
+        200:
+          description: Access token valid for 15 minutes and rotated refresh token valid for 30 days
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token_type, expires_in, access_token]
+                properties:
+                  token_type: { type: string, enum: [Bearer] }
+                  expires_in: { type: integer }
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+        400: { $ref: '#/components/responses/OAuthFailure' }
+        401: { $ref: '#/components/responses/OAuthFailure' }
+  /oauth/revoke:
+    post:
+      operationId: revokeOAuthConnection
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+                token_type_hint: { type: string }
+                client_id: { type: string }
+                client_secret: { type: string }
+      responses:
+        200: { description: Connection tokens revoked; unknown tokens also succeed }
+        401: { $ref: '#/components/responses/OAuthFailure' }
   /chat-events/authorize:
     get:
       operationId: authorizeChatStream
@@ -1698,6 +1855,13 @@ paths:
           $ref: "#/components/responses/BadGateway"
 components:
   securitySchemes:
+    mcpOAuth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://localhost/oauth/authorize
+          tokenUrl: https://localhost/api/v1/oauth/token
+          scopes: { mcp: Read and change your own trees through MCP }
     mercureBearer:
       type: http
       scheme: bearer
@@ -1745,6 +1909,16 @@ components:
       schema:
         type: string
   responses:
+    OAuthFailure:
+      description: Standard OAuth error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string }
+              error_description: { type: string }
     BadRequest:
       description: Invalid JSON or request wire type
       content:
@@ -1818,6 +1992,31 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
   schemas:
+    OAuthAuthorizationParameters:
+      type: object
+      required: [response_type, client_id, redirect_uri, code_challenge, code_challenge_method, resource]
+      properties:
+        response_type: { type: string, enum: [code] }
+        client_id: { type: string }
+        redirect_uri: { type: string, format: uri }
+        code_challenge: { type: string, minLength: 43, maxLength: 43 }
+        code_challenge_method: { type: string, enum: [S256] }
+        resource: { type: string, format: uri }
+        state: { type: string }
+        scope: { type: string, enum: [mcp] }
+    OAuthAuthorizationView:
+      type: object
+      required: [id, clientName, redirectUri, scope]
+      properties:
+        id: { type: string, format: uuid }
+        clientName: { type: string }
+        redirectUri: { type: string, format: uri }
+        scope: { type: string, enum: [mcp] }
+    OAuthDecisionResponse:
+      type: object
+      required: [redirectUrl]
+      properties:
+        redirectUrl: { type: string, format: uri }
 
     TreeMergeEvidence:
       type: object

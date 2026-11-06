@@ -5,6 +5,7 @@ namespace App\EventListener;
 use App\Api\ApiErrorResponseFactory;
 use App\Api\ApiException;
 use Psr\Log\LoggerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -19,12 +20,14 @@ final readonly class ApiExceptionListener
     public function __construct(
         private ApiErrorResponseFactory $responseFactory,
         private LoggerInterface $logger,
+        private Security $security,
     ) {
     }
 
     public function __invoke(ExceptionEvent $event): void
     {
-        if (!str_starts_with($event->getRequest()->getPathInfo(), '/api/v1')) {
+        if (!str_starts_with($event->getRequest()->getPathInfo(), '/api/v1')
+            || 'mcp' === $this->security->getFirewallConfig($event->getRequest())?->getName()) {
             return;
         }
 

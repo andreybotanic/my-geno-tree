@@ -22,7 +22,8 @@ localhost, my-geno-tree.localhost {
 		}
 	}
 
-	handle /api/* {
+	@backend path /api/* /.well-known/oauth-authorization-server /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/*
+	handle @backend {
 		root * /srv/backend/public
 		php_fastcgi backend:9000
 	}

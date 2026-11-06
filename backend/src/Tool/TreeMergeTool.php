@@ -6,10 +6,13 @@ use App\Api\ApiException;
 use App\Application\Chat\ChatEventPublisherInterface;
 use App\Application\Chat\ChatInterface;
 use App\Application\Tree\TreeContextService;
+use App\Application\Tree\TreeVersion;
 use App\Application\TreeMerge\TreeMergeService;
 use App\Entity\FamilyTree;
 use App\Model\Conversation;
 use App\Model\TreeMergeProposal;
+use Mcp\Capability\Attribute\McpTool;
+use Mcp\Schema\ToolAnnotations;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
 
@@ -29,7 +32,43 @@ final readonly class TreeMergeTool
         private TreeMergeService $merge,
         private TreeContextService $trees,
         private ChatEventPublisherInterface $events,
+        private TreeVersion $versions,
     ) {
+    }
+
+    /** Apply directly for external clients; the chat's merge tool only prepares a preview.
+     * @param array<string, mixed>                                   $proposal
+     * @param list<array{id: string, role: string, content: string}> $sources
+     *
+     * @return array<string, mixed>
+     */
+    #[McpTool(name: 'merge', description: 'APPLY changes immediately to the specified tree, subject to your client approval settings. Read full person context first. Send the latest ETag as ifMatch and exact user quotes with their source message IDs. A conflict requires a fresh read and a new proposal.', annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false))]
+    public function apply(
+        string $treeId,
+        string $ifMatch,
+        #[\Mcp\Capability\Attribute\Schema(definition: TreeMergeToolSchema::PROPOSAL)]
+        array $proposal,
+        #[\Mcp\Capability\Attribute\Schema(
+            type: 'array',
+            minItems: 1,
+            maxItems: 30,
+            items: [
+                'type'       => 'object',
+                'properties' => [
+                    'id'      => ['type' => 'string', 'minLength' => 1],
+                    'role'    => ['const' => 'user'],
+                    'content' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 20000],
+                ],
+                'required'             => ['id', 'role', 'content'],
+                'additionalProperties' => false,
+            ],
+        )]
+        array $sources,
+    ): array {
+        $tree = $this->trees->tree($treeId, true);
+        $this->versions->assertMatches($tree, $ifMatch);
+
+        return $this->merge->apply($tree, $this->merge->prepare($tree, $proposal, $sources), $ifMatch);
     }
 
     /** @param array<string, mixed> $proposal

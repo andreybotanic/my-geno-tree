@@ -11,6 +11,17 @@ security:
                 property: id
 
     firewalls:
+        mcp:
+            pattern: ^/api/v1/mcp$
+            stateless: true
+            provider: app_users
+            access_token:
+                token_handler: App\Security\McpTokenHandler
+                failure_handler: App\Security\McpTokenHandler
+            entry_point: App\Security\McpTokenHandler
+        oauth_public:
+            pattern: ^/(api/v1/oauth/(token|register|revoke)$|\.well-known/oauth-)
+            security: false
         dev:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler|_wdt|assets|build)/
@@ -33,6 +44,7 @@ security:
 
     # Note: Only the *first* matching rule is applied
     access_control:
+        - { path: ^/api/v1/mcp$, roles: ROLE_USER }
         - { path: ^/api/v1/chat-events/authorize$, roles: ROLE_USER }
         - { path: ^/api/v1/(health|statistics)$, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/(register|login|refresh|logout)$, roles: PUBLIC_ACCESS }

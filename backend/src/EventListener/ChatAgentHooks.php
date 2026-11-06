@@ -7,6 +7,7 @@ use App\Application\Chat\ChatEventPublisherInterface;
 use App\Application\Chat\GuardedMessageStore;
 use App\Model\Conversation;
 use App\Security\ChatExecution;
+use App\Tool\TreeReadTools;
 use Symfony\AI\Agent\Attribute\AsInputProcessor;
 use Symfony\AI\Agent\Attribute\AsOutputProcessor;
 use Symfony\AI\Agent\Input;
@@ -14,6 +15,7 @@ use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Agent\Output;
 use Symfony\AI\Agent\OutputProcessorInterface;
 use Symfony\AI\Agent\Toolbox\Event\ToolCallRequested;
+use Symfony\AI\Agent\Toolbox\Event\ToolCallSucceeded;
 use Symfony\AI\Agent\Toolbox\ToolResult;
 use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\AI\Platform\Event\ResultEvent;
@@ -70,9 +72,34 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
             return;
         }
         try {
-            $this->store->execution();
+            $execution = $this->store->execution();
+            if (TreeReadTools::class === $event->getDefinition()->getReference()->getClass()) {
+                if (($event->getToolCall()->getArguments()['treeId'] ?? null) !== ($execution->conversation->context['treeId'] ?? null)) {
+                    throw new ApiException(404, 'TREE_NOT_FOUND');
+                }
+                if (count($execution->observations) >= 8) {
+                    throw new ApiException(429, 'TREE_CONTEXT_LIMIT');
+                }
+            }
         } catch (ApiException $error) {
             $event->setResult(new ToolResult($event->getToolCall(), ['error' => ['code' => $error->getErrorCode()]]));
+        }
+    }
+
+    #[AsEventListener]
+    public function observeTreeRead(ToolCallSucceeded $event): void
+    {
+        if (!$this->executing() || !$event->getTool() instanceof TreeReadTools) {
+            return;
+        }
+        $data = $event->getResult()->getResult();
+        if (!is_array($data)) {
+            return;
+        }
+        $execution = $this->store->execution();
+        $execution->observations[] = $data;
+        if (strlen(json_encode($execution->observations, JSON_THROW_ON_ERROR)) > 60000) {
+            throw new ApiException(429, 'TREE_CONTEXT_LIMIT');
         }
     }
 

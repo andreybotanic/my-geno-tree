@@ -9,3 +9,9 @@ services:
 
     App\:
         resource: '../src/'
+
+    mcp.server.default.builder.configured:
+        decorates: mcp.server.default.builder
+        class: Mcp\Server\Builder
+        factory: ['@App\Mcp\McpToolExecutor', configure]
+        arguments: ['@mcp.server.default.builder.configured.inner']

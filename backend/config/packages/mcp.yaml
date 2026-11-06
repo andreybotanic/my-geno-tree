@@ -1,0 +1,14 @@
+mcp:
+    servers:
+        default:
+            name: MyGenoTree
+            instructions: 'Find the requested tree with find_trees. Ask the user when trees or people are ambiguous. Read person context before preparing changes. merge applies changes immediately and follows client approval settings. Read a new ETag after a conflict; never retry a mutation blindly.'
+            registry:
+                tools: ['App\Tool\TreeReadTools', 'App\Tool\TreeMergeTool']
+            session:
+                directory: '/run/chat/mcp_%kernel.environment%'
+
+            http:
+                path: /api/v1/mcp
+                allowed_hosts: ['localhost', 'my-geno-tree.localhost', '%env(string:OAUTH_MCP_HOST)%']
+                allowed_origins: ['http://localhost:6274', 'http://localhost:6277', '%env(string:OAUTH_MCP_ORIGIN)%']

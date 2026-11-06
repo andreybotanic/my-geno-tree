@@ -10,7 +10,6 @@ use App\Entity\FamilyTree;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
-use App\Tool\TreeReadTools;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
@@ -87,7 +86,9 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
                 $parents[] = ['parent' => $mother, 'child' => $child, 'role' => 'mother', 'evidence' => $evidence];
             }
             $parents[1]['evidence'][0]['quote'] = 'Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980)';
-            static::getContainer()->get(TreeReadTools::class)->person($draft->context['treeId'] ?? '', $ivanId);
+            $toolbox = static::getContainer()->get('ai.toolbox.tree');
+            self::assertInstanceOf(\Symfony\AI\Agent\Toolbox\ToolboxInterface::class, $toolbox);
+            $toolbox->execute(new \Symfony\AI\Platform\Result\ToolCall('read', 'get_person_context', ['treeId' => $draft->context['treeId'] ?? '', 'personId' => $ivanId]));
 
             return FixtureTreeAgent::reply(
                 $draft,

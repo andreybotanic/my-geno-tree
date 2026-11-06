@@ -3,9 +3,13 @@
 namespace App\Tool;
 
 use App\Api\ApiException;
-use App\Application\Chat\ChatInterface;
 use App\Application\Tree\TreeContextService;
+use App\Entity\User;
+use App\Repository\FamilyTreeRepository;
+use Mcp\Capability\Attribute\McpTool;
+use Mcp\Schema\ToolAnnotations;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
+use Symfony\Bundle\SecurityBundle\Security;
 
 #[AsTool(
     name: 'get_tree_context',
@@ -31,52 +35,45 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 )]
 final readonly class TreeReadTools
 {
-    public function __construct(private TreeContextService $context, private ChatInterface $chat)
+    public function __construct(
+        private TreeContextService $context,
+        private FamilyTreeRepository $trees,
+        private Security $security,
+    ) {
+    }
+
+    /** MCP only: the site's Symfony AI registry exposes only the three AsTool methods.
+     * @return array{trees: list<array{id: string, name: string}>}
+     */
+    #[McpTool(name: 'find_trees', description: 'Find your trees by fuzzy title or exact UUID. Returns up to five candidates. Ask the user when the target tree is ambiguous.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
+    public function findTrees(string $query): array
     {
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            throw new ApiException(401, 'INVALID_SESSION');
+        }
+
+        return ['trees' => $this->trees->searchForOwner($user, $query)];
     }
 
     /** @return array<string, mixed> */
+    #[McpTool(name: 'get_tree_context', description: 'Read the specified tree, optional reference person, immediate family and current ETag.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
     public function tree(string $treeId, ?string $referencePersonId = null): array
     {
-        $this->scope($treeId);
-
-        return $this->observed($this->context->context($treeId, $referencePersonId));
+        return $this->context->context($treeId, $referencePersonId);
     }
 
     /** @return array<string, mixed> */
+    #[McpTool(name: 'find_people', description: 'Search names in the specified tree. Read candidate context before choosing a person.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
     public function find(string $treeId, string $query): array
     {
-        $this->scope($treeId);
-
-        return $this->observed(['query' => $query, 'candidates' => $this->context->find($treeId, $query)]);
+        return ['query' => $query, 'candidates' => $this->context->find($treeId, $query)];
     }
 
     /** @return array<string, mixed> */
+    #[McpTool(name: 'get_person_context', description: 'Read a person and immediate relatives from the specified tree.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
     public function person(string $treeId, string $personId): array
     {
-        $this->scope($treeId);
-
-        return $this->observed($this->context->context($treeId, $personId));
-    }
-
-    /** @param array<string, mixed> $data
-     * @return array<string, mixed>
-     */
-    private function observed(array $data): array
-    {
-        $execution = $this->chat->execution();
-        $execution->observations[] = $data;
-        if (count($execution->observations) > 8 || strlen(json_encode($execution->observations, JSON_THROW_ON_ERROR)) > 60000) {
-            throw new ApiException(429, 'TREE_CONTEXT_LIMIT');
-        }
-
-        return $data;
-    }
-
-    private function scope(string $treeId): void
-    {
-        if (($this->chat->execution()->conversation->context['treeId'] ?? null) !== $treeId) {
-            throw new ApiException(404, 'TREE_NOT_FOUND');
-        }
+        return $this->context->context($treeId, $personId);
     }
 }

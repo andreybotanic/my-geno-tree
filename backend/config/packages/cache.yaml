@@ -22,6 +22,12 @@ framework:
 
         # Namespaced pools use the above "app" backend by default
         pools:
+            cache.mcp_identity:
+                adapter: cache.adapter.filesystem
+                default_lifetime: 3600
+            cache.oauth_authorization:
+                adapter: cache.adapter.filesystem
+                default_lifetime: 300
             cache.chat:
                 adapter: app.chat_memory_adapter
                 default_lifetime: '%app.chat_ttl%'

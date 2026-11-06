@@ -3636,3 +3636,4 @@ select:not([multiple]) {
 .tree-merge-graph-review { position: absolute; bottom: 16px; left: 16px; width: min(650px, calc(100% - 280px)); min-height: 0; overflow: visible; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px var(--color-shadow); pointer-events: auto; }
 .tree-merge-graph-review .tree-merge-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0; }
 .merge-preview-person { cursor: default; }
+.oauth-consent { overflow-wrap: anywhere; }

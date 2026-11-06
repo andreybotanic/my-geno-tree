@@ -5,9 +5,12 @@ namespace App\Tests\EventListener;
 use App\Api\ApiErrorResponseFactory;
 use App\Api\ApiException;
 use App\EventListener\ApiExceptionListener;
+use App\EventListener\McpExceptionListener;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Bundle\SecurityBundle\Security\FirewallConfig;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -24,11 +27,35 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
+            $this->security(),
         );
 
         $listener($event);
 
         self::assertFalse($event->hasResponse());
+    }
+
+    public function testMcpSecurityExceptionsReachTheOAuthFirewall(): void
+    {
+        $event = $this->event('/api/v1/mcp', new AccessDeniedException());
+        $listener = new ApiExceptionListener(new ApiErrorResponseFactory(), self::createStub(LoggerInterface::class), $this->security(true));
+        $listener($event);
+        self::assertFalse($event->hasResponse());
+    }
+
+    public function testMcpFailuresHideServerDetailsAndUseJsonRpc(): void
+    {
+        foreach ([new \RuntimeException('private path and credentials'), new NotFoundHttpException('private path')] as $error) {
+            $event = $this->event('/api/v1/mcp', $error);
+            $listener = new ApiExceptionListener(new ApiErrorResponseFactory(), self::createStub(LoggerInterface::class), $this->security(true));
+            $listener($event);
+            (new McpExceptionListener($this->security(true), self::createStub(LoggerInterface::class)))($event);
+            $response = $event->getResponse();
+            self::assertNotNull($response);
+            self::assertStringContainsString('"jsonrpc":"2.0"', (string)$response->getContent());
+            self::assertStringNotContainsString('private', (string)$response->getContent());
+            self::assertSame($error instanceof NotFoundHttpException ? 404 : 500, $response->getStatusCode());
+        }
     }
 
     public function testApiExceptionIsRenderedDirectly(): void
@@ -41,6 +68,7 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
+            $this->security(),
         );
 
         $listener($event);
@@ -58,6 +86,7 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
+            $this->security(),
         );
 
         $listener($event);
@@ -79,6 +108,7 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
+            $this->security(),
         );
 
         $listener($event);
@@ -115,6 +145,7 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             self::createStub(LoggerInterface::class),
+            $this->security(),
         );
 
         $listener($event);
@@ -139,6 +170,7 @@ final class ApiExceptionListenerTest extends TestCase
         $listener = new ApiExceptionListener(
             new ApiErrorResponseFactory(),
             $logger,
+            $this->security(),
         );
 
         $listener($event);
@@ -161,6 +193,14 @@ final class ApiExceptionListenerTest extends TestCase
             1,
             $throwable,
         );
+    }
+
+    private function security(bool $mcp = false): Security
+    {
+        $security = self::createStub(Security::class);
+        $security->method('getFirewallConfig')->willReturn(new FirewallConfig($mcp ? 'mcp' : 'main', 'checker'));
+
+        return $security;
     }
 
     private function responseCode(ExceptionEvent $event): string

@@ -2,7 +2,6 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Api\ApiException;
 use App\Entity\AuthSession;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
@@ -76,6 +75,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertSame($this->treeId, $input['treeId']);
                 $schemas = array_column(array_column($body['tools'], 'function'), 'parameters', 'name');
                 self::assertCount(4, $schemas);
+                self::assertArrayNotHasKey('find_trees', $schemas);
                 self::assertArrayNotHasKey('reply_to_tree_merge', $schemas);
                 $prepareSchema = $schemas['merge'];
                 self::assertIsArray($prepareSchema['properties']);
@@ -309,30 +309,42 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         $result = (static::getContainer()->get(TreeMergeTool::class))($this->treeId, []);
         self::assertIsArray($result['error']);
         self::assertSame('CHAT_AGENT_REQUIRED', $result['error']['code']);
-        FixtureTreeAgent::$handler = static function (Conversation $conversation, string $attempt, TreeMergeTool $merge, \App\Tool\TreeReadTools $reads): string {
-            $foreign = Uuid::v7()->toRfc4122();
-            foreach ([fn () => $reads->tree($foreign), fn () => $reads->find($foreign, 'Vera'), fn () => $reads->person($foreign, Uuid::v7()->toRfc4122())] as $operation) {
-                try {
-                    $operation();
-                    self::fail('Foreign tree read must fail');
-                } catch (ApiException $error) {
-                    self::assertSame('TREE_NOT_FOUND', $error->getErrorCode());
-                }
-            }
-            self::assertArrayHasKey('error', $merge($foreign, []));
-            for ($i = 0; $i < 8; ++$i) {
-                $reads->tree($conversation->context['treeId'] ?? '');
-            }
-            try {
-                $reads->tree($conversation->context['treeId'] ?? '');
-                self::fail('Read budget must be bounded');
-            } catch (ApiException $error) {
-                self::assertSame('TREE_CONTEXT_LIMIT', $error->getErrorCode());
-            }
+        $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Another owned tree'], $this->headers);
+        $other = $this->responseString('id');
+        $calls = 0;
+        static::getContainer()->set(
+            'chat_ai.client',
+            new MockHttpClient(
+                function (string $method, string $url, array $options) use ($other, &$calls): MockResponse {
+                    ++$calls;
+                    if ($calls > 1) {
+                        /** @var array{messages: non-empty-list<array{content: string}>} $body */
+                        $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                        $last = $body['messages'][array_key_last($body['messages'])];
+                        /** @var array{error?: array{code: string}, personCount?: int} $result */
+                        $result = json_decode($last['content'], true, flags: JSON_THROW_ON_ERROR);
+                        if ($calls <= 4) {
+                            self::assertSame('TREE_NOT_FOUND', $result['error']['code'] ?? null);
+                        } elseif (13 === $calls) {
+                            self::assertSame('TREE_CONTEXT_LIMIT', $result['error']['code'] ?? null);
+                        } else {
+                            self::assertSame(0, $result['personCount'] ?? null);
+                        }
+                    }
 
-            return 'Read limit reached.';
-        };
+                    return match ($calls) {
+                        1       => $this->toolResponse('get_tree_context', ['treeId' => $other]),
+                        2       => $this->toolResponse('find_people', ['treeId' => $other, 'query' => 'Vera']),
+                        3       => $this->toolResponse('get_person_context', ['treeId' => $other, 'personId' => Uuid::v7()->toRfc4122()]),
+                        13      => $this->textResponse('Read limit reached.'),
+                        default => $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]),
+                    };
+                },
+            ),
+        );
+        FixtureTreeAgent::$useReal = true;
         $this->send();
+        self::assertSame(13, $calls);
         self::assertSame('Read limit reached.', $this->responseString('messages', '1', 'content'));
     }
 
