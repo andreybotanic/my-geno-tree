@@ -1,6 +1,3 @@
-parameters:
-    app.chat_topic_prefix: '%env(MERCURE_JWT_ISSUER)%/api/v1/chat-events/sessions/{sessionId}/conversations/'
-
 mercure:
     hubs:
         default:

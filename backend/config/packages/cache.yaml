@@ -1,6 +1,3 @@
-parameters:
-    app.chat_ttl: 3600
-
 services:
     # Third-party adapter: keep the RAM-backed cache wiring with its pools.
     app.chat_memory_adapter:
