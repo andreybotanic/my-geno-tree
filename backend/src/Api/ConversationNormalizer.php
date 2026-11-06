@@ -63,7 +63,16 @@ final readonly class ConversationNormalizer implements NormalizerInterface
         return ['remaining' => max(0, $limit->getRemainingTokens()), 'limit' => $limit->getLimit()];
     }
 
-    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, failureCode?: string}> */
+    /**
+     * @return list<array{
+     *     id: string,
+     *     requestId: string,
+     *     role: string,
+     *     content: string,
+     *     createdAt: string,
+     *     failureCode?: string
+     * }>
+     */
     public function messages(Conversation $conversation): array
     {
         $rows = $outcomes = [];
@@ -86,7 +95,8 @@ final readonly class ConversationNormalizer implements NormalizerInterface
                 'requestId' => $metadata['requestId'] ?? $requestId,
                 'role'      => $message->getRole()->value,
                 'content'   => $content,
-                'createdAt' => $metadata['createdAt'] ?? $message->getId()->getDateTime()->format(\DateTimeInterface::ATOM),
+                'createdAt' => $metadata['createdAt']
+                    ?? $message->getId()->getDateTime()->format(\DateTimeInterface::ATOM),
             ];
             if (isset($metadata['failureCode'])) {
                 $row['failureCode'] = $metadata['failureCode'];

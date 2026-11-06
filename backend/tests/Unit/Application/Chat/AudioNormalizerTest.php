@@ -46,7 +46,9 @@ final class AudioNormalizerTest extends TestCase
                     $path,
                 ]
             ))->mustRun();
-            $result = new AudioNormalizer()->normalize(new UploadedFile($path, 'misleading.txt', 'text/plain', test: true));
+            $result = new AudioNormalizer()->normalize(
+                new UploadedFile($path, 'misleading.txt', 'text/plain', test: true),
+            );
             self::assertStringStartsWith('RIFF', $result->wav);
             self::assertEqualsWithDelta(1, $result->durationSeconds, .05);
             $rate = unpack('Vrate', substr($result->wav, 24, 4));
@@ -64,16 +66,70 @@ final class AudioNormalizerTest extends TestCase
     {
         $path = tempnam(sys_get_temp_dir(), 'merge-audio');
         try {
-            foreach ([['bad', 'CHAT_AUDIO_FORMAT'], [str_repeat('x', AudioNormalizer::MAX_BYTES + 1), 'CHAT_AUDIO_SIZE']] as [$bytes, $code]) {
+            foreach ([
+                ['bad', 'CHAT_AUDIO_FORMAT'],
+                [str_repeat('x', AudioNormalizer::MAX_BYTES + 1), 'CHAT_AUDIO_SIZE'],
+            ] as [$bytes, $code]) {
                 file_put_contents($path, $bytes);
                 $this->reject($path, $code);
             }
             unset($bytes);
-            (new Process(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-t', '91', '-f', 'wav', $path]))->mustRun();
+            (new Process(
+                [
+                    'ffmpeg',
+                    '-v',
+                    'error',
+                    '-y',
+                    '-f',
+                    'lavfi',
+                    '-i',
+                    'anullsrc=r=16000:cl=mono',
+                    '-t',
+                    '91',
+                    '-f',
+                    'wav',
+                    $path,
+                ],
+            ))->mustRun();
             $this->reject($path, 'CHAT_AUDIO_DURATION');
-            (new Process(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-t', '90', '-f', 'wav', $path]))->mustRun();
-            self::assertSame(90.0, new AudioNormalizer()->normalize(new UploadedFile($path, 'audio.wav', test: true))->durationSeconds);
-            (new Process(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=1', '-c:a', 'libvorbis', '-f', 'ogg', $path]))->mustRun();
+            (new Process(
+                [
+                    'ffmpeg',
+                    '-v',
+                    'error',
+                    '-y',
+                    '-f',
+                    'lavfi',
+                    '-i',
+                    'anullsrc=r=16000:cl=mono',
+                    '-t',
+                    '90',
+                    '-f',
+                    'wav',
+                    $path,
+                ],
+            ))->mustRun();
+            self::assertSame(
+                90.0,
+                new AudioNormalizer()->normalize(new UploadedFile($path, 'audio.wav', test: true))->durationSeconds,
+            );
+            (new Process(
+                [
+                    'ffmpeg',
+                    '-v',
+                    'error',
+                    '-y',
+                    '-f',
+                    'lavfi',
+                    '-i',
+                    'sine=duration=1',
+                    '-c:a',
+                    'libvorbis',
+                    '-f',
+                    'ogg',
+                    $path,
+                ],
+            ))->mustRun();
             $this->reject($path, 'CHAT_AUDIO_FORMAT');
             // A recognizable container with damaged streams must not reach the provider.
             $contents = file_get_contents($path);

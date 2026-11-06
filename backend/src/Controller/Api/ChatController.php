@@ -33,22 +33,34 @@ final readonly class ChatController
 
     #[Route('/chats/{chatId}/messages', name: 'api_chat_message', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
-    public function message(#[ValueResolver(ChatValueResolver::class)] Conversation $conversation, Request $request): JsonResponse
-    {
-        return new JsonResponse($this->chat->snapshot($this->chat->send($conversation, $this->body->decodeObject($request))));
+    public function message(
+        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        Request $request,
+    ): JsonResponse {
+        return new JsonResponse(
+            $this->chat->snapshot($this->chat->send($conversation, $this->body->decodeObject($request))),
+        );
     }
 
     #[Route('/chats/{chatId}/stop', name: 'api_chat_stop', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
-    public function stop(#[ValueResolver(ChatValueResolver::class)] Conversation $conversation, Request $request): JsonResponse
-    {
-        return new JsonResponse($this->chat->snapshot($this->chat->stop($conversation, $this->body->decodeObject($request)['requestId'] ?? null)));
+    public function stop(
+        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        Request $request,
+    ): JsonResponse {
+        return new JsonResponse(
+            $this->chat->snapshot(
+                $this->chat->stop($conversation, $this->body->decodeObject($request)['requestId'] ?? null),
+            ),
+        );
     }
 
     #[Route('/chats/{chatId}/reset', name: 'api_chat_reset', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
-    public function reset(#[ValueResolver(ChatValueResolver::class)] Conversation $conversation, Request $request): JsonResponse
-    {
+    public function reset(
+        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        Request $request,
+    ): JsonResponse {
         $this->chat->reset($conversation, $this->body->decodeObject($request)['version'] ?? null);
 
         return new JsonResponse(null, 204);

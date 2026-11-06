@@ -10,10 +10,33 @@ use Doctrine\ORM\EntityManagerInterface;
  * @phpstan-type TreeResponse array{id: string, etag: string}
  * @phpstan-type SnapshotPerson array{id: string}
  * @phpstan-type SnapshotParentLink array{id: string, parentId: string, childId: string, role: string}
- * @phpstan-type Snapshot array{etag: string, people: list<SnapshotPerson>, parentLinks: list<SnapshotParentLink>, marriages: list<array{id: string}>}
+ * @phpstan-type Snapshot array{
+ *     etag: string,
+ *     people: list<SnapshotPerson>,
+ *     parentLinks: list<SnapshotParentLink>,
+ *     marriages: list<array{
+ *         id: string
+ *     }>
+ * }
  * @phpstan-type SearchItem array{id: string, fullName: string, birthYear: int|null, deathYear: int|null}
  * @phpstan-type RouteNode array{personId: string, kind: 'route'|'support'}
- * @phpstan-type RoutePlan array{etag: string, targetPersonId: string, people: list<array{id: string}>, parentLinks: list<array{id: string}>, marriages: list<array{id: string}>, familyBlocks: list<array{id: string}>, nodes: list<RouteNode>}
+ * @phpstan-type RoutePlan array{
+ *     etag: string,
+ *     targetPersonId: string,
+ *     people: list<array{
+ *         id: string
+ *     }>,
+ *     parentLinks: list<array{
+ *         id: string
+ *     }>,
+ *     marriages: list<array{
+ *         id: string
+ *     }>,
+ *     familyBlocks: list<array{
+ *         id: string
+ *     }>,
+ *     nodes: list<RouteNode>
+ * }
  */
 final class PersonSearchRouteApiTest extends ApiWebTestCase
 {
@@ -126,8 +149,11 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
     {
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
-        $fullName = "TRIM(REGEXP_REPLACE_TEXT(LOWER(TRANSLATE_TEXT(CONCAT_WS(' ', person.birthSurname.value, person.givenName.value, person.patronymic.value), 'Ёё', 'Ее')), '[^[:alnum:]]+', ' ', 'g'))";
-        $distance = 'LEAST_INTEGER(LEVENSHTEIN_LESS_EQUAL(:query, SUBSTRING(' . $fullName . ', 1, 255), :maximumDistance))';
+        $fullName = 'TRIM(REGEXP_REPLACE_TEXT(LOWER(TRANSLATE_TEXT(CONCAT_WS(\' \', ' .
+            'person.birthSurname.value, person.givenName.value, person.patronymic.value), ' .
+            '\'Ёё\', \'Ее\')), \'[^[:alnum:]]+\', \' \', \'g\'))';
+        $distance = 'LEAST_INTEGER(LEVENSHTEIN_LESS_EQUAL(:query, SUBSTRING(' . $fullName
+            . ', 1, 255), :maximumDistance))';
         $sql = $entityManager->createQueryBuilder()
             ->select('person')
             ->addSelect($distance . ' AS HIDDEN distance')
@@ -223,7 +249,20 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
             headers: $this->authorization($token),
         );
         self::assertResponseIsSuccessful();
-        /** @var array{person: array{id: string}, permissions: array<string, mixed>, events: list<array<string, mixed>>, relationships: array{people: list<array<string, mixed>>, parentLinks: list<array<string, mixed>>, marriages: list<array<string, mixed>>}} $details */
+        /**
+         * @var array{
+         *     person: array{
+         *         id: string
+         *     },
+         *     permissions: array<string, mixed>,
+         *     events: list<array<string, mixed>>,
+         *     relationships: array{
+         *         people: list<array<string, mixed>>,
+         *         parentLinks: list<array<string, mixed>>,
+         *         marriages: list<array<string, mixed>>
+         *     }
+         * } $details
+         */
         $details = $this->responseData();
         self::assertSame($grandmotherId, $details['person']['id']);
         self::assertArrayHasKey('permissions', $details);
@@ -236,7 +275,16 @@ final class PersonSearchRouteApiTest extends ApiWebTestCase
         self::assertCount(2, $details['relationships']['people']);
         foreach ($details['relationships']['people'] as $relatedPerson) {
             self::assertSame(
-                ['id', 'birthSurname', 'givenName', 'patronymic', 'gender', 'birthDate', 'deathDate', 'photoThumbnailUrl'],
+                [
+                    'id',
+                    'birthSurname',
+                    'givenName',
+                    'patronymic',
+                    'gender',
+                    'birthDate',
+                    'deathDate',
+                    'photoThumbnailUrl',
+                ],
                 array_keys($relatedPerson),
             );
         }

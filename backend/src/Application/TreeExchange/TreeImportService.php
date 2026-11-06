@@ -60,152 +60,159 @@ final readonly class TreeImportService
             : new GedcomPlaceRecognition([], 0);
 
         try {
-            return $this->entityManager->wrapInTransaction(function () use ($owner, $name, $document, $recognition): ImportedTree {
-                $createdAt = $this->clock->now();
-                $tree = new FamilyTree($owner, $name, $createdAt);
-                $this->entityManager->persist($tree);
+            return $this->entityManager->wrapInTransaction(
+                function () use ($owner, $name, $document, $recognition): ImportedTree {
+                    $createdAt = $this->clock->now();
+                    $tree = new FamilyTree($owner, $name, $createdAt);
+                    $this->entityManager->persist($tree);
 
-                /** @var array<string, Person> $people */
-                $people = [];
-                foreach ($document->people as $data) {
-                    $person = new Person(
-                        $tree,
-                        $this->knownText($data['birthSurname']),
-                        $this->knownText($data['givenName']),
-                        KnownText::unknown(),
-                        $data['gender'],
-                        $data['birthDate'],
-                        $data['deathDate'],
-                        $createdAt,
-                    );
-                    $people[$data['id']] = $person;
-                    $this->entityManager->persist($person);
-                    $birthPlace = $this->importedPlace($data['birthPlace'], $recognition->places);
-                    if (null !== $birthPlace) {
-                        $person->changeBirthPlace($birthPlace, $createdAt);
-                    }
-                    $deathPlace = $this->importedPlace($data['deathPlace'], $recognition->places);
-                    if (null !== $deathPlace) {
-                        $person->changeDeathPlace($deathPlace, $createdAt);
-                    }
-                    $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
-                        $person,
-                        EventType::BIRTH,
-                        $data['birthDate'],
-                        $createdAt,
-                        $birthPlace,
-                    ));
-                    if (null !== $data['deathDate']) {
-                        $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
-                            $person,
-                            EventType::DEATH,
+                    /** @var array<string, Person> $people */
+                    $people = [];
+                    foreach ($document->people as $data) {
+                        $person = new Person(
+                            $tree,
+                            $this->knownText($data['birthSurname']),
+                            $this->knownText($data['givenName']),
+                            KnownText::unknown(),
+                            $data['gender'],
+                            $data['birthDate'],
                             $data['deathDate'],
                             $createdAt,
-                            $deathPlace,
-                        ));
-                    }
-                    foreach ($data['events'] as $event) {
-                        $this->entityManager->persist(GenealogicalEvent::manual(
-                            $person,
-                            'RESI' === $event['gedcomTag']
-                                ? EventType::RESIDENCE
-                                : EventType::CUSTOM,
-                            $event['date'],
-                            'RESI' === $event['gedcomTag']
-                                ? null
-                                : $this->eventTitle(
-                                    $event['gedcomTag'],
-                                    $event['title'],
-                                    $owner->getPreferredLanguage(),
-                                ),
-                            $event['description'],
-                            ['gedcomTag' => $event['gedcomTag']],
-                            $createdAt,
-                            $this->importedPlace($event['place'], $recognition->places),
-                        ));
-                    }
-                }
-
-                foreach ($document->families as $family) {
-                    foreach (['husband' => ParentRole::FATHER, 'wife' => ParentRole::MOTHER] as $key => $role) {
-                        $parentId = $family[$key];
-                        if (null === $parentId) {
-                            continue;
+                        );
+                        $people[$data['id']] = $person;
+                        $this->entityManager->persist($person);
+                        $birthPlace = $this->importedPlace($data['birthPlace'], $recognition->places);
+                        if (null !== $birthPlace) {
+                            $person->changeBirthPlace($birthPlace, $createdAt);
                         }
-                        foreach ($family['children'] as $childId) {
-                            $link = new ParentLink($tree, $people[$parentId], $people[$childId], $role);
-                            $this->entityManager->persist($link);
-                            $this->entityManager->persist(GenealogicalEvent::automaticRelated(
-                                $people[$parentId],
-                                EventType::CHILD_BIRTH,
-                                $people[$childId]->getBirthDate(),
-                                'parent_link',
-                                $link->getId(),
-                                ['childId' => $people[$childId]->getId()->toRfc4122()],
+                        $deathPlace = $this->importedPlace($data['deathPlace'], $recognition->places);
+                        if (null !== $deathPlace) {
+                            $person->changeDeathPlace($deathPlace, $createdAt);
+                        }
+                        $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
+                            $person,
+                            EventType::BIRTH,
+                            $data['birthDate'],
+                            $createdAt,
+                            $birthPlace,
+                        ));
+                        if (null !== $data['deathDate']) {
+                            $this->entityManager->persist(GenealogicalEvent::automaticPersonLifecycle(
+                                $person,
+                                EventType::DEATH,
+                                $data['deathDate'],
                                 $createdAt,
-                                $people[$childId]->getBirthPlace(),
+                                $deathPlace,
+                            ));
+                        }
+                        foreach ($data['events'] as $event) {
+                            $this->entityManager->persist(GenealogicalEvent::manual(
+                                $person,
+                                'RESI' === $event['gedcomTag']
+                                    ? EventType::RESIDENCE
+                                    : EventType::CUSTOM,
+                                $event['date'],
+                                'RESI' === $event['gedcomTag']
+                                    ? null
+                                    : $this->eventTitle(
+                                        $event['gedcomTag'],
+                                        $event['title'],
+                                        $owner->getPreferredLanguage(),
+                                    ),
+                                $event['description'],
+                                ['gedcomTag' => $event['gedcomTag']],
+                                $createdAt,
+                                $this->importedPlace($event['place'], $recognition->places),
                             ));
                         }
                     }
-                    if ($family['unmarried'] || null === $family['husband'] || null === $family['wife']) {
-                        continue;
-                    }
-                    $male = $people[$family['husband']];
-                    $female = $people[$family['wife']];
-                    $marriage = new MarriagePeriod(
-                        $tree,
-                        $male,
-                        $female,
-                        $family['marriageDate'],
-                        $family['dissolutionDate'],
-                        $createdAt,
-                    );
-                    $this->entityManager->persist($marriage);
-                    $marriagePlace = $this->importedPlace($family['marriagePlace'], $recognition->places);
-                    if (null !== $marriagePlace) {
-                        $marriage->changeMarriagePlace($marriagePlace, $createdAt);
-                    }
-                    $dissolutionPlace = $this->importedPlace($family['dissolutionPlace'], $recognition->places);
-                    if (null !== $dissolutionPlace) {
-                        $marriage->changeDissolutionPlace($dissolutionPlace, $createdAt);
-                    }
-                    foreach ([[$male, $female], [$female, $male]] as [$person, $partner]) {
-                        $data = ['partnerId' => $partner->getId()->toRfc4122()];
-                        $this->entityManager->persist(GenealogicalEvent::automaticRelated(
-                            $person,
-                            EventType::MARRIAGE,
+
+                    foreach ($document->families as $family) {
+                        foreach (['husband' => ParentRole::FATHER, 'wife' => ParentRole::MOTHER] as $key => $role) {
+                            $parentId = $family[$key];
+                            if (null === $parentId) {
+                                continue;
+                            }
+                            foreach ($family['children'] as $childId) {
+                                $link = new ParentLink($tree, $people[$parentId], $people[$childId], $role);
+                                $this->entityManager->persist($link);
+                                $this->entityManager->persist(GenealogicalEvent::automaticRelated(
+                                    $people[$parentId],
+                                    EventType::CHILD_BIRTH,
+                                    $people[$childId]->getBirthDate(),
+                                    'parent_link',
+                                    $link->getId(),
+                                    ['childId' => $people[$childId]->getId()->toRfc4122()],
+                                    $createdAt,
+                                    $people[$childId]->getBirthPlace(),
+                                ));
+                            }
+                        }
+                        if ($family['unmarried'] || null === $family['husband'] || null === $family['wife']) {
+                            continue;
+                        }
+                        $male = $people[$family['husband']];
+                        $female = $people[$family['wife']];
+                        $marriage = new MarriagePeriod(
+                            $tree,
+                            $male,
+                            $female,
                             $family['marriageDate'],
-                            'marriage_period',
-                            $marriage->getId(),
-                            $data,
+                            $family['dissolutionDate'],
                             $createdAt,
-                            $marriagePlace,
-                        ));
-                        if (null !== $family['dissolutionDate']) {
+                        );
+                        $this->entityManager->persist($marriage);
+                        $marriagePlace = $this->importedPlace($family['marriagePlace'], $recognition->places);
+                        if (null !== $marriagePlace) {
+                            $marriage->changeMarriagePlace($marriagePlace, $createdAt);
+                        }
+                        $dissolutionPlace = $this->importedPlace($family['dissolutionPlace'], $recognition->places);
+                        if (null !== $dissolutionPlace) {
+                            $marriage->changeDissolutionPlace($dissolutionPlace, $createdAt);
+                        }
+                        foreach ([[$male, $female], [$female, $male]] as [$person, $partner]) {
+                            $data = ['partnerId' => $partner->getId()->toRfc4122()];
                             $this->entityManager->persist(GenealogicalEvent::automaticRelated(
                                 $person,
-                                EventType::DIVORCE,
-                                $family['dissolutionDate'],
+                                EventType::MARRIAGE,
+                                $family['marriageDate'],
                                 'marriage_period',
                                 $marriage->getId(),
                                 $data,
                                 $createdAt,
-                                $dissolutionPlace,
+                                $marriagePlace,
                             ));
+                            if (null !== $family['dissolutionDate']) {
+                                $this->entityManager->persist(GenealogicalEvent::automaticRelated(
+                                    $person,
+                                    EventType::DIVORCE,
+                                    $family['dissolutionDate'],
+                                    'marriage_period',
+                                    $marriage->getId(),
+                                    $data,
+                                    $createdAt,
+                                    $dissolutionPlace,
+                                ));
+                            }
                         }
                     }
-                }
 
-                $tree->referencePerson(array_values($people)[0]);
+                    $tree->referencePerson(array_values($people)[0]);
 
-                return new ImportedTree(
-                    $tree,
-                    count($people),
-                    $recognition->unrecognizedPlaceCount > 0
-                        ? [['code' => 'place_recognition_incomplete', 'count' => $recognition->unrecognizedPlaceCount]]
-                        : [],
-                );
-            });
+                    return new ImportedTree(
+                        $tree,
+                        count($people),
+                        $recognition->unrecognizedPlaceCount > 0
+                            ? [
+                                [
+                                    'code'  => 'place_recognition_incomplete',
+                                    'count' => $recognition->unrecognizedPlaceCount,
+                                ],
+                            ]
+                            : [],
+                    );
+                },
+            );
         } catch (UniqueConstraintViolationException $exception) {
             throw $this->nameConflict($exception);
         }

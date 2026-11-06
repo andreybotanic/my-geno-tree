@@ -43,7 +43,10 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
     public function processInput(Input $input): void
     {
         if ($this->executing()) {
-            $input->getMessageBag()->getMetadata()->add(Conversation::METADATA, $this->store->execution()->conversation);
+            $input->getMessageBag()->getMetadata()->add(
+                Conversation::METADATA,
+                $this->store->execution()->conversation,
+            );
         }
     }
 
@@ -74,7 +77,8 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         try {
             $execution = $this->store->execution();
             if (TreeReadTools::class === $event->getDefinition()->getReference()->getClass()) {
-                if (($event->getToolCall()->getArguments()['treeId'] ?? null) !== ($execution->conversation->context['treeId'] ?? null)) {
+                if (($event->getToolCall()->getArguments()['treeId'] ?? null)
+                    !== ($execution->conversation->context['treeId'] ?? null)) {
                     throw new ApiException(404, 'TREE_NOT_FOUND');
                 }
                 if (count($execution->observations) >= 8) {
@@ -120,8 +124,14 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         );
         $deferred->onError(
             function () use ($state, $deferred, $event): void {
-                $this->record($state, $deferred->getResultConverter()->getTokenUsageExtractor()?->extract($deferred->getRawResult(), $event->getOptions()));
-            }
+                $this->record(
+                    $state,
+                    $deferred->getResultConverter()->getTokenUsageExtractor()?->extract(
+                        $deferred->getRawResult(),
+                        $event->getOptions(),
+                    ),
+                );
+            },
         );
     }
 

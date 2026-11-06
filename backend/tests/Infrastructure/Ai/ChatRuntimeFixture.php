@@ -32,7 +32,10 @@ final readonly class ChatRuntimeFixture
         $session = new AuthSession($user, 'hash', $now->modify('+15 minutes'), $now->modify('+1 day'), $now);
         $this->conversation = new Conversation('test', 'tree', [], $session->getId(), $user->getId(), $now);
         $this->conversation->beginAttempt($now, 'turn');
-        $this->execution = new ChatExecution($this->conversation, $this->conversation->attemptId ?? throw new \LogicException());
+        $this->execution = new ChatExecution(
+            $this->conversation,
+            $this->conversation->attemptId ?? throw new \LogicException(),
+        );
         $request = new Request();
         $request->attributes->set(AuthSession::class, $session);
         $request->attributes->set(Conversation::class, $this->conversation);

@@ -2,10 +2,12 @@
 
 namespace App\EventListener;
 
+use Mcp\Schema\JsonRpc\Error;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -26,8 +28,11 @@ final readonly class McpExceptionListener
             || $error instanceof AuthenticationException || $error instanceof AccessDeniedException) {
             return;
         }
-        $status = $error instanceof HttpExceptionInterface ? $error->getStatusCode() : 500;
-        if ($status >= 500) {
+        $status = $error instanceof HttpExceptionInterface
+            ? $error->getStatusCode()
+            : Response::HTTP_INTERNAL_SERVER_ERROR;
+        $serverError = $status >= Response::HTTP_INTERNAL_SERVER_ERROR;
+        if ($serverError) {
             $this->logger->error('Unhandled MCP exception.', ['exception' => $error]);
         }
         $event->setResponse(
@@ -35,7 +40,11 @@ final readonly class McpExceptionListener
                 [
                     'jsonrpc' => '2.0',
                     'id'      => null,
-                    'error'   => ['code' => $status >= 500 ? -32603 : -32600, 'message' => $status >= 500 ? 'Internal error' : 'Invalid request'],
+                    // JSON-RPC 2.0 distinguishes an invalid request from an internal server failure.
+                    'error' => [
+                        'code'    => $serverError ? Error::INTERNAL_ERROR : Error::INVALID_REQUEST,
+                        'message' => $serverError ? 'Internal error' : 'Invalid request',
+                    ],
                 ],
                 $status,
             ),

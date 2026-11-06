@@ -67,16 +67,29 @@ final readonly class ChatService implements ChatInterface
             function () use ($conversation, $payload): ?Conversation {
                 $current = $this->get($conversation->id->toRfc4122());
                 $messages = $this->messages($current);
-                $existing = array_find($messages, static fn ($message) => 'user' === $message['role'] && $payload['requestId'] === $message['requestId']);
+                $existing = array_find(
+                    $messages,
+                    static fn ($message) => 'user' === $message['role']
+                        && $payload['requestId'] === $message['requestId'],
+                );
                 if (null !== $existing && $existing['content'] !== $payload['content']) {
                     throw new ApiException(409, 'CHAT_REQUEST_CONFLICT');
                 }
-                if (array_any($messages, static fn ($message) => 'assistant' === $message['role'] && $payload['requestId'] === $message['requestId'])) {
+                if (array_any(
+                    $messages,
+                    static fn ($message) => 'assistant' === $message['role']
+                        && $payload['requestId'] === $message['requestId'],
+                )) {
                     return null;
                 }
                 if (null === $existing) {
                     $this->version($current, $payload['version']);
-                    $length = mb_strlen($payload['content']) + array_sum(array_map(static fn ($message) => 'user' === $message['role'] ? mb_strlen($message['content']) : 0, $messages));
+                    $length = mb_strlen($payload['content']) + array_sum(
+                        array_map(
+                            static fn ($message) => 'user' === $message['role'] ? mb_strlen($message['content']) : 0,
+                            $messages,
+                        ),
+                    );
                     if ($length > self::MAX_INPUT_LENGTH || count($messages) >= 200) {
                         throw new ApiException(422, 'CHAT_INPUT_LIMIT');
                     }
@@ -86,7 +99,8 @@ final readonly class ChatService implements ChatInterface
                         throw new ApiException(409, 'CHAT_VERSION_CONFLICT');
                     }
                 }
-                if ('processing' === $current->status && $current->attemptStartedAt > $this->clock->now()->modify('-5 minutes')) {
+                if ('processing' === $current->status
+                    && $current->attemptStartedAt > $this->clock->now()->modify('-5 minutes')) {
                     throw new ApiException(409, 'CHAT_PROCESSING');
                 }
                 if (!$this->limiter->create($current->userId->toRfc4122())->consume()->isAccepted()) {
@@ -100,7 +114,7 @@ final readonly class ChatService implements ChatInterface
                 }
 
                 return $current;
-            }
+            },
         );
         if (null === $running) {
             return $this->get($conversation->id->toRfc4122());
@@ -122,7 +136,9 @@ final readonly class ChatService implements ChatInterface
                 $answered = '' !== trim($execution->native->asText());
             } catch (\Throwable $error) {
                 $this->logger->warning('Chat agent failed: ' . $error::class);
-                $failure = $error instanceof ApiException && 'CHAT_TOKEN_LIMIT' === $error->getErrorCode() ? 'token_limit' : 'provider_unavailable';
+                $failure = $error instanceof ApiException && 'CHAT_TOKEN_LIMIT' === $error->getErrorCode()
+                    ? 'token_limit'
+                    : 'provider_unavailable';
             }
             $this->store->synchronized(
                 $running->contextKey,
@@ -169,13 +185,16 @@ final readonly class ChatService implements ChatInterface
                 if (null === $last || $last['requestId'] !== $requestId) {
                     throw new ApiException(409, 'CHAT_VERSION_CONFLICT');
                 }
-                if (!array_any($messages, static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId)) {
+                if (!array_any(
+                    $messages,
+                    static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId,
+                )) {
                     $current->finishAttempt($this->clock->now());
                     $this->append($current, $requestId, 'stopped', true);
                 }
 
                 return $current;
-            }
+            },
         );
         $this->publish($current);
 
@@ -200,8 +219,12 @@ final readonly class ChatService implements ChatInterface
         return $this->store->execution();
     }
 
-    public function replaceTool(Conversation $conversation, string $name, ?object $state, bool $invalidate = true): Conversation
-    {
+    public function replaceTool(
+        Conversation $conversation,
+        string $name,
+        ?object $state,
+        bool $invalidate = true,
+    ): Conversation {
         $current = $this->store->synchronized(
             $conversation->contextKey,
             function () use ($conversation, $name, $state, $invalidate): Conversation {
@@ -271,10 +294,16 @@ final readonly class ChatService implements ChatInterface
         $this->events->conversation($conversation, $this->snapshot($conversation));
     }
 
-    private function append(Conversation $conversation, string $requestId, string $content, bool $failure = false): void
-    {
+    private function append(
+        Conversation $conversation,
+        string $requestId,
+        string $content,
+        bool $failure = false,
+    ): void {
         $message = $failure ? Message::forSystem('') : Message::ofUser($content);
-        $message->getMetadata()->set(['requestId' => $requestId, 'createdAt' => $this->clock->now()->format(\DateTimeInterface::ATOM)]);
+        $message->getMetadata()->set(
+            ['requestId' => $requestId, 'createdAt' => $this->clock->now()->format(\DateTimeInterface::ATOM)],
+        );
         if ($failure) {
             $message->getMetadata()->add('failureCode', $content);
         }

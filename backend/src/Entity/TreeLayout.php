@@ -67,7 +67,8 @@ class TreeLayout
         ) {
             throw new \LogicException('Layout anchor people must belong to the tree.');
         }
-        if (null !== $secondaryPerson && $primaryPerson->getId()->toRfc4122() >= $secondaryPerson->getId()->toRfc4122()) {
+        if (null !== $secondaryPerson
+            && $primaryPerson->getId()->toRfc4122() >= $secondaryPerson->getId()->toRfc4122()) {
             throw new \LogicException('A marriage layout anchor must use canonical person order.');
         }
 

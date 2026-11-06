@@ -31,7 +31,11 @@ final class ResourceAccessToken implements AccessTokenEntityInterface
         if ('' === $contents) {
             throw new \LogicException('OAuth signing key is empty.');
         }
-        $configuration = Configuration::forAsymmetricSigner(new Sha256(), InMemory::plainText($contents, $this->privateKey->getPassPhrase() ?? ''), InMemory::plainText('unused'));
+        $configuration = Configuration::forAsymmetricSigner(
+            new Sha256(),
+            InMemory::plainText($contents, $this->privateKey->getPassPhrase() ?? ''),
+            InMemory::plainText('unused'),
+        );
 
         return $configuration->builder()
             ->issuedBy($this->issuer)

@@ -17,8 +17,11 @@ final class ChatVoter extends Voter
 {
     public const string USE = 'CHAT_USE';
 
-    public function __construct(private readonly RequestStack $requests, private readonly EntityManagerInterface $entityManager, private readonly ClockInterface $clock)
-    {
+    public function __construct(
+        private readonly RequestStack $requests,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ClockInterface $clock,
+    ) {
     }
 
     protected function supports(string $attribute, mixed $subject): bool
@@ -26,8 +29,12 @@ final class ChatVoter extends Voter
         return self::USE === $attribute && $subject instanceof Conversation;
     }
 
-    protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token, ?Vote $vote = null): bool
-    {
+    protected function voteOnAttribute(
+        string $attribute,
+        mixed $subject,
+        TokenInterface $token,
+        ?Vote $vote = null,
+    ): bool {
         $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
         $user = $token->getUser();
         if (!$session instanceof AuthSession || !$user instanceof User) {

@@ -33,7 +33,12 @@ final readonly class McpToolExecutor implements ReferenceHandlerInterface
         try {
             return new ReferenceHandler($this->tools)->handle($reference, $arguments);
         } catch (ApiException $error) {
-            $data = ['code' => $error->getErrorCode(), 'status' => $error->getStatus(), 'fields' => $error->getFields(), 'details' => $error->getDetails()];
+            $data = [
+                'code'    => $error->getErrorCode(),
+                'status'  => $error->getStatus(),
+                'fields'  => $error->getFields(),
+                'details' => $error->getDetails(),
+            ];
 
             return new CallToolResult([new TextContent(json_encode($data, JSON_THROW_ON_ERROR))], true, $data);
         }

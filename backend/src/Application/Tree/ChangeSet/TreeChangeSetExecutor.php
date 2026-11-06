@@ -117,8 +117,12 @@ final readonly class TreeChangeSetExecutor
                     $this->layouts->invalidateChanged($tree);
                 }
 
-                return ['personIds' => $ids, 'affectedPersonIds' => array_keys($affected), 'etag' => $this->versions->etag($tree)];
-            }
+                return [
+                    'personIds'         => $ids,
+                    'affectedPersonIds' => array_keys($affected),
+                    'etag'              => $this->versions->etag($tree),
+                ];
+            },
         );
     }
 }

@@ -7,9 +7,20 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * @phpstan-type ExchangePlace array{name: string, coordinates: array{latitude: float, longitude: float}|null}
- * @phpstan-type ExchangePerson array{id: string, givenName: array{state: string, value?: string}, birthPlace: ExchangePlace|null}
+ * @phpstan-type ExchangePerson array{
+ *     id: string,
+ *     givenName: array{
+ *         state: string,
+ *         value?: string
+ *     },
+ *     birthPlace: ExchangePlace|null
+ * }
  * @phpstan-type ExchangeMarriage array{marriagePlace: ExchangePlace|null, dissolutionPlace: ExchangePlace|null}
- * @phpstan-type ExchangeSnapshot array{people: list<ExchangePerson>, parentLinks: list<array<string, mixed>>, marriages: list<ExchangeMarriage>}
+ * @phpstan-type ExchangeSnapshot array{
+ *     people: list<ExchangePerson>,
+ *     parentLinks: list<array<string, mixed>>,
+ *     marriages: list<ExchangeMarriage>
+ * }
  * @phpstan-type ExchangeEvent array{type: string, date: array<string, mixed>, place: ExchangePlace|null}
  */
 final class TreeExchangeApiTest extends ApiWebTestCase
@@ -337,7 +348,10 @@ GEDCOM;
         self::assertResponseIsSuccessful();
         $export = $this->client->getResponse()->getContent();
         self::assertIsString($export);
-        self::assertStringContainsString("2 PLAC Novosibirsk\r\n3 MAP\r\n4 LATI N55.0302\r\n4 LONG E82.9204\r\n", $export);
+        self::assertStringContainsString(
+            "2 PLAC Novosibirsk\r\n3 MAP\r\n4 LATI N55.0302\r\n4 LONG E82.9204\r\n",
+            $export,
+        );
         self::assertStringContainsString("1 RESI\r\n2 PLAC Tomsk\r\n", $export);
         self::assertStringContainsString("2 PLAC Old village\r\n", $export);
         self::assertStringNotContainsString("2 PLAC Old village\r\n3 MAP", $export);
@@ -379,7 +393,11 @@ GEDCOM;
         self::assertResponseStatusCodeSame(422);
         self::assertSame('TREE_IMPORT_FORMAT_UNSUPPORTED', $this->responseString('code'));
 
-        $disconnected = str_replace("0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n1 _MGT_UNMARRIED Y\n", '', self::GEDCOM);
+        $disconnected = str_replace(
+            "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n1 _MGT_UNMARRIED Y\n",
+            '',
+            self::GEDCOM,
+        );
         $this->multipart('/api/v1/tree-imports/inspect', $token, $disconnected);
         self::assertResponseStatusCodeSame(422);
         self::assertSame('TREE_IMPORT_DISCONNECTED', $this->responseString('code'));

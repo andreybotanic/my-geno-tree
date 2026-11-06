@@ -22,7 +22,15 @@ final class ChatVoterTest extends TestCase
     /** @return list<array{string}> */
     public static function sessions(): array
     {
-        return [['valid'], ['missing'], ['anonymous'], ['expired'], ['revoked'], ['different_user'], ['different_session']];
+        return [
+            ['valid'],
+            ['missing'],
+            ['anonymous'],
+            ['expired'],
+            ['revoked'],
+            ['different_user'],
+            ['different_session'],
+        ];
     }
 
     #[DataProvider('sessions')]
@@ -41,16 +49,31 @@ final class ChatVoterTest extends TestCase
         if ('revoked' === $case) {
             $session->revoke($clock->now());
         }
-        $conversation = new Conversation('test', 'general', [], 'different_session' === $case ? Uuid::v7() : $session->getId(), $user->getId(), $clock->now());
+        $conversation = new Conversation(
+            'test',
+            'general',
+            [],
+            'different_session' === $case ? Uuid::v7() : $session->getId(),
+            $user->getId(),
+            $clock->now(),
+        );
         $request = new Request();
         if ('missing' !== $case) {
             $request->attributes->set(AuthSession::class, $session);
         }
         $requests = new RequestStack();
         $requests->push($request);
-        $token = 'anonymous' === $case ? new NullToken() : new PostAuthenticationToken($user, 'main', $user->getRoles());
+        $token = 'anonymous' === $case
+            ? new NullToken()
+            : new PostAuthenticationToken($user, 'main', $user->getRoles());
         $manager = $this->createMock(EntityManagerInterface::class);
-        $manager->expects(in_array($case, ['missing', 'anonymous'], true) ? $this->never() : $this->once())->method('refresh')->with($session);
+        $manager->expects(
+            in_array($case, ['missing', 'anonymous'], true) ? $this->never() : $this->once(),
+        )->method(
+            'refresh',
+        )->with(
+            $session,
+        );
         $voter = new ChatVoter($requests, $manager, $clock);
         self::assertSame(
             'valid' === $case ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
@@ -61,7 +84,10 @@ final class ChatVoterTest extends TestCase
     public function testUnrelatedSubjectsAndPermissionsAreLeftToOtherVoters(): void
     {
         $voter = new ChatVoter(new RequestStack(), $this->createStub(EntityManagerInterface::class), new MockClock());
-        self::assertSame(VoterInterface::ACCESS_ABSTAIN, $voter->vote(new NullToken(), new \stdClass(), [ChatVoter::USE]));
+        self::assertSame(
+            VoterInterface::ACCESS_ABSTAIN,
+            $voter->vote(new NullToken(), new \stdClass(), [ChatVoter::USE]),
+        );
         self::assertSame(VoterInterface::ACCESS_ABSTAIN, $voter->vote(new NullToken(), null, ['ROLE_USER']));
     }
 }

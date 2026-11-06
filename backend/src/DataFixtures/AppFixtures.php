@@ -79,40 +79,133 @@ final class AppFixtures extends Fixture
 
         // Four generations, built through the same relative and child-placement
         // rules as interactive graph mutations. No fixture coordinates are fixed.
-        $grigoriy = $builder->firstPerson($this->data('Орлов', 'Григорий', 'Павлович', Gender::MALE, $this->year(1925), $this->year(1994)));
-        $agafya = $builder->addSpouse($grigoriy, $this->data('Кузнецова', 'Агафья', 'Ильинична', Gender::FEMALE, $this->year(1928), $this->year(2009)));
+        $grigoriy = $builder->firstPerson(
+            $this->data('Орлов', 'Григорий', 'Павлович', Gender::MALE, $this->year(1925), $this->year(1994)),
+        );
+        $agafya = $builder->addSpouse(
+            $grigoriy,
+            $this->data('Кузнецова', 'Агафья', 'Ильинична', Gender::FEMALE, $this->year(1928), $this->year(2009)),
+        );
         $builder->marry($grigoriy, $agafya, $this->year(1949));
-        $aleksandr = $builder->addChild($grigoriy, $agafya, $this->data('Орлов', 'Александр', 'Григорьевич', Gender::MALE, $this->day(1954, 2, 11), $this->year(2020)));
-        $tatiana = $builder->addChild($grigoriy, $agafya, $this->data('Орлова', 'Татьяна', null, Gender::FEMALE, $this->year(1958), null));
-        $larisa = $builder->addSpouse($aleksandr, $this->data('Волкова', 'Лариса', 'Фёдоровна', Gender::FEMALE, $this->month(1957, 11), null));
+        $aleksandr = $builder->addChild(
+            $grigoriy,
+            $agafya,
+            $this->data('Орлов', 'Александр', 'Григорьевич', Gender::MALE, $this->day(1954, 2, 11), $this->year(2020)),
+        );
+        $tatiana = $builder->addChild(
+            $grigoriy,
+            $agafya,
+            $this->data('Орлова', 'Татьяна', null, Gender::FEMALE, $this->year(1958), null),
+        );
+        $larisa = $builder->addSpouse(
+            $aleksandr,
+            $this->data('Волкова', 'Лариса', 'Фёдоровна', Gender::FEMALE, $this->month(1957, 11), null),
+        );
         $builder->marry($aleksandr, $larisa, $this->year(1978));
-        $fedor = $builder->addParent($larisa, ParentRole::FATHER, $this->data('Волков', 'Фёдор', 'Никитич', Gender::MALE, $this->year(1927), $this->year(1998)));
-        $vera = $builder->addParent($larisa, ParentRole::MOTHER, $this->data('Волкова', 'Вера', null, Gender::FEMALE, $this->month(1931, 5), $this->year(2015)));
+        $fedor = $builder->addParent(
+            $larisa,
+            ParentRole::FATHER,
+            $this->data('Волков', 'Фёдор', 'Никитич', Gender::MALE, $this->year(1927), $this->year(1998)),
+        );
+        $vera = $builder->addParent(
+            $larisa,
+            ParentRole::MOTHER,
+            $this->data('Волкова', 'Вера', null, Gender::FEMALE, $this->month(1931, 5), $this->year(2015)),
+        );
         $builder->marry($fedor, $vera, $this->year(1953));
-        $ivan = $builder->addChild($aleksandr, $larisa, $this->data('Орлов', 'Иван', 'Александрович', Gender::MALE, $this->day(1980, 7, 2), null));
-        $olga = $builder->addChild($aleksandr, $larisa, $this->data('Орлова', 'Ольга', 'Александровна', Gender::FEMALE, $this->year(1984), null));
-        $elena = $builder->addSpouse($ivan, $this->data('Савельева', 'Елена', 'Викторовна', Gender::FEMALE, $this->month(1983, 9), null));
+        $ivan = $builder->addChild(
+            $aleksandr,
+            $larisa,
+            $this->data('Орлов', 'Иван', 'Александрович', Gender::MALE, $this->day(1980, 7, 2), null),
+        );
+        $olga = $builder->addChild(
+            $aleksandr,
+            $larisa,
+            $this->data('Орлова', 'Ольга', 'Александровна', Gender::FEMALE, $this->year(1984), null),
+        );
+        $elena = $builder->addSpouse(
+            $ivan,
+            $this->data('Савельева', 'Елена', 'Викторовна', Gender::FEMALE, $this->month(1983, 9), null),
+        );
         $builder->marry($ivan, $elena, $this->year(2003));
-        $viktor = $builder->addParent($elena, ParentRole::FATHER, $this->data('Савельев', 'Виктор', 'Николаевич', Gender::MALE, $this->year(1959), null));
-        $nadezhda = $builder->addParent($elena, ParentRole::MOTHER, $this->data('Крылова', 'Надежда', 'Семёновна', Gender::FEMALE, $this->day(1962, 4, 3), null));
+        $viktor = $builder->addParent(
+            $elena,
+            ParentRole::FATHER,
+            $this->data('Савельев', 'Виктор', 'Николаевич', Gender::MALE, $this->year(1959), null),
+        );
+        $nadezhda = $builder->addParent(
+            $elena,
+            ParentRole::MOTHER,
+            $this->data('Крылова', 'Надежда', 'Семёновна', Gender::FEMALE, $this->day(1962, 4, 3), null),
+        );
         $builder->marry($viktor, $nadezhda, $this->year(1981));
-        $nikolai = $builder->addParent($viktor, ParentRole::FATHER, $this->data('Савельев', 'Николай', 'Андреевич', Gender::MALE, $this->year(1930), $this->year(2004)));
-        $sofiaSenior = $builder->addParent($viktor, ParentRole::MOTHER, $this->data('Белова', 'Софья', 'Михайловна', Gender::FEMALE, $this->day(1934, 8, 19), $this->year(2018)));
+        $nikolai = $builder->addParent(
+            $viktor,
+            ParentRole::FATHER,
+            $this->data('Савельев', 'Николай', 'Андреевич', Gender::MALE, $this->year(1930), $this->year(2004)),
+        );
+        $sofiaSenior = $builder->addParent(
+            $viktor,
+            ParentRole::MOTHER,
+            $this->data('Белова', 'Софья', 'Михайловна', Gender::FEMALE, $this->day(1934, 8, 19), $this->year(2018)),
+        );
         $builder->marry($nikolai, $sofiaSenior, $this->year(1956));
-        $semyon = $builder->addParent($nadezhda, ParentRole::FATHER, $this->data('Крылов', 'Семён', null, Gender::MALE, $this->year(1932), $this->year(2010)));
-        $zoya = $builder->addParent($nadezhda, ParentRole::MOTHER, $this->data('Крылова', 'Зоя', 'Филипповна', Gender::FEMALE, $this->year(1936), null));
+        $semyon = $builder->addParent(
+            $nadezhda,
+            ParentRole::FATHER,
+            $this->data('Крылов', 'Семён', null, Gender::MALE, $this->year(1932), $this->year(2010)),
+        );
+        $zoya = $builder->addParent(
+            $nadezhda,
+            ParentRole::MOTHER,
+            $this->data('Крылова', 'Зоя', 'Филипповна', Gender::FEMALE, $this->year(1936), null),
+        );
         $builder->marry($semyon, $zoya, $this->year(1958));
-        $galina = $builder->addChild($viktor, $nadezhda, $this->data('Савельева', 'Галина', null, Gender::FEMALE, $this->year(1987), null));
-        $pavel = $builder->addSpouse($olga, $this->data('Морозов', 'Павел', 'Сергеевич', Gender::MALE, $this->day(1981, 1, 28), null));
+        $galina = $builder->addChild(
+            $viktor,
+            $nadezhda,
+            $this->data('Савельева', 'Галина', null, Gender::FEMALE, $this->year(1987), null),
+        );
+        $pavel = $builder->addSpouse(
+            $olga,
+            $this->data('Морозов', 'Павел', 'Сергеевич', Gender::MALE, $this->day(1981, 1, 28), null),
+        );
         $builder->marry($pavel, $olga, $this->year(2007));
-        $dmitry = $builder->addSpouse($galina, $this->data(null, 'Дмитрий', 'Владимирович', Gender::MALE, $this->year(1985), null));
+        $dmitry = $builder->addSpouse(
+            $galina,
+            $this->data(null, 'Дмитрий', 'Владимирович', Gender::MALE, $this->year(1985), null),
+        );
         $builder->marry($dmitry, $galina, $this->year(2012));
-        $builder->addChild($ivan, $elena, $this->data('Орлов', 'Михаил', 'Иванович', Gender::MALE, $this->day(2005, 3, 15), null));
-        $builder->addChild($ivan, $elena, $this->data('Орлова', 'Анна', 'Ивановна', Gender::FEMALE, $this->month(2008, 12), null));
-        $builder->addChild($ivan, $elena, $this->data('Орлов', null, null, Gender::MALE, GenealogicalDate::unknown(), null));
-        $builder->addChild($pavel, $olga, $this->data('Морозова', 'София', 'Павловна', Gender::FEMALE, $this->day(2010, 6, 7), null));
-        $builder->addChild($pavel, $olga, $this->data('Морозов', 'Роман', null, Gender::MALE, $this->year(2014), null));
-        $builder->addChild($dmitry, $galina, $this->data('Соколова', 'Вера', 'Дмитриевна', Gender::FEMALE, $this->year(2016), null));
+        $builder->addChild(
+            $ivan,
+            $elena,
+            $this->data('Орлов', 'Михаил', 'Иванович', Gender::MALE, $this->day(2005, 3, 15), null),
+        );
+        $builder->addChild(
+            $ivan,
+            $elena,
+            $this->data('Орлова', 'Анна', 'Ивановна', Gender::FEMALE, $this->month(2008, 12), null),
+        );
+        $builder->addChild(
+            $ivan,
+            $elena,
+            $this->data('Орлов', null, null, Gender::MALE, GenealogicalDate::unknown(), null),
+        );
+        $builder->addChild(
+            $pavel,
+            $olga,
+            $this->data('Морозова', 'София', 'Павловна', Gender::FEMALE, $this->day(2010, 6, 7), null),
+        );
+        $builder->addChild(
+            $pavel,
+            $olga,
+            $this->data('Морозов', 'Роман', null, Gender::MALE, $this->year(2014), null),
+        );
+        $builder->addChild(
+            $dmitry,
+            $galina,
+            $this->data('Соколова', 'Вера', 'Дмитриевна', Gender::FEMALE, $this->year(2016), null),
+        );
     }
 
     private function createDeepAncestorsTree(ObjectManager $manager, User $user, \DateTimeImmutable $createdAt): void
@@ -122,12 +215,22 @@ final class AppFixtures extends Fixture
             return;
         }
 
-        $generation = [$builder->firstPerson($this->data('Яснов', 'Артём', 'Ильич', Gender::MALE, $this->day(2003, 5, 17), null))];
+        $generation = [
+            $builder->firstPerson($this->data('Яснов', 'Артём', 'Ильич', Gender::MALE, $this->day(2003, 5, 17), null)),
+        ];
         for ($level = 1; $level < 6; ++$level) {
             $parents = [];
             foreach ($generation as $index => $child) {
-                $father = $builder->addParent($child, ParentRole::FATHER, $this->deepAncestorData($level, $index * 2, Gender::MALE));
-                $mother = $builder->addParent($child, ParentRole::MOTHER, $this->deepAncestorData($level, $index * 2 + 1, Gender::FEMALE));
+                $father = $builder->addParent(
+                    $child,
+                    ParentRole::FATHER,
+                    $this->deepAncestorData($level, $index * 2, Gender::MALE),
+                );
+                $mother = $builder->addParent(
+                    $child,
+                    ParentRole::MOTHER,
+                    $this->deepAncestorData($level, $index * 2 + 1, Gender::FEMALE),
+                );
                 $builder->marry($father, $mother, $this->year(2002 - $level * 27));
                 $parents[] = $father;
                 $parents[] = $mother;
@@ -143,15 +246,41 @@ final class AppFixtures extends Fixture
             return;
         }
 
-        $proband = $builder->firstPerson($this->data('Семёнов', 'Арсений', 'Данилович', Gender::MALE, $this->day(1997, 9, 12), null));
-        $father = $builder->addParent($proband, ParentRole::FATHER, $this->data('Семёнов', 'Данил', 'Петрович', Gender::MALE, $this->year(1972), null));
-        $mother = $builder->addParent($proband, ParentRole::MOTHER, $this->data('Семёнова', 'Евгения', 'Сергеевна', Gender::FEMALE, $this->month(1974, 3), null));
+        $proband = $builder->firstPerson(
+            $this->data('Семёнов', 'Арсений', 'Данилович', Gender::MALE, $this->day(1997, 9, 12), null),
+        );
+        $father = $builder->addParent(
+            $proband,
+            ParentRole::FATHER,
+            $this->data('Семёнов', 'Данил', 'Петрович', Gender::MALE, $this->year(1972), null),
+        );
+        $mother = $builder->addParent(
+            $proband,
+            ParentRole::MOTHER,
+            $this->data('Семёнова', 'Евгения', 'Сергеевна', Gender::FEMALE, $this->month(1974, 3), null),
+        );
         $builder->marry($father, $mother, $this->year(1994));
 
-        $paternalGrandfather = $builder->addParent($father, ParentRole::FATHER, $this->data('Семёнов', 'Пётр', 'Андреевич', Gender::MALE, $this->year(1945), $this->year(2019)));
-        $paternalGrandmother = $builder->addParent($father, ParentRole::MOTHER, $this->data('Семёнова', 'Лидия', null, Gender::FEMALE, $this->year(1948), null));
-        $maternalGrandfather = $builder->addParent($mother, ParentRole::FATHER, $this->data('Котов', 'Сергей', 'Ильич', Gender::MALE, $this->month(1946, 11), $this->year(2021)));
-        $maternalGrandmother = $builder->addParent($mother, ParentRole::MOTHER, $this->data('Котова', 'Валентина', 'Фёдоровна', Gender::FEMALE, $this->year(1950), null));
+        $paternalGrandfather = $builder->addParent(
+            $father,
+            ParentRole::FATHER,
+            $this->data('Семёнов', 'Пётр', 'Андреевич', Gender::MALE, $this->year(1945), $this->year(2019)),
+        );
+        $paternalGrandmother = $builder->addParent(
+            $father,
+            ParentRole::MOTHER,
+            $this->data('Семёнова', 'Лидия', null, Gender::FEMALE, $this->year(1948), null),
+        );
+        $maternalGrandfather = $builder->addParent(
+            $mother,
+            ParentRole::FATHER,
+            $this->data('Котов', 'Сергей', 'Ильич', Gender::MALE, $this->month(1946, 11), $this->year(2021)),
+        );
+        $maternalGrandmother = $builder->addParent(
+            $mother,
+            ParentRole::MOTHER,
+            $this->data('Котова', 'Валентина', 'Фёдоровна', Gender::FEMALE, $this->year(1950), null),
+        );
         $builder->marry($paternalGrandfather, $paternalGrandmother, $this->year(1968));
         $builder->marry($maternalGrandfather, $maternalGrandmother, $this->year(1970));
 
@@ -174,13 +303,27 @@ final class AppFixtures extends Fixture
                     ),
                 );
                 $spouseGender = Gender::FEMALE === $gender ? Gender::MALE : Gender::FEMALE;
-                $spouse = $builder->addSpouse($sibling, $this->data(null, 'Супруг ' . $number, null, $spouseGender, $this->year($year + $number + 1), null));
-                $builder->marry(Gender::MALE === $gender ? $sibling : $spouse, Gender::FEMALE === $gender ? $sibling : $spouse, $this->year($year + $number + 22));
+                $spouse = $builder->addSpouse(
+                    $sibling,
+                    $this->data(null, 'Супруг ' . $number, null, $spouseGender, $this->year($year + $number + 1), null),
+                );
+                $builder->marry(
+                    Gender::MALE === $gender ? $sibling : $spouse,
+                    Gender::FEMALE === $gender ? $sibling : $spouse,
+                    $this->year($year + $number + 22),
+                );
                 for ($childNumber = 1; $childNumber <= 4; ++$childNumber) {
                     $builder->addChild(
                         Gender::MALE === $gender ? $sibling : $spouse,
                         Gender::FEMALE === $gender ? $sibling : $spouse,
-                        $this->data(null, 'Двоюродный ' . $childNumber, null, 0 === $childNumber % 2 ? Gender::FEMALE : Gender::MALE, $this->year($year + $number + 24 + $childNumber), null),
+                        $this->data(
+                            null,
+                            'Двоюродный ' . $childNumber,
+                            null,
+                            0 === $childNumber % 2 ? Gender::FEMALE : Gender::MALE,
+                            $this->year($year + $number + 24 + $childNumber),
+                            null,
+                        ),
                     );
                 }
             }
@@ -188,24 +331,99 @@ final class AppFixtures extends Fixture
 
         for ($number = 1; $number <= 8; ++$number) {
             $gender = 0 === $number % 2 ? Gender::FEMALE : Gender::MALE;
-            $sibling = $builder->addChild($father, $mother, $this->data('Семёнов' . (Gender::FEMALE === $gender ? 'а' : ''), 'Сиблинг ' . $number, null, $gender, $this->year(1998 + $number), null));
-            $spouse = $builder->addSpouse($sibling, $this->data(null, 'Партнёр ' . $number, null, Gender::FEMALE === $gender ? Gender::MALE : Gender::FEMALE, $this->year(1998 + $number), null));
-            $builder->marry(Gender::MALE === $gender ? $sibling : $spouse, Gender::FEMALE === $gender ? $sibling : $spouse, $this->year(2020 + $number % 3));
+            $sibling = $builder->addChild(
+                $father,
+                $mother,
+                $this->data(
+                    'Семёнов' . (Gender::FEMALE === $gender ? 'а' : ''),
+                    'Сиблинг ' . $number,
+                    null,
+                    $gender,
+                    $this->year(1998 + $number),
+                    null,
+                ),
+            );
+            $spouse = $builder->addSpouse(
+                $sibling,
+                $this->data(
+                    null,
+                    'Партнёр ' . $number,
+                    null,
+                    Gender::FEMALE === $gender ? Gender::MALE : Gender::FEMALE,
+                    $this->year(1998 + $number),
+                    null,
+                ),
+            );
+            $builder->marry(
+                Gender::MALE === $gender ? $sibling : $spouse,
+                Gender::FEMALE === $gender ? $sibling : $spouse,
+                $this->year(2020 + $number % 3),
+            );
             for ($childNumber = 1; $childNumber <= 2; ++$childNumber) {
-                $builder->addChild(Gender::MALE === $gender ? $sibling : $spouse, Gender::FEMALE === $gender ? $sibling : $spouse, $this->data(null, 'Племянник ' . $number . '-' . $childNumber, null, 0 === $childNumber % 2 ? Gender::FEMALE : Gender::MALE, $this->year(2022 + $childNumber), null));
+                $builder->addChild(
+                    Gender::MALE === $gender ? $sibling : $spouse,
+                    Gender::FEMALE === $gender ? $sibling : $spouse,
+                    $this->data(
+                        null,
+                        'Племянник ' . $number . '-' . $childNumber,
+                        null,
+                        0 === $childNumber % 2 ? Gender::FEMALE : Gender::MALE,
+                        $this->year(2022 + $childNumber),
+                        null,
+                    ),
+                );
             }
         }
 
-        $spouse = $builder->addSpouse($proband, $this->data('Громова', 'Ксения', 'Алексеевна', Gender::FEMALE, $this->day(1998, 1, 4), null));
+        $spouse = $builder->addSpouse(
+            $proband,
+            $this->data('Громова', 'Ксения', 'Алексеевна', Gender::FEMALE, $this->day(1998, 1, 4), null),
+        );
         $builder->marry($proband, $spouse, $this->year(2019));
         $children = [];
         for ($number = 1; $number <= 7; ++$number) {
-            $children[] = $builder->addChild($proband, $spouse, $this->data('Семёнов' . (0 === $number % 2 ? 'а' : ''), 'Ребёнок ' . $number, null, 0 === $number % 2 ? Gender::FEMALE : Gender::MALE, $this->year(2020 + $number % 5), null));
+            $children[] = $builder->addChild(
+                $proband,
+                $spouse,
+                $this->data(
+                    'Семёнов' . (0 === $number % 2 ? 'а' : ''),
+                    'Ребёнок ' . $number,
+                    null,
+                    0 === $number % 2 ? Gender::FEMALE : Gender::MALE,
+                    $this->year(2020 + $number % 5),
+                    null,
+                ),
+            );
         }
         foreach (array_slice($children, 0, 3) as $number => $child) {
-            $childSpouse = $builder->addSpouse($child, $this->data(null, 'Супруг ребёнка ' . ($number + 1), null, 0 === $number % 2 ? Gender::FEMALE : Gender::MALE, $this->year(2020 + $number), null));
-            $builder->marry(Gender::MALE === $child->getGender() ? $child : $childSpouse, Gender::FEMALE === $child->getGender() ? $child : $childSpouse, $this->year(2023));
-            $builder->addChild(Gender::MALE === $child->getGender() ? $child : $childSpouse, Gender::FEMALE === $child->getGender() ? $child : $childSpouse, $this->data(null, 'Правнук ' . ($number + 1), null, 0 === $number % 2 ? Gender::MALE : Gender::FEMALE, $this->year(2024), null));
+            $childSpouse = $builder->addSpouse(
+                $child,
+                $this->data(
+                    null,
+                    'Супруг ребёнка ' . ($number + 1),
+                    null,
+                    0 === $number % 2 ? Gender::FEMALE : Gender::MALE,
+                    $this->year(2020 + $number),
+                    null,
+                ),
+            );
+            $builder->marry(
+                Gender::MALE === $child->getGender() ? $child : $childSpouse,
+                Gender::FEMALE === $child->getGender() ? $child : $childSpouse,
+                $this->year(2023),
+            );
+            $builder->addChild(
+                Gender::MALE === $child->getGender() ? $child : $childSpouse,
+                Gender::FEMALE === $child->getGender() ? $child : $childSpouse,
+                $this->data(
+                    null,
+                    'Правнук ' . ($number + 1),
+                    null,
+                    0 === $number % 2 ? Gender::MALE : Gender::FEMALE,
+                    $this->year(2024),
+                    null,
+                ),
+            );
         }
     }
 
@@ -216,55 +434,154 @@ final class AppFixtures extends Fixture
             return;
         }
 
-        $marina = $builder->firstPerson($this->data('Ковалёва', 'Марина', 'Алексеевна', Gender::FEMALE, $this->day(1989, 7, 8), null));
-        $alexei = $builder->addParent($marina, ParentRole::FATHER, $this->data('Ковалёв', 'Алексей', 'Павлович', Gender::MALE, $this->year(1964), null));
-        $natalia = $builder->addParent($marina, ParentRole::MOTHER, $this->data('Ковалёва', 'Наталья', 'Игоревна', Gender::FEMALE, $this->year(1967), null));
+        $marina = $builder->firstPerson(
+            $this->data('Ковалёва', 'Марина', 'Алексеевна', Gender::FEMALE, $this->day(1989, 7, 8), null),
+        );
+        $alexei = $builder->addParent(
+            $marina,
+            ParentRole::FATHER,
+            $this->data('Ковалёв', 'Алексей', 'Павлович', Gender::MALE, $this->year(1964), null),
+        );
+        $natalia = $builder->addParent(
+            $marina,
+            ParentRole::MOTHER,
+            $this->data('Ковалёва', 'Наталья', 'Игоревна', Gender::FEMALE, $this->year(1967), null),
+        );
         $builder->marry($alexei, $natalia, $this->year(1986));
 
-        $pavel = $builder->addParent($alexei, ParentRole::FATHER, $this->data('Ковалёв', 'Павел', 'Степанович', Gender::MALE, $this->year(1938), $this->year(2006)));
-        $zoia = $builder->addParent($alexei, ParentRole::MOTHER, $this->data('Ковалёва', 'Зоя', null, Gender::FEMALE, $this->month(1940, 6), null));
-        $igor = $builder->addParent($natalia, ParentRole::FATHER, $this->data('Крылов', 'Игорь', 'Васильевич', Gender::MALE, $this->year(1941), $this->year(2014)));
-        $ludmila = $builder->addParent($natalia, ParentRole::MOTHER, $this->data('Крылова', 'Людмила', 'Алексеевна', Gender::FEMALE, $this->year(1944), null));
+        $pavel = $builder->addParent(
+            $alexei,
+            ParentRole::FATHER,
+            $this->data('Ковалёв', 'Павел', 'Степанович', Gender::MALE, $this->year(1938), $this->year(2006)),
+        );
+        $zoia = $builder->addParent(
+            $alexei,
+            ParentRole::MOTHER,
+            $this->data('Ковалёва', 'Зоя', null, Gender::FEMALE, $this->month(1940, 6), null),
+        );
+        $igor = $builder->addParent(
+            $natalia,
+            ParentRole::FATHER,
+            $this->data('Крылов', 'Игорь', 'Васильевич', Gender::MALE, $this->year(1941), $this->year(2014)),
+        );
+        $ludmila = $builder->addParent(
+            $natalia,
+            ParentRole::MOTHER,
+            $this->data('Крылова', 'Людмила', 'Алексеевна', Gender::FEMALE, $this->year(1944), null),
+        );
         $builder->marry($pavel, $zoia, $this->year(1960));
         $builder->marry($igor, $ludmila, $this->year(1963));
-        $builder->addChild($pavel, $zoia, $this->data('Ковалёва', 'Вера', 'Павловна', Gender::FEMALE, $this->year(1961), null));
-        $builder->addChild($igor, $ludmila, $this->data('Крылов', 'Роман', 'Игоревич', Gender::MALE, $this->year(1969), null));
+        $builder->addChild(
+            $pavel,
+            $zoia,
+            $this->data('Ковалёва', 'Вера', 'Павловна', Gender::FEMALE, $this->year(1961), null),
+        );
+        $builder->addChild(
+            $igor,
+            $ludmila,
+            $this->data('Крылов', 'Роман', 'Игоревич', Gender::MALE, $this->year(1969), null),
+        );
 
-        $valentina = $builder->addSpouse($alexei, $this->data('Соколова', 'Валентина', 'Романовна', Gender::FEMALE, $this->year(1965), null));
+        $valentina = $builder->addSpouse(
+            $alexei,
+            $this->data('Соколова', 'Валентина', 'Романовна', Gender::FEMALE, $this->year(1965), null),
+        );
         $builder->marry($alexei, $valentina, $this->year(1995));
-        $builder->addChild($alexei, $valentina, $this->data('Ковалёва', 'Дарья', 'Алексеевна', Gender::FEMALE, $this->year(1997), null));
-        $builder->addChild($alexei, $valentina, $this->data('Ковалёв', 'Глеб', 'Алексеевич', Gender::MALE, $this->year(2000), null));
-        $igorJunior = $builder->addSpouse($natalia, $this->data('Власов', 'Игорь', 'Юрьевич', Gender::MALE, $this->year(1963), null));
+        $builder->addChild(
+            $alexei,
+            $valentina,
+            $this->data('Ковалёва', 'Дарья', 'Алексеевна', Gender::FEMALE, $this->year(1997), null),
+        );
+        $builder->addChild(
+            $alexei,
+            $valentina,
+            $this->data('Ковалёв', 'Глеб', 'Алексеевич', Gender::MALE, $this->year(2000), null),
+        );
+        $igorJunior = $builder->addSpouse(
+            $natalia,
+            $this->data('Власов', 'Игорь', 'Юрьевич', Gender::MALE, $this->year(1963), null),
+        );
         $builder->marry($igorJunior, $natalia, $this->year(1991));
-        $builder->addChild($igorJunior, $natalia, $this->data('Власов', 'Виктор', 'Игоревич', Gender::MALE, $this->year(1993), null));
-        $petr = $builder->addSpouse($natalia, $this->data('Лебедев', 'Пётр', null, Gender::MALE, $this->year(1962), null));
-        $builder->addChild($petr, $natalia, $this->data('Лебедева', 'София', 'Петровна', Gender::FEMALE, $this->year(1996), null));
-        $builder->addChild($alexei, $natalia, $this->data('Ковалёв', 'Егор', 'Алексеевич', Gender::MALE, $this->year(1991), null));
+        $builder->addChild(
+            $igorJunior,
+            $natalia,
+            $this->data('Власов', 'Виктор', 'Игоревич', Gender::MALE, $this->year(1993), null),
+        );
+        $petr = $builder->addSpouse(
+            $natalia,
+            $this->data('Лебедев', 'Пётр', null, Gender::MALE, $this->year(1962), null),
+        );
+        $builder->addChild(
+            $petr,
+            $natalia,
+            $this->data('Лебедева', 'София', 'Петровна', Gender::FEMALE, $this->year(1996), null),
+        );
+        $builder->addChild(
+            $alexei,
+            $natalia,
+            $this->data('Ковалёв', 'Егор', 'Алексеевич', Gender::MALE, $this->year(1991), null),
+        );
 
-        $maksim = $builder->addSpouse($marina, $this->data('Лебедев', 'Максим', 'Владимирович', Gender::MALE, $this->year(1987), null));
+        $maksim = $builder->addSpouse(
+            $marina,
+            $this->data('Лебедев', 'Максим', 'Владимирович', Gender::MALE, $this->year(1987), null),
+        );
         $builder->marry($maksim, $marina, $this->year(2008));
-        $builder->addChild($maksim, $marina, $this->data('Лебедева', 'Алина', 'Максимовна', Gender::FEMALE, $this->year(2009), null));
-        $oleg = $builder->addSpouse($marina, $this->data('Романов', 'Олег', 'Геннадьевич', Gender::MALE, $this->year(1988), null));
+        $builder->addChild(
+            $maksim,
+            $marina,
+            $this->data('Лебедева', 'Алина', 'Максимовна', Gender::FEMALE, $this->year(2009), null),
+        );
+        $oleg = $builder->addSpouse(
+            $marina,
+            $this->data('Романов', 'Олег', 'Геннадьевич', Gender::MALE, $this->year(1988), null),
+        );
         $builder->marry($oleg, $marina, $this->year(2013));
-        $builder->addChild($oleg, $marina, $this->data('Романова', 'Полина', 'Олеговна', Gender::FEMALE, $this->year(2015), null));
-        $builder->addChild($oleg, $marina, $this->data('Романов', 'Михаил', 'Олегович', Gender::MALE, $this->year(2018), null));
-        $irina = $builder->addSpouse($oleg, $this->data('Белова', 'Ирина', 'Сергеевна', Gender::FEMALE, $this->year(1990), null));
-        $builder->addChild($oleg, $irina, $this->data('Романов', 'Тимофей', 'Олегович', Gender::MALE, $this->year(2012), null));
+        $builder->addChild(
+            $oleg,
+            $marina,
+            $this->data('Романова', 'Полина', 'Олеговна', Gender::FEMALE, $this->year(2015), null),
+        );
+        $builder->addChild(
+            $oleg,
+            $marina,
+            $this->data('Романов', 'Михаил', 'Олегович', Gender::MALE, $this->year(2018), null),
+        );
+        $irina = $builder->addSpouse(
+            $oleg,
+            $this->data('Белова', 'Ирина', 'Сергеевна', Gender::FEMALE, $this->year(1990), null),
+        );
+        $builder->addChild(
+            $oleg,
+            $irina,
+            $this->data('Романов', 'Тимофей', 'Олегович', Gender::MALE, $this->year(2012), null),
+        );
     }
 
     private function createLayoutStressTree(ObjectManager $manager, User $user, \DateTimeImmutable $createdAt): void
     {
         // The graph benchmark does not read automatic timeline events, so omit their
         // derived fixture data and keep the large fixture inexpensive to load.
-        $builder = $this->createTreeBuilder($manager, $user, self::LAYOUT_STRESS_TREE_NAME, $createdAt, synchronizeEvents: false);
+        $builder = $this->createTreeBuilder(
+            $manager,
+            $user,
+            self::LAYOUT_STRESS_TREE_NAME,
+            $createdAt,
+            synchronizeEvents: false,
+        );
         if (!$builder instanceof FixtureTreeBuilder) {
             return;
         }
 
         // This deliberately wide, nested family graph exercises row ordering, sibling
         // block separation and repeated Kiwi constraint solving for several references.
-        $founder = $builder->firstPerson($this->data('Стрессов', 'Александр', 'Иванович', Gender::MALE, $this->year(1940), null));
-        $founderSpouse = $builder->addSpouse($founder, $this->data('Стрессова', 'Екатерина', 'Павловна', Gender::FEMALE, $this->year(1944), null));
+        $founder = $builder->firstPerson(
+            $this->data('Стрессов', 'Александр', 'Иванович', Gender::MALE, $this->year(1940), null),
+        );
+        $founderSpouse = $builder->addSpouse(
+            $founder,
+            $this->data('Стрессова', 'Екатерина', 'Павловна', Gender::FEMALE, $this->year(1944), null),
+        );
         $builder->marry($founder, $founderSpouse, $this->year(1963));
 
         for ($family = 1; $family <= 12; ++$family) {
@@ -378,8 +695,14 @@ final class AppFixtures extends Fixture
         );
     }
 
-    private function data(?string $surname, ?string $givenName, ?string $patronymic, Gender $gender, GenealogicalDate $birthDate, ?GenealogicalDate $deathDate): FixturePersonData
-    {
+    private function data(
+        ?string $surname,
+        ?string $givenName,
+        ?string $patronymic,
+        Gender $gender,
+        GenealogicalDate $birthDate,
+        ?GenealogicalDate $deathDate,
+    ): FixturePersonData {
         return new FixturePersonData($surname, $givenName, $patronymic, $gender, $birthDate, $deathDate);
     }
 

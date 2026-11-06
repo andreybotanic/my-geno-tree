@@ -138,7 +138,16 @@ final readonly class SearchRoutePlanService
      * @param list<ParentLink>     $parentLinks
      * @param list<MarriagePeriod> $marriages
      *
-     * @return array{array<string, array{generation: int, kind: string}>, list<array{type: string, relation: ParentLink|MarriagePeriod}>}|null
+     * @return array{
+     *     array<string, array{
+     *         generation: int,
+     *         kind: string
+     *     }>,
+     *     list<array{
+     *         type: string,
+     *         relation: ParentLink|MarriagePeriod
+     *     }>
+     * }|null
      */
     private function shortestPath(
         array $references,
@@ -146,7 +155,14 @@ final readonly class SearchRoutePlanService
         array $parentLinks,
         array $marriages,
     ): ?array {
-        /** @var array<string, list<array{node: string, type: string, relation: ParentLink|MarriagePeriod, generationOffset: int}>> $neighbors */
+        /**
+         * @var array<string, list<array{
+         *     node: string,
+         *     type: string,
+         *     relation: ParentLink|MarriagePeriod,
+         *     generationOffset: int
+         * }>> $neighbors
+         */
         $neighbors = [];
         foreach ($parentLinks as $link) {
             $parentId = $this->id($link->getParent());

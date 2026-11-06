@@ -389,3 +389,21 @@ and returned person UUIDs plus a new ETag. The site showed two people and the
 marriage. Editing Ivan's patronymic to Petrovich in another tab made the earlier
 ETag stale: Inspector returned TREE_VERSION_CONFLICT (412), and refreshing the
 site retained exactly two people and the saved change.
+
+PHP formatting validation (2026-11-06): maintained application and test code now
+follows the 120-character rule in AGENTS.md. Single-line throws required by the
+formatter and indivisible prompt, fixture, URL, regex and SQL literals retain
+their allowed exceptions; generated framework files are not hand-formatted.
+Comparison of 310 PHP syntax trees found no behavior changes from formatting,
+after folding equivalent string concatenations and normalizing SQL line endings.
+MCP transport errors now use the SDK's named JSON-RPC constants.
+
+The complete 235-test backend and 391-test frontend suites, coverage (93.05% and
+90.20%), quality checks, OpenAPI checks and production build pass. All 25
+migrations were verified again on a fresh disposable database. The OAuth metadata
+URL was also opened successfully in the real HTTPS browser after formatting.
+PhpStorm inspected 73 changed PHP files; its only three warnings treat TreeLayout's
+entity constructor as service injection. Symfony debug:container explicitly marks
+TreeLayout as container.excluded because it is a Doctrine entity, with no service
+usages; SaveTreeLayoutService constructs the entity directly. These warnings are
+plugin false positives and require no application change.

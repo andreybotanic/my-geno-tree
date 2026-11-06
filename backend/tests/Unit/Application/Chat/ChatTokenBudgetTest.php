@@ -33,13 +33,21 @@ final class ChatTokenBudgetTest extends TestCase
             new CacheStorage(new ArrayAdapter()),
             new LockFactory(new InMemoryStore())
         );
-        $hooks = new ChatAgentHooks($runtime->store, TestMergeEvents::publisher($authorization), $runtime->requests, $factory);
+        $hooks = new ChatAgentHooks(
+            $runtime->store,
+            TestMergeEvents::publisher($authorization),
+            $runtime->requests,
+            $factory,
+        );
         $view = new ConversationNormalizer($runtime->store, $factory);
         $events = new EventDispatcher();
         $events->addListener(InvocationEvent::class, $hooks->beforeModel(...));
         $events->addListener(ResultEvent::class, $hooks->onResult(...));
         $result = new TextResult('fixture');
-        $result->getMetadata()->add('token_usage', new TokenUsage(promptTokens: 30, completionTokens: 20, totalTokens: 50));
+        $result->getMetadata()->add(
+            'token_usage',
+            new TokenUsage(promptTokens: 30, completionTokens: 20, totalTokens: 50),
+        );
         $metered = MockPlatformFactory::createPlatform(static fn () => clone $result, eventDispatcher: $events);
         self::assertSame(100, $view->budget($runtime->conversation->userId)['remaining']);
         $first = $metered->invoke('model', 'first');
@@ -47,7 +55,9 @@ final class ChatTokenBudgetTest extends TestCase
         $first->asText();
         self::assertSame(['input' => 30, 'output' => 20, 'total' => 50], $runtime->conversation->usage);
         self::assertSame(50, $view->budget($runtime->conversation->userId)['remaining']);
-        $result->getMetadata()->set(['token_usage' => new TokenUsage(promptTokens: 100, completionTokens: 70, totalTokens: 170)]);
+        $result->getMetadata()->set(
+            ['token_usage' => new TokenUsage(promptTokens: 100, completionTokens: 70, totalTokens: 170)],
+        );
         $metered->invoke('model', 'second')->asText();
         self::assertSame(220, $runtime->conversation->usage['total']);
         self::assertSame(0, $view->budget($runtime->conversation->userId)['remaining']);

@@ -44,11 +44,17 @@ final readonly class OAuthMetadata
     /** @return array<string, mixed> */
     public function protectedResource(): array
     {
-        return ['resource' => $this->resource(), 'authorization_servers' => [$this->issuer()], 'scopes_supported' => ['mcp'], 'bearer_methods_supported' => ['header']];
+        return [
+            'resource'                 => $this->resource(),
+            'authorization_servers'    => [$this->issuer()],
+            'scopes_supported'         => ['mcp'],
+            'bearer_methods_supported' => ['header'],
+        ];
     }
 
     public function challenge(): string
     {
-        return 'Bearer resource_metadata="' . $this->issuer() . '/.well-known/oauth-protected-resource/api/v1/mcp", scope="mcp"';
+        return 'Bearer resource_metadata="' . $this->issuer()
+            . '/.well-known/oauth-protected-resource/api/v1/mcp", scope="mcp"';
     }
 }

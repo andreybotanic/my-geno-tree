@@ -51,8 +51,12 @@ final readonly class OAuthConnections
                 if (400 === $response->getStatusCode() && 'refresh_token' === ($parameters['grant_type'] ?? null)
                     && is_array($error) && 'invalid_grant' === ($error['error'] ?? null)) {
                     $payload = $this->refreshPayload($parameters['refresh_token'] ?? null);
-                    $refresh = is_string($payload['refresh_token_id'] ?? null) ? $this->entityManager->find(RefreshToken::class, $payload['refresh_token_id']) : null;
-                    if (null !== $refresh && $refresh->isRevoked() && ($payload['client_id'] ?? null) === $id && is_int($payload['expire_time'] ?? null) && $payload['expire_time'] >= time()) {
+                    $refresh = is_string($payload['refresh_token_id'] ?? null)
+                        ? $this->entityManager->find(RefreshToken::class, $payload['refresh_token_id'])
+                        : null;
+                    if (null !== $refresh && $refresh->isRevoked() && ($payload['client_id'] ?? null) === $id
+                        && is_int($payload['expire_time'] ?? null)
+                        && $payload['expire_time'] >= time()) {
                         $this->revokeConnection($id, $refresh->getAccessToken()?->getUserIdentifier());
                     }
                 }
@@ -68,7 +72,11 @@ final readonly class OAuthConnections
         $id = $parameters['client_id'] ?? '';
         $secret = $parameters['client_secret'] ?? null;
         if (str_starts_with($request->headers->get('Authorization', ''), 'Basic ')) {
-            [$id, $secret] = array_pad(explode(':', (string)base64_decode(substr($request->headers->get('Authorization', ''), 6), true), 2), 2, '');
+            [$id, $secret] = array_pad(
+                explode(':', (string)base64_decode(substr($request->headers->get('Authorization', ''), 6), true), 2),
+                2,
+                '',
+            );
             $id = urldecode($id);
             $secret = urldecode($secret);
         }
@@ -101,7 +109,9 @@ final readonly class OAuthConnections
         $id = ($payload['client_id'] ?? null) === $clientId ? ($payload['access_token_id'] ?? null) : null;
         if (null === $id) {
             try {
-                $validated = $this->resourceServer->validateAuthenticatedRequest(new ServerRequest('POST', $this->metadata->resource(), ['Authorization' => 'Bearer ' . $token]));
+                $validated = $this->resourceServer->validateAuthenticatedRequest(
+                    new ServerRequest('POST', $this->metadata->resource(), ['Authorization' => 'Bearer ' . $token]),
+                );
                 $id = $validated->getAttribute('oauth_access_token_id');
             } catch (OAuthServerException) {
                 return null;
@@ -119,7 +129,12 @@ final readonly class OAuthConnections
             return [];
         }
         try {
-            $payload = json_decode(Crypto::decryptWithPassword($token, $this->encryptionKey), true, 16, JSON_THROW_ON_ERROR);
+            $payload = json_decode(
+                Crypto::decryptWithPassword($token, $this->encryptionKey),
+                true,
+                16,
+                JSON_THROW_ON_ERROR,
+            );
 
             return is_array($payload) ? $payload : [];
         } catch (\Exception) {
@@ -141,9 +156,19 @@ final readonly class OAuthConnections
             $this->entityManager->createQueryBuilder()
                 ->update($class, 'token')
                 ->set('token.revoked', 'true')
-                ->where(RefreshToken::class === $class ? 'token.accessToken IN (' . $accessTokens . ')' : 'token.client = :client AND token.userIdentifier = :user')
-                ->setParameter('client', $clientId)
-                ->setParameter('user', $userId)
+                ->where(
+                    RefreshToken::class === $class
+                        ? 'token.accessToken IN (' . $accessTokens . ')'
+                        : 'token.client = :client AND token.userIdentifier = :user',
+                )
+                ->setParameter(
+                    'client',
+                    $clientId,
+                )
+                ->setParameter(
+                    'user',
+                    $userId,
+                )
                 ->getQuery()
                 ->execute();
         }

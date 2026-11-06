@@ -51,11 +51,29 @@ final class TreeContextApiTest extends ApiWebTestCase
         );
         $em->persist($reference);
         for ($i = 0; $i < 12; ++$i) {
-            $relative = new Person($tree, KnownText::known('Child ' . $i), KnownText::known('Vera'), KnownText::unknown(), Gender::MALE, GenealogicalDate::unknown(), null, $now);
+            $relative = new Person(
+                $tree,
+                KnownText::known('Child ' . $i),
+                KnownText::known('Vera'),
+                KnownText::unknown(),
+                Gender::MALE,
+                GenealogicalDate::unknown(),
+                null,
+                $now,
+            );
             $em->persist($relative);
             $em->persist(new ParentLink($tree, $reference, $relative, ParentRole::MOTHER));
         }
-        $spouse = new Person($tree, KnownText::unknown(), KnownText::known('Mikhail'), KnownText::unknown(), Gender::MALE, GenealogicalDate::unknown(), GenealogicalDate::unknown(), $now);
+        $spouse = new Person(
+            $tree,
+            KnownText::unknown(),
+            KnownText::known('Mikhail'),
+            KnownText::unknown(),
+            Gender::MALE,
+            GenealogicalDate::unknown(),
+            GenealogicalDate::unknown(),
+            $now,
+        );
         $em->persist($spouse);
         $em->persist(new MarriagePeriod($tree, $spouse, $reference, GenealogicalDate::unknown(), null, $now));
         $em->flush();
@@ -69,7 +87,9 @@ final class TreeContextApiTest extends ApiWebTestCase
         self::assertCount(1, $data['marriages']);
         self::assertCount(12, $data['people']);
         self::assertTrue($data['truncated']);
-        $referenceViews = array_values(array_filter($data['people'], static fn ($person) => is_array($person) && $person['id'] === $id));
+        $referenceViews = array_values(
+            array_filter($data['people'], static fn ($person) => is_array($person) && $person['id'] === $id),
+        );
         self::assertIsArray($referenceViews[0]);
         self::assertSame(
             [
@@ -92,6 +112,10 @@ final class TreeContextApiTest extends ApiWebTestCase
         $counter->reset();
         static::getContainer()->get(TreeContextService::class)->context($this->treeId, $id);
         self::assertGreaterThan(0, $counter->count());
-        self::assertLessThanOrEqual(8, $counter->count(), 'Immediate-family context must use bounded, batched queries.');
+        self::assertLessThanOrEqual(
+            8,
+            $counter->count(),
+            'Immediate-family context must use bounded, batched queries.',
+        );
     }
 }

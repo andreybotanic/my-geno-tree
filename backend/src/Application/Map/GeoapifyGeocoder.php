@@ -153,7 +153,8 @@ final readonly class GeoapifyGeocoder
                     throw new ApiException(JsonResponse::HTTP_BAD_GATEWAY, 'GEOCODING_UNAVAILABLE', 'geocoding_unavailable');
                 }
                 foreach ($payload as $index => $candidate) {
-                    $query = is_array($candidate) && is_array($candidate['query'] ?? null) && is_string($candidate['query']['text'] ?? null)
+                    $query = is_array($candidate) && is_array($candidate['query'] ?? null)
+                        && is_string($candidate['query']['text'] ?? null)
                         ? $candidate['query']['text']
                         : $batch[$index] ?? null;
                     if (!is_string($query)) {
@@ -170,7 +171,11 @@ final readonly class GeoapifyGeocoder
                     $this->cache->save($item);
                 }
             } catch (ApiException $exception) {
-                if (in_array($exception->getErrorCode(), ['GEOCODING_QUOTA_EXCEEDED', 'GEOCODING_UNAVAILABLE', 'RATE_LIMIT_EXCEEDED'], true)) {
+                if (in_array(
+                    $exception->getErrorCode(),
+                    ['GEOCODING_QUOTA_EXCEEDED', 'GEOCODING_UNAVAILABLE', 'RATE_LIMIT_EXCEEDED'],
+                    true,
+                )) {
                     break;
                 }
 
@@ -272,8 +277,13 @@ final readonly class GeoapifyGeocoder
      *
      * @return array<mixed, mixed>
      */
-    private function request(string $method, string $path, array $query, ?array $json = null, array $acceptedStatuses = [200]): array
-    {
+    private function request(
+        string $method,
+        string $path,
+        array $query,
+        ?array $json = null,
+        array $acceptedStatuses = [200],
+    ): array {
         [$status, $payload] = $this->requestWithStatus($method, $path, $query, $json);
         if (!in_array($status, $acceptedStatuses, true) || !is_array($payload)) {
             throw new ApiException(JsonResponse::HTTP_BAD_GATEWAY, 'GEOCODING_UNAVAILABLE', 'geocoding_unavailable');

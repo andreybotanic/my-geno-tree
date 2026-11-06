@@ -37,54 +37,56 @@ final readonly class CreateFirstPersonService
         $this->assertShape($payload);
         $personData = $this->dataPolicy->create($payload['person']);
 
-        return $this->entityManager->wrapInTransaction(function () use (
-            $tree,
-            $personData,
-            $ifMatch,
-        ): Person {
-            $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
-            $this->entityManager->refresh($tree);
-            $this->versions->assertMatches($tree, $ifMatch);
-            if (0 !== $this->people->countForTree($tree)) {
-                throw new ApiException(JsonResponse::HTTP_CONFLICT, 'FIRST_PERSON_ALREADY_EXISTS', 'first_person_already_exists');
-            }
-
-            $changedAt = $this->clock->now();
-            $person = new Person(
+        return $this->entityManager->wrapInTransaction(
+            function () use (
                 $tree,
-                $personData->birthSurname,
-                $personData->givenName,
-                $personData->patronymic,
-                $personData->gender,
-                $personData->birthDate,
-                $personData->deathDate,
-                $changedAt,
-            );
-            $this->entityManager->persist($person);
-            if (null !== $personData->birthPlace) {
-                $place = EventPlace::resolved(
-                    $personData->birthPlace->name,
-                    $personData->birthPlace->latitude,
-                    $personData->birthPlace->longitude,
-                );
-                $this->entityManager->persist($place);
-                $person->changeBirthPlace($place, $changedAt);
-            }
-            if (null !== $personData->deathPlace) {
-                $place = EventPlace::resolved(
-                    $personData->deathPlace->name,
-                    $personData->deathPlace->latitude,
-                    $personData->deathPlace->longitude,
-                );
-                $this->entityManager->persist($place);
-                $person->changeDeathPlace($place, $changedAt);
-            }
-            $this->events->synchronizePersonLifecycle($person, $changedAt);
-            $tree->referencePerson($person);
-            $tree->touch($changedAt);
+                $personData,
+                $ifMatch,
+            ): Person {
+                $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($tree);
+                $this->versions->assertMatches($tree, $ifMatch);
+                if (0 !== $this->people->countForTree($tree)) {
+                    throw new ApiException(JsonResponse::HTTP_CONFLICT, 'FIRST_PERSON_ALREADY_EXISTS', 'first_person_already_exists');
+                }
 
-            return $person;
-        });
+                $changedAt = $this->clock->now();
+                $person = new Person(
+                    $tree,
+                    $personData->birthSurname,
+                    $personData->givenName,
+                    $personData->patronymic,
+                    $personData->gender,
+                    $personData->birthDate,
+                    $personData->deathDate,
+                    $changedAt,
+                );
+                $this->entityManager->persist($person);
+                if (null !== $personData->birthPlace) {
+                    $place = EventPlace::resolved(
+                        $personData->birthPlace->name,
+                        $personData->birthPlace->latitude,
+                        $personData->birthPlace->longitude,
+                    );
+                    $this->entityManager->persist($place);
+                    $person->changeBirthPlace($place, $changedAt);
+                }
+                if (null !== $personData->deathPlace) {
+                    $place = EventPlace::resolved(
+                        $personData->deathPlace->name,
+                        $personData->deathPlace->latitude,
+                        $personData->deathPlace->longitude,
+                    );
+                    $this->entityManager->persist($place);
+                    $person->changeDeathPlace($place, $changedAt);
+                }
+                $this->events->synchronizePersonLifecycle($person, $changedAt);
+                $tree->referencePerson($person);
+                $tree->touch($changedAt);
+
+                return $person;
+            },
+        );
     }
 
     /**

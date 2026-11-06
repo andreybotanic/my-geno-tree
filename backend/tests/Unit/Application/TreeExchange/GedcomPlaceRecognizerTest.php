@@ -41,21 +41,39 @@ final class GedcomPlaceRecognizerTest extends TestCase
 0 TRLR
 GEDCOM);
         $calls = 0;
-        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$calls): MockResponse {
-            ++$calls;
-            if (1 === $calls) {
-                self::assertSame('POST', $method);
-                self::assertSame(['Novosibirsk', 'Tomsk'], json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR));
+        $client = new MockHttpClient(
+            function (string $method, string $url, array $options) use (&$calls): MockResponse {
+                ++$calls;
+                if (1 === $calls) {
+                    self::assertSame('POST', $method);
+                    self::assertSame(
+                        ['Novosibirsk', 'Tomsk'],
+                        json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR),
+                    );
 
-                return $this->response(['id' => 'job'], 202);
-            }
-            self::assertSame('GET', $method);
+                    return $this->response(['id' => 'job'], 202);
+                }
+                self::assertSame('GET', $method);
 
-            return $this->response([
-                ['query' => ['text' => 'Novosibirsk'], 'city' => 'Novosibirsk, Novosibirsk Oblast, Russia', 'lat' => 55.0302, 'lon' => 82.9204],
-                ['query' => ['text' => 'Tomsk'], 'city' => 'Tomsk, Tomsk Oblast, Russia', 'lat' => 56.4977, 'lon' => 84.9744],
-            ]);
-        }, 'https://geoapify.example.test/v1');
+                return $this->response(
+                    [
+                        [
+                            'query' => ['text' => 'Novosibirsk'],
+                            'city'  => 'Novosibirsk, Novosibirsk Oblast, Russia',
+                            'lat'   => 55.0302,
+                            'lon'   => 82.9204,
+                        ],
+                        [
+                            'query' => ['text' => 'Tomsk'],
+                            'city'  => 'Tomsk, Tomsk Oblast, Russia',
+                            'lat'   => 56.4977,
+                            'lon'   => 84.9744,
+                        ],
+                    ],
+                );
+            },
+            'https://geoapify.example.test/v1',
+        );
         $recognizer = new GedcomPlaceRecognizer($this->geocoder($client));
 
         $recognition = $recognizer->recognize($document, 'en');

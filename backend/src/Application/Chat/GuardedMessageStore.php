@@ -119,7 +119,14 @@ final class GuardedMessageStore implements MessageStoreInterface
                 if (!$session instanceof AuthSession) {
                     throw new ApiException(401, 'AUTH_REQUIRED');
                 }
-                $state = new Conversation($contextKey, $profile, $context, $session->getId(), $session->getUser()->getId(), $this->clock->now());
+                $state = new Conversation(
+                    $contextKey,
+                    $profile,
+                    $context,
+                    $session->getId(),
+                    $session->getUser()->getId(),
+                    $this->clock->now(),
+                );
                 $messages = MessageBag::forId($state->id);
                 $messages->getMetadata()->add(Conversation::METADATA, $state);
                 $this->save($messages);
@@ -127,7 +134,7 @@ final class GuardedMessageStore implements MessageStoreInterface
                 $this->index->save($item->set($state->id->toRfc4122()));
 
                 return $state;
-            }
+            },
         );
     }
 

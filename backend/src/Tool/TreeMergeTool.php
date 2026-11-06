@@ -42,7 +42,19 @@ final readonly class TreeMergeTool
      *
      * @return array<string, mixed>
      */
-    #[McpTool(name: 'merge', description: 'APPLY changes immediately to the specified tree, subject to your client approval settings. Read full person context first. Send the latest ETag as ifMatch and exact user quotes with their source message IDs. A conflict requires a fresh read and a new proposal.', annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false))]
+    #[McpTool(
+        name: 'merge',
+        description: 'APPLY changes immediately to the specified tree, subject to your client ' .
+            'approval settings. Read full person context first. Send the latest ETag as ' .
+            'ifMatch and exact user quotes with their source message IDs. A conflict ' .
+            'requires a fresh read and a new proposal.',
+        annotations: new ToolAnnotations(
+            readOnlyHint: false,
+            destructiveHint: true,
+            idempotentHint: false,
+            openWorldHint: false,
+        ),
+    )]
     public function apply(
         string $treeId,
         string $ifMatch,
@@ -91,7 +103,8 @@ final readonly class TreeMergeTool
                 }
             }
             foreach (is_array($proposal['people'] ?? null) ? $proposal['people'] : [] as $person) {
-                if (is_array($person) && null !== ($person['existingPersonId'] ?? null) && !in_array($person['existingPersonId'], $observed, true)) {
+                if (is_array($person) && null !== ($person['existingPersonId'] ?? null)
+                    && !in_array($person['existingPersonId'], $observed, true)) {
                     throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
                 }
             }
@@ -109,13 +122,23 @@ final readonly class TreeMergeTool
             $people = $pending->proposal['people'];
 
             return [
-                'newPeople'       => count(array_filter($people, static fn ($person) => 'new' === $person['resolution'])),
-                'existingPeople'  => count(array_filter($people, static fn ($person) => 'existing' === $person['resolution'])),
+                'newPeople' => count(
+                    array_filter($people, static fn ($person) => 'new' === $person['resolution']),
+                ),
+                'existingPeople' => count(
+                    array_filter($people, static fn ($person) => 'existing' === $person['resolution']),
+                ),
                 'state'           => $pending->state,
                 'proposalVersion' => $pending->version,
             ];
         } catch (ApiException $error) {
-            return ['error' => ['code' => $error->getErrorCode(), 'fields' => $error->getFields(), 'details' => $error->getDetails()]];
+            return [
+                'error' => [
+                    'code'    => $error->getErrorCode(),
+                    'fields'  => $error->getFields(),
+                    'details' => $error->getDetails(),
+                ],
+            ];
         }
     }
 
@@ -124,10 +147,16 @@ final readonly class TreeMergeTool
      *
      * @return array<string, mixed>|Conversation
      */
-    public function proposal(FamilyTree $tree, string $id, string $action, array $payload, ?string $ifMatch = null): array|Conversation
-    {
+    public function proposal(
+        FamilyTree $tree,
+        string $id,
+        string $action,
+        array $payload,
+        ?string $ifMatch = null,
+    ): array|Conversation {
         $keys = 'revise' === $action ? ['version', 'proposal'] : ['version'];
-        if (count($keys) !== count($payload) || array_diff($keys, array_keys($payload)) || !is_int($payload['version'] ?? null)) {
+        if (count($keys) !== count($payload) || array_diff($keys, array_keys($payload))
+            || !is_int($payload['version'] ?? null)) {
             throw new ApiException(422, 'TREE_MERGE_INVALID');
         }
         $context = 'tree:' . $tree->getId()->toRfc4122();
@@ -144,7 +173,13 @@ final readonly class TreeMergeTool
         }
         if ('revise' === $action || 'revalidate' === $action) {
             $next = 'revise' === $action
-                ? $this->merge->prepare($tree, $payload['proposal'] ?? null, $this->chat->messages($conversation), $pending, true)
+                ? $this->merge->prepare(
+                    $tree,
+                    $payload['proposal'] ?? null,
+                    $this->chat->messages($conversation),
+                    $pending,
+                    true,
+                )
                 : $this->merge->revalidate($tree, $pending);
             $next->version = ($conversation->toolVersions['merge'] ?? 0) + 1;
 
@@ -174,6 +209,10 @@ final readonly class TreeMergeTool
         $view = null !== $current && $current->id->equals($consumed->id) ? $current : $consumed;
         $this->events->toolApplied($view, 'merge', $pending->id->toRfc4122(), $result);
 
-        return ['conversation' => $this->chat->snapshot($view), 'operationId' => $pending->id->toRfc4122(), 'result' => $result];
+        return [
+            'conversation' => $this->chat->snapshot($view),
+            'operationId'  => $pending->id->toRfc4122(),
+            'result'       => $result,
+        ];
     }
 }

@@ -21,14 +21,16 @@ final readonly class McpHttpListener
     public function preflight(RequestEvent $event): void
     {
         $path = $event->getRequest()->getPathInfo();
-        if ('OPTIONS' === $event->getRequest()->getMethod() && ('/api/v1/mcp' === $path || $this->publicOAuthPath($path))) {
+        if ('OPTIONS' === $event->getRequest()->getMethod()
+            && ('/api/v1/mcp' === $path || $this->publicOAuthPath($path))) {
             $event->setResponse(
                 new Response(
                     status: 204,
                     headers: [
                         'Access-Control-Allow-Origin'  => '*',
                         'Access-Control-Allow-Methods' => 'GET, POST, DELETE, OPTIONS',
-                        'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name',
+                        'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Accept, '
+                            . 'MCP-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name',
                     ],
                 ),
             );
@@ -45,7 +47,16 @@ final readonly class McpHttpListener
         $id = $request->headers->get('Mcp-Session-Id', '');
         $identity = $request->attributes->get('mcp_identity');
         if (!Uuid::isValid($id) || !is_string($identity) || $identity !== $this->sessions->getItem($id)->get()) {
-            $event->setResponse(new JsonResponse(['jsonrpc' => '2.0', 'id' => null, 'error' => ['code' => -32001, 'message' => 'MCP session not found']], 404));
+            $event->setResponse(
+                new JsonResponse(
+                    [
+                        'jsonrpc' => '2.0',
+                        'id'      => null,
+                        'error'   => ['code' => -32001, 'message' => 'MCP session not found'],
+                    ],
+                    404,
+                ),
+            );
         }
     }
 
@@ -72,6 +83,9 @@ final readonly class McpHttpListener
 
     private function publicOAuthPath(string $path): bool
     {
-        return 1 === preg_match('~^/(?:api/v1/oauth/(?:register|token|revoke)|\.well-known/oauth-(?:authorization-server|protected-resource(?:/api/v1/mcp)?))$~D', $path);
+        return 1 === preg_match(
+            '~^/(?:api/v1/oauth/(?:register|token|revoke)|\.well-known/oauth-(?:authorization-server|protected-resource(?:/api/v1/mcp)?))$~D',
+            $path,
+        );
     }
 }

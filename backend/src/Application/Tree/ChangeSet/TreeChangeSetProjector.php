@@ -98,7 +98,8 @@ final readonly class TreeChangeSetProjector
             $child = $this->resolve($people, $change->child);
             $duplicate = false;
             foreach ($parents as $link) {
-                if ($link->getParent() === $parent && $link->getChild() === $child && $link->getRole() === $change->role) {
+                if ($link->getParent() === $parent && $link->getChild() === $child
+                    && $link->getRole() === $change->role) {
                     $duplicate = true;
                     break;
                 }
@@ -128,7 +129,8 @@ final readonly class TreeChangeSetProjector
                 if ($marriage->getMalePerson() !== $male || $marriage->getFemalePerson() !== $female) {
                     continue;
                 }
-                if ($marriage->getMarriageDate() == $change->marriageDate && $marriage->getDissolutionDate() == $change->dissolutionDate) {
+                if ($marriage->getMarriageDate() == $change->marriageDate
+                    && $marriage->getDissolutionDate() == $change->dissolutionDate) {
                     $duplicate = true;
                     break;
                 }
@@ -163,7 +165,8 @@ final readonly class TreeChangeSetProjector
     /** @param array<string, Person> $people */
     private function resolve(array $people, string $reference): Person
     {
-        return $people[$reference] ?? throw new ApiException(422, 'CHANGE_REFERENCE_UNKNOWN', 'change_reference_unknown');
+        return $people[$reference]
+            ?? throw new ApiException(422, 'CHANGE_REFERENCE_UNKNOWN', 'change_reference_unknown');
     }
 
     /**
@@ -203,11 +206,19 @@ final readonly class TreeChangeSetProjector
             ++$indegree[$c];
         }
         foreach ($marriages as $marriage) {
-            [$male, $female] = $this->invariants->marriagePeople($marriage->getMalePerson(), $marriage->getFemalePerson());
+            [$male, $female] = $this->invariants->marriagePeople(
+                $marriage->getMalePerson(),
+                $marriage->getFemalePerson(),
+            );
             if ($male !== $marriage->getMalePerson()) {
                 $this->conflict('MARRIAGE_GENDER_CONFLICT');
             }
-            $this->invariants->assertMarriageDates($male, $female, $marriage->getMarriageDate(), $marriage->getDissolutionDate());
+            $this->invariants->assertMarriageDates(
+                $male,
+                $female,
+                $marriage->getMarriageDate(),
+                $marriage->getDissolutionDate(),
+            );
             $m = $male->getId()->toRfc4122();
             $f = $female->getId()->toRfc4122();
             $adjacency[$m][] = $f;

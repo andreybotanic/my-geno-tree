@@ -26,12 +26,26 @@ interface ChatInterface
 
     public function execution(): ChatExecution;
 
-    public function replaceTool(Conversation $conversation, string $name, ?object $state, bool $invalidate = true): Conversation;
+    public function replaceTool(
+        Conversation $conversation,
+        string $name,
+        ?object $state,
+        bool $invalidate = true,
+    ): Conversation;
 
     /** @return array<string, mixed> */
     public function snapshot(Conversation $conversation): array;
 
-    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, failureCode?: string}> */
+    /**
+     * @return list<array{
+     *     id: string,
+     *     requestId: string,
+     *     role: string,
+     *     content: string,
+     *     createdAt: string,
+     *     failureCode?: string
+     * }>
+     */
     public function messages(Conversation $conversation): array;
 
     /** @return array{remaining: int, limit: int} */

@@ -38,16 +38,27 @@ final class ApiExceptionListenerTest extends TestCase
     public function testMcpSecurityExceptionsReachTheOAuthFirewall(): void
     {
         $event = $this->event('/api/v1/mcp', new AccessDeniedException());
-        $listener = new ApiExceptionListener(new ApiErrorResponseFactory(), self::createStub(LoggerInterface::class), $this->security(true));
+        $listener = new ApiExceptionListener(
+            new ApiErrorResponseFactory(),
+            self::createStub(LoggerInterface::class),
+            $this->security(true),
+        );
         $listener($event);
         self::assertFalse($event->hasResponse());
     }
 
     public function testMcpFailuresHideServerDetailsAndUseJsonRpc(): void
     {
-        foreach ([new \RuntimeException('private path and credentials'), new NotFoundHttpException('private path')] as $error) {
+        foreach ([
+            new \RuntimeException('private path and credentials'),
+            new NotFoundHttpException('private path'),
+        ] as $error) {
             $event = $this->event('/api/v1/mcp', $error);
-            $listener = new ApiExceptionListener(new ApiErrorResponseFactory(), self::createStub(LoggerInterface::class), $this->security(true));
+            $listener = new ApiExceptionListener(
+                new ApiErrorResponseFactory(),
+                self::createStub(LoggerInterface::class),
+                $this->security(true),
+            );
             $listener($event);
             (new McpExceptionListener($this->security(true), self::createStub(LoggerInterface::class)))($event);
             $response = $event->getResponse();

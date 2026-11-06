@@ -37,8 +37,17 @@ final class TestMergeEvents
 
     public static function publisher(AuthorizationCheckerInterface $authorization): MercureChatEventPublisher
     {
-        $hub = new MockHub('https://localhost/.well-known/mercure', new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'), static fn () => 'event');
+        $hub = new MockHub(
+            'https://localhost/.well-known/mercure',
+            new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'),
+            static fn () => 'event',
+        );
 
-        return new MercureChatEventPublisher($hub, $authorization, new NullLogger(), 'https://localhost/api/v1/chat-events/sessions/{sessionId}/conversations/');
+        return new MercureChatEventPublisher(
+            $hub,
+            $authorization,
+            new NullLogger(),
+            'https://localhost/api/v1/chat-events/sessions/{sessionId}/conversations/',
+        );
     }
 }

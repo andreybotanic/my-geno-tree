@@ -20,8 +20,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /** Register DCR clients and resolve CIMD documents; client/token persistence remains with the League bundle. */
 final readonly class OAuthClientRegistration
 {
-    public function __construct(private ClientManagerInterface $clients, #[Autowire(service: 'http_client')] private HttpClientInterface $http)
-    {
+    public function __construct(
+        private ClientManagerInterface $clients,
+        #[Autowire(service: 'http_client')] private HttpClientInterface $http,
+    ) {
     }
 
     /** @param array<string, mixed> $metadata
@@ -52,7 +54,8 @@ final readonly class OAuthClientRegistration
     public function resolve(string $id): ClientInterface
     {
         if (str_starts_with($id, 'https://')) {
-            if (strlen($id) > 2048 || null !== parse_url($id, PHP_URL_FRAGMENT) || null !== parse_url($id, PHP_URL_USER)) {
+            if (strlen($id) > 2048 || null !== parse_url($id, PHP_URL_FRAGMENT)
+                || null !== parse_url($id, PHP_URL_USER)) {
                 throw OAuthServerException::invalidRequest('client_id');
             }
             try {
@@ -73,7 +76,8 @@ final readonly class OAuthClientRegistration
                     throw new \UnexpectedValueException('Metadata unavailable');
                 }
                 $metadata = json_decode(implode('', $chunks), true, 16, JSON_THROW_ON_ERROR);
-                if (!is_array($metadata) || ($metadata['client_id'] ?? null) !== $id || 'none' !== ($metadata['token_endpoint_auth_method'] ?? 'none')) {
+                if (!is_array($metadata) || ($metadata['client_id'] ?? null) !== $id
+                    || 'none' !== ($metadata['token_endpoint_auth_method'] ?? 'none')) {
                     throw new \UnexpectedValueException('Invalid public client metadata');
                 }
 
@@ -92,7 +96,10 @@ final readonly class OAuthClientRegistration
     {
         $uris = $metadata['redirect_uris'] ?? null;
         $name = $metadata['client_name'] ?? 'MCP client';
-        if (!is_string($name) || '' === trim($name) || mb_strlen($name) > 200 || !is_array($uris) || !array_is_list($uris) || [] === $uris || count($uris) > 10
+        if (!is_string($name) || '' === trim($name) || mb_strlen($name) > 200 || !is_array($uris)
+            || !array_is_list($uris)
+            || [] === $uris
+            || count($uris) > 10
             || !in_array($metadata['scope'] ?? 'mcp', ['', 'mcp'], true)
             || '' === $id
             || ['code'] !== ($metadata['response_types'] ?? ['code'])) {
@@ -109,14 +116,27 @@ final readonly class OAuthClientRegistration
         }
         $redirects = [];
         foreach ($uris as $uri) {
-            if (!is_string($uri) || '' === $uri || strlen($uri) > 2048 || false === filter_var($uri, FILTER_VALIDATE_URL) || null !== parse_url($uri, PHP_URL_FRAGMENT)
-                || null !== parse_url($uri, PHP_URL_USER) || !('https' === parse_url($uri, PHP_URL_SCHEME)
-                    || ('http' === parse_url($uri, PHP_URL_SCHEME) && in_array(parse_url($uri, PHP_URL_HOST), ['localhost', '127.0.0.1', '[::1]'], true)))) {
+            if (!is_string($uri) || '' === $uri || strlen($uri) > 2048
+                || false === filter_var($uri, FILTER_VALIDATE_URL)
+                || null !== parse_url($uri, PHP_URL_FRAGMENT)
+                || null !== parse_url($uri, PHP_URL_USER)
+                || !('https' === parse_url($uri, PHP_URL_SCHEME)
+                    || ('http' === parse_url($uri, PHP_URL_SCHEME)
+                        && in_array(
+                            parse_url($uri, PHP_URL_HOST),
+                            ['localhost', '127.0.0.1', '[::1]'],
+                            true,
+                        )))) {
                 throw OAuthServerException::invalidRequest('redirect_uris');
             }
             $redirects[] = new RedirectUri($uri);
         }
-        $client = $this->clients->find($id) ?? new OAuthClient($name, $id, null === $secret ? null : new NativePasswordHasher()->hash($secret));
+        $client = $this->clients->find($id)
+            ?? new OAuthClient(
+                $name,
+                $id,
+                null === $secret ? null : new NativePasswordHasher()->hash($secret),
+            );
         if (!$client instanceof AbstractClient) {
             throw OAuthServerException::invalidRequest('client_id');
         }

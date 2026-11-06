@@ -70,23 +70,26 @@ final class GeoapifyGeocoderTest extends TestCase
     public function testBatchPollsEveryFifteenSecondsAndChargesQuarterCredits(): void
     {
         $calls = [];
-        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$calls): MockResponse {
-            $calls[] = [$method, $url, $options];
+        $client = new MockHttpClient(
+            function (string $method, string $url, array $options) use (&$calls): MockResponse {
+                $calls[] = [$method, $url, $options];
 
-            return match (count($calls)) {
-                1 => $this->response(['id' => 'job-1'], 202),
-                2 => $this->response(['id' => 'job-1', 'status' => 'pending'], 202),
-                3 => $this->response([[
-                    'query'     => ['text' => 'п. Лебединый, Якутия'],
-                    'name'      => 'Лебединый',
-                    'city'      => 'Лебединый',
-                    'formatted' => 'Лебединый, Республика Саха, Россия',
-                    'lat'       => 58.0,
-                    'lon'       => 125.0,
-                ]]),
-                default => throw new \LogicException('Unexpected Geoapify request.'),
-            };
-        }, 'https://geoapify.example.test/v1');
+                return match (count($calls)) {
+                    1 => $this->response(['id' => 'job-1'], 202),
+                    2 => $this->response(['id' => 'job-1', 'status' => 'pending'], 202),
+                    3 => $this->response([[
+                        'query'     => ['text' => 'п. Лебединый, Якутия'],
+                        'name'      => 'Лебединый',
+                        'city'      => 'Лебединый',
+                        'formatted' => 'Лебединый, Республика Саха, Россия',
+                        'lat'       => 58.0,
+                        'lon'       => 125.0,
+                    ]]),
+                    default => throw new \LogicException('Unexpected Geoapify request.'),
+                };
+            },
+            'https://geoapify.example.test/v1',
+        );
         $requestReservations = [];
         $creditReservations = [];
         $clock = new MockClock('2026-01-01T00:00:00+00:00');
@@ -139,24 +142,27 @@ final class GeoapifyGeocoderTest extends TestCase
     {
         $firstBatch = array_map(static fn (int $number): string => 'Town ' . $number, range(1, 1000));
         $queries = [...$firstBatch, 'Town 1001'];
-        $client = new MockHttpClient(function (string $method, string $url, array $options) use ($firstBatch): MockResponse {
-            static $call = 0;
-            ++$call;
-            if (1 === $call) {
-                $sent = json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR);
-                self::assertIsArray($sent);
-                self::assertCount(1000, $sent);
+        $client = new MockHttpClient(
+            function (string $method, string $url, array $options) use ($firstBatch): MockResponse {
+                static $call = 0;
+                ++$call;
+                if (1 === $call) {
+                    $sent = json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR);
+                    self::assertIsArray($sent);
+                    self::assertCount(1000, $sent);
 
-                return $this->response(['id' => 'first'], 202);
-            }
-            if (2 === $call) {
-                return $this->response(array_map(static fn (string $query): array => [
-                    'query' => ['text' => $query], 'city' => $query, 'lat' => 1, 'lon' => 2,
-                ], $firstBatch));
-            }
+                    return $this->response(['id' => 'first'], 202);
+                }
+                if (2 === $call) {
+                    return $this->response(array_map(static fn (string $query): array => [
+                        'query' => ['text' => $query], 'city' => $query, 'lat' => 1, 'lon' => 2,
+                    ], $firstBatch));
+                }
 
-            throw new \LogicException('The second batch must not be sent after its item budget is refused.');
-        }, 'https://geoapify.example.test/v1');
+                throw new \LogicException('The second batch must not be sent after its item budget is refused.');
+            },
+            'https://geoapify.example.test/v1',
+        );
         $credits = [];
         $creditAttempt = 0;
         $ignored = [];
@@ -207,7 +213,9 @@ final class GeoapifyGeocoderTest extends TestCase
             self::assertSame('GEOCODING_QUERY_INVALID', $exception->getErrorCode());
         }
 
-        $unavailable = $this->geocoder(new MockHttpClient($this->response([], 503), 'https://geoapify.example.test/v1'));
+        $unavailable = $this->geocoder(
+            new MockHttpClient($this->response([], 503), 'https://geoapify.example.test/v1'),
+        );
         self::assertSame([], $unavailable->batchBestMatches(['Novosibirsk'], 'en'));
     }
 
@@ -235,19 +243,21 @@ final class GeoapifyGeocoderTest extends TestCase
     {
         $factory = $this->createMock(RateLimiterFactoryInterface::class);
         $limiter = $this->createMock(LimiterInterface::class);
-        $limiter->method('reserve')->willReturnCallback(function (int $tokens, float $maxWaitDuration) use (&$reservations, $accept): Reservation {
-            $reservations[] = $tokens;
-            if (null !== $accept && !$accept($tokens)) {
-                throw new \Symfony\Component\RateLimiter\Exception\MaxWaitDurationExceededException('Budget exhausted.', new RateLimit(0, new \DateTimeImmutable('2000-01-01T00:00:00+00:00'), false, 12000));
-            }
+        $limiter->method('reserve')->willReturnCallback(
+            function (int $tokens, float $maxWaitDuration) use (&$reservations, $accept): Reservation {
+                $reservations[] = $tokens;
+                if (null !== $accept && !$accept($tokens)) {
+                    throw new \Symfony\Component\RateLimiter\Exception\MaxWaitDurationExceededException('Budget exhausted.', new RateLimit(0, new \DateTimeImmutable('2000-01-01T00:00:00+00:00'), false, 12000));
+                }
 
-            return new Reservation(microtime(true) - 1, new RateLimit(
-                12000,
-                new \DateTimeImmutable('2000-01-01T00:00:00+00:00'),
-                true,
-                12000,
-            ));
-        });
+                return new Reservation(microtime(true) - 1, new RateLimit(
+                    12000,
+                    new \DateTimeImmutable('2000-01-01T00:00:00+00:00'),
+                    true,
+                    12000,
+                ));
+            },
+        );
         $factory->method('create')->willReturn($limiter);
 
         return $factory;

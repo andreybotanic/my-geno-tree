@@ -25,7 +25,9 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration(['language' => 'ru']));
         $this->token = $this->responseString('accessToken');
         $this->audio = tempnam(sys_get_temp_dir(), 'merge-voice');
-        (new Process(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=0.2', '-f', 'wav', $this->audio]))->mustRun();
+        (new Process(
+            ['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=0.2', '-f', 'wav', $this->audio],
+        ))->mustRun();
     }
 
     protected function tearDown(): void
@@ -54,7 +56,10 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
         self::assertFileDoesNotExist($this->uploaded);
         $em = static::getContainer()->get(EntityManagerInterface::class);
         self::assertSame(0, $em->getRepository(MediaObject::class)->count([]));
-        self::assertNotContains(Conversation::class, array_column($em->getMetadataFactory()->getAllMetadata(), 'name'));
+        self::assertNotContains(
+            Conversation::class,
+            array_column($em->getMetadataFactory()->getAllMetadata(), 'name'),
+        );
     }
 
     public function testFailureAndInvalidTranscriptDiscardAudioAndRequireANewRecording(): void

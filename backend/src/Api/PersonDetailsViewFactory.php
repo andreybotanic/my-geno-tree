@@ -102,7 +102,16 @@ final readonly class PersonDetailsViewFactory
     }
 
     /**
-     * @return array{id: string, birthSurname: array<string, mixed>, givenName: array<string, mixed>, patronymic: array<string, mixed>, gender: string, birthDate: array<string, mixed>, deathDate: array<string, mixed>|null, photoThumbnailUrl: string|null}
+     * @return array{
+     *     id: string,
+     *     birthSurname: array<string, mixed>,
+     *     givenName: array<string, mixed>,
+     *     patronymic: array<string, mixed>,
+     *     gender: string,
+     *     birthDate: array<string, mixed>,
+     *     deathDate: array<string, mixed>|null,
+     *     photoThumbnailUrl: string|null
+     * }
      */
     private function relationshipPerson(Person $person): array
     {

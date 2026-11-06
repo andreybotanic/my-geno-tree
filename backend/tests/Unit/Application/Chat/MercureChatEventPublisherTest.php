@@ -51,7 +51,11 @@ final class MercureChatEventPublisherTest extends TestCase
         self::assertNotNull($updates[0]);
         self::assertTrue($updates[0]->isPrivate());
         self::assertSame(
-            ['https://localhost/api/v1/chat-events/sessions/' . $conversation->sessionId->toRfc4122() . '/conversations/' . $conversation->id->toRfc4122()],
+            [
+                'https://localhost/api/v1/chat-events/sessions/' . $conversation->sessionId->toRfc4122()
+                    . '/conversations/'
+                    . $conversation->id->toRfc4122(),
+            ],
             $updates[0]->getTopics(),
         );
         /** @var array{attemptId: string, version: int, tokenUsage: array{total: int}} $packet */
@@ -66,7 +70,11 @@ final class MercureChatEventPublisherTest extends TestCase
 
     public function testHubFailureIsLoggedWithoutUndoingAnApplicationOperation(): void
     {
-        $hub = new MockHub('https://localhost/.well-known/mercure', new StaticTokenProvider('test'), static fn () => throw new \RuntimeException('private diagnostics'));
+        $hub = new MockHub(
+            'https://localhost/.well-known/mercure',
+            new StaticTokenProvider('test'),
+            static fn () => throw new \RuntimeException('private diagnostics'),
+        );
         $authorization = $this->createStub(AuthorizationCheckerInterface::class);
         $authorization->method('isGranted')->willReturn(true);
         $logger = $this->createMock(LoggerInterface::class);

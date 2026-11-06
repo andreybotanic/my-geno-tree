@@ -60,9 +60,16 @@ final class FixtureTreeAgent implements AgentInterface
         return new Execution(
             function (): \Generator {
                 ++self::$calls;
-                yield new \Symfony\AI\Agent\Execution\Update\Progress(\Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST);
+                yield new \Symfony\AI\Agent\Execution\Update\Progress(
+                    \Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST,
+                );
                 $conversation = self::$chat->execution()->conversation;
-                $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)($conversation, $conversation->attemptId, self::$merge, self::$reads);
+                $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)(
+                    $conversation,
+                    $conversation->attemptId,
+                    self::$merge,
+                    self::$reads,
+                );
                 self::$chat->execution()->conversation;
                 if ('' !== trim($text)) {
                     $message = Message::ofAssistant($text);
@@ -71,11 +78,20 @@ final class FixtureTreeAgent implements AgentInterface
                 }
 
                 yield new ResultUpdate(new TextResult($text));
-            }
+            },
         );
     }
 
-    /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, failureCode?: string}> */
+    /**
+     * @return list<array{
+     *     id: string,
+     *     requestId: string,
+     *     role: string,
+     *     content: string,
+     *     createdAt: string,
+     *     failureCode?: string
+     * }>
+     */
     public static function messages(Conversation $conversation): array
     {
         return self::$chat->messages($conversation);

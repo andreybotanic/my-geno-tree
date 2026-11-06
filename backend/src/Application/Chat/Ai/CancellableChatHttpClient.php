@@ -33,7 +33,11 @@ final class CancellableChatHttpClient implements HttpClientInterface
         if ($execution instanceof ChatExecution) {
             $this->store->assertRunning($execution);
             $progress = $options['on_progress'] ?? null;
-            $options['on_progress'] = function (int $downloaded, int $size, array $info) use ($execution, $progress): void {
+            $options['on_progress'] = function (
+                int $downloaded,
+                int $size,
+                array $info,
+            ) use ($execution, $progress): void {
                 $this->store->assertRunning($execution);
                 if (is_callable($progress)) {
                     $progress($downloaded, $size, $info);

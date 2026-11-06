@@ -217,7 +217,10 @@ GEDCOM);
         foreach ([
             ["0 HEAD\n1 GEDC\n2 VERS 6.0\n1 CHAR UTF-8\n0 TRLR", 'TREE_IMPORT_FORMAT_UNSUPPORTED'],
             ["0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR ANSEL\n0 TRLR", 'TREE_IMPORT_ENCODING_UNSUPPORTED'],
-            ["0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME A /B/\n0 @F1@ FAM\n1 HUSB @I2@\n1 CHIL @I1@\n0 TRLR", 'TREE_IMPORT_BROKEN_REFERENCE'],
+            [
+                "0 HEAD\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME A /B/\n0 @F1@ FAM\n1 HUSB @I2@\n1 CHIL @I1@\n0 TRLR",
+                'TREE_IMPORT_BROKEN_REFERENCE',
+            ],
         ] as [$contents, $code]) {
             try {
                 (new GedcomParser())->parse($contents);

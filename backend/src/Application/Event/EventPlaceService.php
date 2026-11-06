@@ -44,29 +44,31 @@ final readonly class EventPlaceService
     ): GenealogicalEvent {
         $data = $this->placeData->resolved($payload);
 
-        return $this->entityManager->wrapInTransaction(function () use ($tree, $eventId, $data, $ifMatch): GenealogicalEvent {
-            $event = $this->lockEvent($tree, $eventId, $ifMatch);
-            [$group, $person, $marriage] = $this->group($tree, $event);
-            $places = $this->places($group, $person, $marriage, $event->getType());
-            $place = $places[0] ?? EventPlace::resolved(
-                $data->name,
-                $data->latitude,
-                $data->longitude,
-            );
-            if ([] === $places) {
-                $this->entityManager->persist($place);
-            } else {
-                $place->resolve($data->name, $data->latitude, $data->longitude);
-            }
-            $changedAt = $this->clock->now();
-            $this->assign($group, $person, $marriage, $event->getType(), $place, $changedAt);
-            foreach (array_slice($places, 1) as $stalePlace) {
-                $this->entityManager->remove($stalePlace);
-            }
-            $tree->touch($changedAt);
+        return $this->entityManager->wrapInTransaction(
+            function () use ($tree, $eventId, $data, $ifMatch): GenealogicalEvent {
+                $event = $this->lockEvent($tree, $eventId, $ifMatch);
+                [$group, $person, $marriage] = $this->group($tree, $event);
+                $places = $this->places($group, $person, $marriage, $event->getType());
+                $place = $places[0] ?? EventPlace::resolved(
+                    $data->name,
+                    $data->latitude,
+                    $data->longitude,
+                );
+                if ([] === $places) {
+                    $this->entityManager->persist($place);
+                } else {
+                    $place->resolve($data->name, $data->latitude, $data->longitude);
+                }
+                $changedAt = $this->clock->now();
+                $this->assign($group, $person, $marriage, $event->getType(), $place, $changedAt);
+                foreach (array_slice($places, 1) as $stalePlace) {
+                    $this->entityManager->remove($stalePlace);
+                }
+                $tree->touch($changedAt);
 
-            return $event;
-        });
+                return $event;
+            },
+        );
     }
 
     public function delete(
@@ -184,7 +186,10 @@ final readonly class EventPlaceService
             EventType::DIVORCE                       => $marriage?->getDissolutionPlace(),
             default                                  => null,
         };
-        foreach (array_merge([$canonical], array_map(static fn (GenealogicalEvent $event): ?EventPlace => $event->getPlace(), $group)) as $place) {
+        foreach (array_merge(
+            [$canonical],
+            array_map(static fn (GenealogicalEvent $event): ?EventPlace => $event->getPlace(), $group),
+        ) as $place) {
             if ($place instanceof EventPlace && null !== $place->getId()) {
                 $places[$place->getId()->toRfc4122()] = $place;
             }

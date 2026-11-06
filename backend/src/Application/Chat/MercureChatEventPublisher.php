@@ -76,7 +76,13 @@ final readonly class MercureChatEventPublisher implements ChatEventPublisherInte
                 return;
             }
             $prefix = str_replace('{sessionId}', $conversation->sessionId->toRfc4122(), $this->topicPrefix);
-            $this->hub->publish(new Update($prefix . $conversation->id->toRfc4122(), json_encode($payload, JSON_THROW_ON_ERROR), private: true));
+            $this->hub->publish(
+                new Update(
+                    $prefix . $conversation->id->toRfc4122(),
+                    json_encode($payload, JSON_THROW_ON_ERROR),
+                    private: true,
+                ),
+            );
         } catch (\Throwable $error) {
             // Event delivery must not undo a committed application operation.
             $this->logger->warning('Chat event delivery failed: ' . $error::class);

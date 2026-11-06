@@ -22,8 +22,14 @@ final readonly class TreeMergeService
     }
 
     /** @param list<array{id: string, role: string, content: string}> $sources */
-    public function prepare(FamilyTree $tree, mixed $value, array $sources = [], ?TreeMergeProposal $current = null, bool $manual = false, int $version = 1): TreeMergeProposal
-    {
+    public function prepare(
+        FamilyTree $tree,
+        mixed $value,
+        array $sources = [],
+        ?TreeMergeProposal $current = null,
+        bool $manual = false,
+        int $version = 1,
+    ): TreeMergeProposal {
         $validated = $this->validator->validate($tree, $value, $sources, $current?->proposal, $manual);
         $state = match (true) {
             [] !== $validated->questions => 'questions',
@@ -31,7 +37,14 @@ final readonly class TreeMergeService
             default                      => 'ready',
         };
 
-        return new TreeMergeProposal($tree->getId()->toRfc4122(), $version, $this->versions->etag($tree), $validated->proposal, $state, $current?->id);
+        return new TreeMergeProposal(
+            $tree->getId()->toRfc4122(),
+            $version,
+            $this->versions->etag($tree),
+            $validated->proposal,
+            $state,
+            $current?->id,
+        );
     }
 
     /** @return array<string, mixed> */
@@ -47,13 +60,20 @@ final readonly class TreeMergeService
                 if ($ifMatch !== $proposal->treeEtag || $this->versions->etag($tree) !== $proposal->treeEtag) {
                     return null;
                 }
-                $validated = $this->validator->validate($tree, $this->validator->input($proposal->proposal), [], $proposal->proposal, true, false);
+                $validated = $this->validator->validate(
+                    $tree,
+                    $this->validator->input($proposal->proposal),
+                    [],
+                    $proposal->proposal,
+                    true,
+                    false,
+                );
                 if (null === $validated->changes) {
                     throw new ApiException(409, 'TREE_MERGE_NOT_READY');
                 }
 
                 return $this->executor->execute($tree, $validated->changes, $proposal->treeEtag);
-            }
+            },
         );
 
         return $result ?? throw new ApiException(412, 'TREE_VERSION_CONFLICT');
@@ -62,7 +82,14 @@ final readonly class TreeMergeService
     public function revalidate(FamilyTree $tree, TreeMergeProposal $proposal): TreeMergeProposal
     {
         try {
-            return $this->prepare($tree, $this->validator->input($proposal->proposal), [], $proposal, true, $proposal->version + 1);
+            return $this->prepare(
+                $tree,
+                $this->validator->input($proposal->proposal),
+                [],
+                $proposal,
+                true,
+                $proposal->version + 1,
+            );
         } catch (ApiException $error) {
             return new TreeMergeProposal(
                 $tree->getId()->toRfc4122(),

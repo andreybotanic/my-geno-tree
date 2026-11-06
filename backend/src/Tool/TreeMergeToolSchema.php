@@ -81,8 +81,15 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
                 'items'       => [
                     'type'                 => 'object',
                     'additionalProperties' => false,
-                    'required'             => ['id', 'existingPersonId', 'resolution', 'fields', 'lifeStatus', 'evidence'],
-                    'properties'           => [
+                    'required'             => [
+                        'id',
+                        'existingPersonId',
+                        'resolution',
+                        'fields',
+                        'lifeStatus',
+                        'evidence',
+                    ],
+                    'properties' => [
                         'id'               => self::REFERENCE,
                         'existingPersonId' => ['type' => ['string', 'null']],
                         'resolution'       => ['enum' => ['new', 'existing', 'undecided']],
@@ -126,8 +133,15 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
                 'items'    => [
                     'type'                 => 'object',
                     'additionalProperties' => false,
-                    'required'             => ['first', 'second', 'marriageDate', 'dissolutionDate', 'newPeriod', 'evidence'],
-                    'properties'           => [
+                    'required'             => [
+                        'first',
+                        'second',
+                        'marriageDate',
+                        'dissolutionDate',
+                        'newPeriod',
+                        'evidence',
+                    ],
+                    'properties' => [
                         'first'           => self::REFERENCE,
                         'second'          => self::REFERENCE,
                         'marriageDate'    => self::DATE,

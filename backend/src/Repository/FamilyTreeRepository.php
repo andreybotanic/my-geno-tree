@@ -109,13 +109,35 @@ final class FamilyTreeRepository extends ServiceEntityRepository
                 ->addSelect('CASE WHEN ' . $name . ' = :query THEN 0 ELSE 1 END AS HIDDEN exactMatch')
                 ->addSelect($distance . ' AS HIDDEN distance')
                 ->addSelect($similarity . ' AS HIDDEN similarity')
-                ->andWhere('(' . $distance . ' <= :maximumDistance OR (STRICT_WORD_MATCH(:query, ' . $name . ') = true AND ' . $similarity . ' >= :minimumSimilarity))')
-                ->setParameter('query', $query)
-                ->setParameter('maximumDistance', $maximumDistance)
-                ->setParameter('minimumSimilarity', PersonRepository::MINIMUM_STRICT_WORD_SIMILARITY)
-                ->orderBy('exactMatch', 'ASC')
-                ->addOrderBy('distance', 'ASC')
-                ->addOrderBy('similarity', 'DESC');
+                ->andWhere(
+                    '(' . $distance . ' <= :maximumDistance OR (STRICT_WORD_MATCH(:query, ' . $name . ') = true AND '
+                        . $similarity
+                        . ' >= :minimumSimilarity))',
+                )
+                ->setParameter(
+                    'query',
+                    $query,
+                )
+                ->setParameter(
+                    'maximumDistance',
+                    $maximumDistance,
+                )
+                ->setParameter(
+                    'minimumSimilarity',
+                    PersonRepository::MINIMUM_STRICT_WORD_SIMILARITY,
+                )
+                ->orderBy(
+                    'exactMatch',
+                    'ASC',
+                )
+                ->addOrderBy(
+                    'distance',
+                    'ASC',
+                )
+                ->addOrderBy(
+                    'similarity',
+                    'DESC',
+                );
         }
         /** @var list<array{id: Uuid, name: string}> $rows */
         $rows = $builder

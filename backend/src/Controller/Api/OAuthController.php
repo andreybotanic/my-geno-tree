@@ -29,12 +29,14 @@ final class OAuthController extends AbstractController
     ) {
     }
 
+    /** RFC 8414: clients discover the OAuth server's endpoints at this standardized URL. */
     #[Route('/.well-known/oauth-authorization-server', methods: ['GET'])]
     public function authorizationServer(): JsonResponse
     {
         return new JsonResponse($this->metadata->authorizationServer());
     }
 
+    /** RFC 9728: metadata for the MCP protected resource, including its authorization server. */
     #[Route('/.well-known/oauth-protected-resource', methods: ['GET'])]
     #[Route('/.well-known/oauth-protected-resource/api/v1/mcp', methods: ['GET'])]
     public function protectedResource(): JsonResponse
@@ -46,7 +48,11 @@ final class OAuthController extends AbstractController
     public function register(Request $request): HttpResponse
     {
         try {
-            return new JsonResponse($this->clients->register($this->body->decodeObject($request)), 201, ['Cache-Control' => 'no-store']);
+            return new JsonResponse(
+                $this->clients->register($this->body->decodeObject($request)),
+                201,
+                ['Cache-Control' => 'no-store'],
+            );
         } catch (OAuthServerException $error) {
             return new HttpFoundationFactory()->createResponse($error->generateHttpResponse(new Response()));
         } catch (ApiException) {
@@ -62,7 +68,11 @@ final class OAuthController extends AbstractController
             throw new ApiException(401, 'INVALID_SESSION');
         }
         try {
-            return $this->json($this->consent->requestConsent($this->body->decodeObject($request), $session), 201, ['Cache-Control' => 'no-store']);
+            return $this->json(
+                $this->consent->requestConsent($this->body->decodeObject($request), $session),
+                201,
+                ['Cache-Control' => 'no-store'],
+            );
         } catch (OAuthServerException $error) {
             return new JsonResponse(['error' => $error->getErrorType()], $error->getHttpStatusCode());
         }
@@ -77,7 +87,10 @@ final class OAuthController extends AbstractController
             throw new ApiException(422, 'OAUTH_DECISION_INVALID');
         }
 
-        return $this->json(['redirectUrl' => $this->consent->completeAuthorization($id, $payload['approved'], $session)], headers: ['Cache-Control' => 'no-store']);
+        return $this->json(
+            ['redirectUrl' => $this->consent->completeAuthorization($id, $payload['approved'], $session)],
+            headers: ['Cache-Control' => 'no-store'],
+        );
     }
 
     #[Route('/api/v1/oauth/token', methods: ['POST'])]

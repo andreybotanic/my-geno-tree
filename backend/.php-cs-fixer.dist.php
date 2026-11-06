@@ -13,6 +13,7 @@ $finder = (new PhpCsFixer\Finder())
 return (new PhpCsFixer\Config())
     ->setRules([
         '@Symfony' => true,
+        'class_definition' => ['single_line' => false],
         'binary_operator_spaces' => [
             'operators' => [
                 '=>' => 'align_single_space_minimal',

@@ -34,7 +34,11 @@ final readonly class TreeContextService
     public function tree(string $id, bool $edit = false): FamilyTree
     {
         $tree = Uuid::isValid($id) ? $this->trees->find($id) : null;
-        if (null === $tree || !$this->authorization->isGranted($edit ? FamilyTreeVoter::EDIT : FamilyTreeVoter::VIEW, $tree)) {
+        if (null === $tree
+            || !$this->authorization->isGranted(
+                $edit ? FamilyTreeVoter::EDIT : FamilyTreeVoter::VIEW,
+                $tree,
+            )) {
             throw new ApiException(404, 'TREE_NOT_FOUND');
         }
 
@@ -76,7 +80,10 @@ final readonly class TreeContextService
             $ids[] = (string)$link['first'];
             $ids[] = (string)$link['second'];
         }
-        $context['people'] = array_map($this->person(...), $this->people->findRelationshipPeopleByTreeAndIds($tree, array_values(array_unique($ids))));
+        $context['people'] = array_map(
+            $this->person(...),
+            $this->people->findRelationshipPeopleByTreeAndIds($tree, array_values(array_unique($ids))),
+        );
 
         return $context;
     }

@@ -10,6 +10,13 @@ final class ConversationFixture
 {
     public static function create(?User $user = null): Conversation
     {
-        return new Conversation('test', 'tree', [], Uuid::v7(), $user?->getId() ?? Uuid::v7(), new \DateTimeImmutable());
+        return new Conversation(
+            'test',
+            'tree',
+            [],
+            Uuid::v7(),
+            $user?->getId() ?? Uuid::v7(),
+            new \DateTimeImmutable(),
+        );
     }
 }

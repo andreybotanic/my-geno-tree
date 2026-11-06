@@ -17,7 +17,9 @@ use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 
-final class BearerSessionAuthenticator extends AbstractAuthenticator implements AuthenticationEntryPointInterface, AuthenticationFailureHandlerInterface
+final class BearerSessionAuthenticator extends AbstractAuthenticator implements
+    AuthenticationEntryPointInterface,
+    AuthenticationFailureHandlerInterface
 {
     public function __construct(
         private readonly AuthSessionRepository $sessions,

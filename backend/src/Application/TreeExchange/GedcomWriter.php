@@ -119,7 +119,11 @@ final class GedcomWriter
             if (null !== $person->getDeathDate()) {
                 $lines[] = '1 DEAT';
                 $this->appendDate($lines, 2, $person->getDeathDate());
-                $this->appendPlace($lines, 2, ($lifecycleEvents[$personId][EventType::DEATH->value] ?? null)?->getPlace());
+                $this->appendPlace(
+                    $lines,
+                    2,
+                    ($lifecycleEvents[$personId][EventType::DEATH->value] ?? null)?->getPlace(),
+                );
             }
             $this->appendValue($lines, 1, 'REFN', $personId);
             $this->appendValue($lines, 2, 'TYPE', 'MyGenoTree UUID');
@@ -158,11 +162,19 @@ final class GedcomWriter
                 $lines[] = '1 MARR';
                 $this->appendDate($lines, 2, $family['marriage']->getMarriageDate());
                 $marriageId = $family['marriage']->getId()->toRfc4122();
-                $this->appendPlace($lines, 2, ($marriageEvents[$marriageId][EventType::MARRIAGE->value] ?? null)?->getPlace());
+                $this->appendPlace(
+                    $lines,
+                    2,
+                    ($marriageEvents[$marriageId][EventType::MARRIAGE->value] ?? null)?->getPlace(),
+                );
                 if (null !== $family['marriage']->getDissolutionDate()) {
                     $lines[] = '1 DIV';
                     $this->appendDate($lines, 2, $family['marriage']->getDissolutionDate());
-                    $this->appendPlace($lines, 2, ($marriageEvents[$marriageId][EventType::DIVORCE->value] ?? null)?->getPlace());
+                    $this->appendPlace(
+                        $lines,
+                        2,
+                        ($marriageEvents[$marriageId][EventType::DIVORCE->value] ?? null)?->getPlace(),
+                    );
                 }
             } else {
                 $lines[] = GedcomFormat::V7 === $format ? '1 NO MARR' : '1 _MGT_UNMARRIED Y';
@@ -177,7 +189,13 @@ final class GedcomWriter
      * @param list<ParentLink>     $parentLinks
      * @param list<MarriagePeriod> $marriages
      *
-     * @return list<array{xref?: string, husband: string|null, wife: string|null, children: list<string>, marriage: MarriagePeriod|null}>
+     * @return list<array{
+     *     xref?: string,
+     *     husband: string|null,
+     *     wife: string|null,
+     *     children: list<string>,
+     *     marriage: MarriagePeriod|null
+     * }>
      */
     private function families(array $parentLinks, array $marriages): array
     {
@@ -201,7 +219,8 @@ final class GedcomWriter
         foreach ($parentLinks as $link) {
             $childId = $this->id($link->getChild());
             $parentsByChild[$childId] ??= ['husband' => null, 'wife' => null];
-            $parentsByChild[$childId][ParentRole::FATHER === $link->getRole() ? 'husband' : 'wife'] = $this->id($link->getParent());
+            $parentsByChild[$childId][ParentRole::FATHER === $link->getRole() ? 'husband' : 'wife']
+                = $this->id($link->getParent());
         }
         /** @var array<string, int> $unmarriedByPair */
         $unmarriedByPair = [];

@@ -28,12 +28,22 @@ final class WhisperTranscriptionProviderTest extends TestCase
                 return new MockResponse('{"text":"  Мама — Вера.  "}');
             }
         );
-        self::assertSame('Мама — Вера.', new WhisperTranscriptionProvider($http, 'http://whisper:8000/', 'small')->transcribe('RIFFtest', 'ru'));
+        self::assertSame(
+            'Мама — Вера.',
+            new WhisperTranscriptionProvider($http, 'http://whisper:8000/', 'small')->transcribe('RIFFtest', 'ru'),
+        );
     }
 
     public function testRejectsMalformedProviderResponse(): void
     {
         $this->expectException(\RuntimeException::class);
-        new WhisperTranscriptionProvider(new MockHttpClient(new MockResponse('{"text":false}')), 'http://whisper', 'small')->transcribe('RIFF', 'en');
+        new WhisperTranscriptionProvider(
+            new MockHttpClient(new MockResponse('{"text":false}')),
+            'http://whisper',
+            'small',
+        )->transcribe(
+            'RIFF',
+            'en',
+        );
     }
 }

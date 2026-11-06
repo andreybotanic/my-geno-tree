@@ -45,7 +45,12 @@ final readonly class TreeReadTools
     /** MCP only: the site's Symfony AI registry exposes only the three AsTool methods.
      * @return array{trees: list<array{id: string, name: string}>}
      */
-    #[McpTool(name: 'find_trees', description: 'Find your trees by fuzzy title or exact UUID. Returns up to five candidates. Ask the user when the target tree is ambiguous.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
+    #[McpTool(
+        name: 'find_trees',
+        description: 'Find your trees by fuzzy title or exact UUID. Returns up to five candidates. ' .
+            'Ask the user when the target tree is ambiguous.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
     public function findTrees(string $query): array
     {
         $user = $this->security->getUser();
@@ -57,21 +62,33 @@ final readonly class TreeReadTools
     }
 
     /** @return array<string, mixed> */
-    #[McpTool(name: 'get_tree_context', description: 'Read the specified tree, optional reference person, immediate family and current ETag.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
+    #[McpTool(
+        name: 'get_tree_context',
+        description: 'Read the specified tree, optional reference person, immediate family and current ETag.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
     public function tree(string $treeId, ?string $referencePersonId = null): array
     {
         return $this->context->context($treeId, $referencePersonId);
     }
 
     /** @return array<string, mixed> */
-    #[McpTool(name: 'find_people', description: 'Search names in the specified tree. Read candidate context before choosing a person.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
+    #[McpTool(
+        name: 'find_people',
+        description: 'Search names in the specified tree. Read candidate context before choosing a person.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
     public function find(string $treeId, string $query): array
     {
         return ['query' => $query, 'candidates' => $this->context->find($treeId, $query)];
     }
 
     /** @return array<string, mixed> */
-    #[McpTool(name: 'get_person_context', description: 'Read a person and immediate relatives from the specified tree.', annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false))]
+    #[McpTool(
+        name: 'get_person_context',
+        description: 'Read a person and immediate relatives from the specified tree.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
     public function person(string $treeId, string $personId): array
     {
         return $this->context->context($treeId, $personId);

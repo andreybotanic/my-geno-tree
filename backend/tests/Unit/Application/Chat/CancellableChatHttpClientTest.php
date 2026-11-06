@@ -48,7 +48,10 @@ final class CancellableChatHttpClientTest extends TestCase
         self::assertInstanceOf(Conversation::class, $state);
         $state->finishAttempt(new \DateTimeImmutable());
         $runtime->inner->save($messages);
-        foreach ([static fn () => $progress(15, 30, []), static fn () => $client->request('POST', 'http://model.test')] as $operation) {
+        foreach ([
+            static fn () => $progress(15, 30, []),
+            static fn () => $client->request('POST', 'http://model.test'),
+        ] as $operation) {
             try {
                 $operation();
                 self::fail('Stopped inference must abort.');

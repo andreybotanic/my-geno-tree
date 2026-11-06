@@ -105,7 +105,8 @@ final readonly class TreeItemController
         TreeContextService $context,
     ): JsonResponse {
         $payload = $this->requestBody->decodeObject($request);
-        if (['referencePersonId'] !== array_keys($payload) || (null !== $payload['referencePersonId'] && !is_string($payload['referencePersonId']))) {
+        if (['referencePersonId'] !== array_keys($payload)
+            || (null !== $payload['referencePersonId'] && !is_string($payload['referencePersonId']))) {
             throw new ApiException(422, 'CHAT_INVALID');
         }
         $context->context($tree->getId()->toRfc4122(), $payload['referencePersonId']);

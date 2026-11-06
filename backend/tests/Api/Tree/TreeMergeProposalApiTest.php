@@ -41,7 +41,11 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->revise($this->family());
         $id = Uuid::fromString(basename($this->chatPath));
         self::assertInstanceOf(\Symfony\Component\Uid\UuidV7::class, $id);
-        $store = new \Symfony\AI\Agent\Bridge\Cache\MessageStore(static::getContainer()->get('cache.chat'), 'chat', ttl: 1);
+        $store = new \Symfony\AI\Agent\Bridge\Cache\MessageStore(
+            static::getContainer()->get('cache.chat'),
+            'chat',
+            ttl: 1,
+        );
         $messages = $store->load($id);
         $conversation = $messages->getMetadata()->get(\App\Model\Conversation::METADATA);
         self::assertInstanceOf(\App\Model\Conversation::class, $conversation);
@@ -70,7 +74,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $version = $this->responseData()['version'];
         $this->jsonRequest('DELETE', $this->path, ['version' => 2], $this->headers);
         self::assertResponseStatusCodeSame(404);
-        $this->jsonRequest('POST', $this->chatPath . '/messages', ['version' => $version, 'requestId' => 'next', 'content' => 'Let us continue.'], $this->headers);
+        $this->jsonRequest(
+            'POST',
+            $this->chatPath . '/messages',
+            ['version' => $version, 'requestId' => 'next', 'content' => 'Let us continue.'],
+            $this->headers,
+        );
         self::assertResponseIsSuccessful();
         self::assertCount(4, $this->arrayAt('messages'));
         $this->snapshot();
@@ -148,7 +157,10 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertSame($proposalId, $this->responseString('tools', 'merge', 'id'));
         self::assertSame(3, $this->responseInt('tools', 'merge', 'version'));
         self::assertSame($this->etag, $this->responseString('tools', 'merge', 'treeEtag'));
-        self::assertContains('TREE_MERGE_PROPOSAL_INVALID', $this->responseArray('tools', 'merge', 'proposal', 'questions'));
+        self::assertContains(
+            'TREE_MERGE_PROPOSAL_INVALID',
+            $this->responseArray('tools', 'merge', 'proposal', 'questions'),
+        );
         $this->apply(3);
         self::assertResponseStatusCodeSame(409);
         $this->snapshot();
@@ -173,7 +185,10 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $proposal['people'][0]['fields']['birthDate'] = ['state' => 'known', 'kind' => 'exact', 'year' => 1962];
         $this->revise($proposal);
         self::assertResponseIsSuccessful();
-        self::assertSame('Ирина', $this->responseString('tools', 'merge', 'proposal', 'people', '0', 'before', 'givenName', 'value'));
+        self::assertSame(
+            'Ирина',
+            $this->responseString('tools', 'merge', 'proposal', 'people', '0', 'before', 'givenName', 'value'),
+        );
         $this->apply();
         self::assertResponseIsSuccessful();
         $this->snapshot();
@@ -187,8 +202,9 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $events = array_values(
             array_filter(
                 $em->getRepository(GenealogicalEvent::class)->findAll(),
-                static fn (GenealogicalEvent $event) => 'child_birth' === $event->getType()->value && ($event->getData()['childId'] ?? null) === $ids['i']
-            )
+                static fn (GenealogicalEvent $event) => 'child_birth' === $event->getType()->value
+                    && ($event->getData()['childId'] ?? null) === $ids['i'],
+            ),
         );
         self::assertCount(1, $events);
         self::assertSame(1962, $events[0]->getDate()->getYear());
@@ -290,7 +306,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         $chatVersion = $this->responseData()['version'];
         \App\Tests\Infrastructure\Ai\FixtureTreeAgent::$handler = static fn () => 'The proposal is ready for review.';
-        $this->jsonRequest('POST', $this->chatPath . '/messages', ['version' => $chatVersion, 'requestId' => 'clarification', 'content' => 'Please explain the preview.'], $this->headers);
+        $this->jsonRequest(
+            'POST',
+            $this->chatPath . '/messages',
+            ['version' => $chatVersion, 'requestId' => 'clarification', 'content' => 'Please explain the preview.'],
+            $this->headers,
+        );
         self::assertResponseIsSuccessful();
         self::assertSame(4, $this->responseInt('tools', 'merge', 'version'));
         self::assertCount(4, $this->arrayAt('messages'));
@@ -378,7 +399,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $proposal['questions'] = ['Which person?'];
         $this->revise($proposal);
         self::assertSame('questions', $this->responseString('tools', 'merge', 'state'));
-        $this->jsonRequest('POST', $this->chatPath . '/reset', ['version' => $this->responseData()['version']], $this->headers);
+        $this->jsonRequest(
+            'POST',
+            $this->chatPath . '/reset',
+            ['version' => $this->responseData()['version']],
+            $this->headers,
+        );
         self::assertResponseStatusCodeSame(204);
         $this->newDraft();
         $this->revise($this->family());
@@ -486,22 +512,57 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $current = $this->responseData()['conversation'];
         if (is_array($current)) {
             self::assertIsString($current['id']);
-            $this->jsonRequest('POST', '/api/v1/chats/' . $current['id'] . '/reset', ['version' => $current['version']], $this->headers);
+            $this->jsonRequest(
+                'POST',
+                '/api/v1/chats/' . $current['id'] . '/reset',
+                ['version' => $current['version']],
+                $this->headers,
+            );
         }
         $this->jsonRequest('POST', $base, ['referencePersonId' => $reference], $this->headers);
         self::assertResponseIsSuccessful();
         $this->chatPath = '/api/v1/chats/' . $this->responseString('id');
-        \App\Tests\Infrastructure\Ai\FixtureTreeAgent::$handler = static fn (\App\Model\Conversation $conversation) => \App\Tests\Infrastructure\Ai\FixtureTreeAgent::reply($conversation, 'Please review.', ['people' => [], 'parents' => [], 'marriages' => [], 'questions' => []]);
-        $this->jsonRequest('POST', $this->chatPath . '/messages', ['version' => 1, 'requestId' => 'initial', 'content' => 'Fictional family for this test.'], $this->headers);
+        \App\Tests\Infrastructure\Ai\FixtureTreeAgent::$handler =
+            static fn (\App\Model\Conversation $conversation) => \App\Tests\Infrastructure\Ai\FixtureTreeAgent::reply(
+                $conversation,
+                'Please review.',
+                ['people' => [], 'parents' => [], 'marriages' => [], 'questions' => []],
+            );
+        $this->jsonRequest(
+            'POST',
+            $this->chatPath . '/messages',
+            ['version' => 1, 'requestId' => 'initial', 'content' => 'Fictional family for this test.'],
+            $this->headers,
+        );
         self::assertResponseIsSuccessful();
-        $this->path = '/api/v1/trees/' . $this->treeId . '/merge-proposals/' . $this->responseString('tools', 'merge', 'id');
+        $this->path = '/api/v1/trees/' . $this->treeId . '/merge-proposals/'
+            . $this->responseString('tools', 'merge', 'id');
     }
 
-    /** @return array{people: list<array{id: string, existingPersonId: mixed, resolution: string, fields: array<string, mixed>, lifeStatus: string, evidence: list<mixed>}>, parents: list<array<string, mixed>>, marriages: list<array<string, mixed>>, questions: list<string>} */
+    /**
+     * @return array{
+     *     people: list<array{
+     *         id: string,
+     *         existingPersonId: mixed,
+     *         resolution: string,
+     *         fields: array<string, mixed>,
+     *         lifeStatus: string,
+     *         evidence: list<mixed>
+     *     }>,
+     *     parents: list<array<string, mixed>>,
+     *     marriages: list<array<string, mixed>>,
+     *     questions: list<string>
+     * }
+     */
     private function family(): array
     {
         $people = [];
-        foreach ([['i', 'Ирина', 'female'], ['v', 'Вера', 'female'], ['m', 'Михаил', 'male'], ['a', 'Александр', 'male']] as [$id, $name, $gender]) {
+        foreach ([
+            ['i', 'Ирина', 'female'],
+            ['v', 'Вера', 'female'],
+            ['m', 'Михаил', 'male'],
+            ['a', 'Александр', 'male'],
+        ] as [$id, $name, $gender]) {
             $people[] = [
                 'id'               => $id,
                 'existingPersonId' => null,
@@ -509,7 +570,11 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
                 'fields'           => [
                     'givenName' => ['state' => 'known', 'value' => $name],
                     'gender'    => $gender,
-                    'birthDate' => 'v' === $id ? ['state' => 'known', 'kind' => 'approximate', 'year' => 1938] : ['state' => 'unknown'],
+                    'birthDate' => 'v' === $id ? [
+                        'state' => 'known',
+                        'kind'  => 'approximate',
+                        'year'  => 1938,
+                    ] : ['state' => 'unknown'],
                 ],
                 'lifeStatus' => 'deceased',
                 'evidence'   => [],

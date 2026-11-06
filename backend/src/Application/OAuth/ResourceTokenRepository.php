@@ -11,12 +11,17 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireDecorated;
 #[AsDecorator('league.oauth2_server.repository.access_token')]
 final readonly class ResourceTokenRepository implements AccessTokenRepositoryInterface
 {
-    public function __construct(#[AutowireDecorated] private AccessTokenRepositoryInterface $inner, private OAuthMetadata $metadata)
-    {
+    public function __construct(
+        #[AutowireDecorated] private AccessTokenRepositoryInterface $inner,
+        private OAuthMetadata $metadata,
+    ) {
     }
 
-    public function getNewToken(ClientEntityInterface $clientEntity, array $scopes, ?string $userIdentifier = null): ResourceAccessToken
-    {
+    public function getNewToken(
+        ClientEntityInterface $clientEntity,
+        array $scopes,
+        ?string $userIdentifier = null,
+    ): ResourceAccessToken {
         $token = new ResourceAccessToken($this->metadata->issuer(), $this->metadata->resource());
         $token->setClient($clientEntity);
         if (null !== $userIdentifier && '' !== $userIdentifier) {
