@@ -10,6 +10,9 @@ CLIProxyAPI platform, `gpt-5.6-luna`, native Structured Output and Validator.
 The checking agent has no tools or message store. Ordinary off-topic questions,
 quoted instructions and family narratives are allowed.
 
+Both agents load their system prompts through the bundle's `prompt.file` option:
+`backend/prompts/tree.txt` and `backend/prompts/chat_moderation.txt`.
+
 Application parameters in `backend/config/services.yaml`:
 
 | Parameter prefix: `app.chat_moderation.` | Default |
