@@ -21,11 +21,6 @@ localhost, my-geno-tree.localhost {
 		}
 	}
 
-	handle /mcp/tree {
-		root * /srv/backend/public
-		php_fastcgi backend:9000
-	}
-
 	handle /api/* {
 		root * /srv/backend/public
 		php_fastcgi backend:9000

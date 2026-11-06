@@ -2,7 +2,7 @@
 
 namespace App\Tests\Infrastructure\Ai;
 
-use App\Application\Chat\Chat;
+use App\Application\Chat\ChatInterface;
 use App\Model\Conversation;
 use App\Tool\TreeMergeTool;
 use App\Tool\TreeReadTools;
@@ -29,10 +29,10 @@ final class FixtureTreeAgent implements AgentInterface
     public static int $calls = 0;
     public static TreeReadTools $reads;
     private static TreeMergeTool $merge;
-    private static Chat $chat;
+    private static ChatInterface $chat;
 
     public function __construct(#[AutowireDecorated] private readonly AgentInterface $inner,
-        TreeMergeTool $merge, TreeReadTools $reads, Chat $chat, #[Target('chat')] private readonly MessageStoreInterface $store)
+        TreeMergeTool $merge, TreeReadTools $reads, ChatInterface $chat, #[Target('chat')] private readonly MessageStoreInterface $store)
     {
         self::$merge = $merge;
         self::$reads = $reads;
@@ -53,12 +53,10 @@ final class FixtureTreeAgent implements AgentInterface
 
         return new Execution(function (): \Generator {
             ++self::$calls;
-            $conversation = self::$chat->active();
-            if (null === self::$handler) {
-                throw new \LogicException('Missing AI fixture');
-            }
-            $text = (string)(self::$handler)($conversation, $conversation->attemptId, self::$merge, self::$reads);
-            self::$chat->active();
+            yield new \Symfony\AI\Agent\Execution\Update\Progress(\Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST);
+            $conversation = self::$chat->execution()->conversation;
+            $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)($conversation, $conversation->attemptId, self::$merge, self::$reads);
+            self::$chat->execution()->conversation;
             if ('' !== trim($text)) {
                 $message = Message::ofAssistant($text);
                 $message->getMetadata()->add('requestId', $conversation->attemptRequestId);

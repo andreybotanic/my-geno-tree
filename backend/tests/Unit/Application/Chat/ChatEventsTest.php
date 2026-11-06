@@ -3,13 +3,11 @@
 namespace App\Tests\Unit\Application\Chat;
 
 use App\Api\ApiException;
-use App\Application\Chat\ChatEvents;
-use App\Application\Chat\ChatSubscription;
+use App\Application\Chat\MercureChatTransport;
 use App\Entity\AuthSession;
 use App\Entity\User;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Clock\MockClock;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -21,7 +19,7 @@ use Symfony\Component\Mercure\Update;
 
 final class ChatEventsTest extends TestCase
 {
-    public function testAttemptBindingWorksWithoutRequestForMcpAndDoesNotExposeContexts(): void
+    public function testProgressRequiresALoginAndPublishesOnlyThePublicExecutionState(): void
     {
         /** @var \ArrayObject<int, Update> $updates */
         $updates = new \ArrayObject();
@@ -31,22 +29,22 @@ final class ChatEventsTest extends TestCase
             return 'event';
         });
         $requests = new RequestStack();
-        $events = new ChatEvents($hub, new ArrayAdapter(), $requests, new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock());
+        $events = new MercureChatTransport($hub, $requests, new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock(), new Authorization(new HubRegistry($hub)), new \App\Repository\AuthSessionRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)), str_repeat('s', 32), 'https://localhost');
         $now = new \DateTimeImmutable();
         $user = new User('test', 'test@example.test', 'hash', 'en', $now);
         $draft = \App\Tests\Infrastructure\Ai\ConversationFixture::create($user);
         $draft->beginAttempt($now, 'turn');
         $attempt = $draft->attemptId;
         self::assertNotNull($attempt);
-        $events->begin($draft);
-        $events->progress($draft->id->toRfc4122(), $attempt, ['thinking'], ['input' => 0, 'output' => 0, 'total' => 0]);
+        $events->progress($draft);
         self::assertCount(0, $updates);
         $request = new Request();
         $session = new AuthSession($user, 'hash', $now->modify('+15 minutes'), $now->modify('+1 day'), $now);
         $request->attributes->set(AuthSession::class, $session);
         $requests->push($request);
-        $events->begin($draft);
-        $events->progress($draft->id->toRfc4122(), $attempt, ['thinking', 'tree_loaded'], ['input' => 10, 'output' => 5, 'total' => 15]);
+        $draft->progress = ['model_request', 'get_tree_context'];
+        $draft->usage = ['input' => 10, 'output' => 5, 'total' => 15];
+        $events->progress($draft);
         self::assertCount(1, $updates);
         self::assertNotNull($updates[0]);
         self::assertSame([$events->sessionTopic($session) . $draft->id->toRfc4122()], $updates[0]->getTopics());
@@ -56,7 +54,6 @@ final class ChatEventsTest extends TestCase
         self::assertSame($draft->version, $packet['version']);
         self::assertSame(15, $packet['tokenUsage']['total']);
         self::assertArrayNotHasKey('contexts', $packet);
-        $events->progress($draft->id->toRfc4122(), 'stale-attempt', [], ['input' => 0, 'output' => 0, 'total' => 0]);
         $events->conversation($session, []);
         self::assertCount(1, $updates);
     }
@@ -64,16 +61,14 @@ final class ChatEventsTest extends TestCase
     public function testHubFailureDoesNotUndoCommittedMutationAndSubscriptionRequiresActiveSession(): void
     {
         $hub = new MockHub('https://localhost/.well-known/mercure', new StaticTokenProvider('test'), static fn () => throw new \RuntimeException('offline'));
-        $events = new ChatEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock());
+        $events = new MercureChatTransport($hub, new RequestStack(), new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock(), new Authorization(new HubRegistry($hub)), new \App\Repository\AuthSessionRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)), str_repeat('s', 32), 'https://localhost');
         $now = new \DateTimeImmutable();
         $user = new User('test', 'test@example.test', 'hash', 'en', $now);
-        $session = new AuthSession($user, 'hash', $now, $now, $now);
+        $session = new AuthSession($user, 'hash', $now->modify('-1 minute'), $now->modify('+1 day'), $now);
         $events->conversation($session, ['id' => 'draft']);
-        $subscription = new ChatSubscription(new Authorization(new HubRegistry($hub)), $events, new MockClock($now),
-            new \App\Repository\AuthSessionRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)), str_repeat('s', 32), 'https://localhost');
         $request = new Request();
         $request->attributes->set(AuthSession::class, $session);
         $this->expectException(ApiException::class);
-        $subscription->create($request, \App\Tests\Infrastructure\Ai\ConversationFixture::create($user));
+        $events->subscribe($request, \App\Tests\Infrastructure\Ai\ConversationFixture::create($user));
     }
 }

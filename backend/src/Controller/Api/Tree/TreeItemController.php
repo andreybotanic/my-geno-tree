@@ -2,10 +2,13 @@
 
 namespace App\Controller\Api\Tree;
 
+use App\Api\ApiException;
 use App\Api\FamilyTreeViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Application\Chat\ChatInterface;
 use App\Application\Tree\DeleteTreeService;
 use App\Application\Tree\RenameTreeService;
+use App\Application\Tree\TreeContextService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Request\Tree\TreeNameRequest;
@@ -74,5 +77,35 @@ final readonly class TreeItemController
         );
 
         return new Response(status: Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/api/v1/trees/{treeId}/chat', name: 'api_tree_chat_current', methods: ['GET'])]
+    #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
+    public function currentChat(#[MapEntity(id: 'treeId')] FamilyTree $tree, ChatInterface $chat): JsonResponse
+    {
+        $conversation = $chat->current('tree:' . $tree->getId()->toRfc4122());
+
+        return new JsonResponse([
+            'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
+            'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
+        ]);
+    }
+
+    #[Route('/api/v1/trees/{treeId}/chat', name: 'api_tree_chat_create', methods: ['POST'])]
+    #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
+    public function createChat(#[MapEntity(id: 'treeId')] FamilyTree $tree, Request $request,
+        ChatInterface $chat, TreeContextService $context): JsonResponse
+    {
+        $payload = $this->requestBody->decodeObject($request);
+        if (['referencePersonId'] !== array_keys($payload) || (null !== $payload['referencePersonId'] && !is_string($payload['referencePersonId']))) {
+            throw new ApiException(422, 'CHAT_INVALID');
+        }
+        $context->context($tree->getId()->toRfc4122(), $payload['referencePersonId']);
+        $conversation = $chat->open('tree:' . $tree->getId()->toRfc4122(), 'tree', [
+            'treeId'            => $tree->getId()->toRfc4122(),
+            'referencePersonId' => $payload['referencePersonId'],
+        ]);
+
+        return new JsonResponse($chat->snapshot($conversation), 201);
     }
 }

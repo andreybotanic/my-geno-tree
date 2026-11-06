@@ -23,13 +23,11 @@ export const resources = {
         "budgetDetails": "{{remaining}} of {{limit}} tokens remaining in your daily allowance, shared across all chats.",
         "budgetUnavailable": "Token allowance is unavailable",
         "progress": {
-          "thinking": "Request received",
-          "tree_loaded": "Tree context received",
-          "names_searched": "Names searched",
-          "people_loaded": "Related people checked",
-          "validating": "Checking the proposal",
-          "repairing": "Correcting the proposal after validation",
-          "clarifying": "Preparing clarification questions"
+          "model_request": "Requesting a response",
+          "get_tree_context": "Tree context received",
+          "find_people": "Names searched",
+          "get_person_context": "Related people checked",
+          "merge": "Preparing the proposal"
         },
         "processingFailed": "Could not process the message. Try again or add a clarification.",
         "failure": {
@@ -503,13 +501,11 @@ export const resources = {
         "budgetDetails": "Осталось {{remaining}} из {{limit}} токенов дневного лимита для всех чатов.",
         "budgetUnavailable": "Лимит токенов недоступен",
         "progress": {
-          "thinking": "Запрос принят",
-          "tree_loaded": "Контекст дерева получен",
-          "names_searched": "Поиск по именам выполнен",
-          "people_loaded": "Связанные персоны проверены",
-          "validating": "Проверяю предложение",
-          "repairing": "Исправляю предложение после проверки",
-          "clarifying": "Уточняю, что нужно для продолжения"
+          "model_request": "Подготовка ответа",
+          "get_tree_context": "Контекст дерева получен",
+          "find_people": "Поиск по именам выполнен",
+          "get_person_context": "Связанные персоны проверены",
+          "merge": "Подготовка предложения"
         },
         "processingFailed": "Не удалось обработать сообщение. Попробуйте снова или добавьте уточнение.",
         "failure": {

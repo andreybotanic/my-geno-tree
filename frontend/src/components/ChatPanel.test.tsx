@@ -21,8 +21,10 @@ function setup(handler: (path: string, init?: RequestInit) => Promise<unknown>) 
 }
 const user = { id: 'user', requestId: 'first', role: 'user' as const, content: '<b>Hello</b>', createdAt: 'now' }
 const sent: ChatConversation = { ...conversation, version: 2, messages: [user] }
-const completed: ChatConversation = { ...sent, version: 4, messages: [user,
-  { id: 'answer', requestId: 'first', role: 'assistant', content: 'An ordinary answer.', createdAt: 'now' }] }
+const completed: ChatConversation = { ...sent, version: 4, messages: [
+  user,
+  { id: 'answer', requestId: 'first', role: 'assistant', content: 'An ordinary answer.', createdAt: 'now' },
+] }
 
 describe('reusable ChatPanel', () => {
   beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
@@ -30,8 +32,7 @@ describe('reusable ChatPanel', () => {
   it('creates the selected context, saves plain text, renders a normal answer and resets the chat', async () => {
     const { request, changed, close } = setup(async (path, init) => {
       if (path === '/example/chat') return init?.method ? conversation : { conversation: null }
-      if (path.endsWith('/messages')) return sent
-      if (path.endsWith('/process')) return completed
+      if (path.endsWith('/messages')) return completed
       if (path.endsWith('/reset')) return undefined
       return completed
     })
@@ -59,7 +60,7 @@ describe('reusable ChatPanel', () => {
         if (++attempts === 1) throw new Error('offline')
         return new Promise<ChatConversation>((resolve) => { finish = resolve })
       }
-      if (path.endsWith('/process')) return completed
+      if (path.endsWith('/messages')) return completed
       return { conversation }
     })
     const input = await screen.findByRole('textbox', { name: 'Message' })
@@ -75,17 +76,18 @@ describe('reusable ChatPanel', () => {
     await waitFor(() => expect(attempts).toBe(2))
     const calls = vi.mocked(request).mock.calls.filter(([path]) => path.endsWith('/messages'))
     expect(calls[0]?.[1]?.body).toBe(calls[1]?.[1]?.body)
-    await act(async () => finish(sent))
+    await act(async () => finish(completed))
     await screen.findByText('An ordinary answer.')
   })
 
   it('stops processing, aborts the browser request and ignores its late answer', async () => {
     let finish!: (value: ChatConversation) => void
-    const stopped: ChatConversation = { ...sent, version: 4, messages: [user,
-      { id: 'notice', requestId: 'first', role: 'system', content: '', failureCode: 'stopped', createdAt: 'now' }] }
+    const stopped: ChatConversation = { ...sent, version: 4, messages: [
+      user,
+      { id: 'notice', requestId: 'first', role: 'system', content: '', failureCode: 'stopped', createdAt: 'now' },
+    ] }
     const { request } = setup(async (path) => {
-      if (path.endsWith('/messages')) return sent
-      if (path.endsWith('/process')) return new Promise<ChatConversation>((resolve) => { finish = resolve })
+      if (path.endsWith('/messages')) return new Promise<ChatConversation>((resolve) => { finish = resolve })
       if (path.endsWith('/stop')) return stopped
       return { conversation }
     })
@@ -95,12 +97,12 @@ describe('reusable ChatPanel', () => {
     fireEvent.submit(input.closest('form')!)
     fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
     await screen.findByText('Processing stopped.')
-    expect(vi.mocked(request).mock.calls.find(([path]) => path.endsWith('/process'))?.[1]?.signal?.aborted).toBe(true)
+    expect(vi.mocked(request).mock.calls.find(([path]) => path.endsWith('/messages'))?.[1]?.signal?.aborted).toBe(true)
     await act(async () => finish(completed))
     expect(screen.queryByText('An ordinary answer.')).not.toBeInTheDocument()
   })
 
-  it('restores a running turn and stops it without a local process request', async () => {
+  it('restores a running turn and stops it without a local send request', async () => {
     const running = { ...sent, status: 'processing' as const, attemptStartedAt: '2026-11-05T10:00:00Z' }
     const { request } = setup(async (path) => path.endsWith('/stop') ? sent : { conversation: running })
     fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
@@ -108,10 +110,9 @@ describe('reusable ChatPanel', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop response' })).not.toBeInTheDocument())
   })
 
-  it.each([401, 409, 422, 500, 404])('recovers an HTTP %s process failure by reading current state', async (status) => {
+  it.each([401, 409, 422, 500, 404])('recovers an HTTP %s send failure by reading current state', async (status) => {
     const { request } = setup(async (path) => {
-      if (path.endsWith('/messages')) return sent
-      if (path.endsWith('/process')) throw new ApiRequestError(status, { code: status === 404 ? 'CHAT_NOT_FOUND' : 'ERROR', message: null, fields: {}, details: {} })
+      if (path.endsWith('/messages')) throw new ApiRequestError(status, { code: status === 404 ? 'CHAT_NOT_FOUND' : 'ERROR', message: null, fields: {}, details: {} })
       if (path === '/chats/chat') return sent
       return { conversation }
     })
@@ -135,7 +136,8 @@ describe('reusable ChatPanel', () => {
     view.unmount()
     vi.mocked(useChatEvents).mockReturnValue({ error: 'chat.streamDisconnected', reconnect })
     setup(async () => ({ conversation: { ...completed, messages: [...completed.messages,
-      { id: 'failure', requestId: 'second', role: 'system', content: '', failureCode: 'provider_unavailable', createdAt: 'now' }] } }))
+      { id: 'failure', requestId: 'second', role: 'system', content: '', failureCode: 'provider_unavailable', createdAt: 'now' },
+] } }))
     expect(await screen.findByRole('article', { name: 'Assistant' })).toHaveTextContent('An ordinary answer.')
     expect(screen.getByText('The AI service is unavailable; please try again shortly.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))

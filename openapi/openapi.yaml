@@ -155,7 +155,8 @@ paths:
           type: string
           format: uuid
     post:
-      operationId: appendChatMessage
+      operationId: sendChatMessage
+      summary: Save the message and execute the configured agent, publishing progress during execution
       security:
         -
           bearerAuth: []
@@ -165,41 +166,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ChatMessageRequest'
-      responses:
-        200:
-          description: 'Successful operation'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatConversation'
-        401:
-          $ref: '#/components/responses/Unauthorized'
-        404:
-          $ref: '#/components/responses/NotFound'
-        409:
-          $ref: '#/components/responses/Conflict'
-        422:
-          $ref: '#/components/responses/ValidationError'
-  '/chats/{chatId}/process':
-    parameters:
-      -
-        name: chatId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    post:
-      operationId: processChat
-      security:
-        -
-          bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatProcessRequest'
       responses:
         200:
           description: 'Successful operation'
@@ -2281,20 +2247,6 @@ components:
         version:
           type: integer
           minimum: 1
-    ChatProcessRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - version
-        - requestId
-      properties:
-        version:
-          type: integer
-          minimum: 1
-        requestId:
-          type: string
-          minLength: 1
-          maxLength: 64
     ChatStopRequest:
       type: object
       additionalProperties: false

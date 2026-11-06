@@ -2,7 +2,7 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Application\Chat\Chat;
+use App\Application\Chat\ChatInterface;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -37,7 +37,7 @@ final class ChatApiTest extends ApiWebTestCase
         $message = ['version' => 1, 'requestId' => 'first', 'content' => 'Мама Ирины — Вера.'];
         $this->jsonRequest('POST', $this->path . '/messages', $message, $this->headers);
         self::assertResponseIsSuccessful();
-        self::assertSame(2, $this->responseData()['version']);
+        self::assertSame(3, $this->responseData()['version']);
         self::assertSame('idle', $this->responseString('status'));
         $saved = $this->responseData();
         $this->jsonRequest('POST', $this->path . '/messages', $message, $this->headers);
@@ -51,7 +51,7 @@ final class ChatApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         $this->jsonRequest('POST', $this->path . '/reset', ['version' => 1], $this->headers);
         self::assertResponseStatusCodeSame(409);
-        $this->jsonRequest('POST', $this->path . '/reset', ['version' => 2], $this->headers);
+        $this->jsonRequest('POST', $this->path . '/reset', ['version' => 3], $this->headers);
         self::assertResponseStatusCodeSame(204);
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
         self::assertResponseStatusCodeSame(404);
@@ -64,29 +64,32 @@ final class ChatApiTest extends ApiWebTestCase
         self::assertSame([], $this->responseData()['people']);
     }
 
-    public function testInputAndProcessShapesAndConversationLimitsAreValidated(): void
+    public function testInputShapesAndConversationLimitsAreValidated(): void
     {
         foreach ([[], ['unexpected' => true], ['referencePersonId' => 12], ['referencePersonId' => Uuid::v7()->toRfc4122()]] as $payload) {
             $this->jsonRequest('POST', $this->base, $payload, $this->headers);
-            self::assertResponseStatusCodeSame([] === $payload ? 400 : 422);
+            $status = match (true) {
+                [] === $payload                                  => 400,
+                is_string($payload['referencePersonId'] ?? null) => 404,
+                default                                          => 422,
+            };
+            self::assertResponseStatusCodeSame($status);
         }
-        foreach ([['unexpected' => true], ['version' => '1', 'requestId' => 'a', 'content' => 'Family'],
-            ['version'                               => 1, 'requestId' => '', 'content' => 'Family'], ['version' => 1, 'requestId' => 'a', 'content' => ' '],
-            ['version'                               => 1, 'requestId' => 'a', 'content' => str_repeat('Я', 10001)]] as $payload) {
+        foreach ([
+            ['unexpected' => true],
+            ['version' => '1', 'requestId' => 'a', 'content' => 'Family'],
+            ['version' => 1, 'requestId' => '', 'content' => 'Family'],
+            ['version' => 1, 'requestId' => 'a', 'content' => ' '],
+            ['version' => 1, 'requestId' => 'a', 'content' => str_repeat('Я', 10001)],
+        ] as $payload) {
             $this->jsonRequest('POST', $this->path . '/messages', $payload, $this->headers);
             self::assertResponseStatusCodeSame(422);
         }
-        foreach ([['version' => 1], ['version' => '1', 'requestId' => 'x'], ['version' => 1, 'requestId' => 'x', 'extra' => true]] as $payload) {
-            $this->jsonRequest('POST', $this->path . '/process', $payload, $this->headers);
-            self::assertResponseStatusCodeSame(422);
-        }
-        $this->jsonRequest('POST', $this->path . '/process', ['version' => 1, 'requestId' => 'x'], $this->headers);
-        self::assertResponseStatusCodeSame(409);
         $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => ''], $this->headers);
         self::assertResponseStatusCodeSame(422);
         $this->jsonRequest('POST', $this->path . '/messages', ['version' => 1, 'requestId' => 'full', 'content' => str_repeat('Я', 10000)], $this->headers);
         self::assertResponseIsSuccessful();
-        $this->jsonRequest('POST', $this->path . '/messages', ['version' => 2, 'requestId' => 'over', 'content' => 'Ещё'], $this->headers);
+        $this->jsonRequest('POST', $this->path . '/messages', ['version' => 3, 'requestId' => 'over', 'content' => 'Ещё'], $this->headers);
         self::assertResponseStatusCodeSame(422);
         self::assertSame('CHAT_INPUT_LIMIT', $this->responseString('code'));
         $this->jsonRequest('POST', $this->path . '/stop', ['requestId' => 'obsolete'], $this->headers);
@@ -123,7 +126,7 @@ final class ChatApiTest extends ApiWebTestCase
         self::assertInstanceOf(MessageStoreInterface::class, $store);
         $id = Uuid::fromString(basename($this->path));
         self::assertInstanceOf(\Symfony\Component\Uid\UuidV7::class, $id);
-        self::assertInstanceOf(Conversation::class, $store->load($id)->getMetadata()->get(Chat::METADATA));
+        self::assertInstanceOf(Conversation::class, $store->load($id)->getMetadata()->get(Conversation::METADATA));
         $store->delete($id);
         self::assertCount(0, $store->load($id));
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
@@ -171,16 +174,17 @@ final class ChatApiTest extends ApiWebTestCase
             self::assertStringNotContainsString('Tree context', $options['body']);
 
             return new \Symfony\Component\HttpClient\Response\MockResponse(json_encode([
-                'id'      => 'general', 'object' => 'chat.completion', 'created' => 1, 'model' => 'gpt-5.6-luna',
+                'id'      => 'general',
+                'object'  => 'chat.completion',
+                'created' => 1,
+                'model'   => 'gpt-5.6-luna',
                 'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello from the general profile.']]],
             ], JSON_THROW_ON_ERROR), ['response_headers' => ['content-type: application/json']]);
         }));
         try {
-            $chat = $container->get(Chat::class);
-            $conversation = $chat->create('general', 'general', []);
-            $service = $container->get(\App\Application\Chat\ConversationService::class);
-            $conversation = $service->append($conversation, ['version' => 1, 'requestId' => 'hello', 'content' => 'Hello.']);
-            $conversation = $service->process($conversation, $conversation->version, 'hello');
+            $chat = $container->get(ChatInterface::class);
+            $conversation = $chat->open('general', 'general', []);
+            $conversation = $chat->send($conversation, ['version' => 1, 'requestId' => 'hello', 'content' => 'Hello.']);
             self::assertSame(1, $calls);
             self::assertSame('general', $conversation->profile);
             self::assertSame([], $conversation->tools);

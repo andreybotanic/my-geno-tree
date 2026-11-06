@@ -57,6 +57,11 @@
 - Do not create unused tables, endpoints, interfaces, or services solely for deferred features.
 - Do not create helper functions for trivial actions that add no meaningful domain or application logic.
 
+## Code Formatting
+
+- Format each array either entirely on one line or with every element on its own line and the opening and closing delimiters on separate lines. Apply this rule recursively to nested arrays; do not mix these layouts within one array.
+- Format each method-call chain either entirely on one line or with every call on its own line. Once a chain spans multiple lines, do not place multiple chained calls on the same line.
+
 ## Frontend Rules
 
 - Keep TypeScript strict mode enabled; do not weaken compiler options to accommodate a local implementation shortcut.

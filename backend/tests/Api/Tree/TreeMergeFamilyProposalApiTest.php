@@ -23,27 +23,37 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
         $treeId = $this->responseString('id');
         $tree = static::getContainer()->get(EntityManagerInterface::class)->find(FamilyTree::class, $treeId);
         self::assertNotNull($tree);
-        $data = static::getContainer()->get(PersonDataPolicy::class)->create([
-            'givenName'  => ['state' => 'known', 'value' => 'Иван'], 'birthSurname' => ['state' => 'known', 'value' => 'Иванов'],
-            'patronymic' => ['state' => 'known', 'value' => 'Иванович'], 'gender' => 'male',
-            'birthDate'  => ['state' => 'known', 'kind' => 'exact', 'year' => 1990, 'month' => 4, 'day' => 1], 'deathDate' => null,
+        $data = static::getContainer()
+        ->get(PersonDataPolicy::class)
+        ->create([
+            'givenName'    => ['state' => 'known', 'value' => 'Иван'],
+            'birthSurname' => ['state' => 'known', 'value' => 'Иванов'],
+            'patronymic'   => ['state' => 'known', 'value' => 'Иванович'],
+            'gender'       => 'male',
+            'birthDate'    => ['state' => 'known', 'kind' => 'exact', 'year' => 1990, 'month' => 4, 'day' => 1],
+            'deathDate'    => null,
         ]);
-        $receipt = static::getContainer()->get(TreeChangeSetExecutor::class)->execute($tree,
+        $receipt = static::getContainer()
+        ->get(TreeChangeSetExecutor::class)
+        ->execute($tree,
             new TreeChangeSet([new PersonChange('ivan', null, $data)], [], []), $this->responseString('etag'));
         $ivanId = $receipt['personIds']['ivan'];
         $base = '/api/v1/trees/' . $treeId . '/chat';
         $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
         $path = '/api/v1/chats/' . $this->responseString('id');
         $text = 'Добавь Ивану родителей - Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980). У нах есть еще один сын - Петр. У Ивана Ивановича с его женой Анной (она на пару лет младше) есть два сына, но о них ничего не известно.';
-        $this->jsonRequest('POST', $path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => 'family', 'content' => $text], $headers);
         FixtureTreeAgent::$handler = static function (Conversation $draft) use ($ivanId, $text): string {
             $evidence = [['messageId' => FixtureTreeAgent::messages($draft)[0]['id'], 'quote' => $text]];
             $people = [];
-            foreach (['i' => [], 'f' => ['givenName' => 'Иван', 'patronymic' => 'Васильевич', 'birthDate' => '1970-10-10', 'gender' => 'male'],
-                'm'       => ['givenName' => 'Ирина', 'patronymic' => 'Геннадьевна', 'birthDate' => '1980', 'gender' => 'female'],
-                'p'       => ['givenName' => 'Петр', 'birthSurname' => 'Иванов', 'patronymic' => 'Иванович', 'gender' => 'male'],
-                'a'       => ['givenName' => 'Анна', 'birthDate' => '~1992', 'gender' => 'female'],
-                'c1'      => ['gender' => 'male'], 'c2' => ['gender' => 'male']] as $id => $fields) {
+            foreach ([
+                'i'  => [],
+                'f'  => ['givenName' => 'Иван', 'patronymic' => 'Васильевич', 'birthDate' => '1970-10-10', 'gender' => 'male'],
+                'm'  => ['givenName' => 'Ирина', 'patronymic' => 'Геннадьевна', 'birthDate' => '1980', 'gender' => 'female'],
+                'p'  => ['givenName' => 'Петр', 'birthSurname' => 'Иванов', 'patronymic' => 'Иванович', 'gender' => 'male'],
+                'a'  => ['givenName' => 'Анна', 'birthDate' => '~1992', 'gender' => 'female'],
+                'c1' => ['gender' => 'male'],
+                'c2' => ['gender' => 'male'],
+            ] as $id => $fields) {
                 foreach (['givenName', 'birthSurname', 'patronymic'] as $field) {
                     if (isset($fields[$field])) {
                         $fields[$field] = ['state' => 'known', 'value' => $fields[$field]];
@@ -57,8 +67,14 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
                         default => throw new \LogicException('Unexpected dated fixture'),
                     };
                 }
-                $people[] = ['id' => $id, 'existingPersonId' => 'i' === $id ? $ivanId : null, 'resolution' => 'i' === $id ? 'existing' : 'new',
-                    'lifeStatus'  => 'alive', 'fields' => $fields, 'evidence' => $evidence];
+                $people[] = [
+                    'id'               => $id,
+                    'existingPersonId' => 'i' === $id ? $ivanId : null,
+                    'resolution'       => 'i' === $id ? 'existing' : 'new',
+                    'lifeStatus'       => 'alive',
+                    'fields'           => $fields,
+                    'evidence'         => $evidence,
+                ];
             }
             $parents = [];
             foreach (['i' => ['f', 'm'], 'p' => ['f', 'm'], 'c1' => ['i', 'a'], 'c2' => ['i', 'a']] as $child => [$father, $mother]) {
@@ -69,12 +85,22 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
             static::getContainer()->get(TreeReadTools::class)->person($draft->context['treeId'] ?? '', $ivanId);
 
             return FixtureTreeAgent::reply($draft, 'К добавлению готово 6 персон.', [
-                'people' => $people, 'parents' => $parents, 'marriages' => [['first' => 'i', 'second' => 'a',
-                    'marriageDate'                                                   => ['state' => 'unknown'], 'dissolutionDate' => null, 'newPeriod' => false, 'evidence' => $evidence]],
+                'people'    => $people,
+                'parents'   => $parents,
+                'marriages' => [
+                    [
+                        'first'           => 'i',
+                        'second'          => 'a',
+                        'marriageDate'    => ['state' => 'unknown'],
+                        'dissolutionDate' => null,
+                        'newPeriod'       => false,
+                        'evidence'        => $evidence,
+                    ],
+                ],
                 'questions' => [],
             ]);
         };
-        $this->jsonRequest('POST', $path . '/process', ['version' => $this->responseData()['version'], 'requestId' => 'family'], $headers);
+        $this->jsonRequest('POST', $path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => 'family', 'content' => $text], $headers);
         self::assertResponseIsSuccessful();
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('К добавлению готово 6 персон.', $this->responseString('messages', '1', 'content'));

@@ -52,8 +52,6 @@ final class ChatEventsApiTest extends ApiWebTestCase
         $base = '/api/v1/trees/' . $this->responseString('id') . '/chat';
         $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
         $path = '/api/v1/chats/' . $this->responseString('id');
-        $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'turn', 'content' => 'My family'], $headers);
-        $version = $this->responseData()['version'];
         FixtureTreeAgent::$handler = static function (): string {
             $container = static::getContainer();
             $request = $container->get(\Symfony\Component\HttpFoundation\RequestStack::class)->getMainRequest();
@@ -63,12 +61,12 @@ final class ChatEventsApiTest extends ApiWebTestCase
             $session->revoke(new \DateTimeImmutable());
             $container->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
             TestMergeEvents::$updates = [];
-            $container->get(\App\Application\Chat\ChatEvents::class)->conversation($session, ['id' => 'late', 'messages' => ['private']]);
+            $container->get(\App\Application\Chat\MercureChatTransport::class)->conversation($session, ['id' => 'late', 'messages' => ['private']]);
 
             return 'Late private answer.';
         };
         try {
-            $this->jsonRequest('POST', $path . '/process', ['version' => $version, 'requestId' => 'turn'], $headers);
+            $this->jsonRequest('POST', $path . '/messages', ['version' => 1, 'requestId' => 'turn', 'content' => 'My family'], $headers);
             self::assertSame([], TestMergeEvents::$updates);
             $messages = $this->responseArray('messages');
             self::assertCount(1, $messages);
@@ -111,17 +109,9 @@ final class ChatEventsApiTest extends ApiWebTestCase
         self::assertSame([], TestMergeEvents::$updates);
         $this->jsonRequest('GET', $path, headers: $headers);
         self::assertSame([], TestMergeEvents::$updates);
-        $this->jsonRequest('POST', $path . '/messages', ['version' => $version, 'requestId' => 'stream', 'content' => 'My family'], $headers);
-        self::assertResponseIsSuccessful();
-        self::assertCount(1, TestMergeEvents::$updates);
-        $update = TestMergeEvents::updates()[0];
-        self::assertTrue($update->isPrivate());
-        self::assertSame([$topic], $update->getTopics());
-        self::assertSame(['kind' => 'conversation', 'conversation' => $this->responseData()], json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR));
-        $version = $this->responseData()['version'];
         FixtureTreeAgent::$handler = static fn (Conversation $draft) => FixtureTreeAgent::reply($draft, 'Please describe your family.');
         try {
-            $this->jsonRequest('POST', $path . '/process', ['version' => $version, 'requestId' => 'stream'], $headers);
+            $this->jsonRequest('POST', $path . '/messages', ['version' => $version, 'requestId' => 'stream', 'content' => 'My family'], $headers);
         } finally {
             FixtureTreeAgent::$handler = null;
         }
@@ -129,9 +119,11 @@ final class ChatEventsApiTest extends ApiWebTestCase
         /** @var list<array<string, mixed>> $packets */
         $packets = array_map(static fn ($update) => json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR), TestMergeEvents::updates());
         self::assertSame('progress', $packets[1]['kind']);
-        self::assertSame(['thinking'], $packets[1]['progress']);
+        self::assertSame(['model_request'], $packets[1]['progress']);
         self::assertSame('conversation', $packets[2]['kind']);
         self::assertSame($this->responseData(), $packets[2]['conversation']);
+        self::assertIsArray($packets[0]['conversation']);
+        self::assertSame('processing', $packets[0]['conversation']['status']);
         foreach (TestMergeEvents::updates() as $event) {
             self::assertSame([$topic], $event->getTopics());
             self::assertTrue($event->isPrivate());

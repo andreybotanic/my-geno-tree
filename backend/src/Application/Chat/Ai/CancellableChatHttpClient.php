@@ -2,8 +2,8 @@
 
 namespace App\Application\Chat\Ai;
 
-use App\Application\Chat\ChatActivity;
-use App\Model\Conversation;
+use App\Application\Chat\GuardedMessageStore;
+use App\Security\ChatExecution;
 use Symfony\Component\DependencyInjection\Attribute\AsDecorator;
 use Symfony\Component\DependencyInjection\Attribute\AutowireDecorated;
 use Symfony\Component\HttpClient\DecoratorTrait;
@@ -18,7 +18,7 @@ final class CancellableChatHttpClient implements HttpClientInterface
     use DecoratorTrait;
 
     public function __construct(#[AutowireDecorated] HttpClientInterface $client,
-        private readonly ChatActivity $activity, private readonly RequestStack $requests)
+        private readonly GuardedMessageStore $store, private readonly RequestStack $requests)
     {
         $this->client = $client;
     }
@@ -26,12 +26,12 @@ final class CancellableChatHttpClient implements HttpClientInterface
     /** @param array<string, mixed> $options */
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
-        $conversation = $this->requests->getCurrentRequest()?->attributes->get(Conversation::class);
-        if ($conversation instanceof Conversation) {
-            $this->activity->assertRunning($conversation);
+        $execution = $this->requests->getMainRequest()?->attributes->get(ChatExecution::class);
+        if ($execution instanceof ChatExecution) {
+            $this->store->assertRunning($execution);
             $progress = $options['on_progress'] ?? null;
-            $options['on_progress'] = function (int $downloaded, int $size, array $info) use ($conversation, $progress): void {
-                $this->activity->assertRunning($conversation);
+            $options['on_progress'] = function (int $downloaded, int $size, array $info) use ($execution, $progress): void {
+                $this->store->assertRunning($execution);
                 if (is_callable($progress)) {
                     $progress($downloaded, $size, $info);
                 }

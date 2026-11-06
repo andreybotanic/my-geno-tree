@@ -3,19 +3,16 @@
 namespace App\Tool;
 
 use App\Api\ApiException;
-use App\Api\ChatViewFactory;
-use App\Application\Chat\Chat;
-use App\Application\Chat\ChatActivity;
-use App\Application\Chat\ChatEvents;
+use App\Application\Chat\ChatInterface;
 use App\Application\Tree\TreeContextService;
 use App\Application\TreeMerge\TreeMergeService;
-use App\Entity\AuthSession;
+use App\Entity\FamilyTree;
+use App\Model\Conversation;
 use App\Model\TreeMergeProposal;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
-use Symfony\Component\Clock\ClockInterface;
-use Symfony\Component\HttpFoundation\RequestStack;
 
+/** The only chat adapter for pending merge proposals; tree mutations live in TreeMergeService. */
 #[AsTool(name: 'merge', description: <<<'DESCRIPTION'
     Validate and prepare the complete tree proposal for preview and separate UI confirmation.
     Returns exact new/existing person counts and the proposal version.
@@ -23,9 +20,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
     DESCRIPTION)]
 final readonly class TreeMergeTool
 {
-    public function __construct(private Chat $chat, private TreeMergeService $merge, private TreeContextService $trees,
-        private ChatActivity $activity, private ChatEvents $events, private ChatViewFactory $views,
-        private ClockInterface $clock, private RequestStack $requests)
+    public function __construct(private ChatInterface $chat, private TreeMergeService $merge, private TreeContextService $trees)
     {
     }
 
@@ -35,49 +30,97 @@ final readonly class TreeMergeTool
     public function __invoke(string $treeId, #[Schema(provider: TreeMergeToolSchema::class)] array $proposal): array
     {
         try {
-            $conversation = $this->chat->active();
-
-            return $this->chat->synchronized($conversation->contextKey, function () use ($treeId, $proposal): array {
-                $conversation = $this->chat->active();
-                if (($conversation->context['treeId'] ?? null) !== $treeId) {
-                    throw new ApiException(404, 'TREE_NOT_FOUND');
-                }
-                $observed = [];
-                foreach ($this->activity->read($conversation)['contexts'] as $context) {
-                    foreach (is_array($context['people'] ?? null) ? $context['people'] : [] as $person) {
-                        if (is_array($person) && is_string($person['id'] ?? null)) {
-                            $observed[] = $person['id'];
-                        }
+            $execution = $this->chat->execution();
+            $conversation = $execution->conversation;
+            if (($conversation->context['treeId'] ?? null) !== $treeId) {
+                throw new ApiException(404, 'TREE_NOT_FOUND');
+            }
+            $observed = [];
+            foreach ($execution->observations as $context) {
+                foreach (is_array($context['people'] ?? null) ? $context['people'] : [] as $person) {
+                    if (is_array($person) && is_string($person['id'] ?? null)) {
+                        $observed[] = $person['id'];
                     }
                 }
-                foreach (is_array($proposal['people'] ?? null) ? $proposal['people'] : [] as $person) {
-                    if (is_array($person) && null !== ($person['existingPersonId'] ?? null) && !in_array($person['existingPersonId'], $observed, true)) {
-                        throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
-                    }
+            }
+            foreach (is_array($proposal['people'] ?? null) ? $proposal['people'] : [] as $person) {
+                if (is_array($person) && null !== ($person['existingPersonId'] ?? null) && !in_array($person['existingPersonId'], $observed, true)) {
+                    throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
                 }
-                $this->activity->step($conversation, 'validating');
-                $current = $conversation->tools['merge'] ?? null;
-                $draft = $this->merge->prepare($this->trees->tree($treeId, true), $proposal, $this->chat->messages($conversation),
-                    $current instanceof TreeMergeProposal ? $current : null, false, ($conversation->toolVersions['merge'] ?? 0) + 1);
-                $conversation->tools['merge'] = $draft;
-                $conversation->toolVersions['merge'] = $draft->version;
-                $conversation->changed($this->clock->now());
-                $this->chat->save($conversation);
-                $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-                if ($session instanceof AuthSession) {
-                    $this->events->begin($conversation);
-                    $this->events->conversation($session, $this->views->create($conversation));
-                }
+            }
+            $current = $conversation->tools['merge'] ?? null;
+            $pending = $this->merge->prepare($this->trees->tree($treeId, true), $proposal, $this->chat->messages($conversation),
+                $current instanceof TreeMergeProposal ? $current : null, false, ($conversation->toolVersions['merge'] ?? 0) + 1);
+            $this->chat->replaceTool($conversation, 'merge', $pending, false);
+            /** @var list<array{resolution: string}> $people */
+            $people = $pending->proposal['people'];
 
-                /** @var list<array{resolution: string}> $people */
-                $people = $draft->proposal['people'];
-
-                return ['newPeople'  => count(array_filter($people, static fn ($person) => 'new' === $person['resolution'])),
-                    'existingPeople' => count(array_filter($people, static fn ($person) => 'existing' === $person['resolution'])),
-                    'state'          => $draft->state, 'proposalVersion' => $draft->version];
-            });
+            return [
+                'newPeople'       => count(array_filter($people, static fn ($person) => 'new' === $person['resolution'])),
+                'existingPeople'  => count(array_filter($people, static fn ($person) => 'existing' === $person['resolution'])),
+                'state'           => $pending->state,
+                'proposalVersion' => $pending->version,
+            ];
         } catch (ApiException $error) {
             return ['error' => ['code' => $error->getErrorCode(), 'fields' => $error->getFields(), 'details' => $error->getDetails()]];
         }
+    }
+
+    /** UI-only operations; none of these methods is exposed as an AI tool.
+     * @param array<string, mixed> $payload
+     *
+     * @return array<string, mixed>|Conversation
+     */
+    public function proposal(FamilyTree $tree, string $id, string $action, array $payload, ?string $ifMatch = null): array|Conversation
+    {
+        $keys = 'revise' === $action ? ['version', 'proposal'] : ['version'];
+        if (count($keys) !== count($payload) || array_diff($keys, array_keys($payload)) || !is_int($payload['version'] ?? null)) {
+            throw new ApiException(422, 'TREE_MERGE_INVALID');
+        }
+        $context = 'tree:' . $tree->getId()->toRfc4122();
+        $conversation = $this->chat->current($context) ?? throw new ApiException(404, 'CHAT_NOT_FOUND');
+        $pending = $conversation->tools['merge'] ?? null;
+        if (!$pending instanceof TreeMergeProposal || $pending->id->toRfc4122() !== $id) {
+            throw new ApiException(404, 'TREE_MERGE_NOT_FOUND');
+        }
+        if ($pending->version !== $payload['version']) {
+            throw new ApiException(409, 'TREE_MERGE_VERSION_CONFLICT');
+        }
+        if ('apply' === $action && ('processing' === $conversation->status || 'ready' !== $pending->state)) {
+            throw new ApiException(409, 'TREE_MERGE_NOT_READY');
+        }
+        if ('revise' === $action || 'revalidate' === $action) {
+            $next = 'revise' === $action
+                ? $this->merge->prepare($tree, $payload['proposal'] ?? null, $this->chat->messages($conversation), $pending, true)
+                : $this->merge->revalidate($tree, $pending);
+            $next->version = ($conversation->toolVersions['merge'] ?? 0) + 1;
+
+            return $this->chat->replaceTool($conversation, 'merge', $next);
+        }
+        // Consuming before the SQL transaction prevents duplicate application without storing receipts.
+        $consumed = $this->chat->replaceTool($conversation, 'merge', null);
+        if ('discard' === $action) {
+            return $consumed;
+        }
+        try {
+            $result = $this->merge->apply($tree, $pending, $ifMatch);
+        } catch (ApiException $error) {
+            $latest = $this->chat->current($context);
+            if (null !== $latest && $latest->id->equals($consumed->id) && !isset($latest->tools['merge'])
+                && $latest->toolVersions['merge'] === $consumed->toolVersions['merge']) {
+                $restored = 412 === $error->getStatus() ? $this->merge->revalidate($tree, $pending) : $pending;
+                $restored->version = $latest->toolVersions['merge'] + 1;
+                try {
+                    $this->chat->replaceTool($latest, 'merge', $restored);
+                } catch (ApiException) { /* Concurrent replacement/reset wins over restoring an old proposal. */
+                }
+            }
+            throw $error;
+        }
+        $current = $this->chat->current($context);
+        $view = null !== $current && $current->id->equals($consumed->id) ? $current : $consumed;
+        $this->chat->toolApplied($view, 'merge', $pending->id->toRfc4122(), $result);
+
+        return ['conversation' => $this->chat->snapshot($view), 'operationId' => $pending->id->toRfc4122(), 'result' => $result];
     }
 }

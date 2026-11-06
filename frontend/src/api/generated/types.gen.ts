@@ -172,11 +172,6 @@ export type ChatVersionRequest = {
     version: number;
 };
 
-export type ChatProcessRequest = {
-    version: number;
-    requestId: string;
-};
-
 export type ChatStopRequest = {
     requestId: string;
 };
@@ -1031,7 +1026,7 @@ export type GetChatResponses = {
 
 export type GetChatResponse = GetChatResponses[keyof GetChatResponses];
 
-export type AppendChatMessageData = {
+export type SendChatMessageData = {
     body: ChatMessageRequest;
     path: {
         chatId: string;
@@ -1040,7 +1035,7 @@ export type AppendChatMessageData = {
     url: '/chats/{chatId}/messages';
 };
 
-export type AppendChatMessageErrors = {
+export type SendChatMessageErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -1059,55 +1054,16 @@ export type AppendChatMessageErrors = {
     422: ApiError;
 };
 
-export type AppendChatMessageError = AppendChatMessageErrors[keyof AppendChatMessageErrors];
+export type SendChatMessageError = SendChatMessageErrors[keyof SendChatMessageErrors];
 
-export type AppendChatMessageResponses = {
+export type SendChatMessageResponses = {
     /**
      * Successful operation
      */
     200: ChatConversation;
 };
 
-export type AppendChatMessageResponse = AppendChatMessageResponses[keyof AppendChatMessageResponses];
-
-export type ProcessChatData = {
-    body: ChatProcessRequest;
-    path: {
-        chatId: string;
-    };
-    query?: never;
-    url: '/chats/{chatId}/process';
-};
-
-export type ProcessChatErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type ProcessChatError = ProcessChatErrors[keyof ProcessChatErrors];
-
-export type ProcessChatResponses = {
-    /**
-     * Successful operation
-     */
-    200: ChatConversation;
-};
-
-export type ProcessChatResponse = ProcessChatResponses[keyof ProcessChatResponses];
+export type SendChatMessageResponse = SendChatMessageResponses[keyof SendChatMessageResponses];
 
 export type StopChatData = {
     body: ChatStopRequest;

@@ -70,11 +70,11 @@ final readonly class TreeMergeProposalValidator
             }
             $existingId = $row['existingPersonId'];
             if (null !== $existingId && (!is_string($existingId) || !Uuid::isValid($existingId))) {
-                $this->invalid($path . '.existingPersonId', 'existing_person_id_invalid', 'Expected a UUID observed through MCP, or null for a new or undecided person.');
+                $this->invalid($path . '.existingPersonId', 'existing_person_id_invalid', 'Expected a UUID observed through a full context read, or null for a new or undecided person.');
             }
             $existing = null === $existingId ? null : ($existingPeople[$existingId] ?? null);
             if (null !== $existingId && null === $existing) {
-                $this->invalid($path . '.existingPersonId', 'existing_person_unavailable', 'This existing person is not available in the selected tree. Use only people observed through MCP.');
+                $this->invalid($path . '.existingPersonId', 'existing_person_unavailable', 'This existing person is not available in the selected tree. Use only people observed through a full context read.');
             }
             if (('existing' === $row['resolution']) !== (null !== $existing)) {
                 $this->invalid($path . '.resolution', 'resolution_mismatch', 'resolution=existing requires an existingPersonId in this tree; new or undecided requires existingPersonId=null.');
@@ -100,9 +100,14 @@ final readonly class TreeMergeProposalValidator
             }
             if (null === $existing) {
                 ++$newCount;
-                $fields += ['birthSurname' => ['state' => 'unknown'], 'givenName' => ['state' => 'unknown'],
-                    'patronymic'           => ['state' => 'unknown'], 'gender' => 'unknown',
-                    'birthDate'            => ['state' => 'unknown'], 'deathDate' => 'alive' === $row['lifeStatus'] ? null : ['state' => 'unknown']];
+                $fields += [
+                    'birthSurname' => ['state' => 'unknown'],
+                    'givenName'    => ['state' => 'unknown'],
+                    'patronymic'   => ['state' => 'unknown'],
+                    'gender'       => 'unknown',
+                    'birthDate'    => ['state' => 'unknown'],
+                    'deathDate'    => 'alive' === $row['lifeStatus'] ? null : ['state' => 'unknown'],
+                ];
                 $personData = $this->data->create($fields);
             } else {
                 $personData = $this->data->patch($existing, $fields);
@@ -111,9 +116,15 @@ final readonly class TreeMergeProposalValidator
                 $this->invalid($path . '.resolution', 'question_required', 'Supply the necessary clarification in questions when identity is undecided.');
             }
             $this->evidence($sources, $savedProposal, $row['evidence'], $manual, $path . '.evidence');
-            $normalized[] = ['id' => $id, 'existingPersonId' => $existingId, 'resolution' => $row['resolution'],
-                'fields'          => $fields, 'lifeStatus' => $row['lifeStatus'], 'evidence' => $row['evidence'],
-                'before'          => null === $existing ? null : $this->views->create($existing)];
+            $normalized[] = [
+                'id'               => $id,
+                'existingPersonId' => $existingId,
+                'resolution'       => $row['resolution'],
+                'fields'           => $fields,
+                'lifeStatus'       => $row['lifeStatus'],
+                'evidence'         => $row['evidence'],
+                'before'           => null === $existing ? null : $this->views->create($existing),
+            ];
             $changes[] = new PersonChange($id, $existingId, $personData);
         }
         if ($newCount > 10) {

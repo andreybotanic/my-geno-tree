@@ -17,11 +17,12 @@ use App\Repository\FamilyTreeRepository;
 use App\Repository\UserRepository;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
+use Symfony\Component\DependencyInjection\Attribute\Exclude;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class AppFixtures extends Fixture
 {
-    private const string DEMO_PASSWORD = 'demo-password';
+    private const string DEMO_PASSWORD = '';
     private const string DEMO_USERNAME = 'demo';
     private const string DEMO_EMAIL = 'demo@example.test';
     private const string DEMO_TREE_NAME = 'Семья Орловых';
@@ -411,6 +412,7 @@ final readonly class FixturePersonData
     }
 }
 
+#[Exclude]
 final class FixtureTreeBuilder
 {
     public function __construct(

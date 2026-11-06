@@ -29,8 +29,7 @@ describe('tree profile and merge tool UI', () => {
     const sent = { ...conversation, version: 2, messages: [{ id: 'user', requestId: 'first', role: 'user' as const, content: 'Add Vera.', createdAt: 'now' }] }
     const preview = { ...readyConversation, version: 4, status: 'processing' as const, messages: sent.messages }
     const { request, applied, changed } = setup(async (path, init) => {
-      if (path.endsWith('/messages')) return sent
-      if (path.endsWith('/process')) return new Promise<ChatConversation>((resolve) => { finish = resolve })
+      if (path.endsWith('/messages')) return new Promise<ChatConversation>((resolve) => { finish = resolve })
       if (path.endsWith('/apply')) return { conversation: { ...sent, version: 6 }, operationId: mergeProposal.id, result }
       return init?.method ? conversation : { conversation }
     })

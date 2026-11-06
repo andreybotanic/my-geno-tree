@@ -140,46 +140,42 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     if (busy || disabled || voiceBusy || thinking || stopping || !content.trim()) return
     setBusy(true)
     setError(null)
-    if (pending.current?.content !== content) {
-      pending.current = { requestId: crypto.randomUUID(), content }
-    }
-    try {
-      const current = await ensureConversation()
-      const next = await request<ChatConversation>(`/chats/${current.id}/messages`, {
-        method: 'POST', body: JSON.stringify({ version: current.version, ...pending.current }),
-      })
-      setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
-      setContent('')
-      const requestId = pending.current.requestId
-      pending.current = null
-      await process(next, requestId)
-    } catch (cause) { showError(cause); setBusy(false) }
-  }
-
-  async function process(current: ChatConversation, requestId: string) {
+    if (pending.current?.content !== content) pending.current = { requestId: crypto.randomUUID(), content }
+    const message = pending.current
     const turn = ++generation.current
     const controller = new AbortController()
-    activeRequest.current = { chatId: current.id, requestId, controller }
-    setBusy(true)
-    setThinkingSince(Date.now())
-    setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: { ...current, progress: [] } }))
-    setError(null)
+    let current = conversation
     try {
-      const next = await request<ChatConversation>(`/chats/${current.id}/process`, {
-        method: 'POST', body: JSON.stringify({ version: current.version, requestId }), signal: controller.signal,
+      current = await ensureConversation()
+      activeRequest.current = { chatId: current.id, requestId: message.requestId, controller }
+      setThinkingSince(Date.now())
+      const next = await request<ChatConversation>('/chats/' + current.id + '/messages', {
+        method: 'POST', body: JSON.stringify({ version: current.version, ...message }), signal: controller.signal,
       })
-      if (turn === generation.current) setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
+      if (turn !== generation.current) return
+      setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
+      setContent('')
+      pending.current = null
     } catch (cause) {
       if (turn !== generation.current) return
       showError(cause)
-      try {
-        const next = await request<ChatConversation>(`/chats/${current.id}`)
-        if (turn === generation.current) setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
-      } catch { /* Keep the saved message available. */ }
+      if (current) {
+        try {
+          const next = await request<ChatConversation>('/chats/' + current.id)
+          if (turn === generation.current) {
+            setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
+            if (next.messages.some((item) => item.role === 'user' && item.requestId === message.requestId)) {
+              setContent('')
+              pending.current = null
+            }
+          }
+        } catch { /* Keep unsaved input and its retry identifier. */ }
+      }
     } finally {
       if (turn === generation.current) { setBusy(false); setThinkingSince(null); activeRequest.current = null }
     }
   }
+
 
   async function stop() {
     const running = activeRequest.current
@@ -195,6 +191,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
       setThinkingSince(null)
       setBusy(false)
+      setContent('')
+      pending.current = null
       setError(null)
     } catch (cause) { showError(cause) }
     finally { setStopping(false) }

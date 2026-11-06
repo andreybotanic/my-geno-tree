@@ -2,7 +2,7 @@
 
 namespace App\Http;
 
-use App\Application\Chat\Chat;
+use App\Application\Chat\ChatInterface;
 use App\Model\Conversation;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Attribute\AsTargetedValueResolver;
@@ -12,7 +12,7 @@ use Symfony\Component\HttpKernel\ControllerMetadata\ArgumentMetadata;
 #[AsTargetedValueResolver]
 final readonly class ChatValueResolver implements ValueResolverInterface
 {
-    public function __construct(private Chat $chat)
+    public function __construct(private ChatInterface $chat)
     {
     }
 

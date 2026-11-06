@@ -10,6 +10,7 @@ use Symfony\Component\Uid\UuidV7;
 #[Exclude]
 final class Conversation
 {
+    public const string METADATA = 'conversation';
     public readonly UuidV7 $id;
     public int $version = 1;
     public string $status = 'idle';
@@ -21,6 +22,10 @@ final class Conversation
     public array $tools = [];
     /** @var array<string, int> */
     public array $toolVersions = [];
+    /** @var list<string> */
+    public array $progress = [];
+    /** @var array{input: int, output: int, total: int} */
+    public array $usage = ['input' => 0, 'output' => 0, 'total' => 0];
 
     /** @param array<string, string|null> $context */
     public function __construct(
@@ -47,6 +52,8 @@ final class Conversation
         $this->attemptRequestId = $requestId;
         $this->attemptStartedAt = $now;
         $this->status = 'processing';
+        $this->progress = [];
+        $this->usage = ['input' => 0, 'output' => 0, 'total' => 0];
         $this->changed($now);
     }
 

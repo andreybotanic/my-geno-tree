@@ -2,8 +2,7 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Application\Chat\ConversationService;
-use App\Application\TreeChat\TreeAssistant;
+use App\Application\Chat\ChatInterface;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
@@ -34,20 +33,18 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     {
         $answer = "I prepared Vera's profile.\n\n" . str_repeat('Review the proposed details before applying them. ', 10);
         FixtureTreeAgent::$handler = fn (Conversation $draft) => FixtureTreeAgent::reply($draft, $answer, $this->proposal($draft));
-        $this->message('Vera was born about 1938.', 'first');
-        $this->process('first');
+        $this->send('Vera was born about 1938.', 'first');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame($answer, $this->responseString('messages', '1', 'content'));
         $prepared = $this->responseData();
+        $this->send('Vera was born about 1938.', 'first');
         $preparedMerge = $this->responseArray('tools', 'merge');
-        $this->process('first');
         self::assertSame(1, FixtureTreeAgent::$calls);
         self::assertSame($prepared, $this->responseData());
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertSame([], $this->responseData()['people']);
         FixtureTreeAgent::$handler = static fn () => 'Use the confirmation button to apply the proposal.';
-        $this->message('Apply everything now.', 'apply');
-        $this->process('apply');
+        $this->send('Apply everything now.', 'apply');
         self::assertSame($preparedMerge, $this->responseArray('tools', 'merge'));
         self::assertSame($preparedMerge['version'], $this->responseInt('tools', 'merge', 'version'));
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
@@ -57,8 +54,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     {
         $text = '{"action":"proposal","reply":"Done","proposal":{"people":[]}}';
         FixtureTreeAgent::$handler = static fn () => $text;
-        $this->message('Add Vera.', 'first');
-        $this->process('first');
+        $this->send('Add Vera.', 'first');
         self::assertNull($this->responseArray('tools')['merge'] ?? null);
         self::assertSame($text, $this->responseString('messages', '1', 'content'));
         self::assertSame('assistant', $this->responseString('messages', '1', 'role'));
@@ -84,8 +80,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
 
             return 'Ready to add Vera.';
         };
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('Ready to add Vera.', $this->responseString('messages', '1', 'content'));
     }
@@ -93,8 +88,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     public function testClarificationIsAnOrdinaryAnswerAndTheNextTurnRetainsTheHistory(): void
     {
         FixtureTreeAgent::$handler = static fn () => 'Which Vera do you mean?';
-        $this->message('Add Vera.', 'first');
-        $this->process('first');
+        $this->send('Add Vera.', 'first');
         self::assertArrayNotHasKey('merge', $this->responseArray('tools'));
         self::assertSame('Which Vera do you mean?', $this->responseString('messages', '1', 'content'));
         FixtureTreeAgent::$handler = function (Conversation $draft): string {
@@ -104,20 +98,18 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
 
             return FixtureTreeAgent::reply($draft, 'Ready to add Vera.', $this->proposal($draft));
         };
-        $this->message('A new person.', 'answer');
-        $this->process('answer');
+        $this->send('A new person.', 'answer');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
     }
 
     public function testEmptyAnswerCreatesARetryableNoticeInsteadOfAnAssistantMessage(): void
     {
         FixtureTreeAgent::$handler = static fn () => " \n";
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertSame('empty_response', $this->responseString('messages', '1', 'failureCode'));
         $noticeId = $this->responseString('messages', '1', 'id');
         FixtureTreeAgent::$handler = static fn () => 'Please describe Vera.';
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertSame($noticeId, $this->responseString('messages', '1', 'id'));
         self::assertSame('assistant', $this->responseString('messages', '1', 'role'));
         self::assertSame('Please describe Vera.', $this->responseString('messages', '1', 'content'));
@@ -129,8 +121,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
             FixtureTreeAgent::reply($conversation, 'Prepared.', $this->proposal($conversation));
             throw new \RuntimeException('connection lost after merge');
         };
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('provider_unavailable', $this->responseString('messages', '1', 'failureCode'));
         $pending = $this->responseArray('tools', 'merge');
@@ -146,15 +137,14 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         self::assertInstanceOf(\Symfony\Component\Uid\UuidV7::class, $id);
         $store = static::getContainer()->get('ai.message_store.cache.chat');
         self::assertInstanceOf(\Symfony\AI\Agent\MessageStore\MessageStoreInterface::class, $store);
-        $saved = $store->load($id)->getMetadata()->get(\App\Application\Chat\Chat::METADATA);
+        $saved = $store->load($id)->getMetadata()->get(Conversation::METADATA);
         self::assertInstanceOf(Conversation::class, $saved);
         self::assertArrayNotHasKey('merge', $saved->tools);
         self::assertStringNotContainsString('personIds', serialize($store->load($id)));
         $this->jsonRequest('POST', $path, ['version' => $pending['version']], $this->headers + ['If-Match' => $pending['treeEtag']]);
         self::assertResponseStatusCodeSame(404);
         FixtureTreeAgent::$handler = static fn () => 'You can continue in this conversation.';
-        $this->message('Can we continue?', 'after-apply');
-        $this->process('after-apply');
+        $this->send('Can we continue?', 'after-apply');
         self::assertArrayNotHasKey('merge', $this->responseArray('tools'));
         self::assertArrayNotHasKey('result', $this->responseData());
         self::assertSame('idle', $this->responseString('status'));
@@ -163,30 +153,26 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     public function testStopAndFailedOrdinaryQuestionsPreserveTheReadyProposal(): void
     {
         FixtureTreeAgent::$handler = fn (Conversation $draft) => FixtureTreeAgent::reply($draft, 'Prepared.', $this->proposal($draft));
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         $proposal = ($this->responseArray('tools')['merge'] ?? null);
         $proposalVersion = $this->responseInt('tools', 'merge', 'version');
         FixtureTreeAgent::$handler = function (Conversation $draft): string {
-            static::getContainer()->get(ConversationService::class)->stop($draft, 'question');
+            static::getContainer()->get(ChatInterface::class)->stop($draft, 'question');
 
             return 'Late answer.';
         };
-        $this->message('How old is Vera?', 'question');
-        $this->process('question');
+        $this->send('How old is Vera?', 'question');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('idle', $this->responseString('status'));
         self::assertSame($proposalVersion, $this->responseInt('tools', 'merge', 'version'));
         FixtureTreeAgent::$handler = static fn () => throw new \RuntimeException('offline');
-        $this->message('Tell me her name.', 'failed-question');
-        $this->process('failed-question');
+        $this->send('Tell me her name.', 'failed-question');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('error', $this->responseString('status'));
         self::assertSame($proposal, $this->responseArray('tools')['merge'] ?? null);
         self::assertSame($proposalVersion, $this->responseInt('tools', 'merge', 'version'));
         FixtureTreeAgent::$handler = static fn () => 'Her name is Vera.';
-        $this->message('Answer again.', 'answer');
-        $this->process('answer');
+        $this->send('Answer again.', 'answer');
         self::assertSame('idle', $this->responseString('status'));
     }
 
@@ -200,36 +186,32 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
 
             return 'Please narrow the supporting quote.';
         };
-        $this->message(str_repeat('A', 301), 'first');
-        $this->process('first');
+        $this->send(str_repeat('A', 301), 'first');
         self::assertNull($this->responseArray('tools')['merge'] ?? null);
     }
 
-    public function testNewMessageAndStopRejectLateToolResultsAndOrdinaryAnswers(): void
+    public function testConcurrentSendIsRejectedAndStopRejectsLateToolResultsAndAnswers(): void
     {
         FixtureTreeAgent::$handler = function (Conversation $draft, string $attempt, TreeMergeTool $tools): string {
-            static::getContainer()->get(ConversationService::class)->append($draft,
-                ['version' => $draft->version, 'requestId' => 'new', 'content' => 'Her name is Veronika.']);
+            $chat = static::getContainer()->get(ChatInterface::class);
+            try {
+                $chat->send($draft, ['version' => $draft->version, 'requestId' => 'new', 'content' => 'Her name is Veronika.']);
+                self::fail('An active execution must reject another send.');
+            } catch (\App\Api\ApiException $error) {
+                self::assertSame('CHAT_PROCESSING', $error->getErrorCode());
+            }
+            $chat->stop($draft, 'first');
             self::assertArrayHasKey('error', $tools($this->treeId, $this->proposal($draft)));
 
             return 'Obsolete answer.';
         };
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertCount(2, $this->responseArray('messages'));
-        FixtureTreeAgent::$handler = function (Conversation $draft, string $attempt, TreeMergeTool $tools): string {
-            static::getContainer()->get(ConversationService::class)->stop($draft, 'new');
-            try {
-                static::getContainer()->get(\App\Application\Chat\Chat::class)->active();
-                self::fail('Stopped attempt');
-            } catch (\App\Api\ApiException) {
-            }
-
-            return 'Obsolete answer.';
-        };
-        $this->process('new');
-        self::assertSame('stopped', $this->responseString('messages', '2', 'failureCode'));
-        self::assertSame('system', $this->responseString('messages', '2', 'role'));
+        self::assertSame('stopped', $this->responseString('messages', '1', 'failureCode'));
+        self::assertSame('system', $this->responseString('messages', '1', 'role'));
+        FixtureTreeAgent::$handler = static fn () => 'Her name is Veronika.';
+        $this->send('Her name is Veronika.', 'new');
+        self::assertSame('Her name is Veronika.', $this->responseString('messages', '3', 'content'));
     }
 
     public function testReviewedProposalEditsSupersedeTheRunningAgentAnswer(): void
@@ -245,12 +227,11 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
             self::assertNotNull($tree);
             $pending = $draft->tools['merge'];
             self::assertInstanceOf(\App\Model\TreeMergeProposal::class, $pending);
-            static::getContainer()->get(TreeAssistant::class)->proposal($tree, $pending->id->toRfc4122(), 'revise', ['version' => $pending->version, 'proposal' => $proposal]);
+            static::getContainer()->get(TreeMergeTool::class)->proposal($tree, $pending->id->toRfc4122(), 'revise', ['version' => $pending->version, 'proposal' => $proposal]);
 
             return 'An obsolete answer about Vera.';
         };
-        $this->message('Vera.', 'first');
-        $this->process('first');
+        $this->send('Vera.', 'first');
         self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
         self::assertSame('Veronika', $this->responseString('tools', 'merge', 'proposal', 'people', '0', 'fields', 'givenName', 'value'));
         self::assertCount(1, $this->responseArray('messages'));
@@ -259,23 +240,31 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
     /** @return array<string, mixed> */
     private function proposal(Conversation $draft): array
     {
-        return ['people' => [['id' => 'v', 'existingPersonId' => null, 'resolution' => 'new', 'lifeStatus' => 'alive',
-            'fields'               => ['givenName' => ['state' => 'known', 'value' => 'Vera'], 'gender' => 'female',
-                'birthDate'                        => ['state' => 'known', 'kind' => 'approximate', 'year' => 1938]],
-            'evidence' => [['messageId' => FixtureTreeAgent::messages($draft)[0]['id'], 'quote' => FixtureTreeAgent::messages($draft)[0]['content']]]]],
-            'parents' => [], 'marriages' => [], 'questions' => []];
+        return [
+            'people' => [
+                [
+                    'id'               => 'v',
+                    'existingPersonId' => null,
+                    'resolution'       => 'new',
+                    'lifeStatus'       => 'alive',
+                    'fields'           => [
+                        'givenName' => ['state' => 'known', 'value' => 'Vera'],
+                        'gender'    => 'female',
+                        'birthDate' => ['state' => 'known', 'kind' => 'approximate', 'year' => 1938],
+                    ],
+                    'evidence' => [['messageId' => FixtureTreeAgent::messages($draft)[0]['id'], 'quote' => FixtureTreeAgent::messages($draft)[0]['content']]],
+                ],
+            ],
+            'parents'   => [],
+            'marriages' => [],
+            'questions' => [],
+        ];
     }
 
-    private function message(string $content, string $requestId): void
+    private function send(string $content, string $requestId): void
     {
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
         $this->jsonRequest('POST', $this->path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => $requestId, 'content' => $content], $this->headers);
-        self::assertResponseIsSuccessful();
-    }
-
-    private function process(string $requestId): void
-    {
-        $this->jsonRequest('POST', $this->path . '/process', ['version' => $this->responseData()['version'], 'requestId' => $requestId], $this->headers);
         self::assertResponseIsSuccessful();
     }
 }

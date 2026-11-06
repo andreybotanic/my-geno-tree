@@ -73,9 +73,13 @@ committed to Git.
 The AI panel is a reusable Symfony AI conversation. Its backend-selected profile
 chooses a ready agent from `ai.yaml`, with that agent's tools and prompt. The
 common chat module and `ChatPanel` handle messages, processing, Stop, events,
-voice and token usage without tree or merge types. `TreeAssistant` and
+voice and token usage without tree or merge types. `TreeMergeTool` and
 `TreeChatPanel` connect the tree profile to its preview and confirmation UI.
 A test runs a second configured profile without tree tools or the tree prompt.
+`ChatService` implements the application `ChatInterface`. The configured agent owns
+its inference loop; `ExecutionInterface` supplies progress and cancellation.
+`ChatAgentHooks` binds native metadata, checks authorization and meters responses.
+`MercureChatTransport` publishes events and grants subscriptions.
 There is no custom agent or inference loop.
 
 `TreeMergeService` prepares and applies a change set independently of chat, AI
@@ -87,7 +91,8 @@ line break. Unsent input stays only in the mounted component.
 
 `GET /api/v1/trees/{treeId}/chat` returns `{conversation, tokenBudget}`; POST
 creates or returns the current conversation. Common operations use
-`/api/v1/chats/{chatId}`. Each authenticated login has one current conversation
+`/api/v1/chats/{chatId}`. POST `/messages` saves and executes a turn in one request;
+there is no separate process endpoint. Each authenticated login has one current conversation
 per context and at most one pending merge proposal for a tree. Another login
 cannot read or replace its history or proposal. There is no SQL chat table:
 `tree_merge_conversation` and its Doctrine coordinator were removed.
@@ -99,7 +104,7 @@ container restart remove history and proposal together, without an HTTP cleanup
 or background job. A separate private cache index contains only the current
 conversation UUID for a login/context pair. It stores no history or proposal.
 
-Symfony Lock coordinates short state changes. The `LockedMessageStore`
+Symfony Lock coordinates short state changes. The `GuardedMessageStore`
 decorator delegates storage to the official bridge and includes native agent
 saves in the same lock and attempt/version checks. Locks are released while
 waiting for the model, so Stop and concurrent actions remain available.
@@ -171,7 +176,7 @@ notice. Attempts are limited to twenty per user per hour; inference has a
 See the [Symfony AI Agent documentation](https://symfony.com/doc/current/ai/components/agent.html)
 and [CLIProxyAPI source](https://github.com/router-for-me/CLIProxyAPI).
 
-### Voice and external MCP clients
+### Voice
 
 Voice recording fills the composer for review before Send. The backend checks
 actual MIME, codec, a 10 MiB limit and at most 90 seconds of decoded audio, then
@@ -186,12 +191,7 @@ docker compose exec -T backend curl --fail -X POST http://whisper:8000/v1/models
 `WHISPER_URL` and `WHISPER_MODEL` configure recognition; its model volume is
 `whisper_models`. Each user has ten recognition attempts per hour.
 
-The Symfony MCP Bundle exposes authenticated Streamable HTTP at
-`https://my-geno-tree.localhost/mcp/tree`. External clients use the application's
-Bearer session header. Tools are `get_tree_context`, `find_people`,
-`get_person_context`, `prepare_tree_merge` and `get_tree_merge`. Preparation uses
-the same current tree-profile conversation and returns a preview link; no MCP tool applies changes.
-The in-application agent invokes native PHP tools directly.
+The configured Symfony AI agent invokes native PHP tools directly.
 
 Backend/API tests cover ownership, session isolation, one-draft persistence,
 Stop/provider failures with ready proposals, evidence limits, stale attempts,
@@ -225,6 +225,8 @@ fails. The Compose services must be running before committing.
 
 ## Demo fixture
 
+The local fixture creates the account `demo` with password supplied locally.
+
 To add the demo account and tree to an existing local database without
 removing current data, run:
 
@@ -235,8 +237,8 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-05): 223 backend tests and 382 frontend tests pass. Line
-coverage is 92.81% backend and 90.16% frontend. Every production file with
+Validation (2026-11-06): 219 backend tests and 382 frontend tests pass. Line
+coverage is 92.72% backend and 90.12% frontend. Every production file with
 measurable behavior exceeds 75%; EventPlaceRepository and MediaVariantRepository
 contain only Doctrine constructor wiring (one uncovered line each). Backend and
 frontend quality checks, OpenAPI generation, the production build, Composer
@@ -246,21 +248,19 @@ existing PHPUnit mock-expectation notices in map and GEDCOM tests; Vite reports
 its existing bundle-size advisory.
 
 PhpStorm WARNING inspections covered all affected PHP files and were repeated
-after manual changes. No actionable findings remain. Migration SQL reports only
-the absence of an IDE data source; the statements are verified by applying the
-complete migration history and comparing the real schema to Doctrine mapping.
+after manual changes. No actionable findings remain. Symfony-generated
+`config/reference.php` retains 35 IDE warnings for PHPDoc `list` types; this file
+is generated by the framework and passes PHPStan.
 
-Manual HTTPS/Chrome validation used the synthetic tree renamed to
-"Symfony AI — общий чат 05.11". A live CLIProxyAPI/Symfony AI cycle prepared
-Olga's birth-year correction from 1987 to 1988. The stored tree stayed unchanged
-until confirmation. Apply updated both open tabs through Mercure and immediately
-removed the proposal, preview and discard button, while preserving the chat.
-A second proposal conflicted with a concurrent tree rename: application stopped,
-the preview refreshed and another confirmation was required. Discard then
-removed only this proposal, leaving messages and the applied year 1988. An
-ordinary follow-up returned the current stored year without creating a proposal.
-Reset cleared both tabs; reload and reopening showed an empty chat and the same
-three fictional people. Other trees were preserved. API tests also cover TTL
-expiry without HTTP cleanup, stale native saves after discard, Stop, provider
-failures, revoked sessions, evidence limits, isolated logins, complete token
-accounting and a second configured agent profile without tree tools.
+Manual HTTPS/Chrome validation (2026-11-06) used the synthetic tree
+"Symfony AI — общий чат 05.11". A normal question read Olga's stored birth year.
+Live CLIProxyAPI/Symfony AI calls prepared a correction, displayed the preview,
+and applied it only after confirmation. Apply removed the proposal and discard
+button while retaining the chat. A second proposal survived Stop; no late answer
+appeared. Discard removed that proposal and its preview, preserved history and
+unsent input, and restored the displayed stored year 1988. Reset cleared the chat;
+reload retained the same three fictional people and year 1988. Other trees were
+preserved. API tests cover private SSE/session isolation, ETag conflicts, TTL
+expiry without HTTP cleanup, stale native saves after discard, provider failures,
+revoked sessions, evidence/read limits, complete token accounting and a second
+configured agent profile without tree tools.

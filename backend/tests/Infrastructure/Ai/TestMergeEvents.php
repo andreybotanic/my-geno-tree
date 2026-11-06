@@ -2,9 +2,8 @@
 
 namespace App\Tests\Infrastructure\Ai;
 
-use App\Application\Chat\ChatEvents;
+use App\Application\Chat\MercureChatTransport;
 use Psr\Log\NullLogger;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\MockHub;
@@ -31,10 +30,10 @@ final class TestMergeEvents
             }, $inner->getFactory(), cookieName: $inner->getCookieName());
     }
 
-    public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager): ChatEvents
+    public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager, \Doctrine\Persistence\ManagerRegistry $registry, ?RequestStack $requests = null): MercureChatTransport
     {
         $hub = new MockHub('https://localhost/.well-known/mercure', new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'), static fn () => 'event');
 
-        return new ChatEvents($hub, new ArrayAdapter(), new RequestStack(), new NullLogger(), 'https://localhost', $entityManager, new \Symfony\Component\Clock\NativeClock());
+        return new MercureChatTransport($hub, $requests ?? new RequestStack(), new NullLogger(), 'https://localhost', $entityManager, new \Symfony\Component\Clock\NativeClock(), new \Symfony\Component\Mercure\Authorization(new \Symfony\Component\Mercure\HubRegistry($hub)), new \App\Repository\AuthSessionRepository($registry), str_repeat('s', 32), 'https://localhost');
     }
 }
