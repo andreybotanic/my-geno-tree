@@ -4,7 +4,6 @@ namespace App\Application\Chat;
 
 use App\Api\ApiException;
 use App\Api\ConversationNormalizer;
-use App\Entity\AuthSession;
 use App\Model\Conversation;
 use App\Security\ChatExecution;
 use Psr\Log\LoggerInterface;
@@ -30,7 +29,7 @@ final readonly class ChatService implements ChatInterface
     public function __construct(
         private GuardedMessageStore $store,
         private ConversationNormalizer $views,
-        private MercureChatTransport $events,
+        private ChatEventPublisherInterface $events,
         private ClockInterface $clock,
         private RequestStack $requests,
         private LoggerInterface $logger,
@@ -193,10 +192,7 @@ final readonly class ChatService implements ChatInterface
                 $this->store->delete($current->id);
             }
         );
-        $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-        if ($session instanceof AuthSession) {
-            $this->events->removed($session, $conversation->id->toRfc4122());
-        }
+        $this->events->removed($conversation);
     }
 
     public function execution(): ChatExecution
@@ -252,14 +248,6 @@ final readonly class ChatService implements ChatInterface
         return $this->views->budget($user);
     }
 
-    public function toolApplied(Conversation $conversation, string $name, string $operationId, array $result): void
-    {
-        $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-        if ($session instanceof AuthSession) {
-            $this->events->tool($session, $conversation, $name, 'applied', $operationId, $result);
-        }
-    }
-
     private function progress(Progress $progress): void
     {
         $current = $this->execution()->conversation;
@@ -280,10 +268,7 @@ final readonly class ChatService implements ChatInterface
 
     private function publish(Conversation $conversation): void
     {
-        $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-        if ($session instanceof AuthSession) {
-            $this->events->conversation($session, $this->snapshot($conversation));
-        }
+        $this->events->conversation($conversation, $this->snapshot($conversation));
     }
 
     private function append(Conversation $conversation, string $requestId, string $content, bool $failure = false): void

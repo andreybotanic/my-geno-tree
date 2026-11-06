@@ -3,6 +3,7 @@
 namespace App\Tool;
 
 use App\Api\ApiException;
+use App\Application\Chat\ChatEventPublisherInterface;
 use App\Application\Chat\ChatInterface;
 use App\Application\Tree\TreeContextService;
 use App\Application\TreeMerge\TreeMergeService;
@@ -23,8 +24,12 @@ use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
 )]
 final readonly class TreeMergeTool
 {
-    public function __construct(private ChatInterface $chat, private TreeMergeService $merge, private TreeContextService $trees)
-    {
+    public function __construct(
+        private ChatInterface $chat,
+        private TreeMergeService $merge,
+        private TreeContextService $trees,
+        private ChatEventPublisherInterface $events,
+    ) {
     }
 
     /** @param array<string, mixed> $proposal
@@ -128,7 +133,7 @@ final readonly class TreeMergeTool
         }
         $current = $this->chat->current($context);
         $view = null !== $current && $current->id->equals($consumed->id) ? $current : $consumed;
-        $this->chat->toolApplied($view, 'merge', $pending->id->toRfc4122(), $result);
+        $this->events->toolApplied($view, 'merge', $pending->id->toRfc4122(), $result);
 
         return ['conversation' => $this->chat->snapshot($view), 'operationId' => $pending->id->toRfc4122(), 'result' => $result];
     }

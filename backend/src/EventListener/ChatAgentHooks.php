@@ -3,8 +3,8 @@
 namespace App\EventListener;
 
 use App\Api\ApiException;
+use App\Application\Chat\ChatEventPublisherInterface;
 use App\Application\Chat\GuardedMessageStore;
-use App\Application\Chat\MercureChatTransport;
 use App\Model\Conversation;
 use App\Security\ChatExecution;
 use Symfony\AI\Agent\Attribute\AsInputProcessor;
@@ -31,7 +31,7 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
 {
     public function __construct(
         private GuardedMessageStore $store,
-        private MercureChatTransport $events,
+        private ChatEventPublisherInterface $events,
         private RequestStack $requests,
         #[Target('chat_tokens')]
         private RateLimiterFactoryInterface $tokens,

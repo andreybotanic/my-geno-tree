@@ -7,7 +7,6 @@ use App\Api\ConversationNormalizer;
 use App\EventListener\ChatAgentHooks;
 use App\Tests\Infrastructure\Ai\ChatRuntimeFixture;
 use App\Tests\Infrastructure\Ai\TestMergeEvents;
-use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\AI\Platform\Event\ResultEvent;
@@ -34,7 +33,7 @@ final class ChatTokenBudgetTest extends TestCase
             new CacheStorage(new ArrayAdapter()),
             new LockFactory(new InMemoryStore())
         );
-        $hooks = new ChatAgentHooks($runtime->store, TestMergeEvents::publisher($this->createStub(EntityManagerInterface::class), $this->createStub(\Doctrine\Persistence\ManagerRegistry::class), $runtime->requests), $runtime->requests, $factory);
+        $hooks = new ChatAgentHooks($runtime->store, TestMergeEvents::publisher($authorization), $runtime->requests, $factory);
         $view = new ConversationNormalizer($runtime->store, $factory);
         $events = new EventDispatcher();
         $events->addListener(InvocationEvent::class, $hooks->beforeModel(...));

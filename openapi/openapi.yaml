@@ -9,15 +9,11 @@ paths:
   /chat-events/authorize:
     get:
       operationId: authorizeChatStream
-      summary: 'Validate the subscriber cookie and its active login session for the local reverse proxy'
-      parameters:
+      summary: 'Authenticate the Mercure subscription JWT and its active login session'
+      description: 'The local reverse proxy forwards the subscriber cookie as a Bearer credential on its internal authorization subrequest.'
+      security:
         -
-          name: __Secure-mercure_access_token
-          in: cookie
-          required: true
-          schema:
-            type: string
-            writeOnly: true
+          mercureBearer: []
       responses:
         204:
           description: 'Subscription session is active; the hub validates topic grants separately'
@@ -1702,6 +1698,10 @@ paths:
           $ref: "#/components/responses/BadGateway"
 components:
   securitySchemes:
+    mercureBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
     bearerAuth:
       type: http
       scheme: bearer

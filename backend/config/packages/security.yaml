@@ -15,6 +15,14 @@ security:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
+        chat_subscription:
+            pattern: ^/api/v1/chat-events/authorize$
+            stateless: true
+            provider: app_users
+            access_token:
+                token_handler: App\Security\ChatSubscriptionTokenHandler
+                failure_handler: App\Security\BearerSessionAuthenticator
+            entry_point: App\Security\BearerSessionAuthenticator
         main:
             lazy: true
             stateless: true
@@ -25,7 +33,7 @@ security:
 
     # Note: Only the *first* matching rule is applied
     access_control:
-        - { path: ^/api/v1/chat-events/authorize$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/chat-events/authorize$, roles: ROLE_USER }
         - { path: ^/api/v1/(health|statistics)$, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/(register|login|refresh|logout)$, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1, roles: ROLE_USER }

@@ -5,8 +5,10 @@ namespace App\Tests\Api\Tree;
 use App\Application\Chat\ChatInterface;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
+use App\Tests\Infrastructure\Ai\TestMergeEvents;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\AI\Agent\MessageStore\MessageStoreInterface;
+use Symfony\Component\Mercure\Update;
 use Symfony\Component\Uid\Uuid;
 
 final class ChatApiTest extends ApiWebTestCase
@@ -53,6 +55,10 @@ final class ChatApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(409);
         $this->jsonRequest('POST', $this->path . '/reset', ['version' => 3], $this->headers);
         self::assertResponseStatusCodeSame(204);
+        $removed = array_last(TestMergeEvents::updates());
+        self::assertInstanceOf(Update::class, $removed);
+        self::assertTrue($removed->isPrivate());
+        self::assertSame(['kind' => 'removed', 'id' => basename($this->path)], json_decode($removed->getData(), true, flags: JSON_THROW_ON_ERROR));
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
         self::assertResponseStatusCodeSame(404);
         $this->jsonRequest('GET', $this->base, headers: $this->headers);

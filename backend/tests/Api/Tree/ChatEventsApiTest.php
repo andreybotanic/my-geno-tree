@@ -23,27 +23,46 @@ final class ChatEventsApiTest extends ApiWebTestCase
         $cookie = array_find($this->client->getResponse()->headers->getCookies(), static fn ($cookie) => '__Secure-mercure_access_token' === $cookie->getName());
         self::assertNotNull($cookie);
         $value = (string)$cookie->getValue();
-        // Caddy forwards the hub cookie to its authorization subrequest, irrespective of its browser path.
-        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), $value, null, '/', 'localhost', true));
-        $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
+        $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: $headers);
+        self::assertResponseStatusCodeSame(401);
+        $this->jsonRequest('GET', $path, headers: ['Authorization' => 'Bearer ' . $value]);
+        self::assertResponseStatusCodeSame(401);
+        // Caddy forwards the subscriber cookie as a Bearer credential to Symfony's access_token firewall.
+        $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: ['Authorization' => 'Bearer ' . $value]);
         self::assertResponseStatusCodeSame(204);
-        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), 'invalid.token.signature', null, '/', 'localhost', true));
-        $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
+        $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: ['Authorization' => 'Bearer invalid.token.signature']);
         self::assertResponseStatusCodeSame(401);
         $authorization = static::getContainer()->get(\Symfony\Component\Mercure\Authorization::class);
+        /** @var array{sub: string} $issuedClaims */
+        $issuedClaims = json_decode((string)base64_decode(strtr(explode('.', $value)[1], '-_', '+/')), true, flags: JSON_THROW_ON_ERROR);
+        foreach ([
+            ['exp' => null],
+            ['sub' => 'not-a-session'],
+            ['sub' => \Symfony\Component\Uid\Uuid::v7()->toRfc4122()],
+            ['iss' => 'https://another-issuer.example'],
+            ['aud' => ['https://another-hub.example/.well-known/mercure']],
+            ['nbf' => new \DateTimeImmutable('+1 minute')],
+        ] as $claims) {
+            $invalid = $authorization->createCookie(
+                \Symfony\Component\HttpFoundation\Request::create('https://localhost'),
+                [],
+                additionalClaims: array_replace(['sub' => $issuedClaims['sub']], $claims),
+            );
+            $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: ['Authorization' => 'Bearer ' . $invalid->getValue()]);
+            self::assertResponseStatusCodeSame(401);
+            self::assertSame('UNAUTHORIZED', $this->responseString('code'));
+        }
         $expired = $authorization->createCookie(
             \Symfony\Component\HttpFoundation\Request::create('https://localhost'),
             [],
             additionalClaims: ['exp' => new \DateTimeImmutable('-1 minute')]
         );
-        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), (string)$expired->getValue(), null, '/', 'localhost', true));
-        $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
+        $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: ['Authorization' => 'Bearer ' . (string)$expired->getValue()]);
         self::assertResponseStatusCodeSame(401);
         $this->jsonRequest('POST', '/api/v1/auth/logout', [], $headers);
         self::assertResponseStatusCodeSame(204);
         self::assertNotNull(array_find($this->client->getResponse()->headers->getCookies(), static fn ($cookie) => '__Secure-mercure_access_token' === $cookie->getName() && 1 === $cookie->getExpiresTime()));
-        $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), $value, null, '/', 'localhost', true));
-        $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
+        $this->jsonRequest('GET', '/api/v1/chat-events/authorize', headers: ['Authorization' => 'Bearer ' . $value]);
         self::assertResponseStatusCodeSame(401);
     }
 
@@ -55,7 +74,7 @@ final class ChatEventsApiTest extends ApiWebTestCase
         $base = '/api/v1/trees/' . $this->responseString('id') . '/chat';
         $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
         $path = '/api/v1/chats/' . $this->responseString('id');
-        FixtureTreeAgent::$handler = static function (): string {
+        FixtureTreeAgent::$handler = static function (Conversation $conversation): string {
             $container = static::getContainer();
             $request = $container->get(\Symfony\Component\HttpFoundation\RequestStack::class)->getMainRequest();
             self::assertNotNull($request);
@@ -64,7 +83,7 @@ final class ChatEventsApiTest extends ApiWebTestCase
             $session->revoke(new \DateTimeImmutable());
             $container->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
             TestMergeEvents::$updates = [];
-            $container->get(\App\Application\Chat\MercureChatTransport::class)->conversation($session, ['id' => 'late', 'messages' => ['private']]);
+            $container->get(\App\Application\Chat\ChatEventPublisherInterface::class)->conversation($conversation, ['id' => $conversation->id->toRfc4122(), 'messages' => ['private']]);
 
             return 'Late private answer.';
         };

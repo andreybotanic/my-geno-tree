@@ -11,12 +11,13 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
+use Symfony\Component\Security\Http\Authentication\AuthenticationFailureHandlerInterface;
 use Symfony\Component\Security\Http\Authenticator\AbstractAuthenticator;
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 
-final class BearerSessionAuthenticator extends AbstractAuthenticator implements AuthenticationEntryPointInterface
+final class BearerSessionAuthenticator extends AbstractAuthenticator implements AuthenticationEntryPointInterface, AuthenticationFailureHandlerInterface
 {
     public function __construct(
         private readonly AuthSessionRepository $sessions,
@@ -43,10 +44,12 @@ final class BearerSessionAuthenticator extends AbstractAuthenticator implements 
 
         $request->attributes->set(AuthSession::class, $session);
 
-        return new SelfValidatingPassport(new UserBadge(
-            $session->getUser()->getUserIdentifier(),
-            $session->getUser(...),
-        ));
+        return new SelfValidatingPassport(
+            new UserBadge(
+                $session->getUser()->getUserIdentifier(),
+                $session->getUser(...),
+            )
+        );
     }
 
     public function onAuthenticationSuccess(

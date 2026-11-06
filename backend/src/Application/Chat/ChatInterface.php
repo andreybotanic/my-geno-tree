@@ -36,7 +36,4 @@ interface ChatInterface
 
     /** @return array{remaining: int, limit: int} */
     public function budget(Uuid $user): array;
-
-    /** @param array<string, mixed> $result */
-    public function toolApplied(Conversation $conversation, string $name, string $operationId, array $result): void;
 }
