@@ -87,15 +87,20 @@ There is no custom agent or inference loop.
 
 `TreeMergeService` prepares and applies a change set independently of chat, AI
 and MCP. Its validator accepts explicit evidence sources. The native `merge`
-tool adapts this service to the active conversation and publishes the validated
-preview before the next model request. Factual answers are escaped plain text;
+tool adapts this service to the active conversation and publishes validated
+proposals. The UI shows the latest proposal when the turn finishes, so intermediate
+tool calls cannot expose a partial preview for confirmation. Apply and discard
+share the preview's action block. Factual answers are escaped plain text;
 JSON-looking replies have no special meaning. Ctrl+Enter sends; Enter inserts a
 line break. Unsent input stays only in the mounted component.
 
 `GET /api/v1/trees/{treeId}/chat` returns `{conversation, tokenBudget}`; POST
 creates or returns the current conversation. Common operations use
 `/api/v1/chats/{chatId}`. POST `/messages` saves and executes a turn in one request;
-there is no separate process endpoint. Each authenticated login has one current conversation
+there is no separate process endpoint. The composer clears on send and restores
+text only if delivery remains unconfirmed after a failure. A completed SSE snapshot
+releases the local turn without waiting for HTTP; late responses preserve new input.
+Each authenticated login has one current conversation
 per context and at most one pending merge proposal for a tree. Another login
 cannot read or replace its history or proposal. There is no SQL chat table:
 `tree_merge_conversation` and its Doctrine coordinator were removed.
@@ -248,8 +253,8 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-06): 220 backend tests and 382 frontend tests pass. Line
-coverage is 93.00% backend and 90.12% frontend. Every production file with
+Validation (2026-11-06): 220 backend tests and 385 frontend tests pass. Line
+coverage is 93.00% backend and 90.18% frontend. Every production file with
 measurable behavior exceeds 75%; EventPlaceRepository and MediaVariantRepository
 contain only Doctrine constructor wiring (one uncovered line each). Backend and
 frontend quality checks, OpenAPI generation, the production build, Composer
@@ -269,6 +274,15 @@ proposal restored the stored year to 1988. Reset removed the chat, and returning
 to the tree showed the same three fictional people. Direct access to the
 subscription authorization endpoint without a Bearer credential returned the
 machine-readable UNAUTHORIZED error. Other trees were preserved.
+
+The chat UI regression check prepared one proposal for all three fictional people.
+The composer stayed empty after sending; the completed preview exposed Apply and
+Discard together. Discard preserved both history and an unsent correction. A later
+proposal was applied by button. Editing the same tree in a second tab caused the
+expected ETag conflict and required another confirmation. The reverse proposal
+restored all original years, verified after reload; no proposal remained.
+Component tests also cover partial tool snapshots, SSE completion before HTTP,
+late HTTP success/failure, and preserving the next unsent message.
 
 API tests cover signature, issuer, audience, expiry, not-before and session
 validation through Symfony's access_token firewall; application and subscription

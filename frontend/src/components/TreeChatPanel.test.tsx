@@ -5,7 +5,7 @@ import type { ChatConversation, TreeMergeResult } from '../api/generated'
 import { conversation, emptySnapshot, mergeProposal, readyConversation } from '../test/chatFixtures'
 import i18n from '../i18n'
 import { TreeChatPanel } from './TreeChatPanel'
-import { useChatEvents } from '../hooks/useChatEvents'
+import { mergeChatEvent, useChatEvents } from '../hooks/useChatEvents'
 
 vi.mock(
   '../hooks/useChatEvents',
@@ -29,38 +29,81 @@ describe(
   () => {
     beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
 
-    it(
-      'publishes a preview during inference, applies only by button and removes the proposal immediately',
-      async () => {
-        let finish!: (value: ChatConversation) => void
-        const sent = { ...conversation, version: 2, messages: [{ id: 'user', requestId: 'first', role: 'user' as const, content: 'Add Vera.', createdAt: 'now' }] }
-        const preview = { ...readyConversation, version: 4, status: 'processing' as const, messages: sent.messages }
-        const { request, applied, changed } = setup(
-          async (path, init) => {
-            if (path.endsWith('/messages')) return new Promise<ChatConversation>((resolve) => { finish = resolve })
-            if (path.endsWith('/apply')) return { conversation: { ...sent, version: 6 }, operationId: mergeProposal.id, result }
-            return init?.method ? conversation : { conversation }
+    it
+      .each(
+        ['success', 'failure'] as const
+      )(
+        'shows only the finished proposal, enables actions via SSE and ignores a late HTTP %s',
+        async (lateResponse) => {
+          let finish!: () => void
+          const sent = { ...conversation, version: 2, messages: [{ id: 'user', requestId: 'first', role: 'user' as const, content: 'Add Vera.', createdAt: 'now' }] }
+          const preview = { ...readyConversation, version: 4, status: 'processing' as const, messages: sent.messages }
+          const { request, applied, changed } = setup(
+            async (path, init) => {
+              if (path.endsWith('/messages')) {
+                sent.messages[0]!.requestId = (JSON.parse(init!.body as string) as { requestId: string }).requestId
+                return new Promise<ChatConversation>(
+                  (resolve, reject) => {
+                    finish = () => lateResponse === 'success' ? resolve(preview) : reject(new Error('late network failure'))
+                  }
+                )
+              }
+              if (path.endsWith('/apply')) return { conversation: { ...sent, version: 7 }, operationId: mergeProposal.id, result }
+              return init?.method ? conversation : { conversation }
+            }
+          )
+          const input = await screen.findByRole('textbox', { name: 'Message' })
+          await waitFor(() => expect(input).toBeEnabled())
+          fireEvent.change(input, { target: { value: 'Add Vera.' } })
+          fireEvent.submit(input.closest('form')!)
+          expect(input).toHaveValue('')
+          await waitFor(() => expect(finish).toBeDefined())
+          act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]((current) => mergeChatEvent(current, { kind: 'conversation', conversation: preview })))
+          expect(input).toHaveValue('')
+          expect(screen.queryByRole('region', { name: 'Review changes' })).not.toBeInTheDocument()
+          expect(changed).toHaveBeenLastCalledWith(null)
+          const completeProposal = {
+            ...mergeProposal,
+            version: 2,
+            proposal: {
+              ...mergeProposal.proposal,
+              people: [
+                ...mergeProposal.proposal.people,
+                { ...mergeProposal.proposal.people[0]!, id: 'sofia', fields: { givenName: { state: 'known' as const, value: 'Sofia' }, gender: 'female' as const } },
+              ],
+            },
           }
-        )
-        const input = await screen.findByRole('textbox', { name: 'Message' })
-        await waitFor(() => expect(input).toBeEnabled())
-        fireEvent.change(input, { target: { value: 'Add Vera.' } })
-        fireEvent.submit(input.closest('form')!)
-        await waitFor(() => expect(finish).toBeDefined())
-        act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]((current) => current ? preview : current))
-        expect(await screen.findByRole('button', { name: 'Confirm and apply changes' })).toBeDisabled()
-        const answer = { ...preview, version: 5, status: 'idle' as const, messages: [...sent.messages, { id: 'answer', requestId: 'first', role: 'assistant' as const, content: '<b>Prepared.</b>', createdAt: 'now' }] }
-        await act(async () => finish(answer))
-        expect(screen.getByText('<b>Prepared.</b>').querySelector('b')).toBeNull()
-        expect(applied).not.toHaveBeenCalled()
-        fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
-        await waitFor(() => expect(applied).toHaveBeenCalledWith(result))
-        expect(request).toHaveBeenCalledWith('/trees/tree/merge-proposals/proposal/apply', expect.objectContaining({ body: JSON.stringify({ version: 1 }), headers: { 'If-Match': 'etag' } }))
-        expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Confirm and apply changes' })).not.toBeInTheDocument()
-        await waitFor(() => expect(changed).toHaveBeenLastCalledWith(null))
-      }
-    )
+          const answer = {
+            ...preview,
+            version: 6,
+            status: 'idle' as const,
+            tools: { merge: completeProposal },
+            messages: [
+              ...sent.messages,
+              { id: 'answer', requestId: sent.messages[0]!.requestId, role: 'assistant' as const, content: '<b>Prepared.</b>', createdAt: 'now' },
+            ],
+          }
+          act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]((current) => mergeChatEvent(current, { kind: 'conversation', conversation: answer })))
+          expect(await screen.findByRole('button', { name: 'Apply' })).toBeEnabled()
+          expect(screen.getByRole('button', { name: 'Discard' }).parentElement).toBe(screen.getByRole('button', { name: 'Apply' }).parentElement)
+          expect(changed).toHaveBeenLastCalledWith(completeProposal)
+          expect(screen.queryByRole('button', { name: 'Stop response' })).not.toBeInTheDocument()
+          expect(input).toBeEnabled()
+          fireEvent.change(input, { target: { value: 'Keep this next message.' } })
+          await act(async () => finish())
+          expect(input).toHaveValue('Keep this next message.')
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+          expect(changed).toHaveBeenLastCalledWith(completeProposal)
+          expect(screen.getByText('<b>Prepared.</b>').querySelector('b')).toBeNull()
+          expect(applied).not.toHaveBeenCalled()
+          fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+          await waitFor(() => expect(applied).toHaveBeenCalledWith(result))
+          expect(request).toHaveBeenCalledWith('/trees/tree/merge-proposals/proposal/apply', expect.objectContaining({ body: JSON.stringify({ version: 2 }), headers: { 'If-Match': 'etag' } }))
+          expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument()
+          expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
+          await waitFor(() => expect(changed).toHaveBeenLastCalledWith(null))
+        }
+      )
 
     it(
       'discards just the proposal and preserves the chat and unsent message',
@@ -70,8 +113,8 @@ describe(
         const input = await screen.findByRole('textbox', { name: 'Message' })
         await waitFor(() => expect(input).toBeEnabled())
         fireEvent.change(input, { target: { value: 'Keep this correction.' } })
-        fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument())
         expect(input).toHaveValue('Keep this correction.')
         expect(screen.getByText('Vera.')).toBeInTheDocument()
         expect(window.location.search).toBe('?chat=chat')
@@ -84,7 +127,7 @@ describe(
       async () => {
         let finish!: (value: unknown) => void
         const { applied } = setup(async (path) => path.endsWith('/apply') ? new Promise((resolve) => { finish = resolve }) : { conversation: readyConversation })
-        fireEvent.click(await screen.findByRole('button', { name: 'Confirm and apply changes' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
         await act(async () => vi.mocked(useChatEvents).mock.lastCall?.[3]({ kind: 'tool', id: conversation.id, version: 3, tool: 'merge', action: 'applied', operationId: mergeProposal.id, result }))
         await act(async () => finish({ conversation: { ...conversation, version: 3 }, operationId: mergeProposal.id, result }))
         expect(applied).toHaveBeenCalledOnce()
@@ -101,10 +144,10 @@ describe(
             return { conversation: readyConversation }
           }
         )
-        fireEvent.click(await screen.findByRole('button', { name: 'Confirm and apply changes' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
         await screen.findByRole('alert')
         await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
-        expect(screen.queryByRole('button', { name: 'Confirm and apply changes' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
         expect(vi.mocked(request).mock.calls.filter(([path]) => path.endsWith('/apply'))).toHaveLength(1)
       }
     )
@@ -118,7 +161,7 @@ describe(
             : path === '/chats/chat' ? { ...conversation, version: 3 } : { conversation: readyConversation }
         )
         applied.mockRejectedValueOnce(new Error('snapshot offline'))
-        fireEvent.click(await screen.findByRole('button', { name: 'Confirm and apply changes' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
         await screen.findByRole('alert')
         fireEvent.click(screen.getByRole('button', { name: 'Reload conversation' }))
         await waitFor(() => expect(applied).toHaveBeenCalledTimes(2))
@@ -136,9 +179,9 @@ describe(
             return { conversation: conflict }
           }
         )
-        fireEvent.click(await screen.findByRole('button', { name: 'Check against the current tree' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Recheck' }))
         await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
-        expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
         expect(applied).not.toHaveBeenCalled()
         expect(request).toHaveBeenCalledWith('/trees/tree/merge-proposals/proposal/revalidate', expect.objectContaining({ method: 'POST' }))
       }
@@ -157,11 +200,11 @@ describe(
               return { conversation: readyConversation }
             }
           )
-          fireEvent.click(await screen.findByRole('button', { name: 'Confirm and apply changes' }))
+          fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
           await screen.findByRole('alert')
           await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
           expect(applied).not.toHaveBeenCalled()
-          expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled()
+          expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
         }
       )
   }

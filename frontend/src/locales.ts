@@ -58,14 +58,13 @@ export const resources = {
         "invalid": "Check the message and try again."
       },
       treeMerge: {
-        "graphLegend": "Existing people are faded; new people have normal colors.",
         "treeConflict": "The tree has changed. Review the updated proposal and confirm it again.",
         "placeholder": "Describe your relatives or ask about this tree…",
-        "cancel": "Discard draft",
+        "cancel": "Discard",
         "preview": "Review changes",
-        "revalidate": "Check against the current tree",
+        "revalidate": "Recheck",
         "noChanges": "This proposal does not change the tree.",
-        "apply": "Confirm and apply changes"
+        "apply": "Apply"
       },
       treeImport: {
         action: 'Import', checking: 'Recognizing the file…', disconnected: 'The file contains disconnected family trees. Import them separately.',
@@ -536,14 +535,13 @@ export const resources = {
         "invalid": "Проверьте сообщение и попробуйте снова."
       },
       treeMerge: {
-        "graphLegend": "Существующие персоны приглушены, новые показаны обычным цветом.",
         "treeConflict": "Дерево изменилось. Проверьте обновлённое предложение и подтвердите его заново.",
         "placeholder": "Опишите родственников или задайте вопрос о дереве…",
-        "cancel": "Отказаться от черновика",
+        "cancel": "Отказаться",
         "preview": "Предпросмотр изменений",
-        "revalidate": "Проверить по актуальному дереву",
+        "revalidate": "Проверить",
         "noChanges": "Это предложение не изменяет дерево.",
-        "apply": "Подтвердить и применить изменения"
+        "apply": "Применить"
       },
       treeImport: {
         action: 'Импорт', checking: 'Распознаём файл…', disconnected: 'В файле несколько несвязанных деревьев. Импортируйте их отдельно.',

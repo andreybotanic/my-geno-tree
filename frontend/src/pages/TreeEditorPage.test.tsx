@@ -273,7 +273,7 @@ describe(
           expect(screen.queryByLabelText('Match in this tree')).not.toBeInTheDocument()
           expect(screen.queryByRole('textbox', { name: 'Given name' })).not.toBeInTheDocument()
           expect(screen.queryByRole('checkbox', { name: /reviewed proposal/ })).not.toBeInTheDocument()
-          expect(screen.getByRole('button', { name: 'Confirm and apply changes' })).toBeEnabled()
+          expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
           fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
           await waitFor(() => expect(screen.queryByText('Boris')).not.toBeInTheDocument())
           if (!empty) expect(screen.getByText('Anna').closest('article')).not.toHaveClass('person-card-muted')

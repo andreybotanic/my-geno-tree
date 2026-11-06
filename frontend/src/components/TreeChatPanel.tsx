@@ -18,6 +18,8 @@ type Props = {
 }
 
 function pendingMerge(conversation: ChatConversation): TreeMergePendingProposal | null {
+  // An agent can replace its proposal several times within the same turn.
+  if (conversation.status === 'processing') return null
   return (conversation.tools.merge as TreeMergePendingProposal | undefined) ?? null
 }
 
@@ -91,12 +93,11 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
           const pending = pendingRefresh.current
           void (pending ? acceptApplied(pending.id, pending.result) : onRefreshTree?.())?.then(() => setError(null)).catch(() => setError('chat.loadFailed'))
         }}>{t('chat.reload')}</button></div>}
-        {proposal && <button type="button" className="chat-reset" disabled={busy || chatBusy}
-          onClick={() => void action(conversation, proposal, 'discard', update)}>{t('treeMerge.cancel')}</button>}
         {proposal && previewContainer !== null && createPortal(
           <TreeMergePreview key={`${proposal.id}:${proposal.version}`}
             proposal={proposal} busy={busy || chatBusy}
             onApply={() => action(conversation, proposal, 'apply', update)}
+            onDiscard={() => action(conversation, proposal, 'discard', update)}
             onRevalidate={() => action(conversation, proposal, 'revalidate', update)} />,
           previewContainer ?? document.body
         )}

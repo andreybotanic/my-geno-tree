@@ -96,6 +96,49 @@ describe(
     )
 
     it(
+      'keeps acknowledged input cleared when HTTP delivery fails during a streamed turn',
+      async () => {
+        let fail!: () => void
+        let requestId = ''
+        setup(
+          async (path, init) => {
+            if (path.endsWith('/messages')) {
+              requestId = (JSON.parse(init!.body as string) as { requestId: string }).requestId
+              return new Promise<ChatConversation>((_resolve, reject) => { fail = () => reject(new Error('connection interrupted')) })
+            }
+            if (path === '/chats/chat') throw new Error('state temporarily unavailable')
+            return { conversation }
+          }
+        )
+        const input = await screen.findByRole('textbox', { name: 'Message' })
+        await waitFor(() => expect(input).toBeEnabled())
+        fireEvent.change(input, { target: { value: 'Hello' } })
+        fireEvent.submit(input.closest('form')!)
+        expect(input).toHaveValue('')
+        await waitFor(() => expect(fail).toBeDefined())
+        const running = { ...sent, status: 'processing' as const, messages: [{ ...user, requestId, content: 'Hello' }] }
+        act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](running))
+        await act(async () => fail())
+        expect(input).toHaveValue('')
+        expect(screen.getByRole('button', { name: 'Stop response' })).toBeEnabled()
+        const finished = {
+          ...running,
+          version: 4,
+          status: 'idle' as const,
+          messages: [
+            ...running.messages,
+            { id: 'answer', requestId, role: 'assistant' as const, content: 'Done.', createdAt: 'now' },
+          ],
+        }
+        act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](finished))
+        expect(input).toHaveValue('')
+        expect(input).toBeEnabled()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Stop response' })).not.toBeInTheDocument()
+      }
+    )
+
+    it(
       'stops processing, aborts the browser request and ignores its late answer',
       async () => {
         let finish!: (value: ChatConversation) => void

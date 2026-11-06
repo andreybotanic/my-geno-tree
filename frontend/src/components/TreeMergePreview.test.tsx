@@ -17,9 +17,10 @@ const proposal: TreeMergeProposal = {
 const draft: TreeMergePendingProposal = { id: 'proposal', treeId: 'tree', version: 1, state: 'ready', treeEtag: 'etag', proposal }
 function setup(value = draft, busy = false) {
   const onApply = vi.fn(async () => {})
+  const onDiscard = vi.fn(async () => {})
   const onRevalidate = vi.fn(async () => {})
-  render(<TreeMergePreview proposal={value} busy={busy} onApply={onApply} onRevalidate={onRevalidate} />)
-  return { onApply, onRevalidate }
+  render(<TreeMergePreview proposal={value} busy={busy} onApply={onApply} onDiscard={onDiscard} onRevalidate={onRevalidate} />)
+  return { onApply, onDiscard, onRevalidate }
 }
 
 describe(
@@ -36,7 +37,7 @@ describe(
         expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
         expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
         expect(screen.queryByText('<b>Ирина</b>')).not.toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
         expect(onApply).toHaveBeenCalledOnce()
       }
     )
@@ -48,7 +49,7 @@ describe(
         'does not apply an unchecked proposal in the %s state',
         (state) => {
           const { onApply } = setup({ ...draft, state })
-          const apply = screen.getByRole('button', { name: 'Confirm and apply changes' })
+          const apply = screen.getByRole('button', { name: 'Apply' })
           expect(apply).toBeDisabled()
           fireEvent.click(apply)
           expect(onApply).not.toHaveBeenCalled()
@@ -56,13 +57,31 @@ describe(
       )
 
     it(
-      'disables both actions while a request is running',
+      'disables all actions while a request is running',
       () => {
-        const { onApply, onRevalidate } = setup({ ...draft, state: 'conflict' }, true)
-        fireEvent.click(screen.getByRole('button', { name: 'Confirm and apply changes' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Check against the current tree' }))
+        const { onApply, onDiscard, onRevalidate } = setup({ ...draft, state: 'conflict' }, true)
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Recheck' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
         expect(onApply).not.toHaveBeenCalled()
+        expect(onDiscard).not.toHaveBeenCalled()
         expect(onRevalidate).not.toHaveBeenCalled()
+      }
+    )
+
+    it(
+      'keeps discard alongside apply, including proposals that cannot be applied',
+      () => {
+        const { onDiscard, onApply } = setup({ ...draft, state: 'questions' })
+        const preview = screen.getByRole('region', { name: 'Review changes' })
+        const apply = screen.getByRole('button', { name: 'Apply' })
+        const discard = screen.getByRole('button', { name: 'Discard' })
+        expect(preview).toContainElement(apply)
+        expect(discard.parentElement).toBe(apply.parentElement)
+        expect(apply).toBeDisabled()
+        fireEvent.click(discard)
+        expect(onDiscard).toHaveBeenCalledOnce()
+        expect(onApply).not.toHaveBeenCalled()
       }
     )
 
@@ -78,7 +97,7 @@ describe(
       'revalidates conflicts without applying them',
       () => {
         const { onRevalidate, onApply } = setup({ ...draft, state: 'conflict' })
-        fireEvent.click(screen.getByRole('button', { name: 'Check against the current tree' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Recheck' }))
         expect(onRevalidate).toHaveBeenCalledOnce()
         expect(onApply).not.toHaveBeenCalled()
       }
@@ -89,7 +108,9 @@ describe(
       async () => {
         await i18n.changeLanguage('ru')
         setup()
-        expect(screen.getByRole('button', { name: 'Подтвердить и применить изменения' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Применить' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Отказаться' })).toBeEnabled()
+        expect(screen.queryByText('Существующие персоны приглушены, новые показаны обычным цветом.')).not.toBeInTheDocument()
       }
     )
   }

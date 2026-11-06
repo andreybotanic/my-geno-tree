@@ -37,7 +37,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const activeRequest = useRef<{ chatId: string; requestId: string; controller: AbortController } | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
-  const pending = useRef<{ requestId: string; content: string } | null>(null)
+  const pending = useRef<{ requestId: string; content: string; accepted: boolean } | null>(null)
   const base = contextPath
   const thinking = thinkingSince !== null || conversation?.status === 'processing'
   const stream = useChatEvents(
@@ -82,6 +82,27 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       onConversationChange?.(conversation)
     },
     [conversation, onConversationChange]
+  )
+
+  useEffect(
+    () => {
+      const message = pending.current
+      if (!message || !conversation) return
+      if (conversation.messages.some((item) => item.role === 'user' && item.requestId === message.requestId)) {
+        message.accepted = true
+        setContent((value) => value === message.content ? '' : value)
+      }
+      if (conversation.status === 'processing'
+        || !conversation.messages.some((item) => item.role !== 'user' && item.requestId === message.requestId)) return
+      // SSE can finish the turn before its HTTP response. Ignore that response's later completion.
+      ++generation.current
+      activeRequest.current = null
+      pending.current = null
+      setBusy(false)
+      setThinkingSince(null)
+      setError(null)
+    },
+    [conversation]
   )
 
   useLayoutEffect(
@@ -172,8 +193,9 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     if (busy || disabled || voiceBusy || thinking || stopping || !content.trim()) return
     setBusy(true)
     setError(null)
-    if (pending.current?.content !== content) pending.current = { requestId: crypto.randomUUID(), content }
+    if (pending.current?.content !== content) pending.current = { requestId: crypto.randomUUID(), content, accepted: false }
     const message = pending.current
+    setContent('')
     const turn = ++generation.current
     const controller = new AbortController()
     let current = conversation
@@ -184,7 +206,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       const next = await request<ChatConversation>(
         '/chats/' + current.id + '/messages',
         {
-          method: 'POST', body: JSON.stringify({ version: current.version, ...message }), signal: controller.signal,
+          method: 'POST', body: JSON.stringify({ version: current.version, requestId: message.requestId, content: message.content }), signal: controller.signal,
         }
       )
       if (turn !== generation.current) return
@@ -200,12 +222,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
           if (turn === generation.current) {
             setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
             if (next.messages.some((item) => item.role === 'user' && item.requestId === message.requestId)) {
-              setContent('')
-              pending.current = null
+              message.accepted = true
             }
           }
-        } catch { /* Keep unsaved input and its retry identifier. */ }
+        } catch { /* Retain the retry identifier when delivery is unconfirmed. */ }
       }
+      if (turn === generation.current && !message.accepted) setContent(message.content)
     } finally {
       if (turn === generation.current) { setBusy(false); setThinkingSince(null); activeRequest.current = null }
     }
