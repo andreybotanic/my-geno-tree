@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { OAuthAuthorizationView, OAuthDecisionResponse } from '../api/generated'
+import { ApiRequestError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
 export function OAuthAuthorizePage() {
@@ -26,6 +27,11 @@ function OAuthConsent() {
     gcTime: 0,
     refetchOnWindowFocus: false,
   })
+  const invalidRequest = authorization.error instanceof ApiRequestError
+    && authorization.error.status >= 400
+    && authorization.error.status < 500
+    && authorization.error.status !== 408
+    && authorization.error.status !== 429
 
   const decide = async (approved: boolean) => {
     if (!authorization.data || saving) return
@@ -43,17 +49,17 @@ function OAuthConsent() {
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page oauth-page">
       <section className="auth-page-card oauth-consent" aria-busy={authorization.isFetching || saving}>
         <p className="eyebrow">MyGenoTree</p>
         <h1>{t('oauth.title')}</h1>
         {authorization.isPending && <p role="status">{t('common.loading')}</p>}
-        {authorization.isError && <p role="alert">{t('oauth.invalid')}</p>}
-        {authorization.data && <>
+        {authorization.isError && <p className="inline-error" role="alert">{t(invalidRequest ? 'oauth.invalid' : 'oauth.unavailable')}</p>}
+        {authorization.data && !authorization.isError && <>
           <p>{t('oauth.request', { name: authorization.data.clientName })}</p>
           <p>{t('oauth.access')}</p>
           <p>{t('oauth.approvals')}</p>
-          <p>{t('oauth.redirect')} <bdi>{authorization.data.redirectUri}</bdi></p>
+          <p>{t('oauth.redirect')} <bdi className="oauth-redirect-uri">{authorization.data.redirectUri}</bdi></p>
           {decisionFailed && <p role="alert">{t('oauth.failed')}</p>}
           {saving && <p role="status">{t('oauth.redirecting')}</p>}
           <div className="form-actions">
@@ -61,7 +67,7 @@ function OAuthConsent() {
             <button className="secondary-button" disabled={saving || decisionFailed || authorization.isFetching} onClick={() => { void decide(false) }}>{t('oauth.deny')}</button>
           </div>
         </>}
-        {(authorization.isError || decisionFailed) && <button className="secondary-button" onClick={() => { setDecisionFailed(false); void authorization.refetch() }}>{t('oauth.retry')}</button>}
+        {((authorization.isError && !invalidRequest) || decisionFailed) && <button className="secondary-button" disabled={authorization.isFetching} onClick={() => { setDecisionFailed(false); void authorization.refetch() }}>{t('oauth.retry')}</button>}
       </section>
     </main>
   )

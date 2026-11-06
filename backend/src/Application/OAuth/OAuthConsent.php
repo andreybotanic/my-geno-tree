@@ -33,7 +33,8 @@ final readonly class OAuthConsent
      */
     public function requestConsent(array $parameters, AuthSession $session): array
     {
-        if (($parameters['resource'] ?? null) !== $this->metadata->resource()
+        // RFC 8707 permits a default resource. This server authorizes only its MCP endpoint.
+        if ((array_key_exists('resource', $parameters) && $parameters['resource'] !== $this->metadata->resource())
             || 'S256' !== ($parameters['code_challenge_method'] ?? null)
             || !is_string($parameters['client_id'] ?? null)
             || !is_string($parameters['redirect_uri'] ?? null)

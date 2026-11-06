@@ -10,7 +10,10 @@ export type OAuthAuthorizationParameters = {
     redirect_uri: string;
     code_challenge: string;
     code_challenge_method: 'S256';
-    resource: string;
+    /**
+     * Defaults to the canonical MCP endpoint when omitted. Other resources are rejected.
+     */
+    resource?: string;
     state?: string;
     scope?: 'mcp';
 };
@@ -1032,7 +1035,10 @@ export type DecideOAuthAuthorizationRequestResponse = DecideOAuthAuthorizationRe
 export type ExchangeOAuthTokenData = {
     body: {
         grant_type: 'authorization_code' | 'refresh_token';
-        resource: string;
+        /**
+         * Defaults to the canonical MCP endpoint when omitted. Other resources are rejected.
+         */
+        resource?: string;
         client_id?: string;
         client_secret?: string;
         code?: string;

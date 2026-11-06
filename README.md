@@ -102,6 +102,23 @@ that client, including its tokens and outstanding codes. MCP credentials do not
 authorize ordinary site APIs. Legacy MCP sessions are bound to user and client;
 current stateless MCP requests authenticate independently.
 
+The OAuth server has one resource: the canonical MCP endpoint. Clients such as
+Codex CLI 0.132 that omit the optional RFC 8707 `resource` parameter use that
+endpoint by default, including code exchange and refresh. An explicitly supplied
+different resource is rejected, and every access token retains the MCP audience.
+For a local Windows Codex host, connect from PowerShell:
+
+~~~powershell
+codex mcp add mygenotree --url https://my-geno-tree.localhost/api/v1/mcp
+codex mcp login mygenotree --scopes mcp
+~~~
+
+Start authorization in the agent rather than opening `/oauth/authorize` directly:
+the page requires the client's authorization parameters, including the redirect
+URI and PKCE challenge. Invalid requests must be restarted in the agent.
+Network/server failures can be retried
+on the consent page; a failed decision requires reviewing fresh consent.
+
 The external tools are find_trees(query), get_tree_context(treeId,
 referencePersonId?), find_people(treeId, query), get_person_context(treeId,
 personId) and merge(treeId, ifMatch, proposal, sources). Tree discovery accepts
@@ -407,3 +424,19 @@ entity constructor as service injection. Symfony debug:container explicitly mark
 TreeLayout as container.excluded because it is a Doctrine entity, with no service
 usages; SaveTreeLayoutService constructs the entity directly. These warnings are
 plugin false positives and require no application change.
+
+OAuth consent fix validation (2026-11-06): the complete 236-test backend and
+399-test frontend suites pass, with line coverage of 93.05% and 90.21%.
+Quality checks, OpenAPI generation checks, production build, schema validation,
+and all 25 migrations on a fresh disposable database pass. PhpStorm WARNING
+inspections are clean for all three changed PHP files. The existing nine PHPUnit
+notices and Vite bundle-size advisory remain.
+
+Manual local HTTPS checks covered a real Codex CLI 0.132 login without `resource`,
+site sign-in preserving the authorization URL, approval in an empty test account,
+successful CLI token exchange, denial returning `access_denied`, and opening the
+page without authorization parameters. The consent layout was checked at the
+normal viewport and at 375 px: headings wrap between words and callback URLs stay
+inside the card. Temporary CLI credentials and OAuth clients were removed after
+testing. API regression tests also check refresh without `resource`, the exact MCP
+audience, rejected foreign resources, and denial of ordinary REST access.

@@ -35,7 +35,8 @@ final readonly class OAuthConnections
     public function issueTokens(Request $request): HttpResponse
     {
         $parameters = $request->request->all();
-        if (($parameters['resource'] ?? null) !== $this->metadata->resource()) {
+        // Legacy clients may omit resource; ResourceAccessToken always restricts the audience to MCP.
+        if (array_key_exists('resource', $parameters) && $parameters['resource'] !== $this->metadata->resource()) {
             throw OAuthServerException::invalidRequest('resource');
         }
         $id = $parameters['client_id'] ?? urldecode($request->getUser() ?? '');

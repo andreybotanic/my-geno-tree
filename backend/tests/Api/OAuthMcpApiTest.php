@@ -6,6 +6,9 @@ use App\Application\OAuth\OAuthMetadata;
 use App\Entity\User;
 use App\Repository\FamilyTreeRepository;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
+use Lcobucci\JWT\Encoding\JoseEncoder;
+use Lcobucci\JWT\Token\Parser;
+use Lcobucci\JWT\UnencryptedToken;
 use Symfony\Component\Uid\Uuid;
 
 final class OAuthMcpApiTest extends ApiWebTestCase
@@ -128,6 +131,59 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testLegacyClientCanAuthorizeExchangeAndRefreshWithoutResource(): void
+    {
+        $parameters = $this->parameters();
+        unset($parameters['resource']);
+        $this->jsonRequest('POST', '/api/v1/oauth/authorization-requests', $parameters, $this->headers());
+        self::assertResponseStatusCodeSame(201);
+        $id = $this->responseString('id');
+        $this->jsonRequest(
+            'POST',
+            '/api/v1/oauth/authorization-requests/' . $id . '/decision',
+            ['approved' => true],
+            $this->headers(),
+        );
+        self::assertResponseIsSuccessful();
+        parse_str((string)parse_url($this->responseString('redirectUrl'), PHP_URL_QUERY), $query);
+        self::assertIsString($query['code'] ?? null);
+
+        foreach (['authorization_code', 'refresh_token'] as $grant) {
+            $payload = [
+                'client_id'  => $this->clientId,
+                'grant_type' => $grant,
+                ...('authorization_code' === $grant ? [
+                    'code'          => $query['code'],
+                    'code_verifier' => self::VERIFIER,
+                    'redirect_uri'  => $parameters['redirect_uri'],
+                ] : ['refresh_token' => $this->refreshToken]),
+            ];
+            $this->token([...$payload, 'resource' => 'https://attacker.test/mcp']);
+            self::assertResponseStatusCodeSame(400);
+            $this->client->request(
+                'POST',
+                'https://localhost/api/v1/oauth/token',
+                $payload,
+                server: ['HTTPS' => 'on', 'CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+            );
+            self::assertResponseIsSuccessful();
+            $accessToken = $this->responseString('access_token');
+            if ('' === $accessToken) {
+                self::fail('Expected a non-empty access token.');
+            }
+            $this->accessToken = $accessToken;
+            $this->refreshToken = $this->responseString('refresh_token');
+            $token = new Parser(new JoseEncoder())->parse($accessToken);
+            self::assertInstanceOf(UnencryptedToken::class, $token);
+            self::assertSame([$this->resource()], $token->claims()->get('aud'));
+            self::assertSame($this->issuer(), $token->claims()->get('iss'));
+            $this->mcp('tools/list');
+            self::assertResponseIsSuccessful();
+            $this->jsonRequest('GET', '/api/v1/me', [], ['Authorization' => 'Bearer ' . $this->accessToken]);
+            self::assertResponseStatusCodeSame(401);
+        }
+    }
+
     public function testBrowserPreflightAndLegacySessionsAreBoundToTheOAuthClient(): void
     {
         foreach (['/api/v1/mcp', '/api/v1/oauth/token', '/.well-known/oauth-authorization-server'] as $path) {
@@ -193,6 +249,9 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         foreach ([
             ['redirect_uri' => 'https://attacker.test/callback'],
             ['resource'              => 'https://attacker.test/mcp'],
+            ['resource'              => null],
+            ['resource'              => ''],
+            ['resource'              => ['https://attacker.test/mcp']],
             ['code_challenge_method' => 'plain'],
             ['code_challenge'        => 'short'],
             ['scope'                 => 'admin'],

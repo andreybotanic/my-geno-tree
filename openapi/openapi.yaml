@@ -120,10 +120,13 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               type: object
-              required: [grant_type, resource]
+              required: [grant_type]
               properties:
                 grant_type: { type: string, enum: [authorization_code, refresh_token] }
-                resource: { type: string, format: uri }
+                resource:
+                  type: string
+                  format: uri
+                  description: Defaults to the canonical MCP endpoint when omitted. Other resources are rejected.
                 client_id: { type: string }
                 client_secret: { type: string }
                 code: { type: string }
@@ -1994,14 +1997,17 @@ components:
   schemas:
     OAuthAuthorizationParameters:
       type: object
-      required: [response_type, client_id, redirect_uri, code_challenge, code_challenge_method, resource]
+      required: [response_type, client_id, redirect_uri, code_challenge, code_challenge_method]
       properties:
         response_type: { type: string, enum: [code] }
         client_id: { type: string }
         redirect_uri: { type: string, format: uri }
         code_challenge: { type: string, minLength: 43, maxLength: 43 }
         code_challenge_method: { type: string, enum: [S256] }
-        resource: { type: string, format: uri }
+        resource:
+          type: string
+          format: uri
+          description: Defaults to the canonical MCP endpoint when omitted. Other resources are rejected.
         state: { type: string }
         scope: { type: string, enum: [mcp] }
     OAuthAuthorizationView:

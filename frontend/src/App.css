@@ -3636,4 +3636,34 @@ select:not([multiple]) {
 .tree-merge-graph-review { position: absolute; bottom: 16px; left: 16px; width: min(650px, calc(100% - 280px)); min-height: 0; overflow: visible; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px var(--color-shadow); pointer-events: auto; }
 .tree-merge-graph-review .tree-merge-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0; }
 .merge-preview-person { cursor: default; }
-.oauth-consent { overflow-wrap: anywhere; }
+.oauth-page {
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 760px;
+}
+
+.oauth-consent {
+  min-width: 0;
+}
+
+.oauth-consent h1 {
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  line-height: 1.15;
+}
+
+.oauth-consent > p:not(.eyebrow) {
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+.oauth-redirect-uri {
+  color: var(--color-text-muted);
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.oauth-consent .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
