@@ -63,6 +63,8 @@ services:
 
   database:
     image: postgres:18.4-alpine
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: mygenotree
       POSTGRES_USER: mygenotree

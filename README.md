@@ -80,6 +80,10 @@ docker compose exec backend php bin/console doctrine:migrations:migrate --no-int
 
 Open <https://localhost>.
 
+PostgreSQL is available to host tools at `127.0.0.1:5433`. The database,
+username are `mygenotree`. The published port is bound only
+to the host's loopback address.
+
 ### Map services
 
 Create `backend/.env.local` and keep the Yandex credentials on the backend:
