@@ -25,13 +25,15 @@ type KnownTextInputProps = {
   state: TextInputState
 }
 
-function KnownTextInput({
-  autoFocus = false,
-  children,
-  label,
-  onChange,
-  state,
-}: KnownTextInputProps) {
+function KnownTextInput(
+  {
+    autoFocus = false,
+    children,
+    label,
+    onChange,
+    state,
+  }: KnownTextInputProps
+) {
   const { t } = useTranslation()
 
   return (
@@ -43,18 +45,22 @@ function KnownTextInput({
           autoFocus={autoFocus && !state.unknown}
           disabled={state.unknown}
           maxLength={101}
-          onChange={(event) => onChange({
-            ...state,
-            value: event.target.value,
-          })}
+          onChange={(event) => onChange(
+            {
+              ...state,
+              value: event.target.value,
+            }
+          )}
           value={state.value}
         />
         <UnknownToggleButton
           active={state.unknown}
-          onChange={(unknown) => onChange({
-            unknown,
-            value: unknown ? '' : state.value,
-          })}
+          onChange={(unknown) => onChange(
+            {
+              unknown,
+              value: unknown ? '' : state.value,
+            }
+          )}
           tabIndex={-1}
           title={t('person.unknown')}
         />
@@ -73,27 +79,35 @@ type StructuredDateInputProps = {
   unknownToggleTabIndex?: number | undefined
 }
 
-export function StructuredDateInput({
-  autoFocus = false,
-  grouped = true,
-  label,
-  onChange,
-  state,
-  unknownToggleTabIndex,
-}: StructuredDateInputProps) {
+export function StructuredDateInput(
+  {
+    autoFocus = false,
+    grouped = true,
+    label,
+    onChange,
+    state,
+    unknownToggleTabIndex,
+  }: StructuredDateInputProps
+) {
   const { i18n, t } = useTranslation()
-  const monthFormatter = new Intl.DateTimeFormat(i18n.language, {
-    month: 'long',
-    timeZone: 'UTC',
-  })
-  const months = Array.from({ length: 12 }, (_, index) => {
-    const month = monthFormatter.format(new Date(Date.UTC(2000, index, 1)))
-
-    return {
-      label: month.charAt(0).toLocaleUpperCase(i18n.language) + month.slice(1),
-      value: String(index + 1),
+  const monthFormatter = new Intl.DateTimeFormat(
+    i18n.language,
+    {
+      month: 'long',
+      timeZone: 'UTC',
     }
-  })
+  )
+  const months = Array.from(
+    { length: 12 },
+    (_, index) => {
+      const month = monthFormatter.format(new Date(Date.UTC(2000, index, 1)))
+
+      return {
+        label: month.charAt(0).toLocaleUpperCase(i18n.language) + month.slice(1),
+        value: String(index + 1),
+      }
+    }
+  )
 
   const dateParts = (prefix: '' | 'end', rowLabel: string) => {
     const yearKey = prefix ? 'endYear' : 'year'
@@ -121,11 +135,13 @@ export function StructuredDateInput({
             inputMode="numeric"
             max="9999"
             min="1582"
-            onChange={(event) => onChange({
-              ...state,
-              [dayKey]: retainedDay(event.target.value, state[monthKey]),
-              [yearKey]: event.target.value,
-            })}
+            onChange={(event) => onChange(
+              {
+                ...state,
+                [dayKey]: retainedDay(event.target.value, state[monthKey]),
+                [yearKey]: event.target.value,
+              }
+            )}
             type="number"
             value={state[yearKey]}
           />
@@ -135,13 +151,15 @@ export function StructuredDateInput({
           <select
             aria-label={`${rowLabel}: ${t('person.month')}`}
             disabled={state.unknown}
-            onChange={(event) => onChange({
-              ...state,
-              [dayKey]: event.target.value === ''
-                ? ''
-                : retainedDay(state[yearKey], event.target.value),
-              [monthKey]: event.target.value,
-            })}
+            onChange={(event) => onChange(
+              {
+                ...state,
+                [dayKey]: event.target.value === ''
+                  ? ''
+                  : retainedDay(state[yearKey], event.target.value),
+                [monthKey]: event.target.value,
+              }
+            )}
             value={state[monthKey]}
           >
             <option value="" />
@@ -185,13 +203,15 @@ export function StructuredDateInput({
           <select
             aria-label={`${label}: ${t('person.dateKind')}`}
             disabled={state.unknown}
-            onChange={(event) => onChange({
-              ...state,
-              endDay: event.target.value === 'between' && state.endDay === '' ? state.day : state.endDay,
-              endMonth: event.target.value === 'between' && state.endMonth === '' ? state.month : state.endMonth,
-              endYear: event.target.value === 'between' && state.endYear === '' ? state.year : state.endYear,
-              kind: event.target.value as DateInputState['kind'],
-            })}
+            onChange={(event) => onChange(
+              {
+                ...state,
+                endDay: event.target.value === 'between' && state.endDay === '' ? state.day : state.endDay,
+                endMonth: event.target.value === 'between' && state.endMonth === '' ? state.month : state.endMonth,
+                endYear: event.target.value === 'between' && state.endYear === '' ? state.year : state.endYear,
+                kind: event.target.value as DateInputState['kind'],
+              }
+            )}
             value={state.kind}
           >
             <option value="exact">{t('person.dateKindExact')}</option>
@@ -279,16 +299,18 @@ export type SurnameSuggestions = {
   ) => Promise<string>
 }
 
-export function PersonFormFields({
-  autoFocus = false,
-  fixedGender = false,
-  showPlaces = true,
-  showLifeStatus = true,
-  onChange,
-  patronymicSuggestion,
-  surnameSuggestions,
-  state,
-}: PersonFormFieldsProps) {
+export function PersonFormFields(
+  {
+    autoFocus = false,
+    fixedGender = false,
+    showPlaces = true,
+    showLifeStatus = true,
+    onChange,
+    patronymicSuggestion,
+    surnameSuggestions,
+    state,
+  }: PersonFormFieldsProps
+) {
   const { i18n, t } = useTranslation()
   const [placeEditing, setPlaceEditing] = useState<'birth' | 'death' | null>(
     null,
@@ -300,7 +322,9 @@ export function PersonFormFields({
   const [suggestedSurnames, setSuggestedSurnames] = useState<Partial<Record<
     'father' | 'mother',
     string
-  >>>({})
+  >>>(
+    {}
+  )
   const fatherGivenName = patronymicSuggestion?.fatherGivenName
   const determinePatronymic = patronymicSuggestion?.onDetermine
   const fatherSurname = surnameSuggestions?.father?.surname
@@ -312,79 +336,101 @@ export function PersonFormFields({
     ? state.birthPlace
     : state.deathPlace
 
-  useEffect(() => {
-    setSuggestedPatronymic(null)
-    setPatronymicError('')
-    if (
-      i18n.resolvedLanguage !== 'ru'
-      || !fatherGivenName
-      || state.gender === 'unknown'
-      || !determinePatronymic
-    ) {
-      return
-    }
-
-    let cancelled = false
-    void determinePatronymic(fatherGivenName, state.gender).then((patronymic) => {
-      if (!cancelled) {
-        setSuggestedPatronymic(patronymic)
+  useEffect(
+    () => {
+      setSuggestedPatronymic(null)
+      setPatronymicError('')
+      if (
+        i18n.resolvedLanguage !== 'ru'
+        || !fatherGivenName
+        || state.gender === 'unknown'
+        || !determinePatronymic
+      ) {
+        return
       }
-    }).catch(() => {
-      if (!cancelled) {
-        setPatronymicError(t('person.patronymicDeterminationFailed'))
+
+      let cancelled = false
+      void determinePatronymic(fatherGivenName, state.gender)
+        .then(
+          (patronymic) => {
+            if (!cancelled) {
+              setSuggestedPatronymic(patronymic)
+            }
+          }
+        )
+        .catch(
+          () => {
+            if (!cancelled) {
+              setPatronymicError(t('person.patronymicDeterminationFailed'))
+            }
+          }
+        )
+
+      return () => {
+        cancelled = true
       }
-    })
+    },
+    [determinePatronymic, fatherGivenName, i18n.resolvedLanguage, state.gender, t]
+  )
 
-    return () => {
-      cancelled = true
-    }
-  }, [determinePatronymic, fatherGivenName, i18n.resolvedLanguage, state.gender, t])
-
-  useEffect(() => {
-    setSuggestedSurnames({})
-    const childGender = state.gender
-    if (
-      childGender === 'unknown'
-      || !localizeSurname
-    ) {
-      return
-    }
-
-    const sources = [
-      fatherSurname && fatherSurnameGender
-        ? { gender: fatherSurnameGender, role: 'father' as const, surname: fatherSurname }
-        : null,
-      motherSurname && motherSurnameGender
-        ? { gender: motherSurnameGender, role: 'mother' as const, surname: motherSurname }
-        : null,
-    ].filter((source): source is SurnameSuggestionSource & {
-      role: 'father' | 'mother'
-    } => source !== null)
-    if (sources.length === 0) {
-      return
-    }
-
-    let cancelled = false
-    void Promise.all(sources.map(async (source) => [
-      source.role,
-      await localizeSurname(source.surname, source.gender, childGender),
-    ] as const)).then((localized) => {
-      if (!cancelled) {
-        setSuggestedSurnames(Object.fromEntries(localized))
+  useEffect(
+    () => {
+      setSuggestedSurnames({})
+      const childGender = state.gender
+      if (
+        childGender === 'unknown'
+        || !localizeSurname
+      ) {
+        return
       }
-    })
 
-    return () => {
-      cancelled = true
-    }
-  }, [
-    fatherSurname,
-    fatherSurnameGender,
-    localizeSurname,
-    motherSurname,
-    motherSurnameGender,
-    state.gender,
-  ])
+      const sources = [
+        fatherSurname && fatherSurnameGender
+          ? { gender: fatherSurnameGender, role: 'father' as const, surname: fatherSurname }
+          : null,
+        motherSurname && motherSurnameGender
+          ? { gender: motherSurnameGender, role: 'mother' as const, surname: motherSurname }
+          : null,
+      ].filter(
+        (source): source is SurnameSuggestionSource & {
+          role: 'father' | 'mother'
+        } => source !== null
+      )
+      if (sources.length === 0) {
+        return
+      }
+
+      let cancelled = false
+      void Promise
+        .all(
+          sources.map(
+            async (source) => [
+              source.role,
+              await localizeSurname(source.surname, source.gender, childGender),
+            ] as const
+          )
+        )
+        .then(
+          (localized) => {
+            if (!cancelled) {
+              setSuggestedSurnames(Object.fromEntries(localized))
+            }
+          }
+        )
+
+      return () => {
+        cancelled = true
+      }
+    },
+    [
+      fatherSurname,
+      fatherSurnameGender,
+      localizeSurname,
+      motherSurname,
+      motherSurnameGender,
+      state.gender,
+    ]
+  )
 
   return (
     <>
@@ -392,10 +438,12 @@ export function PersonFormFields({
         <span>{t('person.gender')}</span>
         <select
           disabled={fixedGender}
-          onChange={(event) => onChange({
-            ...state,
-            gender: event.target.value as PersonInput['gender'],
-          })}
+          onChange={(event) => onChange(
+            {
+              ...state,
+              gender: event.target.value as PersonInput['gender'],
+            }
+          )}
           value={state.gender}
         >
           <option value="unknown">{t('person.unknown')}</option>
@@ -417,10 +465,12 @@ export function PersonFormFields({
                   {suggestedSurnames.father && (
                     <button
                       className="link-button surname-adoption-button"
-                      onClick={() => onChange({
-                        ...state,
-                        birthSurname: { unknown: false, value: suggestedSurnames.father! },
-                      })}
+                      onClick={() => onChange(
+                        {
+                          ...state,
+                          birthSurname: { unknown: false, value: suggestedSurnames.father! },
+                        }
+                      )}
                       type="button"
                     >
                       {suggestedSurnames.father}
@@ -432,10 +482,12 @@ export function PersonFormFields({
                   {suggestedSurnames.mother && (
                     <button
                       className="link-button surname-adoption-button"
-                      onClick={() => onChange({
-                        ...state,
-                        birthSurname: { unknown: false, value: suggestedSurnames.mother! },
-                      })}
+                      onClick={() => onChange(
+                        {
+                          ...state,
+                          birthSurname: { unknown: false, value: suggestedSurnames.mother! },
+                        }
+                      )}
                       type="button"
                     >
                       {suggestedSurnames.mother}
@@ -462,10 +514,12 @@ export function PersonFormFields({
                 <button
                   className="link-button surname-adoption-button"
                   onClick={() => {
-                    onChange({
-                      ...state,
-                      patronymic: { unknown: false, value: suggestedPatronymic },
-                    })
+                    onChange(
+                      {
+                        ...state,
+                        patronymic: { unknown: false, value: suggestedPatronymic },
+                      }
+                    )
                   }}
                   type="button"
                 >
@@ -499,11 +553,13 @@ export function PersonFormFields({
         >
           <input
             checked={state.deceased}
-            onChange={(event) => onChange({
-              ...state,
-              deceased: event.target.checked,
-              deathPlace: event.target.checked ? state.deathPlace : null,
-            })}
+            onChange={(event) => onChange(
+              {
+                ...state,
+                deceased: event.target.checked,
+                deathPlace: event.target.checked ? state.deathPlace : null,
+              }
+            )}
             type="checkbox"
           />
           <span>{t('person.deceased')}</span>
@@ -528,18 +584,22 @@ export function PersonFormFields({
           onCancel={() => setPlaceEditing(null)}
           {...(editingPlace ? {
             onDelete: () => {
-              onChange({
-                ...state,
-                [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: null,
-              })
+              onChange(
+                {
+                  ...state,
+                  [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: null,
+                }
+              )
               setPlaceEditing(null)
             },
           } : {})}
           onSave={(place) => {
-            onChange({
-              ...state,
-              [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: place,
-            })
+            onChange(
+              {
+                ...state,
+                [placeEditing === 'birth' ? 'birthPlace' : 'deathPlace']: place,
+              }
+            )
             setPlaceEditing(null)
           }}
           place={editingPlace}
@@ -549,17 +609,19 @@ export function PersonFormFields({
   )
 }
 
-export function PersonFormDialog({
-  beforeFields,
-  children,
-  fixedGender = false,
-  initialGender = 'unknown',
-  onCancel,
-  onSave,
-  patronymicSuggestion,
-  surnameSuggestions,
-  title,
-}: PersonFormDialogProps) {
+export function PersonFormDialog(
+  {
+    beforeFields,
+    children,
+    fixedGender = false,
+    initialGender = 'unknown',
+    onCancel,
+    onSave,
+    patronymicSuggestion,
+    surnameSuggestions,
+    title,
+  }: PersonFormDialogProps
+) {
   const { t } = useTranslation()
   const [person, setPerson] = useState(
     () => emptyPersonForm(initialGender),

@@ -13,11 +13,14 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
 
 /** The only chat adapter for pending merge proposals; tree mutations live in TreeMergeService. */
-#[AsTool(name: 'merge', description: <<<'DESCRIPTION'
+#[AsTool(
+    name: 'merge',
+    description: <<<'DESCRIPTION'
     Validate and prepare the complete tree proposal for preview and separate UI confirmation.
     Returns exact new/existing person counts and the proposal version.
     Correct rejected arguments using the returned field diagnostics.
-    DESCRIPTION)]
+    DESCRIPTION
+)]
 final readonly class TreeMergeTool
 {
     public function __construct(private ChatInterface $chat, private TreeMergeService $merge, private TreeContextService $trees)
@@ -49,8 +52,14 @@ final readonly class TreeMergeTool
                 }
             }
             $current = $conversation->tools['merge'] ?? null;
-            $pending = $this->merge->prepare($this->trees->tree($treeId, true), $proposal, $this->chat->messages($conversation),
-                $current instanceof TreeMergeProposal ? $current : null, false, ($conversation->toolVersions['merge'] ?? 0) + 1);
+            $pending = $this->merge->prepare(
+                $this->trees->tree($treeId, true),
+                $proposal,
+                $this->chat->messages($conversation),
+                $current instanceof TreeMergeProposal ? $current : null,
+                false,
+                ($conversation->toolVersions['merge'] ?? 0) + 1
+            );
             $this->chat->replaceTool($conversation, 'merge', $pending, false);
             /** @var list<array{resolution: string}> $people */
             $people = $pending->proposal['people'];

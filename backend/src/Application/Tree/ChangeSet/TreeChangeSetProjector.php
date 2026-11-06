@@ -52,8 +52,14 @@ final readonly class TreeChangeSetProjector
                     $this->conflict('CHANGE_REFERENCE_DUPLICATE');
                 }
                 $person = new Person(
-                    $tree, $data->birthSurname, $data->givenName, $data->patronymic,
-                    $data->gender, $data->birthDate, $data->deathDate, $now,
+                    $tree,
+                    $data->birthSurname,
+                    $data->givenName,
+                    $data->patronymic,
+                    $data->gender,
+                    $data->birthDate,
+                    $data->deathDate,
+                    $now,
                 );
             } else {
                 $id = $change->existingPersonId;
@@ -67,8 +73,13 @@ final readonly class TreeChangeSetProjector
                 $hasChanges = $hasChanges || $change->changes($originals[$id]);
                 $person = $people[$id];
                 $person->update(
-                    $data->birthSurname, $data->givenName, $data->patronymic,
-                    $data->gender, $data->birthDate, $data->deathDate, $now,
+                    $data->birthSurname,
+                    $data->givenName,
+                    $data->patronymic,
+                    $data->gender,
+                    $data->birthDate,
+                    $data->deathDate,
+                    $now,
                 );
             }
             $people[$change->reference] = $person;
@@ -76,8 +87,10 @@ final readonly class TreeChangeSetProjector
         $parents = $addedParents = [];
         foreach ($this->parents->findAllStructuralForTree($tree, $refresh) as $link) {
             $parents[] = new ParentLink(
-                $tree, $people[$link->getParent()->getId()->toRfc4122()],
-                $people[$link->getChild()->getId()->toRfc4122()], $link->getRole(),
+                $tree,
+                $people[$link->getParent()->getId()->toRfc4122()],
+                $people[$link->getChild()->getId()->toRfc4122()],
+                $link->getRole(),
             );
         }
         foreach ($changes->parents as $change) {
@@ -97,14 +110,18 @@ final readonly class TreeChangeSetProjector
         $marriages = $addedMarriages = [];
         foreach ($this->marriages->findAllStructuralForTree($tree, $refresh) as $marriage) {
             $marriages[] = new MarriagePeriod(
-                $tree, $people[$marriage->getMalePerson()->getId()->toRfc4122()],
+                $tree,
+                $people[$marriage->getMalePerson()->getId()->toRfc4122()],
                 $people[$marriage->getFemalePerson()->getId()->toRfc4122()],
-                $marriage->getMarriageDate(), $marriage->getDissolutionDate(), $marriage->getCreatedAt(),
+                $marriage->getMarriageDate(),
+                $marriage->getDissolutionDate(),
+                $marriage->getCreatedAt(),
             );
         }
         foreach ($changes->marriages as $change) {
             [$male, $female] = $this->invariants->marriagePeople(
-                $this->resolve($people, $change->first), $this->resolve($people, $change->second),
+                $this->resolve($people, $change->first),
+                $this->resolve($people, $change->second),
             );
             $duplicate = false;
             foreach ($marriages as $marriage) {
@@ -121,14 +138,24 @@ final readonly class TreeChangeSetProjector
             }
             if (!$duplicate) {
                 $marriages[] = $addedMarriages[] = new MarriagePeriod(
-                    $tree, $male, $female, $change->marriageDate, $change->dissolutionDate, $now,
+                    $tree,
+                    $male,
+                    $female,
+                    $change->marriageDate,
+                    $change->dissolutionDate,
+                    $now,
                 );
             }
         }
         $this->validate($people, $parents, $marriages);
 
         return new ProjectedTreeChangeSet(
-            $people, $originals, $parents, $marriages, $addedParents, $addedMarriages,
+            $people,
+            $originals,
+            $parents,
+            $marriages,
+            $addedParents,
+            $addedMarriages,
             $hasChanges || [] !== $addedParents || [] !== $addedMarriages,
         );
     }

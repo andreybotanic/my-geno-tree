@@ -14,9 +14,12 @@ use Symfony\Component\Uid\Uuid;
 
 final readonly class ConversationNormalizer implements NormalizerInterface
 {
-    public function __construct(#[Target('chat')] private MessageStoreInterface $store,
-        #[Target('chat_tokens')] private RateLimiterFactoryInterface $tokens)
-    {
+    public function __construct(
+        #[Target('chat')]
+        private MessageStoreInterface $store,
+        #[Target('chat_tokens')]
+        private RateLimiterFactoryInterface $tokens,
+    ) {
     }
 
     public function supportsNormalization(mixed $data, ?string $format = null, array $context = []): bool

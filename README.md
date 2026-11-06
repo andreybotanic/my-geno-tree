@@ -237,8 +237,8 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-Validation (2026-11-06): 219 backend tests and 382 frontend tests pass. Line
-coverage is 92.72% backend and 90.12% frontend. Every production file with
+Validation (2026-11-06): 220 backend tests and 382 frontend tests pass. Line
+coverage is 93.01% backend and 90.12% frontend. Every production file with
 measurable behavior exceeds 75%; EventPlaceRepository and MediaVariantRepository
 contain only Doctrine constructor wiring (one uncovered line each). Backend and
 frontend quality checks, OpenAPI generation, the production build, Composer
@@ -264,3 +264,13 @@ preserved. API tests cover private SSE/session isolation, ETag conflicts, TTL
 expiry without HTTP cleanup, stale native saves after discard, provider failures,
 revoked sessions, evidence/read limits, complete token accounting and a second
 configured agent profile without tree tools.
+
+Branch formatting validation checked all 75 changed PHP files and 25 TypeScript
+files against the array, argument-list and method-chain rules. The existing ASTs
+and emitted JavaScript are unchanged. An API regression test covers revalidation
+after a proposed person is deleted, preserving meaningful per-file coverage after
+splitting expressions across lines. PhpStorm WARNING inspections found only the
+generated PHPDoc warnings above and missing SQL data-source warnings in historical
+migrations; all 23 migrations also pass on a fresh disposable database. Chrome
+checks after formatting covered chat opening, unsent input retained across
+collapse/reopen, tree zoom and camera reset.

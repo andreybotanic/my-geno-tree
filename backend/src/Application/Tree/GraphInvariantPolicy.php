@@ -200,10 +200,12 @@ final readonly class GraphInvariantPolicy
         ?MarriagePeriod $removedMarriage = null,
         ?Person $removedPerson = null,
     ): void {
-        $people = array_values(array_filter(
-            $this->people->findAllForTree($tree),
-            static fn (Person $person): bool => $person !== $removedPerson,
-        ));
+        $people = array_values(
+            array_filter(
+                $this->people->findAllForTree($tree),
+                static fn (Person $person): bool => $person !== $removedPerson,
+            )
+        );
         if (count($people) <= 1) {
             return;
         }
@@ -387,8 +389,8 @@ final readonly class GraphInvariantPolicy
 
         return [
             'canDelete' => (!$hasParent || !$hasChild)
-                && !$hasCurrentSpouseCommonChild
-                && !isset($articulationPersonIds[$personId]),
+                            && !$hasCurrentSpouseCommonChild
+                            && !isset($articulationPersonIds[$personId]),
             'removableParentLinkIds' => $removableParentLinkIds,
             'removableMarriageIds'   => $removableMarriageIds,
         ];

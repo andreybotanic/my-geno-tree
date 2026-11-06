@@ -43,7 +43,8 @@ final readonly class TreeItemController
     )]
     public function rename(
         Request $request,
-        #[MapEntity(id: 'treeId')] FamilyTree $tree,
+        #[MapEntity(id: 'treeId')]
+        FamilyTree $tree,
     ): JsonResponse {
         $input = $this->requestBody->map($request, TreeNameRequest::class);
         $this->renameTree->rename(
@@ -69,7 +70,8 @@ final readonly class TreeItemController
     )]
     public function delete(
         Request $request,
-        #[MapEntity(id: 'treeId')] FamilyTree $tree,
+        #[MapEntity(id: 'treeId')]
+        FamilyTree $tree,
     ): Response {
         $this->deleteTree->delete(
             $tree,
@@ -85,26 +87,36 @@ final readonly class TreeItemController
     {
         $conversation = $chat->current('tree:' . $tree->getId()->toRfc4122());
 
-        return new JsonResponse([
-            'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
-            'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
-        ]);
+        return new JsonResponse(
+            [
+                'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
+                'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
+            ]
+        );
     }
 
     #[Route('/api/v1/trees/{treeId}/chat', name: 'api_tree_chat_create', methods: ['POST'])]
     #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
-    public function createChat(#[MapEntity(id: 'treeId')] FamilyTree $tree, Request $request,
-        ChatInterface $chat, TreeContextService $context): JsonResponse
-    {
+    public function createChat(
+        #[MapEntity(id: 'treeId')]
+        FamilyTree $tree,
+        Request $request,
+        ChatInterface $chat,
+        TreeContextService $context,
+    ): JsonResponse {
         $payload = $this->requestBody->decodeObject($request);
         if (['referencePersonId'] !== array_keys($payload) || (null !== $payload['referencePersonId'] && !is_string($payload['referencePersonId']))) {
             throw new ApiException(422, 'CHAT_INVALID');
         }
         $context->context($tree->getId()->toRfc4122(), $payload['referencePersonId']);
-        $conversation = $chat->open('tree:' . $tree->getId()->toRfc4122(), 'tree', [
-            'treeId'            => $tree->getId()->toRfc4122(),
-            'referencePersonId' => $payload['referencePersonId'],
-        ]);
+        $conversation = $chat->open(
+            'tree:' . $tree->getId()->toRfc4122(),
+            'tree',
+            [
+                'treeId'            => $tree->getId()->toRfc4122(),
+                'referencePersonId' => $payload['referencePersonId'],
+            ]
+        );
 
         return new JsonResponse($chat->snapshot($conversation), 201);
     }

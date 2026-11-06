@@ -152,16 +152,22 @@ final readonly class TreeMergeProposalValidator
                 $this->invalid($path . '.newPeriod', 'new_period_invalid', 'Expected a boolean. A new marriage period requires explicit user choice.');
             }
             $this->evidence($sources, $savedProposal, $row['evidence'], $manual, $path . '.evidence');
-            $marriages[] = new MarriageChange($first, $second,
+            $marriages[] = new MarriageChange(
+                $first,
+                $second,
                 $this->data->dateValue($row['marriageDate'], 'marriageDate'),
-                $this->data->optionalDateValue($row['dissolutionDate'], 'dissolutionDate'), $row['newPeriod']);
+                $this->data->optionalDateValue($row['dissolutionDate'], 'dissolutionDate'),
+                $row['newPeriod']
+            );
         }
         $changeSet = new TreeChangeSet($changes, $parents, $marriages);
         $hasChanges = $validateGraph && [] === $questions && $this->projector->project($tree, $changeSet, $this->clock->now())->hasChanges;
 
         return new ValidatedTreeMergeProposal(
             ['people' => $normalized, 'parents' => $parentRows, 'marriages' => $marriageRows, 'questions' => $proposal['questions']],
-            array_values(array_unique($questions)), [] === $questions ? $changeSet : null, $hasChanges,
+            array_values(array_unique($questions)),
+            [] === $questions ? $changeSet : null,
+            $hasChanges,
         );
     }
 
@@ -191,8 +197,12 @@ final readonly class TreeMergeProposalValidator
     {
         if (!is_array($value) || count($value) !== count($keys) || array_diff($keys, array_keys($value))) {
             $actual = is_array($value) ? array_keys($value) : [];
-            $this->invalid($path, 'shape_invalid', 'Expected exactly these properties: ' . implode(', ', $keys)
-                . '. Missing: ' . implode(', ', array_diff($keys, $actual)) . '. Unexpected: ' . implode(', ', array_diff($actual, $keys)) . '.');
+            $this->invalid(
+                $path,
+                'shape_invalid',
+                'Expected exactly these properties: ' . implode(', ', $keys)
+                . '. Missing: ' . implode(', ', array_diff($keys, $actual)) . '. Unexpected: ' . implode(', ', array_diff($actual, $keys)) . '.'
+            );
         }
         $result = [];
         foreach ($keys as $key) {
@@ -243,8 +253,12 @@ final readonly class TreeMergeProposalValidator
     {
         $id = $this->reference($value, $path);
         if (!isset($references[$id])) {
-            $this->invalid($path, 'person_reference_unknown', 'Received "' . $id . '". Relationship endpoints must exactly match people[].id, not names or database UUIDs. Available ids: '
-                . implode(', ', array_keys($references)) . '. Preserve the supported relationship and correct its endpoint.');
+            $this->invalid(
+                $path,
+                'person_reference_unknown',
+                'Received "' . $id . '". Relationship endpoints must exactly match people[].id, not names or database UUIDs. Available ids: '
+                . implode(', ', array_keys($references)) . '. Preserve the supported relationship and correct its endpoint.'
+            );
         }
 
         return $id;

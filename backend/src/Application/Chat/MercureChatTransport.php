@@ -33,16 +33,20 @@ final readonly class MercureChatTransport
      * @param non-empty-string $issuer
      */
     public function __construct(
-        #[Target('defaultHub')] private HubInterface $hub,
+        #[Target('defaultHub')]
+        private HubInterface $hub,
         private RequestStack $requests,
         private LoggerInterface $logger,
-        #[Autowire('%env(MERCURE_JWT_ISSUER)%')] private string $topicOrigin,
+        #[Autowire('%env(MERCURE_JWT_ISSUER)%')]
+        private string $topicOrigin,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
         private Authorization $authorization,
         private AuthSessionRepository $sessions,
-        #[Autowire(env: 'MERCURE_JWT_SECRET')] private string $secret,
-        #[Autowire(env: 'MERCURE_JWT_ISSUER')] private string $issuer,
+        #[Autowire(env: 'MERCURE_JWT_SECRET')]
+        private string $secret,
+        #[Autowire(env: 'MERCURE_JWT_ISSUER')]
+        private string $issuer,
     ) {
     }
 
@@ -55,15 +59,19 @@ final readonly class MercureChatTransport
     {
         $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
         if ($session instanceof AuthSession) {
-            $this->publish($session, $this->sessionTopic($session) . $conversation->id->toRfc4122(), [
-                'kind'             => 'progress',
-                'id'               => $conversation->id->toRfc4122(),
-                'version'          => $conversation->version,
-                'attemptId'        => $conversation->attemptId,
-                'attemptStartedAt' => $conversation->attemptStartedAt?->format(\DateTimeInterface::ATOM),
-                'progress'         => $conversation->progress,
-                'tokenUsage'       => $conversation->usage,
-            ]);
+            $this->publish(
+                $session,
+                $this->sessionTopic($session) . $conversation->id->toRfc4122(),
+                [
+                    'kind'             => 'progress',
+                    'id'               => $conversation->id->toRfc4122(),
+                    'version'          => $conversation->version,
+                    'attemptId'        => $conversation->attemptId,
+                    'attemptStartedAt' => $conversation->attemptStartedAt?->format(\DateTimeInterface::ATOM),
+                    'progress'         => $conversation->progress,
+                    'tokenUsage'       => $conversation->usage,
+                ]
+            );
         }
     }
 
@@ -84,15 +92,19 @@ final readonly class MercureChatTransport
     /** @param array<string, mixed> $result */
     public function tool(AuthSession $session, Conversation $conversation, string $tool, string $action, string $operationId, array $result): void
     {
-        $this->publish($session, $this->sessionTopic($session) . $conversation->id->toRfc4122(), [
-            'kind'        => 'tool',
-            'id'          => $conversation->id->toRfc4122(),
-            'version'     => $conversation->version,
-            'tool'        => $tool,
-            'action'      => $action,
-            'operationId' => $operationId,
-            'result'      => $result,
-        ]);
+        $this->publish(
+            $session,
+            $this->sessionTopic($session) . $conversation->id->toRfc4122(),
+            [
+                'kind'        => 'tool',
+                'id'          => $conversation->id->toRfc4122(),
+                'version'     => $conversation->version,
+                'tool'        => $tool,
+                'action'      => $action,
+                'operationId' => $operationId,
+                'result'      => $result,
+            ]
+        );
     }
 
     /** @param array<string, mixed> $payload */
@@ -144,15 +156,22 @@ final readonly class MercureChatTransport
         $prefix = $this->sessionTopic($session);
         $expires = $this->clock->now()->modify('+5 minutes');
         $cookie = $this->authorization
-        ->createCookie($request, ['urlpattern' => [$prefix . '*']], additionalClaims: [
-            'exp' => $expires,
-            'sub' => $session->getId()->toRfc4122(),
-        ])
+            ->createCookie(
+                $request,
+                ['urlpattern' => [$prefix . '*']],
+                additionalClaims: [
+                    'exp' => $expires,
+                    'sub' => $session->getId()->toRfc4122(),
+                ]
+            )
             ->withDomain(null);
-        $response = new JsonResponse([
-            'url'       => '/.well-known/mercure?match=' . rawurlencode($prefix . $conversation->id->toRfc4122()),
-            'expiresIn' => 300,
-        ], headers: ['Cache-Control' => 'no-store']);
+        $response = new JsonResponse(
+            [
+                'url'       => '/.well-known/mercure?match=' . rawurlencode($prefix . $conversation->id->toRfc4122()),
+                'expiresIn' => 300,
+            ],
+            headers: ['Cache-Control' => 'no-store']
+        );
         $response->headers->setCookie($cookie);
 
         return $response;

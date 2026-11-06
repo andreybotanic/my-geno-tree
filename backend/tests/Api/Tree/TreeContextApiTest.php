@@ -39,8 +39,16 @@ final class TreeContextApiTest extends ApiWebTestCase
         $tree = $em->getRepository(FamilyTree::class)->find($this->treeId);
         self::assertNotNull($tree);
         $now = new \DateTimeImmutable();
-        $reference = new Person($tree, KnownText::unknown(), KnownText::known('Vera'), KnownText::unknown(), Gender::FEMALE,
-            GenealogicalDate::known(DateKind::BETWEEN, 1938, 1, 2, 1939, 3, 4), null, $now);
+        $reference = new Person(
+            $tree,
+            KnownText::unknown(),
+            KnownText::known('Vera'),
+            KnownText::unknown(),
+            Gender::FEMALE,
+            GenealogicalDate::known(DateKind::BETWEEN, 1938, 1, 2, 1939, 3, 4),
+            null,
+            $now
+        );
         $em->persist($reference);
         for ($i = 0; $i < 12; ++$i) {
             $relative = new Person($tree, KnownText::known('Child ' . $i), KnownText::known('Vera'), KnownText::unknown(), Gender::MALE, GenealogicalDate::unknown(), null, $now);
@@ -63,14 +71,17 @@ final class TreeContextApiTest extends ApiWebTestCase
         self::assertTrue($data['truncated']);
         $referenceViews = array_values(array_filter($data['people'], static fn ($person) => is_array($person) && $person['id'] === $id));
         self::assertIsArray($referenceViews[0]);
-        self::assertSame([
-            'state' => 'known',
-            'kind'  => 'between',
-            'year'  => 1938,
-            'month' => 1,
-            'day'   => 2,
-            'end'   => ['year' => 1939, 'month' => 3, 'day' => 4],
-        ], $referenceViews[0]['birthDate']);
+        self::assertSame(
+            [
+                'state' => 'known',
+                'kind'  => 'between',
+                'year'  => 1938,
+                'month' => 1,
+                'day'   => 2,
+                'end'   => ['year' => 1939, 'month' => 3, 'day' => 4],
+            ],
+            $referenceViews[0]['birthDate']
+        );
         $candidates = static::getContainer()->get(TreeContextService::class)->find($this->treeId, 'Vera');
         self::assertIsArray($candidates);
         self::assertCount(5, $candidates);

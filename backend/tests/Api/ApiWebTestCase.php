@@ -118,11 +118,14 @@ abstract class ApiWebTestCase extends WebTestCase
      */
     protected function validRegistration(array $overrides = []): array
     {
-        return array_replace([
-            'username' => 'family_admin',
-            'email'    => 'family@example.test',
-            'password' => 'StrongPass1!',
-            'language' => 'en',
-        ], $overrides);
+        return array_replace(
+            [
+                'username' => 'family_admin',
+                'email'    => 'family@example.test',
+                'password' => 'StrongPass1!',
+                'language' => 'en',
+            ],
+            $overrides
+        );
     }
 }

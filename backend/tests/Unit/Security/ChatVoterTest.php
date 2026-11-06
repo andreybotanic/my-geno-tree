@@ -31,8 +31,13 @@ final class ChatVoterTest extends TestCase
         $clock = new MockClock();
         $user = new User('owner', 'owner@example.test', 'hash', 'en', $clock->now());
         $other = new User('other', 'other@example.test', 'hash', 'en', $clock->now());
-        $session = new AuthSession('different_user' === $case ? $other : $user, 'hash', $clock->now()->modify('+1 hour'),
-            $clock->now()->modify('expired' === $case ? '-1 second' : '+1 day'), $clock->now());
+        $session = new AuthSession(
+            'different_user' === $case ? $other : $user,
+            'hash',
+            $clock->now()->modify('+1 hour'),
+            $clock->now()->modify('expired' === $case ? '-1 second' : '+1 day'),
+            $clock->now()
+        );
         if ('revoked' === $case) {
             $session->revoke($clock->now());
         }
@@ -47,8 +52,10 @@ final class ChatVoterTest extends TestCase
         $manager = $this->createMock(EntityManagerInterface::class);
         $manager->expects(in_array($case, ['missing', 'anonymous'], true) ? $this->never() : $this->once())->method('refresh')->with($session);
         $voter = new ChatVoter($requests, $manager, $clock);
-        self::assertSame('valid' === $case ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
-            $voter->vote($token, $conversation, [ChatVoter::USE]));
+        self::assertSame(
+            'valid' === $case ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
+            $voter->vote($token, $conversation, [ChatVoter::USE])
+        );
     }
 
     public function testUnrelatedSubjectsAndPermissionsAreLeftToOtherVoters(): void

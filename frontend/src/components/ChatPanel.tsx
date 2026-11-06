@@ -40,73 +40,100 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const pending = useRef<{ requestId: string; content: string } | null>(null)
   const base = contextPath
   const thinking = thinkingSince !== null || conversation?.status === 'processing'
-  const stream = useChatEvents(conversation ? `/chats/${conversation.id}` : null,
-    request, setConversation, (event) => onToolEvent?.(event), onStreamOpen)
+  const stream = useChatEvents(
+    conversation ? `/chats/${conversation.id}` : null,
+    request,
+    setConversation,
+    (event) => onToolEvent?.(event),
+    onStreamOpen
+  )
   function update(next: ChatConversation) {
     setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
   }
-  useEffect(() => {
-    const controller = new AbortController()
-    const loading = request<{ conversation: ChatConversation | null; tokenBudget: ChatTokenBudget }>(base, { signal: controller.signal })
-    loading.then(({ conversation: restored, tokenBudget }) => {
-        if (controller.signal.aborted) return
-        setConversation(restored)
-        setBudget(tokenBudget ?? null)
-        setBusy(false)
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setError('chat.loadFailed')
-          setBusy(false)
-        }
-      })
-    return () => controller.abort()
-  }, [base, request])
+  useEffect(
+    () => {
+      const controller = new AbortController()
+      const loading = request<{ conversation: ChatConversation | null; tokenBudget: ChatTokenBudget }>(base, { signal: controller.signal })
+      loading
+        .then(
+          ({ conversation: restored, tokenBudget }) => {
+            if (controller.signal.aborted) return
+            setConversation(restored)
+            setBudget(tokenBudget ?? null)
+            setBusy(false)
+          }
+        )
+        .catch(
+          () => {
+            if (!controller.signal.aborted) {
+              setError('chat.loadFailed')
+              setBusy(false)
+            }
+          }
+        )
+      return () => controller.abort()
+    },
+    [base, request]
+  )
 
-  useEffect(() => {
-    if (conversation) setBudget(conversation.tokenBudget)
-    onConversationChange?.(conversation)
-  }, [conversation, onConversationChange])
+  useEffect(
+    () => {
+      if (conversation) setBudget(conversation.tokenBudget)
+      onConversationChange?.(conversation)
+    },
+    [conversation, onConversationChange]
+  )
 
-  useLayoutEffect(() => {
-    const input = textarea.current
-    if (!input) return
-    let width = -1
-    function resize() {
+  useLayoutEffect(
+    () => {
+      const input = textarea.current
       if (!input) return
-      const style = getComputedStyle(input)
-      const padding = (parseFloat(style.paddingTop) || 12) + (parseFloat(style.paddingBottom) || 0)
-      const lineHeight = parseFloat(style.lineHeight) || 24
-      // A temporary scrollbar narrows the text and falsely adds a wrapped line.
-      input.style.overflowY = 'hidden'
-      input.style.height = '0px'
-      const measured = input.scrollHeight
-      const maximum = 7 * lineHeight + padding
-      input.style.height = `${Math.min(Math.max(measured, 2 * lineHeight + padding), maximum)}px`
-      input.style.overflowY = measured > maximum ? 'auto' : 'hidden'
-    }
-    resize()
-    const observer = new ResizeObserver((entries) => {
-      const next = entries[0]?.contentRect.width
-      if (next !== undefined && next !== width) { width = next; resize() }
-    })
-    observer.observe(input)
-    return () => observer.disconnect()
-  }, [content, open, conversation?.status])
+      let width = -1
+      function resize() {
+        if (!input) return
+        const style = getComputedStyle(input)
+        const padding = (parseFloat(style.paddingTop) || 12) + (parseFloat(style.paddingBottom) || 0)
+        const lineHeight = parseFloat(style.lineHeight) || 24
+        // A temporary scrollbar narrows the text and falsely adds a wrapped line.
+        input.style.overflowY = 'hidden'
+        input.style.height = '0px'
+        const measured = input.scrollHeight
+        const maximum = 7 * lineHeight + padding
+        input.style.height = `${Math.min(Math.max(measured, 2 * lineHeight + padding), maximum)}px`
+        input.style.overflowY = measured > maximum ? 'auto' : 'hidden'
+      }
+      resize()
+      const observer = new ResizeObserver(
+        (entries) => {
+          const next = entries[0]?.contentRect.width
+          if (next !== undefined && next !== width) { width = next; resize() }
+        }
+      )
+      observer.observe(input)
+      return () => observer.disconnect()
+    },
+    [content, open, conversation?.status]
+  )
 
-  useEffect(() => {
-    if (!open || busy) return
-    const url = new URL(window.location.href)
-    if (conversation) url.searchParams.set('chat', conversation.id)
-    else url.searchParams.delete('chat')
-    window.history.replaceState(window.history.state, '', url)
-  }, [conversation, open, busy])
+  useEffect(
+    () => {
+      if (!open || busy) return
+      const url = new URL(window.location.href)
+      if (conversation) url.searchParams.set('chat', conversation.id)
+      else url.searchParams.delete('chat')
+      window.history.replaceState(window.history.state, '', url)
+    },
+    [conversation, open, busy]
+  )
 
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [conversation?.messages.length, conversation?.status])
 
-  useEffect(() => {
-    if (open && !busy) textarea.current?.focus()
-  }, [busy, conversation?.id, open])
+  useEffect(
+    () => {
+      if (open && !busy) textarea.current?.focus()
+    },
+    [busy, conversation?.id, open]
+  )
 
   function showError(cause: unknown) {
     if (cause instanceof ApiRequestError && cause.status === 404 && cause.body.code === 'CHAT_NOT_FOUND') {
@@ -114,10 +141,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       setError(null)
       return
     }
-    setError(cause instanceof ApiRequestError && cause.status === 412 ? 'chat.conflict'
-      : cause instanceof ApiRequestError && cause.status === 409 ? 'chat.conflict'
-      : cause instanceof ApiRequestError && cause.status === 401 ? 'chat.unauthorized'
-      : cause instanceof ApiRequestError && cause.status === 422 ? 'chat.invalid' : 'chat.failed')
+    setError(
+      cause instanceof ApiRequestError && cause.status === 412 ? 'chat.conflict'
+        : cause instanceof ApiRequestError && cause.status === 409 ? 'chat.conflict'
+          : cause instanceof ApiRequestError && cause.status === 401 ? 'chat.unauthorized'
+            : cause instanceof ApiRequestError && cause.status === 422 ? 'chat.invalid' : 'chat.failed'
+    )
   }
 
   function close() {
@@ -129,9 +158,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
 
   async function ensureConversation() {
     if (conversation) return conversation
-    const next = await request<ChatConversation>(base, {
-      method: 'POST', body: JSON.stringify(createBody),
-    })
+    const next = await request<ChatConversation>(
+      base,
+      {
+        method: 'POST', body: JSON.stringify(createBody),
+      }
+    )
     setConversation(next)
     return next
   }
@@ -149,9 +181,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       current = await ensureConversation()
       activeRequest.current = { chatId: current.id, requestId: message.requestId, controller }
       setThinkingSince(Date.now())
-      const next = await request<ChatConversation>('/chats/' + current.id + '/messages', {
-        method: 'POST', body: JSON.stringify({ version: current.version, ...message }), signal: controller.signal,
-      })
+      const next = await request<ChatConversation>(
+        '/chats/' + current.id + '/messages',
+        {
+          method: 'POST', body: JSON.stringify({ version: current.version, ...message }), signal: controller.signal,
+        }
+      )
       if (turn !== generation.current) return
       setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
       setContent('')
@@ -214,9 +249,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     if (!conversation) return
     setBusy(true)
     try {
-      const next = await request<ChatConversation | undefined>(`/chats/${conversation.id}/reset`, {
-        method: 'POST', body: JSON.stringify({ version: conversation.version }),
-      })
+      const next = await request<ChatConversation | undefined>(
+        `/chats/${conversation.id}/reset`,
+        {
+          method: 'POST', body: JSON.stringify({ version: conversation.version }),
+        }
+      )
       setBudget(next?.tokenBudget ?? conversation.tokenBudget ?? budget)
       ++generation.current
       activeRequest.current?.controller.abort()
@@ -252,14 +290,16 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
           {conversation && <button type="button" disabled={busy} onClick={() => void reload()}>{t('chat.reload')}</button>}
         </div>}
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
-          {conversation?.messages.map((message) => message.role === 'system' ? (
-            <p key={message.id} role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`) : message.content}</p>
-          ) : (
-            <article key={message.id} className={`chat-message chat-message-${message.role}`}
-              aria-label={t(message.role === 'user' ? 'chat.you' : 'chat.assistant')}>
-              <p>{message.content}</p>
-            </article>
-          ))}
+          {conversation?.messages.map(
+            (message) => message.role === 'system' ? (
+              <p key={message.id} role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`) : message.content}</p>
+            ) : (
+              <article key={message.id} className={`chat-message chat-message-${message.role}`}
+                aria-label={t(message.role === 'user' ? 'chat.you' : 'chat.assistant')}>
+                <p>{message.content}</p>
+              </article>
+            )
+          )}
           {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} progress={conversation?.progress ?? []} />}
           {conversation?.status === 'error' && !conversation.messages.at(-1)?.failureCode && <p role="alert">{t('chat.processingFailed')}</p>}
           <div ref={messagesEnd} />

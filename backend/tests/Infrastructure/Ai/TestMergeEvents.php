@@ -22,12 +22,17 @@ final class TestMergeEvents
 
     public static function hub(HubInterface $inner): MockHub
     {
-        return new MockHub($inner->getPublicUrl(), new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'),
+        return new MockHub(
+            $inner->getPublicUrl(),
+            new \Symfony\Component\Mercure\Jwt\StaticTokenProvider('test'),
             static function (Update $update): string {
                 self::$updates[] = $update;
 
                 return 'event';
-            }, $inner->getFactory(), cookieName: $inner->getCookieName());
+            },
+            $inner->getFactory(),
+            cookieName: $inner->getCookieName()
+        );
     }
 
     public static function publisher(\Doctrine\ORM\EntityManagerInterface $entityManager, \Doctrine\Persistence\ManagerRegistry $registry, ?RequestStack $requests = null): MercureChatTransport

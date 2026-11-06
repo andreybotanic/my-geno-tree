@@ -29,9 +29,13 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 #[AsOutputProcessor]
 final readonly class ChatAgentHooks implements InputProcessorInterface, OutputProcessorInterface
 {
-    public function __construct(private GuardedMessageStore $store, private MercureChatTransport $events,
-        private RequestStack $requests, #[Target('chat_tokens')] private RateLimiterFactoryInterface $tokens)
-    {
+    public function __construct(
+        private GuardedMessageStore $store,
+        private MercureChatTransport $events,
+        private RequestStack $requests,
+        #[Target('chat_tokens')]
+        private RateLimiterFactoryInterface $tokens,
+    ) {
     }
 
     public function processInput(Input $input): void
@@ -80,14 +84,18 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
             return;
         }
         $deferred = $event->getDeferredResult();
-        $deferred->onConvert(function (ResultInterface $result) use ($state): ResultInterface {
-            $this->record($state, $result->getMetadata()->get('token_usage'));
+        $deferred->onConvert(
+            function (ResultInterface $result) use ($state): ResultInterface {
+                $this->record($state, $result->getMetadata()->get('token_usage'));
 
-            return $result;
-        });
-        $deferred->onError(function () use ($state, $deferred, $event): void {
-            $this->record($state, $deferred->getResultConverter()->getTokenUsageExtractor()?->extract($deferred->getRawResult(), $event->getOptions()));
-        });
+                return $result;
+            }
+        );
+        $deferred->onError(
+            function () use ($state, $deferred, $event): void {
+                $this->record($state, $deferred->getResultConverter()->getTokenUsageExtractor()?->extract($deferred->getRawResult(), $event->getOptions()));
+            }
+        );
     }
 
     private function record(Conversation $state, mixed $usage): void
@@ -105,14 +113,17 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
             $limiter->reserve($chunk);
         }
         try {
-            $this->store->synchronized($state->contextKey, function () use ($state, $input, $output, $total): void {
-                $this->store->execution();
-                $state->usage['input'] += $input;
-                $state->usage['output'] += $output;
-                $state->usage['total'] += $total;
-                $this->store->persist($state);
-                $this->events->progress($state);
-            });
+            $this->store->synchronized(
+                $state->contextKey,
+                function () use ($state, $input, $output, $total): void {
+                    $this->store->execution();
+                    $state->usage['input'] += $input;
+                    $state->usage['output'] += $output;
+                    $state->usage['total'] += $total;
+                    $this->store->persist($state);
+                    $this->events->progress($state);
+                }
+            );
         } catch (ApiException) {
             // A stopped, removed or revoked chat stays unchanged; spent tokens were still counted.
         }

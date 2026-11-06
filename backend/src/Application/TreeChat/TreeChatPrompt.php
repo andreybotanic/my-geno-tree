@@ -66,13 +66,16 @@ final readonly class TreeChatPrompt implements InputProcessorInterface
             return;
         }
         $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-        $context = json_encode([
-            'promptVersion'              => self::VERSION,
-            'interfaceLanguage'          => $session instanceof AuthSession ? $session->getUser()->getPreferredLanguage() : 'en',
-            'treeId'                     => $draft->context['treeId'] ?? null,
-            'narrativeReferencePersonId' => $draft->context['referencePersonId'] ?? null,
-            'reviewedProposal'           => ($draft->tools['merge'] ?? null) instanceof TreeMergeProposal ? $draft->tools['merge']->proposal : null,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        $context = json_encode(
+            [
+                'promptVersion'              => self::VERSION,
+                'interfaceLanguage'          => $session instanceof AuthSession ? $session->getUser()->getPreferredLanguage() : 'en',
+                'treeId'                     => $draft->context['treeId'] ?? null,
+                'narrativeReferencePersonId' => $draft->context['referencePersonId'] ?? null,
+                'reviewedProposal'           => ($draft->tools['merge'] ?? null) instanceof TreeMergeProposal ? $draft->tools['merge']->proposal : null,
+            ],
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+        );
         $messages = $input->getMessageBag()->withoutToolMessages();
         $system = $messages->getSystemMessage()?->getContent() ?? '';
         if ('' === trim($system)) {

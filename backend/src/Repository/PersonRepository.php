@@ -23,7 +23,8 @@ final class PersonRepository extends ServiceEntityRepository
     public function findAllForChangeSet(FamilyTree $tree, bool $refresh = false): array
     {
         // Join the inverse one-to-one to avoid its per-person lazy lookup; media variants are unnecessary.
-        $query = $this->createQueryBuilder('person')
+        $query = $this
+            ->createQueryBuilder('person')
             ->addSelect('photoAttachment')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->andWhere('person.tree = :tree')
@@ -44,7 +45,8 @@ final class PersonRepository extends ServiceEntityRepository
      */
     public function findAllForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        $query = $this->createQueryBuilder('person')
+        $query = $this
+            ->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia', 'photoVariant', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
@@ -76,7 +78,8 @@ final class PersonRepository extends ServiceEntityRepository
     public function findAllStructuralForTree(FamilyTree $tree): array
     {
         /** @var list<Person> $people */
-        $people = $this->createQueryBuilder('person')
+        $people = $this
+            ->createQueryBuilder('person')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('person.createdAt', 'ASC')
@@ -90,7 +93,8 @@ final class PersonRepository extends ServiceEntityRepository
     public function findInTree(FamilyTree $tree, string $id): ?Person
     {
         /** @var Person|null $person */
-        $person = $this->createQueryBuilder('person')
+        $person = $this
+            ->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia', 'photoVariant', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
@@ -119,7 +123,8 @@ final class PersonRepository extends ServiceEntityRepository
         }
 
         /** @var list<Person> $people */
-        $people = $this->createQueryBuilder('person')
+        $people = $this
+            ->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
@@ -146,7 +151,8 @@ final class PersonRepository extends ServiceEntityRepository
         }
 
         /** @var list<Person> $people */
-        $people = $this->createQueryBuilder('person')
+        $people = $this
+            ->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia', 'birthPlace', 'deathPlace')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
             ->leftJoin('photoAttachment.media', 'photoMedia')
@@ -165,7 +171,8 @@ final class PersonRepository extends ServiceEntityRepository
 
     public function existsInTree(FamilyTree $tree, string $id): bool
     {
-        return null !== $this->createQueryBuilder('person')
+        return null !== $this
+            ->createQueryBuilder('person')
             ->select('person.id')
             ->andWhere('person.tree = :tree')
             ->andWhere('person.id = :id')
@@ -178,7 +185,8 @@ final class PersonRepository extends ServiceEntityRepository
 
     public function countAll(): int
     {
-        return (int)$this->createQueryBuilder('person')
+        return (int)$this
+            ->createQueryBuilder('person')
             ->select('COUNT(person.id)')
             ->getQuery()
             ->getSingleScalarResult();
@@ -186,7 +194,8 @@ final class PersonRepository extends ServiceEntityRepository
 
     public function countForTree(FamilyTree $tree): int
     {
-        return (int)$this->createQueryBuilder('person')
+        return (int)$this
+            ->createQueryBuilder('person')
             ->select('COUNT(person.id)')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)
@@ -228,7 +237,8 @@ final class PersonRepository extends ServiceEntityRepository
         $similarity = sprintf('STRICT_WORD_SIMILARITY(:query, %s)', $fullName);
 
         /** @var list<Person> $people */
-        $people = $this->createQueryBuilder('person')
+        $people = $this
+            ->createQueryBuilder('person')
             ->addSelect($distance . ' AS HIDDEN distance')
             ->addSelect($similarity . ' AS HIDDEN similarity')
             ->andWhere('person.tree = :tree')

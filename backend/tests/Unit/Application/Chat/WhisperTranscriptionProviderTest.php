@@ -11,21 +11,23 @@ final class WhisperTranscriptionProviderTest extends TestCase
 {
     public function testSendsNormalizedAudioWithLanguageAndModel(): void
     {
-        $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
-            self::assertSame('POST', $method);
-            self::assertSame('http://whisper:8000/v1/audio/transcriptions', $url);
-            $body = '';
-            while ('' !== $chunk = $options['body'](16384)) {
-                $body .= $chunk;
-            }
-            self::assertStringContainsString('audio/wav', $body);
-            self::assertStringContainsString('RIFFtest', $body);
-            self::assertStringContainsString('name="language"', $body);
-            self::assertStringContainsString('ru', $body);
-            self::assertStringContainsString('small', $body);
+        $http = new MockHttpClient(
+            function (string $method, string $url, array $options): MockResponse {
+                self::assertSame('POST', $method);
+                self::assertSame('http://whisper:8000/v1/audio/transcriptions', $url);
+                $body = '';
+                while ('' !== $chunk = $options['body'](16384)) {
+                    $body .= $chunk;
+                }
+                self::assertStringContainsString('audio/wav', $body);
+                self::assertStringContainsString('RIFFtest', $body);
+                self::assertStringContainsString('name="language"', $body);
+                self::assertStringContainsString('ru', $body);
+                self::assertStringContainsString('small', $body);
 
-            return new MockResponse('{"text":"  Мама — Вера.  "}');
-        });
+                return new MockResponse('{"text":"  Мама — Вера.  "}');
+            }
+        );
         self::assertSame('Мама — Вера.', new WhisperTranscriptionProvider($http, 'http://whisper:8000/', 'small')->transcribe('RIFFtest', 'ru'));
     }
 

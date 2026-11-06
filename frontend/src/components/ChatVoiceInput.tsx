@@ -26,20 +26,26 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
   const mounted = useRef(true)
   const visible = useRef(active)
 
-  useEffect(() => {
-    visible.current = active
-    if (!active && recorder.current?.state === 'recording') recorder.current.stop()
-  }, [active])
+  useEffect(
+    () => {
+      visible.current = active
+      if (!active && recorder.current?.state === 'recording') recorder.current.stop()
+    },
+    [active]
+  )
 
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      if (timer.current !== null) window.clearInterval(timer.current)
-      if (recorder.current?.state === 'recording') recorder.current.stop()
-      stream.current?.getTracks().forEach((track) => track.stop())
-    }
-  }, [])
+  useEffect(
+    () => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+        if (timer.current !== null) window.clearInterval(timer.current)
+        if (recorder.current?.state === 'recording') recorder.current.stop()
+        stream.current?.getTracks().forEach((track) => track.stop())
+      }
+    },
+    []
+  )
 
   async function transcribe(file: Blob) {
     if (file.size > maxBytes) { setError('chat.voice.size'); return }
@@ -54,11 +60,13 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
     } catch (cause) {
       if (!mounted.current) return
       const code = cause instanceof ApiRequestError ? cause.body.code : ''
-      setError(code === 'CHAT_AUDIO_DURATION' ? 'chat.voice.duration'
-        : code === 'CHAT_AUDIO_SIZE' ? 'chat.voice.size'
-        : code === 'CHAT_AUDIO_FORMAT' ? 'chat.voice.format'
-        : cause instanceof ApiRequestError && cause.status === 429 ? 'chat.voice.rateLimit'
-        : 'chat.voice.failed')
+      setError(
+        code === 'CHAT_AUDIO_DURATION' ? 'chat.voice.duration'
+          : code === 'CHAT_AUDIO_SIZE' ? 'chat.voice.size'
+            : code === 'CHAT_AUDIO_FORMAT' ? 'chat.voice.format'
+              : cause instanceof ApiRequestError && cause.status === 429 ? 'chat.voice.rateLimit'
+                : 'chat.voice.failed'
+      )
     } finally {
       if (mounted.current) { setWorking(false); onBusy(false) }
     }
@@ -80,7 +88,9 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
       }
       stream.current = audioStream
       const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4']
-        .find((mime) => MediaRecorder.isTypeSupported(mime))
+        .find(
+          (mime) => MediaRecorder.isTypeSupported(mime)
+        )
       if (!mimeType) throw new Error('Unsupported recording format')
       const instance = new MediaRecorder(audioStream, { mimeType, audioBitsPerSecond: 64000 })
       recorder.current = instance
@@ -111,12 +121,15 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
       setSeconds(0)
       setRecording(true)
       const started = Date.now()
-      timer.current = window.setInterval(() => {
-        const elapsed = Math.floor((Date.now() - started) / 1000)
-        setSeconds(elapsed)
-        // Leave room for encoder padding within the server's strict 90-second limit.
-        if (elapsed >= 89 && instance.state === 'recording') instance.stop()
-      }, 250)
+      timer.current = window.setInterval(
+        () => {
+          const elapsed = Math.floor((Date.now() - started) / 1000)
+          setSeconds(elapsed)
+          // Leave room for encoder padding within the server's strict 90-second limit.
+          if (elapsed >= 89 && instance.state === 'recording') instance.stop()
+        },
+        250
+      )
     } catch {
       stream.current?.getTracks().forEach((track) => track.stop())
       if (mounted.current) { setError('chat.voice.permission'); setWorking(false); onBusy(false) }

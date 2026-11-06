@@ -105,6 +105,56 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertFalse($vera->getDeathDate()->isKnown());
     }
 
+    public function testRevalidationConflictsWhenTheProposedPersonWasDeleted(): void
+    {
+        $this->revise($this->family());
+        $this->apply();
+        $personId = $this->responseString('result', 'personIds', 'i');
+        $this->snapshot();
+        $this->etag = $this->responseString('etag');
+        $this->newDraft();
+        $this->revise(
+            [
+                'people' => [
+                    [
+                        'id'               => 'i',
+                        'existingPersonId' => $personId,
+                        'resolution'       => 'existing',
+                        'fields'           => ['givenName' => ['state' => 'known', 'value' => 'Ирина Михайловна']],
+                        'lifeStatus'       => 'deceased',
+                        'evidence'         => [],
+                    ],
+                ],
+                'parents'   => [],
+                'marriages' => [],
+                'questions' => [],
+            ]
+        );
+        self::assertResponseIsSuccessful();
+        self::assertSame('ready', $this->responseString('tools', 'merge', 'state'));
+        $proposalId = $this->responseString('tools', 'merge', 'id');
+        $this->jsonRequest(
+            'POST',
+            '/api/v1/trees/' . $this->treeId . '/graph-mutations',
+            ['type' => 'delete_person', 'personId' => $personId],
+            $this->headers + ['If-Match' => $this->etag],
+        );
+        self::assertResponseIsSuccessful();
+        $this->snapshot();
+        $this->etag = $this->responseString('etag');
+        $this->jsonRequest('POST', $this->path . '/revalidate', ['version' => 2], $this->headers);
+        self::assertResponseIsSuccessful();
+        self::assertSame('conflict', $this->responseString('tools', 'merge', 'state'));
+        self::assertSame($proposalId, $this->responseString('tools', 'merge', 'id'));
+        self::assertSame(3, $this->responseInt('tools', 'merge', 'version'));
+        self::assertSame($this->etag, $this->responseString('tools', 'merge', 'treeEtag'));
+        self::assertContains('TREE_MERGE_PROPOSAL_INVALID', $this->responseArray('tools', 'merge', 'proposal', 'questions'));
+        $this->apply(3);
+        self::assertResponseStatusCodeSame(409);
+        $this->snapshot();
+        self::assertCount(3, $this->responseArray('people'));
+    }
+
     public function testUpdatesExistingValuesAndChildBirthEventsAndDeduplicatesRelationships(): void
     {
         $this->revise($this->family());
@@ -134,8 +184,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $irina = $em->getRepository(Person::class)->find($ids['i']);
         self::assertInstanceOf(Person::class, $irina);
         self::assertSame('Ирина Михайловна', $irina->getGivenName()->getValue());
-        $events = array_values(array_filter($em->getRepository(GenealogicalEvent::class)->findAll(),
-            static fn (GenealogicalEvent $event) => 'child_birth' === $event->getType()->value && ($event->getData()['childId'] ?? null) === $ids['i']));
+        $events = array_values(
+            array_filter(
+                $em->getRepository(GenealogicalEvent::class)->findAll(),
+                static fn (GenealogicalEvent $event) => 'child_birth' === $event->getType()->value && ($event->getData()['childId'] ?? null) === $ids['i']
+            )
+        );
         self::assertCount(1, $events);
         self::assertSame(1962, $events[0]->getDate()->getYear());
     }
@@ -154,8 +208,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $this->apply();
         self::assertResponseStatusCodeSame(409);
         $this->revise($this->family(), 2);
-        $this->jsonRequest('PATCH', '/api/v1/trees/' . $this->treeId, ['name' => 'Renamed concurrently'],
-            $this->headers + ['If-Match' => $this->etag]);
+        $this->jsonRequest(
+            'PATCH',
+            '/api/v1/trees/' . $this->treeId,
+            ['name' => 'Renamed concurrently'],
+            $this->headers + ['If-Match' => $this->etag]
+        );
         self::assertResponseIsSuccessful();
         $newEtag = $this->responseString('etag');
         $this->apply(3);
@@ -247,32 +305,39 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $tree = $container->get(FamilyTreeRepository::class)->find($this->treeId);
         self::assertInstanceOf(FamilyTree::class, $tree);
         $data = $container
-        ->get(PersonDataPolicy::class)
-        ->create([
-            'birthSurname' => ['state' => 'unknown'],
-            'givenName'    => ['state' => 'known', 'value' => 'Rollback'],
-            'patronymic'   => ['state' => 'unknown'],
-            'gender'       => 'unknown',
-            'birthDate'    => ['state' => 'unknown'],
-            'deathDate'    => null,
-        ]);
+            ->get(PersonDataPolicy::class)
+            ->create(
+                [
+                    'birthSurname' => ['state' => 'unknown'],
+                    'givenName'    => ['state' => 'known', 'value' => 'Rollback'],
+                    'patronymic'   => ['state' => 'unknown'],
+                    'gender'       => 'unknown',
+                    'birthDate'    => ['state' => 'unknown'],
+                    'deathDate'    => null,
+                ]
+            );
         $changes = new TreeChangeSet([new PersonChange('first', null, $data)]);
         $executor = $container->get(TreeChangeSetExecutor::class);
         try {
-            $em->wrapInTransaction(function () use ($executor, $tree, $changes): void {
-                $executor->execute($tree, $changes, $this->etag);
-                throw new \RuntimeException('Outer workflow failed');
-            });
+            $em->wrapInTransaction(
+                function () use ($executor, $tree, $changes): void {
+                    $executor->execute($tree, $changes, $this->etag);
+                    throw new \RuntimeException('Outer workflow failed');
+                }
+            );
         } catch (\RuntimeException $error) {
             self::assertSame('Outer workflow failed', $error->getMessage());
         }
         $this->snapshot();
         self::assertSame([], $this->responseData()['people']);
         self::assertSame($this->etag, $this->responseString('etag'));
-        self::assertSame(0, static::getContainer()
-        ->get(EntityManagerInterface::class)
-        ->getRepository(GenealogicalEvent::class)
-            ->count([]));
+        self::assertSame(
+            0,
+            static::getContainer()
+                ->get(EntityManagerInterface::class)
+                ->getRepository(GenealogicalEvent::class)
+                ->count([])
+        );
     }
 
     public function testProjectionLoadsGraphWithConstantQueryCount(): void
@@ -400,8 +465,12 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
 
     private function apply(int $version = 2): void
     {
-        $this->jsonRequest('POST', $this->path . '/apply', ['version' => $version],
-            $this->headers + ['If-Match' => $this->etag]);
+        $this->jsonRequest(
+            'POST',
+            $this->path . '/apply',
+            ['version' => $version],
+            $this->headers + ['If-Match' => $this->etag]
+        );
     }
 
     private function snapshot(): void

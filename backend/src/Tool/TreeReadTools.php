@@ -7,16 +7,28 @@ use App\Application\Chat\ChatInterface;
 use App\Application\Tree\TreeContextService;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 
-#[AsTool(name: 'get_tree_context', description: <<<'DESCRIPTION'
+#[AsTool(
+    name: 'get_tree_context',
+    description: <<<'DESCRIPTION'
     Read the selected tree, narrative reference, bounded immediate family and ETag.
-    DESCRIPTION, method: 'tree')]
-#[AsTool(name: 'find_people', description: <<<'DESCRIPTION'
+    DESCRIPTION,
+    method: 'tree'
+)]
+#[AsTool(
+    name: 'find_people',
+    description: <<<'DESCRIPTION'
     Search names; read candidate records before deciding
     whether a name uniquely identifies someone.
-    DESCRIPTION, method: 'find')]
-#[AsTool(name: 'get_person_context', description: <<<'DESCRIPTION'
+    DESCRIPTION,
+    method: 'find'
+)]
+#[AsTool(
+    name: 'get_person_context',
+    description: <<<'DESCRIPTION'
     Read a person and bounded immediate family in the selected tree.
-    DESCRIPTION, method: 'person')]
+    DESCRIPTION,
+    method: 'person'
+)]
 final readonly class TreeReadTools
 {
     public function __construct(private TreeContextService $context, private ChatInterface $chat)

@@ -109,7 +109,12 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
             copy($this->audio, $this->uploaded);
             $files['audio'] = new UploadedFile($this->uploaded, 'voice.wav', 'audio/wav', test: true);
         }
-        $this->client->request('POST', 'https://localhost/api/v1/chat-transcriptions', $fields, $files,
-            ['HTTPS' => 'on', 'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token]);
+        $this->client->request(
+            'POST',
+            'https://localhost/api/v1/chat-transcriptions',
+            $fields,
+            $files,
+            ['HTTPS' => 'on', 'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token]
+        );
     }
 }

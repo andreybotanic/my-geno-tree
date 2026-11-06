@@ -31,8 +31,11 @@ final class ChatEventsApiTest extends ApiWebTestCase
         $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
         self::assertResponseStatusCodeSame(401);
         $authorization = static::getContainer()->get(\Symfony\Component\Mercure\Authorization::class);
-        $expired = $authorization->createCookie(\Symfony\Component\HttpFoundation\Request::create('https://localhost'), [],
-            additionalClaims: ['exp' => new \DateTimeImmutable('-1 minute')]);
+        $expired = $authorization->createCookie(
+            \Symfony\Component\HttpFoundation\Request::create('https://localhost'),
+            [],
+            additionalClaims: ['exp' => new \DateTimeImmutable('-1 minute')]
+        );
         $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($cookie->getName(), (string)$expired->getValue(), null, '/', 'localhost', true));
         $this->jsonRequest('GET', '/api/v1/chat-events/authorize');
         self::assertResponseStatusCodeSame(401);

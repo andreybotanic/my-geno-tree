@@ -25,8 +25,27 @@ final class AudioNormalizerTest extends TestCase
     {
         $path = tempnam(sys_get_temp_dir(), 'merge-audio');
         try {
-            (new Process(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
-                '-ac', '2', '-ar', '48000', '-c:a', $codec, '-f', $format, $path]))->mustRun();
+            (new Process(
+                [
+                    'ffmpeg',
+                    '-v',
+                    'error',
+                    '-y',
+                    '-f',
+                    'lavfi',
+                    '-i',
+                    'sine=frequency=440:duration=1',
+                    '-ac',
+                    '2',
+                    '-ar',
+                    '48000',
+                    '-c:a',
+                    $codec,
+                    '-f',
+                    $format,
+                    $path,
+                ]
+            ))->mustRun();
             $result = new AudioNormalizer()->normalize(new UploadedFile($path, 'misleading.txt', 'text/plain', test: true));
             self::assertStringStartsWith('RIFF', $result->wav);
             self::assertEqualsWithDelta(1, $result->durationSeconds, .05);

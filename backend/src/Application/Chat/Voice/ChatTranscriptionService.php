@@ -11,10 +11,13 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 final readonly class ChatTranscriptionService
 {
-    public function __construct(private AudioNormalizer $normalizer, private TranscriptionProviderInterface $provider,
+    public function __construct(
+        private AudioNormalizer $normalizer,
+        private TranscriptionProviderInterface $provider,
         private LoggerInterface $logger,
-        #[Target('chat_voice')] private RateLimiterFactoryInterface $limiter)
-    {
+        #[Target('chat_voice')]
+        private RateLimiterFactoryInterface $limiter,
+    ) {
     }
 
     /** @return array{text: string, durationSeconds: float} */

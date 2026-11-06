@@ -29,8 +29,11 @@ final class ChatTokenBudgetTest extends TestCase
         $authorization = $this->createStub(AuthorizationCheckerInterface::class);
         $authorization->method('isGranted')->willReturn(true);
         $runtime = new ChatRuntimeFixture($authorization);
-        $factory = new RateLimiterFactory(['id' => 'tokens', 'policy' => 'fixed_window', 'limit' => 100, 'interval' => '1 day'],
-            new CacheStorage(new ArrayAdapter()), new LockFactory(new InMemoryStore()));
+        $factory = new RateLimiterFactory(
+            ['id' => 'tokens', 'policy' => 'fixed_window', 'limit' => 100, 'interval' => '1 day'],
+            new CacheStorage(new ArrayAdapter()),
+            new LockFactory(new InMemoryStore())
+        );
         $hooks = new ChatAgentHooks($runtime->store, TestMergeEvents::publisher($this->createStub(EntityManagerInterface::class), $this->createStub(\Doctrine\Persistence\ManagerRegistry::class), $runtime->requests), $runtime->requests, $factory);
         $view = new ConversationNormalizer($runtime->store, $factory);
         $events = new EventDispatcher();

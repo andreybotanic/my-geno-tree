@@ -24,19 +24,24 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
         $tree = static::getContainer()->get(EntityManagerInterface::class)->find(FamilyTree::class, $treeId);
         self::assertNotNull($tree);
         $data = static::getContainer()
-        ->get(PersonDataPolicy::class)
-        ->create([
-            'givenName'    => ['state' => 'known', 'value' => 'Иван'],
-            'birthSurname' => ['state' => 'known', 'value' => 'Иванов'],
-            'patronymic'   => ['state' => 'known', 'value' => 'Иванович'],
-            'gender'       => 'male',
-            'birthDate'    => ['state' => 'known', 'kind' => 'exact', 'year' => 1990, 'month' => 4, 'day' => 1],
-            'deathDate'    => null,
-        ]);
+            ->get(PersonDataPolicy::class)
+            ->create(
+                [
+                    'givenName'    => ['state' => 'known', 'value' => 'Иван'],
+                    'birthSurname' => ['state' => 'known', 'value' => 'Иванов'],
+                    'patronymic'   => ['state' => 'known', 'value' => 'Иванович'],
+                    'gender'       => 'male',
+                    'birthDate'    => ['state' => 'known', 'kind' => 'exact', 'year' => 1990, 'month' => 4, 'day' => 1],
+                    'deathDate'    => null,
+                ]
+            );
         $receipt = static::getContainer()
-        ->get(TreeChangeSetExecutor::class)
-        ->execute($tree,
-            new TreeChangeSet([new PersonChange('ivan', null, $data)], [], []), $this->responseString('etag'));
+            ->get(TreeChangeSetExecutor::class)
+            ->execute(
+                $tree,
+                new TreeChangeSet([new PersonChange('ivan', null, $data)], [], []),
+                $this->responseString('etag')
+            );
         $ivanId = $receipt['personIds']['ivan'];
         $base = '/api/v1/trees/' . $treeId . '/chat';
         $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
@@ -84,21 +89,25 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
             $parents[1]['evidence'][0]['quote'] = 'Иван Васильевич (10.10.1970) и Ирина Геннадьевна (1980)';
             static::getContainer()->get(TreeReadTools::class)->person($draft->context['treeId'] ?? '', $ivanId);
 
-            return FixtureTreeAgent::reply($draft, 'К добавлению готово 6 персон.', [
-                'people'    => $people,
-                'parents'   => $parents,
-                'marriages' => [
-                    [
-                        'first'           => 'i',
-                        'second'          => 'a',
-                        'marriageDate'    => ['state' => 'unknown'],
-                        'dissolutionDate' => null,
-                        'newPeriod'       => false,
-                        'evidence'        => $evidence,
+            return FixtureTreeAgent::reply(
+                $draft,
+                'К добавлению готово 6 персон.',
+                [
+                    'people'    => $people,
+                    'parents'   => $parents,
+                    'marriages' => [
+                        [
+                            'first'           => 'i',
+                            'second'          => 'a',
+                            'marriageDate'    => ['state' => 'unknown'],
+                            'dissolutionDate' => null,
+                            'newPeriod'       => false,
+                            'evidence'        => $evidence,
+                        ],
                     ],
-                ],
-                'questions' => [],
-            ]);
+                    'questions' => [],
+                ]
+            );
         };
         $this->jsonRequest('POST', $path . '/messages', ['version' => $this->responseData()['version'], 'requestId' => 'family', 'content' => $text], $headers);
         self::assertResponseIsSuccessful();
@@ -116,8 +125,12 @@ final class TreeMergeFamilyProposalApiTest extends ApiWebTestCase
         $etag = $this->responseString('tools', 'merge', 'treeEtag');
         $this->jsonRequest('GET', '/api/v1/trees/' . $treeId . '/snapshot', headers: $headers);
         self::assertCount(1, $this->arrayAt('people'));
-        $this->jsonRequest('POST', '/api/v1/trees/' . $treeId . '/merge-proposals/' . $proposalId . '/apply', ['version' => $version],
-            $headers + ['If-Match' => $etag]);
+        $this->jsonRequest(
+            'POST',
+            '/api/v1/trees/' . $treeId . '/merge-proposals/' . $proposalId . '/apply',
+            ['version' => $version],
+            $headers + ['If-Match' => $etag]
+        );
         self::assertArrayNotHasKey('merge', $this->responseArray('conversation', 'tools'));
         $this->jsonRequest('GET', '/api/v1/trees/' . $treeId . '/snapshot', headers: $headers);
         self::assertCount(7, $this->arrayAt('people'));

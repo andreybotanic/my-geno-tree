@@ -45,8 +45,16 @@ final readonly class TreeContextService
     public function context(string $treeId, ?string $referencePersonId): array
     {
         $tree = $this->tree($treeId);
-        $context = ['treeId'    => $treeId, 'etag' => $this->versions->etag($tree), 'personCount' => $this->people->countForTree($tree),
-            'referencePersonId' => $referencePersonId, 'people' => [], 'parents' => [], 'marriages' => [], 'truncated' => false];
+        $context = [
+            'treeId'            => $treeId,
+            'etag'              => $this->versions->etag($tree),
+            'personCount'       => $this->people->countForTree($tree),
+            'referencePersonId' => $referencePersonId,
+            'people'            => [],
+            'parents'           => [],
+            'marriages'         => [],
+            'truncated'         => false,
+        ];
         if (null === $referencePersonId) {
             return $context;
         }
@@ -82,11 +90,14 @@ final readonly class TreeContextService
     /** @return array<string, mixed> */
     private function person(Person $person): array
     {
-        return ['id'       => $person->getId()->toRfc4122(),
+        return [
+            'id'           => $person->getId()->toRfc4122(),
             'givenName'    => $this->texts->create($person->getGivenName()),
             'birthSurname' => $this->texts->create($person->getBirthSurname()),
             'patronymic'   => $this->texts->create($person->getPatronymic()),
-            'gender'       => $person->getGender()->value, 'birthDate' => $this->dates->create($person->getBirthDate()),
-            'deathDate'    => null === $person->getDeathDate() ? null : $this->dates->create($person->getDeathDate())];
+            'gender'       => $person->getGender()->value,
+            'birthDate'    => $this->dates->create($person->getBirthDate()),
+            'deathDate'    => null === $person->getDeathDate() ? null : $this->dates->create($person->getDeathDate()),
+        ];
     }
 }

@@ -34,9 +34,15 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
     const previous = applied.current.get(id)
     if (previous) return previous
     pendingRefresh.current = { id, result }
-    const promise = Promise.resolve(onApplied?.(result)).then(() => {
-      if (pendingRefresh.current?.id === id) pendingRefresh.current = null
-    })
+    const promise = Promise
+      .resolve(
+        onApplied?.(result)
+      )
+      .then(
+        () => {
+          if (pendingRefresh.current?.id === id) pendingRefresh.current = null
+        }
+      )
     applied.current.set(id, promise)
     try { await promise }
     catch (cause) { applied.current.delete(id); throw cause }
@@ -59,8 +65,10 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
         if (name === 'revalidate') await onRefreshTree?.()
       }
     } catch (cause) {
-      setError(cause instanceof ApiRequestError && cause.status === 412 ? 'treeMerge.treeConflict'
-        : cause instanceof ApiRequestError && cause.status === 409 ? 'chat.conflict' : 'chat.failed')
+      setError(
+        cause instanceof ApiRequestError && cause.status === 412 ? 'treeMerge.treeConflict'
+          : cause instanceof ApiRequestError && cause.status === 409 ? 'chat.conflict' : 'chat.failed'
+      )
       // An interrupted apply response is ambiguous. Read fresh state/tree; never replay a consumed proposal.
       try { update(await request<ChatConversation>(`/chats/${conversation.id}`)); await onRefreshTree?.() }
       catch { /* Keep the last reviewed preview until a later refresh. */ }
@@ -85,10 +93,13 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
         }}>{t('chat.reload')}</button></div>}
         {proposal && <button type="button" className="chat-reset" disabled={busy || chatBusy}
           onClick={() => void action(conversation, proposal, 'discard', update)}>{t('treeMerge.cancel')}</button>}
-        {proposal && previewContainer !== null && createPortal(<TreeMergePreview key={`${proposal.id}:${proposal.version}`}
-          proposal={proposal} busy={busy || chatBusy}
-          onApply={() => action(conversation, proposal, 'apply', update)}
-          onRevalidate={() => action(conversation, proposal, 'revalidate', update)} />, previewContainer ?? document.body)}
+        {proposal && previewContainer !== null && createPortal(
+          <TreeMergePreview key={`${proposal.id}:${proposal.version}`}
+            proposal={proposal} busy={busy || chatBusy}
+            onApply={() => action(conversation, proposal, 'apply', update)}
+            onRevalidate={() => action(conversation, proposal, 'revalidate', update)} />,
+          previewContainer ?? document.body
+        )}
       </>
     }} />
 }

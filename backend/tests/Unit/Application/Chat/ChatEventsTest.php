@@ -23,11 +23,15 @@ final class ChatEventsTest extends TestCase
     {
         /** @var \ArrayObject<int, Update> $updates */
         $updates = new \ArrayObject();
-        $hub = new MockHub('https://localhost/.well-known/mercure', new StaticTokenProvider('test'), static function (Update $update) use (&$updates): string {
-            $updates[] = $update;
+        $hub = new MockHub(
+            'https://localhost/.well-known/mercure',
+            new StaticTokenProvider('test'),
+            static function (Update $update) use (&$updates): string {
+                $updates[] = $update;
 
-            return 'event';
-        });
+                return 'event';
+            }
+        );
         $requests = new RequestStack();
         $events = new MercureChatTransport($hub, $requests, new NullLogger(), 'https://localhost', $this->createStub(\Doctrine\ORM\EntityManagerInterface::class), new MockClock(), new Authorization(new HubRegistry($hub)), new \App\Repository\AuthSessionRepository($this->createStub(\Doctrine\Persistence\ManagerRegistry::class)), str_repeat('s', 32), 'https://localhost');
         $now = new \DateTimeImmutable();

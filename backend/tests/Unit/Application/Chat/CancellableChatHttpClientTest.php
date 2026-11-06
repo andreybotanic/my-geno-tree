@@ -19,21 +19,27 @@ final class CancellableChatHttpClientTest extends TestCase
         $runtime = new ChatRuntimeFixture($this->createStub(AuthorizationCheckerInterface::class));
         $progress = null;
         $calls = 0;
-        $http = new MockHttpClient(static function ($method, $url, $options) use (&$progress, &$calls): MockResponse {
-            ++$calls;
-            $progress = $options['on_progress'];
+        $http = new MockHttpClient(
+            static function ($method, $url, $options) use (&$progress, &$calls): MockResponse {
+                ++$calls;
+                $progress = $options['on_progress'];
 
-            return new MockResponse('OK');
-        });
+                return new MockResponse('OK');
+            }
+        );
         $client = new CancellableChatHttpClient($http, $runtime->store, $runtime->requests);
         $observed = [];
         $client
-        ->request('POST', 'http://model.test', [
-            'on_progress' => static function ($downloaded, $size, $info) use (&$observed): void {
-                $observed = [$downloaded, $size, $info];
-            },
-        ])
-        ->getContent();
+            ->request(
+                'POST',
+                'http://model.test',
+                [
+                    'on_progress' => static function ($downloaded, $size, $info) use (&$observed): void {
+                        $observed = [$downloaded, $size, $info];
+                    },
+                ]
+            )
+            ->getContent();
         self::assertIsCallable($progress);
         $progress(12, 30, ['http_code' => 200]);
         self::assertSame([12, 30, ['http_code' => 200]], $observed);

@@ -37,21 +37,27 @@ export function projectTreeMerge(snapshot: TreeSnapshot, proposal: TreeMergeProp
     const first = references.get(link.first)
     const second = references.get(link.second)
     if (!first || !second || first === second) continue
-    if (!link.newPeriod && marriages.some((item) => [item.malePersonId, item.femalePersonId].includes(first)
-      && [item.malePersonId, item.femalePersonId].includes(second))) continue
+    if (!link.newPeriod && marriages.some(
+      (item) => [item.malePersonId, item.femalePersonId].includes(first)
+        && [item.malePersonId, item.femalePersonId].includes(second)
+    )) continue
     const firstFemale = people.get(first)?.gender === 'female'
-    marriages.push({ id: `merge:marriage:${index}`, malePersonId: firstFemale ? second : first, femalePersonId: firstFemale ? first : second,
-      marriageDate: link.marriageDate, dissolutionDate: link.dissolutionDate, marriagePlace: null, dissolutionPlace: null,
-      createdAt: snapshot.tree.createdAt, updatedAt: snapshot.tree.updatedAt })
+    marriages.push(
+      { id: `merge:marriage:${index}`, malePersonId: firstFemale ? second : first, femalePersonId: firstFemale ? first : second,
+        marriageDate: link.marriageDate, dissolutionDate: link.dissolutionDate, marriagePlace: null, dissolutionPlace: null,
+        createdAt: snapshot.tree.createdAt, updatedAt: snapshot.tree.updatedAt }
+    )
   }
   const projected: TreeSnapshot = { ...snapshot, people: [...people.values()], parentLinks, marriages, layout: null, layoutRevision: null }
   const positions = layoutTree(projected)
-  const nodes: PersonFlowNode[] = projected.people.map((person) => ({
-    id: person.id, type: 'person', position: positions.get(person.id) ?? { x: 0, y: 0 },
-    height: PERSON_CARD_HEIGHT, width: PERSON_CARD_WIDTH,
-    data: { person, isReference: false, isMuted: existingIds.has(person.id) },
-    ...(proposalIds.has(person.id) ? { className: 'merge-preview-person' } : {}),
-  }))
+  const nodes: PersonFlowNode[] = projected.people.map(
+    (person) => ({
+      id: person.id, type: 'person', position: positions.get(person.id) ?? { x: 0, y: 0 },
+      height: PERSON_CARD_HEIGHT, width: PERSON_CARD_WIDTH,
+      data: { person, isReference: false, isMuted: existingIds.has(person.id) },
+      ...(proposalIds.has(person.id) ? { className: 'merge-preview-person' } : {}),
+    })
+  )
   const edges = buildTreeEdges(projected, positions)
   return { nodes, edges, proposalIds }
 }

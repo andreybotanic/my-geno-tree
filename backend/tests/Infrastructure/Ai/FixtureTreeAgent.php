@@ -31,9 +31,15 @@ final class FixtureTreeAgent implements AgentInterface
     private static TreeMergeTool $merge;
     private static ChatInterface $chat;
 
-    public function __construct(#[AutowireDecorated] private readonly AgentInterface $inner,
-        TreeMergeTool $merge, TreeReadTools $reads, ChatInterface $chat, #[Target('chat')] private readonly MessageStoreInterface $store)
-    {
+    public function __construct(
+        #[AutowireDecorated]
+        private readonly AgentInterface $inner,
+        TreeMergeTool $merge,
+        TreeReadTools $reads,
+        ChatInterface $chat,
+        #[Target('chat')]
+        private readonly MessageStoreInterface $store,
+    ) {
         self::$merge = $merge;
         self::$reads = $reads;
         self::$chat = $chat;
@@ -51,20 +57,22 @@ final class FixtureTreeAgent implements AgentInterface
             return $this->inner->call($input, $options);
         }
 
-        return new Execution(function (): \Generator {
-            ++self::$calls;
-            yield new \Symfony\AI\Agent\Execution\Update\Progress(\Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST);
-            $conversation = self::$chat->execution()->conversation;
-            $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)($conversation, $conversation->attemptId, self::$merge, self::$reads);
-            self::$chat->execution()->conversation;
-            if ('' !== trim($text)) {
-                $message = Message::ofAssistant($text);
-                $message->getMetadata()->add('requestId', $conversation->attemptRequestId);
-                $this->store->save($this->store->load($conversation->id)->with($message));
-            }
+        return new Execution(
+            function (): \Generator {
+                ++self::$calls;
+                yield new \Symfony\AI\Agent\Execution\Update\Progress(\Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST);
+                $conversation = self::$chat->execution()->conversation;
+                $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)($conversation, $conversation->attemptId, self::$merge, self::$reads);
+                self::$chat->execution()->conversation;
+                if ('' !== trim($text)) {
+                    $message = Message::ofAssistant($text);
+                    $message->getMetadata()->add('requestId', $conversation->attemptRequestId);
+                    $this->store->save($this->store->load($conversation->id)->with($message));
+                }
 
-            yield new ResultUpdate(new TextResult($text));
-        });
+                yield new ResultUpdate(new TextResult($text));
+            }
+        );
     }
 
     /** @return list<array{id: string, requestId: string, role: string, content: string, createdAt: string, failureCode?: string}> */

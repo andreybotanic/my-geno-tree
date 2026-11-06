@@ -8,9 +8,11 @@ export const conversation: ChatConversation = {
 }
 export const mergeProposal: TreeMergePendingProposal = {
   id: 'proposal', treeId: 'tree', version: 1, state: 'ready', treeEtag: 'etag',
-  proposal: { people: [{ id: 'v', existingPersonId: null, resolution: 'new', lifeStatus: 'alive',
-    fields: { givenName: { state: 'known', value: 'Vera' }, gender: 'female' }, evidence: [] }],
-  parents: [], marriages: [], questions: [] },
+  proposal: { people: [
+      { id: 'v', existingPersonId: null, resolution: 'new', lifeStatus: 'alive',
+        fields: { givenName: { state: 'known', value: 'Vera' }, gender: 'female' }, evidence: [] }
+    ],
+    parents: [], marriages: [], questions: [] },
 }
 export const readyConversation: ChatConversation = { ...conversation, tools: { merge: mergeProposal } }
 export const emptySnapshot: TreeSnapshot = {

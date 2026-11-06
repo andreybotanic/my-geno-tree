@@ -166,21 +166,32 @@ final class ChatApiTest extends ApiWebTestCase
         $previous = $tokens->getToken();
         $tokens->setToken(new \Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken($session->getUser(), 'main', ['ROLE_USER']));
         $calls = 0;
-        $container->set('chat_ai.client', new \Symfony\Component\HttpClient\MockHttpClient(static function (string $method, string $url, array $options) use (&$calls): \Symfony\Component\HttpClient\Response\MockResponse {
-            ++$calls;
-            $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
-            self::assertIsArray($body);
-            self::assertEmpty($body['tools'] ?? []);
-            self::assertStringNotContainsString('Tree context', $options['body']);
+        $container->set(
+            'chat_ai.client',
+            new \Symfony\Component\HttpClient\MockHttpClient(
+                static function (string $method, string $url, array $options) use (&$calls): \Symfony\Component\HttpClient\Response\MockResponse {
+                    ++$calls;
+                    $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                    self::assertIsArray($body);
+                    self::assertEmpty($body['tools'] ?? []);
+                    self::assertStringNotContainsString('Tree context', $options['body']);
 
-            return new \Symfony\Component\HttpClient\Response\MockResponse(json_encode([
-                'id'      => 'general',
-                'object'  => 'chat.completion',
-                'created' => 1,
-                'model'   => 'gpt-5.6-luna',
-                'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello from the general profile.']]],
-            ], JSON_THROW_ON_ERROR), ['response_headers' => ['content-type: application/json']]);
-        }));
+                    return new \Symfony\Component\HttpClient\Response\MockResponse(
+                        json_encode(
+                            [
+                                'id'      => 'general',
+                                'object'  => 'chat.completion',
+                                'created' => 1,
+                                'model'   => 'gpt-5.6-luna',
+                                'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello from the general profile.']]],
+                            ],
+                            JSON_THROW_ON_ERROR
+                        ),
+                        ['response_headers' => ['content-type: application/json']]
+                    );
+                }
+            )
+        );
         try {
             $chat = $container->get(ChatInterface::class);
             $conversation = $chat->open('general', 'general', []);

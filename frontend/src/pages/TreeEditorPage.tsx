@@ -213,18 +213,26 @@ function haveBloodNetworkPresetsChanged(
     return true
   }
 
-  return presets.some((preset) => {
-    const savedPreset = savedPresets.find((item) => item.id === preset.id)
-    if (!savedPreset) {
-      return true
-    }
+  return presets.some(
+    (preset) => {
+      const savedPreset = savedPresets.find((item) => item.id === preset.id)
+      if (!savedPreset) {
+        return true
+      }
 
-    return preset.name.trim() !== savedPreset.name
-      || preset.isDefault !== savedPreset.isDefault
-      || Object.entries(preset.forces).some(([key, value]) => (
-        savedPreset.forces[key as keyof BloodNetworkForceSettings] !== value
-      ))
-  })
+      return preset.name.trim() !== savedPreset.name
+        || preset.isDefault !== savedPreset.isDefault
+        || Object
+          .entries(
+            preset.forces
+          )
+          .some(
+            ([key, value]) => (
+              savedPreset.forces[key as keyof BloodNetworkForceSettings] !== value
+            )
+          )
+    }
+  )
 }
 
 function bloodNetworkNodeCenter(node: BloodNetworkFlowNode) {
@@ -244,16 +252,19 @@ function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
     minX: Number.POSITIVE_INFINITY,
     minY: Number.POSITIVE_INFINITY,
   }
-  const bounds = nodes.reduce((result, node) => {
-    const size = node.type === 'bloodPerson'
-      ? BLOOD_NETWORK_PERSON_SIZE
-      : BLOOD_NETWORK_FAMILY_SIZE
-    result.minX = Math.min(result.minX, node.position.x)
-    result.minY = Math.min(result.minY, node.position.y)
-    result.maxX = Math.max(result.maxX, node.position.x + size)
-    result.maxY = Math.max(result.maxY, node.position.y + size)
-    return result
-  }, initialBounds)
+  const bounds = nodes.reduce(
+    (result, node) => {
+      const size = node.type === 'bloodPerson'
+        ? BLOOD_NETWORK_PERSON_SIZE
+        : BLOOD_NETWORK_FAMILY_SIZE
+      result.minX = Math.min(result.minX, node.position.x)
+      result.minY = Math.min(result.minY, node.position.y)
+      result.maxX = Math.max(result.maxX, node.position.x + size)
+      result.maxY = Math.max(result.maxY, node.position.y + size)
+      return result
+    },
+    initialBounds
+  )
 
   return {
     height: bounds.maxY - bounds.minY,
@@ -263,13 +274,15 @@ function bloodNetworkBounds(nodes: BloodNetworkFlowNode[]) {
   }
 }
 
-function ZoomControls({
-  onFitView,
-  onReset,
-}: {
-  onFitView: () => void
-  onReset: () => void
-}) {
+function ZoomControls(
+  {
+    onFitView,
+    onReset,
+  }: {
+    onFitView: () => void
+    onReset: () => void
+  }
+) {
   const { t } = useTranslation()
   const { zoomIn, zoomOut, zoomTo } = useReactFlow()
   const { zoom } = useViewport()
@@ -279,14 +292,17 @@ function ZoomControls({
   const [zoomValue, setZoomValue] = useState('')
   const currentZoom = Math.round(zoom * 100)
 
-  useEffect(() => {
-    if (!isZoomEditing) {
-      return
-    }
-    const input = zoomInput.current
-    input?.focus()
-    input?.setSelectionRange(input.value.length, input.value.length)
-  }, [isZoomEditing])
+  useEffect(
+    () => {
+      if (!isZoomEditing) {
+        return
+      }
+      const input = zoomInput.current
+      input?.focus()
+      input?.setSelectionRange(input.value.length, input.value.length)
+    },
+    [isZoomEditing]
+  )
 
   const cancelZoomEditing = () => {
     setIsZoomEditing(false)
@@ -402,14 +418,16 @@ type LayoutToolbarProps = {
   onToggleNetworkView: () => void
 }
 
-function LayoutToolbar({
-  previewing = false,
-  isNetworkView,
-  onExport,
-  onRegenerateNetwork,
-  onSaveNetworkState,
-  onToggleNetworkView,
-}: LayoutToolbarProps) {
+function LayoutToolbar(
+  {
+    previewing = false,
+    isNetworkView,
+    onExport,
+    onRegenerateNetwork,
+    onSaveNetworkState,
+    onToggleNetworkView,
+  }: LayoutToolbarProps
+) {
   const { t } = useTranslation()
 
   return (
@@ -498,15 +516,17 @@ function normalizeBloodNetworkForceSettings(
   }
 }
 
-function BloodNetworkForceControl({
-  forceKey,
-  forces,
-  label,
-  max,
-  min,
-  onForceChange,
-  step,
-}: BloodNetworkForceControlProps) {
+function BloodNetworkForceControl(
+  {
+    forceKey,
+    forces,
+    label,
+    max,
+    min,
+    onForceChange,
+    step,
+  }: BloodNetworkForceControlProps
+) {
   const value = forces[forceKey]
   const id = `blood-network-force-${forceKey}`
 
@@ -527,18 +547,20 @@ function BloodNetworkForceControl({
   )
 }
 
-function BloodNetworkSidebar({
-  activePresetId,
-  canSavePreset,
-  forces,
-  onForceChange,
-  onPresetChange,
-  onPresetDefaultChange,
-  onPresetNameChange,
-  onPresetReload,
-  onSavePreset,
-  presets,
-}: BloodNetworkSidebarProps) {
+function BloodNetworkSidebar(
+  {
+    activePresetId,
+    canSavePreset,
+    forces,
+    onForceChange,
+    onPresetChange,
+    onPresetDefaultChange,
+    onPresetNameChange,
+    onPresetReload,
+    onSavePreset,
+    presets,
+  }: BloodNetworkSidebarProps
+) {
   const { t } = useTranslation()
   const [presetNameEditing, setPresetNameEditing] = useState(false)
   const activePreset = presets.find((preset) => preset.id === activePresetId)
@@ -563,9 +585,11 @@ function BloodNetworkSidebar({
                 }}
                 value={activePreset.id}
               >
-                {presets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>{preset.name}</option>
-                ))}
+                {presets.map(
+                  (preset) => (
+                    <option key={preset.id} value={preset.id}>{preset.name}</option>
+                  )
+                )}
               </select>
             </label>
             <div className="blood-network-preset-actions">
@@ -589,15 +613,21 @@ function BloodNetworkSidebar({
                 <RotateIcon aria-hidden="true" />
               </button>
               <button
-                aria-label={t('person.editField', {
-                  field: t('editor.bloodNetworkPresetName'),
-                })}
+                aria-label={t(
+                  'person.editField',
+                  {
+                    field: t('editor.bloodNetworkPresetName'),
+                  }
+                )}
                 aria-pressed={presetNameEditing}
                 className="blood-network-preset-action"
                 onClick={() => setPresetNameEditing((isEditing) => !isEditing)}
-                title={t('person.editField', {
-                  field: t('editor.bloodNetworkPresetName'),
-                })}
+                title={t(
+                  'person.editField',
+                  {
+                    field: t('editor.bloodNetworkPresetName'),
+                  }
+                )}
                 type="button"
               >
                 <ActionIcon name="edit" />
@@ -631,148 +661,148 @@ function BloodNetworkSidebar({
           className="blood-network-force-controls"
         >
           <BloodNetworkForceControl
-          forceKey="averageMovementPerSecondThreshold"
-          forces={forces}
-          label={t('editor.bloodNetworkSettlementThreshold')}
-          max={5}
-          min={0.1}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="parentChildPathLength"
-          forces={forces}
-          label={t('editor.bloodNetworkParentChildPathLength')}
-          max={500}
-          min={100}
-          onForceChange={onForceChange}
-          step={1}
-        />
-        <BloodNetworkForceControl
-          forceKey="parentToFamilyLengthRatio"
-          forces={forces}
-          label={t('editor.bloodNetworkParentToFamilyLengthRatio')}
-          max={1}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.01}
-        />
-        <BloodNetworkForceControl
-          forceKey="parentPairSpringStrength"
-          forces={forces}
-          label={t('editor.bloodNetworkParentPairSpring')}
-          max={0.5}
-          min={0.04}
-          onForceChange={onForceChange}
-          step={0.01}
-        />
-        <BloodNetworkForceControl
-          forceKey="parentHingeTargetAngle"
-          forces={forces}
-          label={t('editor.bloodNetworkParentHingeTargetAngle')}
-          max={120}
-          min={10}
-          onForceChange={onForceChange}
-          step={1}
-        />
-        <BloodNetworkForceControl
-          forceKey="parentHingeSpringStrength"
-          forces={forces}
-          label={t('editor.bloodNetworkParentHingeSpring')}
-          max={10}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="descendantSideForce"
-          forces={forces}
-          label={t('editor.bloodNetworkDescendantSideForce')}
-          max={24}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="personFlowHingeStrength"
-          forces={forces}
-          label={t('editor.bloodNetworkPersonFlowHinge')}
-          max={50}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="sharedParentSpringStrength"
-          forces={forces}
-          label={t('editor.bloodNetworkSharedParentSpring')}
-          max={2}
-          min={0.02}
-          onForceChange={onForceChange}
-          step={0.01}
-        />
-        <BloodNetworkForceControl
-          forceKey="baseRepulsion"
-          forces={forces}
-          label={t('editor.bloodNetworkBaseRepulsion')}
-          max={8}
-          min={0.5}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="baseRepulsionDistanceExponent"
-          forces={forces}
-          label={t('editor.bloodNetworkRepulsionDistanceExponent')}
-          max={3}
-          min={1}
-          onForceChange={onForceChange}
-          step={0.05}
-        />
-        <BloodNetworkForceControl
-          forceKey="edgeNodeCapsuleThickness"
-          forces={forces}
-          label={t('editor.bloodNetworkEdgeNodeCapsuleThickness')}
-          max={100}
-          min={0}
-          onForceChange={onForceChange}
-          step={1}
-        />
-        <BloodNetworkForceControl
-          forceKey="edgeNodeRepulsionStrength"
-          forces={forces}
-          label={t('editor.bloodNetworkEdgeNodeRepulsion')}
-          max={30}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.1}
-        />
-        <BloodNetworkForceControl
-          forceKey="kinshipRepulsionStep"
-          forces={forces}
-          label={t('editor.bloodNetworkKinshipRepulsion')}
-          max={3}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.05}
-        />
-        <BloodNetworkForceControl
-          forceKey="kinshipRepulsionDistanceExponent"
-          forces={forces}
-          label={t('editor.bloodNetworkKinshipRepulsionDistanceExponent')}
-          max={3}
-          min={1}
-          onForceChange={onForceChange}
-          step={0.05}
-        />
-        <BloodNetworkForceControl
-          forceKey="unrelatedParentNodeRepulsion"
-          forces={forces}
-          label={t('editor.bloodNetworkUnrelatedParentNodeRepulsion')}
-          max={12}
-          min={0}
-          onForceChange={onForceChange}
-          step={0.1}
+            forceKey="averageMovementPerSecondThreshold"
+            forces={forces}
+            label={t('editor.bloodNetworkSettlementThreshold')}
+            max={5}
+            min={0.1}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="parentChildPathLength"
+            forces={forces}
+            label={t('editor.bloodNetworkParentChildPathLength')}
+            max={500}
+            min={100}
+            onForceChange={onForceChange}
+            step={1}
+          />
+          <BloodNetworkForceControl
+            forceKey="parentToFamilyLengthRatio"
+            forces={forces}
+            label={t('editor.bloodNetworkParentToFamilyLengthRatio')}
+            max={1}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.01}
+          />
+          <BloodNetworkForceControl
+            forceKey="parentPairSpringStrength"
+            forces={forces}
+            label={t('editor.bloodNetworkParentPairSpring')}
+            max={0.5}
+            min={0.04}
+            onForceChange={onForceChange}
+            step={0.01}
+          />
+          <BloodNetworkForceControl
+            forceKey="parentHingeTargetAngle"
+            forces={forces}
+            label={t('editor.bloodNetworkParentHingeTargetAngle')}
+            max={120}
+            min={10}
+            onForceChange={onForceChange}
+            step={1}
+          />
+          <BloodNetworkForceControl
+            forceKey="parentHingeSpringStrength"
+            forces={forces}
+            label={t('editor.bloodNetworkParentHingeSpring')}
+            max={10}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="descendantSideForce"
+            forces={forces}
+            label={t('editor.bloodNetworkDescendantSideForce')}
+            max={24}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="personFlowHingeStrength"
+            forces={forces}
+            label={t('editor.bloodNetworkPersonFlowHinge')}
+            max={50}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="sharedParentSpringStrength"
+            forces={forces}
+            label={t('editor.bloodNetworkSharedParentSpring')}
+            max={2}
+            min={0.02}
+            onForceChange={onForceChange}
+            step={0.01}
+          />
+          <BloodNetworkForceControl
+            forceKey="baseRepulsion"
+            forces={forces}
+            label={t('editor.bloodNetworkBaseRepulsion')}
+            max={8}
+            min={0.5}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="baseRepulsionDistanceExponent"
+            forces={forces}
+            label={t('editor.bloodNetworkRepulsionDistanceExponent')}
+            max={3}
+            min={1}
+            onForceChange={onForceChange}
+            step={0.05}
+          />
+          <BloodNetworkForceControl
+            forceKey="edgeNodeCapsuleThickness"
+            forces={forces}
+            label={t('editor.bloodNetworkEdgeNodeCapsuleThickness')}
+            max={100}
+            min={0}
+            onForceChange={onForceChange}
+            step={1}
+          />
+          <BloodNetworkForceControl
+            forceKey="edgeNodeRepulsionStrength"
+            forces={forces}
+            label={t('editor.bloodNetworkEdgeNodeRepulsion')}
+            max={30}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.1}
+          />
+          <BloodNetworkForceControl
+            forceKey="kinshipRepulsionStep"
+            forces={forces}
+            label={t('editor.bloodNetworkKinshipRepulsion')}
+            max={3}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.05}
+          />
+          <BloodNetworkForceControl
+            forceKey="kinshipRepulsionDistanceExponent"
+            forces={forces}
+            label={t('editor.bloodNetworkKinshipRepulsionDistanceExponent')}
+            max={3}
+            min={1}
+            onForceChange={onForceChange}
+            step={0.05}
+          />
+          <BloodNetworkForceControl
+            forceKey="unrelatedParentNodeRepulsion"
+            forces={forces}
+            label={t('editor.bloodNetworkUnrelatedParentNodeRepulsion')}
+            max={12}
+            min={0}
+            onForceChange={onForceChange}
+            step={0.1}
           />
         </fieldset>
       </div>
@@ -813,124 +843,154 @@ type TreeCanvasProps = {
   view: 'network' | 'tree'
 }
 
-function TreeCanvas({
-  bloodNetworkSidebarContainer,
-  onAddParents,
-  onClearSelection,
-  onClosePathDisplay,
-  onExport,
-  onChangeReference,
-  onOpenRelativeDialog,
-  onSaveBloodNetworkState,
-  onSaveTreeLayout,
-  onShowPathDisplay,
-  pathDisplay,
-  request,
-  onSelectPerson,
-  onToggleNetworkView,
-  onUpdateUser,
-  selectedPersonId,
-  mergeAffectedIds,
-  mergePanelOpen,
-  mergeProposal,
-  snapshot,
-  user,
-  view,
-}: TreeCanvasProps) {
+function TreeCanvas(
+  {
+    bloodNetworkSidebarContainer,
+    onAddParents,
+    onClearSelection,
+    onClosePathDisplay,
+    onExport,
+    onChangeReference,
+    onOpenRelativeDialog,
+    onSaveBloodNetworkState,
+    onSaveTreeLayout,
+    onShowPathDisplay,
+    pathDisplay,
+    request,
+    onSelectPerson,
+    onToggleNetworkView,
+    onUpdateUser,
+    selectedPersonId,
+    mergeAffectedIds,
+    mergePanelOpen,
+    mergeProposal,
+    snapshot,
+    user,
+    view,
+  }: TreeCanvasProps
+) {
   type EditorFlowNode = PersonFlowNode | BloodNetworkFlowNode
   type EditorFlowEdge = TreeFlowEdge | BloodNetworkFlowEdge
   const { t } = useTranslation()
   const instance = useRef<
     ReactFlowInstance<EditorFlowNode, EditorFlowEdge> | null
-  >(null)
+  >(
+    null
+  )
   const canvas = useRef<HTMLDivElement>(null)
-  const cameras = useRef<Record<TreeEditorView, Viewport | null>>({
-    network: null,
-    tree: null,
-  })
+  const cameras = useRef<Record<TreeEditorView, Viewport | null>>(
+    {
+      network: null,
+      tree: null,
+    }
+  )
   const [cameraReady, setCameraReady] = useState(false)
   const activeCameraView = useRef<TreeEditorView>(view)
   const centeredPersonId = useRef<string | null>(null)
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
     BloodNetworkFlowNode[]
-  >([])
+  >(
+    []
+  )
   const latestBloodNodes = useRef<BloodNetworkFlowNode[]>([])
   const activeBloodNetwork = useRef<{
     edges: BloodNetworkFlowEdge[]
     nodes: BloodNetworkFlowNode[]
-  } | null>(null)
+  } | null>(
+    null
+  )
   const bloodNetworkSimulation = useRef<BloodNetworkSimulation | null>(null)
   const draggedBloodNodeId = useRef<string | null>(null)
   const bloodNetworkRotationSession = useRef<BloodNetworkRotationSession | null>(null)
   const [bloodNetworkContextMenu, setBloodNetworkContextMenu] = useState<
     BloodNetworkNodeContextMenu | null
-  >(null)
+  >(
+    null
+  )
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null)
   const bloodNetworkContextMenuElement = useRef<HTMLElement>(null)
   const treeContextMenuElement = useRef<HTMLElement>(null)
   const [bloodNetworkRotationPivotNodeId, setBloodNetworkRotationPivotNodeId] = useState<
     string | null
-  >(null)
+  >(
+    null
+  )
   const [bloodNetworkSaveConfirmation, setBloodNetworkSaveConfirmation] = useState(false)
-  const savedBloodNetworkPresets = useMemo(() => (
-    user?.bloodNetworkPresets.map((preset) => ({
-      ...preset,
-      forces: normalizeBloodNetworkForceSettings(preset.forces),
-    })) ?? defaultBloodNetworkPresets()
-  ), [user?.bloodNetworkPresets])
+  const savedBloodNetworkPresets = useMemo(
+    () => (
+      user?.bloodNetworkPresets.map(
+        (preset) => ({
+          ...preset,
+          forces: normalizeBloodNetworkForceSettings(preset.forces),
+        })
+      ) ?? defaultBloodNetworkPresets()
+    ),
+    [user?.bloodNetworkPresets]
+  )
   const [bloodNetworkPresets, setBloodNetworkPresets] = useState<
     BloodNetworkPreset[]
-  >(() => savedBloodNetworkPresets.map((preset) => ({
-    ...preset,
-    forces: { ...preset.forces },
-  })))
+  >(
+    () => savedBloodNetworkPresets.map(
+      (preset) => ({
+        ...preset,
+        forces: { ...preset.forces },
+      })
+    )
+  )
   const [activeBloodNetworkPresetId, setActiveBloodNetworkPresetId] = useState<
     BloodNetworkPreset['id']
-  >(() => bloodNetworkPresets.find((preset) => preset.isDefault)?.id
-    ?? bloodNetworkPresets[0]?.id
-    ?? 'normal')
-  const [bloodNetworkForces, setBloodNetworkForces] = useState(() => ({
-    ...(bloodNetworkPresets.find((preset) => preset.isDefault)?.forces
-      ?? DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS),
-  }))
+  >(
+    () => bloodNetworkPresets.find((preset) => preset.isDefault)?.id
+      ?? bloodNetworkPresets[0]?.id
+      ?? 'normal'
+  )
+  const [bloodNetworkForces, setBloodNetworkForces] = useState(
+    () => ({
+      ...(bloodNetworkPresets.find((preset) => preset.isDefault)?.forces
+        ?? DEFAULT_BLOOD_NETWORK_FORCE_SETTINGS),
+    })
+  )
   const bloodNetworkStopThresholdRef = useRef(
     bloodNetworkForces.averageMovementPerSecondThreshold,
   )
   const resumeBloodNetworkAnimation = useRef<(() => void) | null>(null)
-  const bloodNetworkSimulationForces = useMemo(() => ({
-    averageMovementPerSecondThreshold: 0,
-    baseRepulsion: bloodNetworkForces.baseRepulsion,
-    baseRepulsionDistanceExponent: bloodNetworkForces.baseRepulsionDistanceExponent,
-    descendantSideForce: bloodNetworkForces.descendantSideForce,
-    edgeNodeCapsuleThickness: bloodNetworkForces.edgeNodeCapsuleThickness,
-    edgeNodeRepulsionStrength: bloodNetworkForces.edgeNodeRepulsionStrength,
-    kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
-    kinshipRepulsionDistanceExponent: bloodNetworkForces.kinshipRepulsionDistanceExponent,
-    parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
-    parentHingeTargetAngle: bloodNetworkForces.parentHingeTargetAngle,
-    parentChildPathLength: bloodNetworkForces.parentChildPathLength,
-    parentPairSpringStrength: bloodNetworkForces.parentPairSpringStrength,
-    parentToFamilyLengthRatio: bloodNetworkForces.parentToFamilyLengthRatio,
-    personFlowHingeStrength: bloodNetworkForces.personFlowHingeStrength,
-    sharedParentSpringStrength: bloodNetworkForces.sharedParentSpringStrength,
-    unrelatedParentNodeRepulsion: bloodNetworkForces.unrelatedParentNodeRepulsion,
-  }), [
-    bloodNetworkForces.baseRepulsion,
-    bloodNetworkForces.baseRepulsionDistanceExponent,
-    bloodNetworkForces.descendantSideForce,
-    bloodNetworkForces.edgeNodeCapsuleThickness,
-    bloodNetworkForces.edgeNodeRepulsionStrength,
-    bloodNetworkForces.kinshipRepulsionStep,
-    bloodNetworkForces.kinshipRepulsionDistanceExponent,
-    bloodNetworkForces.parentHingeSpringStrength,
-    bloodNetworkForces.parentHingeTargetAngle,
-    bloodNetworkForces.parentChildPathLength,
-    bloodNetworkForces.parentPairSpringStrength,
-    bloodNetworkForces.parentToFamilyLengthRatio,
-    bloodNetworkForces.personFlowHingeStrength,
-    bloodNetworkForces.sharedParentSpringStrength,
-    bloodNetworkForces.unrelatedParentNodeRepulsion,
-  ])
+  const bloodNetworkSimulationForces = useMemo(
+    () => ({
+      averageMovementPerSecondThreshold: 0,
+      baseRepulsion: bloodNetworkForces.baseRepulsion,
+      baseRepulsionDistanceExponent: bloodNetworkForces.baseRepulsionDistanceExponent,
+      descendantSideForce: bloodNetworkForces.descendantSideForce,
+      edgeNodeCapsuleThickness: bloodNetworkForces.edgeNodeCapsuleThickness,
+      edgeNodeRepulsionStrength: bloodNetworkForces.edgeNodeRepulsionStrength,
+      kinshipRepulsionStep: bloodNetworkForces.kinshipRepulsionStep,
+      kinshipRepulsionDistanceExponent: bloodNetworkForces.kinshipRepulsionDistanceExponent,
+      parentHingeSpringStrength: bloodNetworkForces.parentHingeSpringStrength,
+      parentHingeTargetAngle: bloodNetworkForces.parentHingeTargetAngle,
+      parentChildPathLength: bloodNetworkForces.parentChildPathLength,
+      parentPairSpringStrength: bloodNetworkForces.parentPairSpringStrength,
+      parentToFamilyLengthRatio: bloodNetworkForces.parentToFamilyLengthRatio,
+      personFlowHingeStrength: bloodNetworkForces.personFlowHingeStrength,
+      sharedParentSpringStrength: bloodNetworkForces.sharedParentSpringStrength,
+      unrelatedParentNodeRepulsion: bloodNetworkForces.unrelatedParentNodeRepulsion,
+    }),
+    [
+      bloodNetworkForces.baseRepulsion,
+      bloodNetworkForces.baseRepulsionDistanceExponent,
+      bloodNetworkForces.descendantSideForce,
+      bloodNetworkForces.edgeNodeCapsuleThickness,
+      bloodNetworkForces.edgeNodeRepulsionStrength,
+      bloodNetworkForces.kinshipRepulsionStep,
+      bloodNetworkForces.kinshipRepulsionDistanceExponent,
+      bloodNetworkForces.parentHingeSpringStrength,
+      bloodNetworkForces.parentHingeTargetAngle,
+      bloodNetworkForces.parentChildPathLength,
+      bloodNetworkForces.parentPairSpringStrength,
+      bloodNetworkForces.parentToFamilyLengthRatio,
+      bloodNetworkForces.personFlowHingeStrength,
+      bloodNetworkForces.sharedParentSpringStrength,
+      bloodNetworkForces.unrelatedParentNodeRepulsion,
+    ]
+  )
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
   const mergeProjection = useMemo(() => mergeProposal?.proposal ? projectTreeMerge(snapshot, mergeProposal.proposal) : null, [mergeProposal, snapshot])
@@ -943,10 +1003,12 @@ function TreeCanvas({
   const [layoutResolution, setLayoutResolution] = useState<{
     key: string
     value: TreeLayoutResolution
-  }>(() => ({
-    key: currentLayoutKey,
-    value: resolveTreeLayout(layoutSnapshot, focusedSnapshot),
-  }))
+  }>(
+    () => ({
+      key: currentLayoutKey,
+      value: resolveTreeLayout(layoutSnapshot, focusedSnapshot),
+    })
+  )
   let currentLayoutResolution = layoutResolution
   if (layoutResolution.key !== currentLayoutKey) {
     currentLayoutResolution = {
@@ -959,557 +1021,723 @@ function TreeCanvas({
   const pendingLayoutSave = currentLayoutResolution.value.saveRequest
   const layoutReferenceKey = JSON.stringify(snapshot.tree.reference)
 
-  useEffect(() => {
-    if (pendingLayoutSave) {
-      void onSaveTreeLayout(pendingLayoutSave, layoutReferenceKey)
-    }
-  }, [layoutReferenceKey, onSaveTreeLayout, pendingLayoutSave])
-  const pathProjection = useMemo(() => pathDisplay
-    ? projectSearchRoute(pathDisplay, focusedSnapshot.people, treePositions)
-    : null, [focusedSnapshot.people, pathDisplay, treePositions])
-  const referencePersonIds = useMemo(() => {
-    const reference = effectiveReference(snapshot)
-    return new Set(reference?.type === 'person'
-      ? [reference.personId]
-      : reference?.personIds ?? [])
-  }, [snapshot])
-  const treeNodes = useMemo<PersonFlowNode[]>(() => focusedSnapshot.people.map((person) => ({
-    id: person.id,
-    type: 'person',
-    position: treePositions.get(person.id) ?? { x: 0, y: 0 },
-    height: PERSON_CARD_HEIGHT,
-    width: PERSON_CARD_WIDTH,
-    data: {
-      isMuted: Boolean(
-        pathDisplay
-        && person.id !== selectedPersonId
-        && !pathProjection?.routePersonIds.has(person.id),
-      ),
-      isReference: referencePersonIds.has(person.id),
-      person,
+  useEffect(
+    () => {
+      if (pendingLayoutSave) {
+        void onSaveTreeLayout(pendingLayoutSave, layoutReferenceKey)
+      }
     },
-    selected: person.id === selectedPersonId,
-    ...(mergeAffectedIds.includes(person.id) ? { className: 'merge-affected-node' } : {}),
-  })), [focusedSnapshot.people, mergeAffectedIds, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions])
-  const pathNodes = useMemo<PersonFlowNode[]>(() => pathProjection?.overlayPeople.map((person) => ({
-    id: person.id,
-    type: 'person',
-    position: pathProjection.positions.get(person.id) ?? { x: 0, y: 0 },
-    height: PERSON_CARD_HEIGHT,
-    width: PERSON_CARD_WIDTH,
-    data: { isOverlay: true, isReference: false, person },
-    selected: person.id === selectedPersonId,
-  })) ?? [], [pathProjection, selectedPersonId])
-  const edges = useMemo<TreeFlowEdge[]>(() => {
-    const base = buildTreeEdges(focusedSnapshot, treePositions).map((edge) => (
-      edge.type === 'family'
-        ? {
-            ...edge,
-            data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
-          }
-        : {
-            ...edge,
-            data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
-          }
-    )) as TreeFlowEdge[]
-    if (!pathDisplay || !pathProjection) return base
+    [layoutReferenceKey, onSaveTreeLayout, pendingLayoutSave]
+  )
+  const pathProjection = useMemo(
+    () => pathDisplay
+      ? projectSearchRoute(pathDisplay, focusedSnapshot.people, treePositions)
+      : null,
+    [focusedSnapshot.people, pathDisplay, treePositions]
+  )
+  const referencePersonIds = useMemo(
+    () => {
+      const reference = effectiveReference(snapshot)
+      return new Set(
+        reference?.type === 'person'
+          ? [reference.personId]
+          : reference?.personIds ?? []
+      )
+    },
+    [snapshot]
+  )
+  const treeNodes = useMemo<PersonFlowNode[]>(
+    () => focusedSnapshot.people.map(
+      (person) => ({
+        id: person.id,
+        type: 'person',
+        position: treePositions.get(person.id) ?? { x: 0, y: 0 },
+        height: PERSON_CARD_HEIGHT,
+        width: PERSON_CARD_WIDTH,
+        data: {
+          isMuted: Boolean(
+            pathDisplay
+            && person.id !== selectedPersonId
+            && !pathProjection?.routePersonIds.has(person.id),
+          ),
+          isReference: referencePersonIds.has(person.id),
+          person,
+        },
+        selected: person.id === selectedPersonId,
+        ...(mergeAffectedIds.includes(person.id) ? { className: 'merge-affected-node' } : {}),
+      })
+    ),
+    [focusedSnapshot.people, mergeAffectedIds, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions]
+  )
+  const pathNodes = useMemo<PersonFlowNode[]>(
+    () => pathProjection?.overlayPeople.map(
+      (person) => ({
+        id: person.id,
+        type: 'person',
+        position: pathProjection.positions.get(person.id) ?? { x: 0, y: 0 },
+        height: PERSON_CARD_HEIGHT,
+        width: PERSON_CARD_WIDTH,
+        data: { isOverlay: true, isReference: false, person },
+        selected: person.id === selectedPersonId,
+      })
+    ) ?? [],
+    [pathProjection, selectedPersonId]
+  )
+  const edges = useMemo<TreeFlowEdge[]>(
+    () => {
+      const base = buildTreeEdges(focusedSnapshot, treePositions)
+        .map(
+          (edge) => (
+            edge.type === 'family'
+              ? {
+                ...edge,
+                data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
+              }
+              : {
+                ...edge,
+                data: { ...edge.data, ...(pathDisplay ? { visualState: 'muted' as const } : {}) },
+              }
+          )
+        ) as TreeFlowEdge[]
+      if (!pathDisplay || !pathProjection) return base
 
-    const route = buildTreeEdges({
-      tree: snapshot.tree,
-      parentLinks: pathDisplay.parentLinks,
-      marriages: pathDisplay.marriages,
-    }, pathProjection.positions).map((edge) => (
-      edge.type === 'family'
-        ? {
-            ...edge,
-            id: `route:${edge.id}`,
-            data: { ...edge.data },
-          }
-        : {
-            ...edge,
-            id: `route:${edge.id}`,
-            data: { ...edge.data },
-          }
-    )) as TreeFlowEdge[]
+      const route = buildTreeEdges(
+        {
+          tree: snapshot.tree,
+          parentLinks: pathDisplay.parentLinks,
+          marriages: pathDisplay.marriages,
+        },
+        pathProjection.positions
+      )
+        .map(
+          (edge) => (
+            edge.type === 'family'
+              ? {
+                ...edge,
+                id: `route:${edge.id}`,
+                data: { ...edge.data },
+              }
+              : {
+                ...edge,
+                id: `route:${edge.id}`,
+                data: { ...edge.data },
+              }
+          )
+        ) as TreeFlowEdge[]
 
-    return [...base, ...route]
-  }, [focusedSnapshot, pathDisplay, pathProjection, snapshot.tree, treePositions])
-  const searchPeople = useCallback((query: string, signal: AbortSignal) => (
-    personApi.search(request, snapshot.tree.id, query, signal)
-      .then((result) => result.items)
-  ), [request, snapshot.tree.id])
+      return [...base, ...route]
+    },
+    [focusedSnapshot, pathDisplay, pathProjection, snapshot.tree, treePositions]
+  )
+  const searchPeople = useCallback(
+    (query: string, signal: AbortSignal) => (
+      personApi
+        .search(
+          request,
+          snapshot.tree.id,
+          query,
+          signal
+        )
+        .then(
+          (result) => result.items
+        )
+    ),
+    [request, snapshot.tree.id]
+  )
   const renderedPersonIds = useMemo(
-    () => new Set([
-      ...focusedSnapshot.people.map((person) => person.id),
-      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
-    ]),
+    () => new Set(
+      [
+        ...focusedSnapshot.people.map((person) => person.id),
+        ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
+      ]
+    ),
     [focusedSnapshot.people, pathDisplay],
   )
-  const selectSearchResult = useCallback(async (person: PersonSearchResult) => {
-    if (renderedPersonIds.has(person.id)) {
-      onSelectPerson(person.id)
-      return
-    }
-    if (await onShowPathDisplay(person.id)) {
-      onSelectPerson(person.id)
-    }
-  }, [onSelectPerson, onShowPathDisplay, renderedPersonIds])
+  const selectSearchResult = useCallback(
+    async (person: PersonSearchResult) => {
+      if (renderedPersonIds.has(person.id)) {
+        onSelectPerson(person.id)
+        return
+      }
+      if (await onShowPathDisplay(person.id)) {
+        onSelectPerson(person.id)
+      }
+    },
+    [onSelectPerson, onShowPathDisplay, renderedPersonIds]
+  )
   const generatedBloodNetwork = useMemo(
     () => view === 'network'
       ? buildBloodNetwork(snapshot, networkGeneration)
       : { edges: [], nodes: [] },
     [networkGeneration, snapshot, view],
   )
-  const isSavedBloodNetworkStateCompatible = useMemo(() => {
-    const state = snapshot.bloodNetworkState
-    if (!state || networkGeneration !== 0) {
-      return false
-    }
-    const savedIds = new Set(state.nodes.map((node) => node.id))
-    return savedIds.size === generatedBloodNetwork.nodes.length
-      && generatedBloodNetwork.nodes.every((node) => savedIds.has(node.id))
-  }, [generatedBloodNetwork.nodes, networkGeneration, snapshot.bloodNetworkState])
-  const bloodNetwork = useMemo(() => (
-    isSavedBloodNetworkStateCompatible
-      ? restoreBloodNetworkNodePositions(generatedBloodNetwork, snapshot.bloodNetworkState)
-      : generatedBloodNetwork
-  ), [generatedBloodNetwork, isSavedBloodNetworkStateCompatible, snapshot.bloodNetworkState])
+  const isSavedBloodNetworkStateCompatible = useMemo(
+    () => {
+      const state = snapshot.bloodNetworkState
+      if (!state || networkGeneration !== 0) {
+        return false
+      }
+      const savedIds = new Set(state.nodes.map((node) => node.id))
+      return savedIds.size === generatedBloodNetwork.nodes.length
+        && generatedBloodNetwork.nodes.every((node) => savedIds.has(node.id))
+    },
+    [generatedBloodNetwork.nodes, networkGeneration, snapshot.bloodNetworkState]
+  )
+  const bloodNetwork = useMemo(
+    () => (
+      isSavedBloodNetworkStateCompatible
+        ? restoreBloodNetworkNodePositions(generatedBloodNetwork, snapshot.bloodNetworkState)
+        : generatedBloodNetwork
+    ),
+    [generatedBloodNetwork, isSavedBloodNetworkStateCompatible, snapshot.bloodNetworkState]
+  )
   const activeBloodNodes = view === 'network'
     ? (simulatedBloodNodes.length > 0 || bloodNetwork.nodes.length === 0
       ? simulatedBloodNodes
       : bloodNetwork.nodes)
     : []
   const nodes: EditorFlowNode[] = view === 'network'
-    ? activeBloodNodes.map((node) => ({
+    ? activeBloodNodes.map(
+      (node) => ({
         ...node,
         selected: node.id === bloodNetworkRotationPivotNodeId,
-      }))
+      })
+    )
     : mergeProjection?.nodes ?? [...treeNodes, ...pathNodes]
   const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : mergeProjection?.edges ?? edges
-  const treeMenuSpouses = useMemo(() => {
-    if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
-    const spouseIds = new Set<string>()
-    for (const marriage of snapshot.marriages) {
-      if (marriage.malePersonId === treeContextMenu.personId) {
-        spouseIds.add(marriage.femalePersonId)
-      } else if (marriage.femalePersonId === treeContextMenu.personId) {
-        spouseIds.add(marriage.malePersonId)
+  const treeMenuSpouses = useMemo(
+    () => {
+      if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
+      const spouseIds = new Set<string>()
+      for (const marriage of snapshot.marriages) {
+        if (marriage.malePersonId === treeContextMenu.personId) {
+          spouseIds.add(marriage.femalePersonId)
+        } else if (marriage.femalePersonId === treeContextMenu.personId) {
+          spouseIds.add(marriage.malePersonId)
+        }
       }
-    }
-    return snapshot.people
-      .filter((person) => spouseIds.has(person.id))
-      .sort((left, right) => left.id.localeCompare(right.id))
-  }, [snapshot.marriages, snapshot.people, treeContextMenu])
-  const treeMenuPerson = useMemo(() => (
-    treeContextMenu?.kind === 'person' && treeContextMenu.personId
-      ? snapshot.people.find((person) => person.id === treeContextMenu.personId) ?? null
-      : null
-  ), [snapshot.people, treeContextMenu])
-  const treeMenuParentRoles = useMemo(() => new Set(
-    treeMenuPerson
-      ? snapshot.parentLinks
-        .filter((link) => link.childId === treeMenuPerson.id)
-        .map((link) => link.role)
-      : [],
-  ), [snapshot.parentLinks, treeMenuPerson])
+      return snapshot.people
+        .filter(
+          (person) => spouseIds.has(person.id)
+        )
+        .sort(
+          (left, right) => left.id.localeCompare(right.id)
+        )
+    },
+    [snapshot.marriages, snapshot.people, treeContextMenu]
+  )
+  const treeMenuPerson = useMemo(
+    () => (
+      treeContextMenu?.kind === 'person' && treeContextMenu.personId
+        ? snapshot.people.find((person) => person.id === treeContextMenu.personId) ?? null
+        : null
+    ),
+    [snapshot.people, treeContextMenu]
+  )
+  const treeMenuParentRoles = useMemo(
+    () => new Set(
+      treeMenuPerson
+        ? snapshot.parentLinks
+          .filter(
+            (link) => link.childId === treeMenuPerson.id
+          )
+          .map(
+            (link) => link.role
+          )
+        : [],
+    ),
+    [snapshot.parentLinks, treeMenuPerson]
+  )
   const isReferenceMarriage = (personIds: readonly [string, string]) => {
     const reference = snapshot.tree.reference
     return reference?.type === 'marriage'
       && personIds.every((personId) => reference.personIds.includes(personId))
   }
 
-  useEffect(() => {
-    const presets = savedBloodNetworkPresets.map((preset) => ({
-      ...preset,
-      forces: { ...preset.forces },
-    }))
-    const defaultPreset = presets.find((preset) => preset.isDefault) ?? presets[0]
-    if (!defaultPreset) {
-      return
-    }
-    setBloodNetworkPresets(presets)
-    setActiveBloodNetworkPresetId(defaultPreset.id)
-    setBloodNetworkForces({ ...defaultPreset.forces })
-  }, [savedBloodNetworkPresets])
-
-  useEffect(() => {
-    if (view !== 'network' || !snapshot.bloodNetworkState) {
-      return
-    }
-    setBloodNetworkForces(normalizeBloodNetworkForceSettings(snapshot.bloodNetworkState.forces))
-  }, [snapshot.bloodNetworkState, view])
-
-  useEffect(() => {
-    bloodNetworkStopThresholdRef.current = bloodNetworkForces.averageMovementPerSecondThreshold
-    resumeBloodNetworkAnimation.current?.()
-  }, [bloodNetworkForces.averageMovementPerSecondThreshold])
-
-  const bloodNetworkPresetsChanged = useMemo(() => haveBloodNetworkPresetsChanged(
-    bloodNetworkPresets,
-    savedBloodNetworkPresets,
-  ), [bloodNetworkPresets, savedBloodNetworkPresets])
-
-  useEffect(() => {
-    if (view === 'network') {
-      setTreeContextMenu(null)
-      return
-    }
-    bloodNetworkRotationSession.current = null
-    setBloodNetworkContextMenu(null)
-    setBloodNetworkRotationPivotNodeId(null)
-  }, [view])
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
+  useEffect(
+    () => {
+      const presets = savedBloodNetworkPresets.map(
+        (preset) => ({
+          ...preset,
+          forces: { ...preset.forces },
+        })
+      )
+      const defaultPreset = presets.find((preset) => preset.isDefault) ?? presets[0]
+      if (!defaultPreset) {
         return
       }
-      setBloodNetworkContextMenu(null)
-      setTreeContextMenu(null)
-      if (!bloodNetworkRotationPivotNodeId) {
+      setBloodNetworkPresets(presets)
+      setActiveBloodNetworkPresetId(defaultPreset.id)
+      setBloodNetworkForces({ ...defaultPreset.forces })
+    },
+    [savedBloodNetworkPresets]
+  )
+
+  useEffect(
+    () => {
+      if (view !== 'network' || !snapshot.bloodNetworkState) {
         return
       }
-      event.preventDefault()
+      setBloodNetworkForces(normalizeBloodNetworkForceSettings(snapshot.bloodNetworkState.forces))
+    },
+    [snapshot.bloodNetworkState, view]
+  )
+
+  useEffect(
+    () => {
+      bloodNetworkStopThresholdRef.current = bloodNetworkForces.averageMovementPerSecondThreshold
+      resumeBloodNetworkAnimation.current?.()
+    },
+    [bloodNetworkForces.averageMovementPerSecondThreshold]
+  )
+
+  const bloodNetworkPresetsChanged = useMemo(
+    () => haveBloodNetworkPresetsChanged(
+      bloodNetworkPresets,
+      savedBloodNetworkPresets,
+    ),
+    [bloodNetworkPresets, savedBloodNetworkPresets]
+  )
+
+  useEffect(
+    () => {
+      if (view === 'network') {
+        setTreeContextMenu(null)
+        return
+      }
       bloodNetworkRotationSession.current = null
+      setBloodNetworkContextMenu(null)
       setBloodNetworkRotationPivotNodeId(null)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [bloodNetworkRotationPivotNodeId])
+    },
+    [view]
+  )
 
-  const rememberCamera = useCallback((
-    cameraView: TreeEditorView,
-    viewport: Viewport,
-  ) => {
-    if (mergeProjection) return
-    cameras.current[cameraView] = { ...viewport }
-  }, [cameras, mergeProjection])
+  useEffect(
+    () => {
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') {
+          return
+        }
+        setBloodNetworkContextMenu(null)
+        setTreeContextMenu(null)
+        if (!bloodNetworkRotationPivotNodeId) {
+          return
+        }
+        event.preventDefault()
+        bloodNetworkRotationSession.current = null
+        setBloodNetworkRotationPivotNodeId(null)
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return () => window.removeEventListener('keydown', onKeyDown)
+    },
+    [bloodNetworkRotationPivotNodeId]
+  )
+
+  const rememberCamera = useCallback(
+    (
+      cameraView: TreeEditorView,
+      viewport: Viewport,
+    ) => {
+      if (mergeProjection) return
+      cameras.current[cameraView] = { ...viewport }
+    },
+    [cameras, mergeProjection]
+  )
 
   const previewCamera = useRef<Viewport | null>(null)
   const lastPreviewKey = useRef<string | null>(null)
-  useEffect(() => {
-    const flow = instance.current
-    if (!cameraReady || !flow || lastPreviewKey.current === mergePreviewKey) return
-    lastPreviewKey.current = mergePreviewKey
-    if (!mergeProjection) {
-      if (previewCamera.current) void flow.setViewport(previewCamera.current, { duration: 250 })
-      previewCamera.current = null
-      return
-    }
-    previewCamera.current ??= flow.getViewport()
-    const points = mergeProjection.nodes.filter((node) => mergeProjection.proposalIds.has(node.id)).map((node) => node.position)
-    const dimensions = canvas.current?.getBoundingClientRect()
-    if (!dimensions || points.length === 0) return
-    const x = Math.min(...points.map((point) => point.x))
-    const y = Math.min(...points.map((point) => point.y))
-    const bounds = { x, y, width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
-      height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT }
-    const width = Math.max(200, dimensions.width - Math.min(480, window.innerWidth - 44))
-    void flow.setViewport(getViewportForBounds(bounds, width, Math.max(200, dimensions.height - 120), 0.1, 1, 0.2), { duration: 250 })
-  }, [cameraReady, mergePreviewKey, mergeProjection])
-
-  useEffect(() => {
-    if (!selectedPersonId) {
-      centeredPersonId.current = null
-      return
-    }
-    if (
-      view !== 'tree'
-      || mergeProjection
-      || !cameraReady
-      || centeredPersonId.current === selectedPersonId
-    ) {
-      return
-    }
-    const position = pathProjection?.positions.get(selectedPersonId)
-      ?? treePositions.get(selectedPersonId)
-    const flow = instance.current
-    if (!position || !flow) {
-      return
-    }
-    const frame = requestAnimationFrame(() => {
-      centeredPersonId.current = selectedPersonId
-      void flow.setCenter(
-        position.x + PERSON_CARD_WIDTH / 2,
-        position.y + PERSON_CARD_HEIGHT / 2,
-        { duration: 150, zoom: flow.getViewport().zoom },
-      ).then(() => rememberCamera('tree', flow.getViewport()))
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [cameraReady, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view])
-
-  const lastMergeFocus = useRef('')
-  useEffect(() => {
-    if (!cameraReady || !instance.current || mergeAffectedIds.length === 0) return
-    const key = mergeAffectedIds.join(':')
-    if (lastMergeFocus.current === key) return
-    lastMergeFocus.current = key
-    const points = mergeAffectedIds.flatMap((id) => treePositions.get(id) ? [treePositions.get(id)!] : [])
-    const dimensions = canvas.current?.getBoundingClientRect()
-    if (!dimensions || points.length === 0) return
-    const x = Math.min(...points.map((point) => point.x))
-    const y = Math.min(...points.map((point) => point.y))
-    const bounds = { x, y,
-      width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
-      height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT,
-    }
-    const width = Math.max(200, dimensions.width - (mergePanelOpen ? Math.min(480, window.innerWidth) : 0))
-    void instance.current.setViewport(getViewportForBounds(bounds, width, dimensions.height, 0.1, 1, 0.2), { duration: 250 })
-      .then(() => { if (instance.current) rememberCamera('tree', instance.current.getViewport()) })
-  }, [cameraReady, mergeAffectedIds, mergePanelOpen, rememberCamera, treePositions])
-
-  const resetCamera = useCallback(async (
-    cameraView: TreeEditorView = view,
-    flow = instance.current,
-    duration = 150,
-  ) => {
-    if (!flow) {
-      return
-    }
-    if (cameraView === 'tree') {
-      await flow.setCenter(0, 0, { duration, zoom: 1 })
-    } else if (snapshot.bloodNetworkState) {
-      await flow.setViewport(snapshot.bloodNetworkState.viewport, { duration })
-    } else if (bloodNetwork.nodes.length > 0) {
-      await flow.fitBounds(bloodNetworkBounds(bloodNetwork.nodes), {
-        duration,
-        padding: 0.2,
-      })
-    } else {
-      await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration })
-    }
-    rememberCamera(cameraView, flow.getViewport())
-  }, [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, view])
-  const fitCamera = useCallback(async () => {
-    const flow = instance.current
-    if (!flow || nodes.length === 0) {
-      return
-    }
-    if (view === 'network') {
-      const networkNodes = latestBloodNodes.current.length > 0
-        ? latestBloodNodes.current
-        : bloodNetwork.nodes
-      if (networkNodes.length === 0) {
+  useEffect(
+    () => {
+      const flow = instance.current
+      if (!cameraReady || !flow || lastPreviewKey.current === mergePreviewKey) return
+      lastPreviewKey.current = mergePreviewKey
+      if (!mergeProjection) {
+        if (previewCamera.current) void flow.setViewport(previewCamera.current, { duration: 250 })
+        previewCamera.current = null
         return
       }
-      const bounds = bloodNetworkBounds(networkNodes)
+      previewCamera.current ??= flow.getViewport()
+      const points = mergeProjection.nodes.filter((node) => mergeProjection.proposalIds.has(node.id)).map((node) => node.position)
       const dimensions = canvas.current?.getBoundingClientRect()
-      if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
-        await flow.setViewport(getViewportForBounds(
-          bounds,
-          dimensions.width,
-          dimensions.height,
-          0.1,
-          1,
-          FIT_VIEW_PADDING,
-        ), { duration: 150 })
-      } else {
-        await flow.fitBounds(bounds, { duration: 0, padding: FIT_VIEW_PADDING })
+      if (!dimensions || points.length === 0) return
+      const x = Math.min(...points.map((point) => point.x))
+      const y = Math.min(...points.map((point) => point.y))
+      const bounds = { x, y, width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
+        height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT }
+      const width = Math.max(200, dimensions.width - Math.min(480, window.innerWidth - 44))
+      void flow.setViewport(getViewportForBounds(bounds, width, Math.max(200, dimensions.height - 120), 0.1, 1, 0.2), { duration: 250 })
+    },
+    [cameraReady, mergePreviewKey, mergeProjection]
+  )
+
+  useEffect(
+    () => {
+      if (!selectedPersonId) {
+        centeredPersonId.current = null
+        return
       }
-      if (flow.getViewport().zoom > 1) {
-        await flow.setCenter(
-          bounds.x + bounds.width / 2,
-          bounds.y + bounds.height / 2,
-          { duration: 0, zoom: 1 },
+      if (
+        view !== 'tree'
+        || mergeProjection
+        || !cameraReady
+        || centeredPersonId.current === selectedPersonId
+      ) {
+        return
+      }
+      const position = pathProjection?.positions.get(selectedPersonId)
+        ?? treePositions.get(selectedPersonId)
+      const flow = instance.current
+      if (!position || !flow) {
+        return
+      }
+      const frame = requestAnimationFrame(
+        () => {
+          centeredPersonId.current = selectedPersonId
+          void flow
+            .setCenter(
+              position.x + PERSON_CARD_WIDTH / 2,
+              position.y + PERSON_CARD_HEIGHT / 2,
+              { duration: 150, zoom: flow.getViewport().zoom },
+            )
+            .then(
+              () => rememberCamera('tree', flow.getViewport())
+            )
+        }
+      )
+      return () => cancelAnimationFrame(frame)
+    },
+    [cameraReady, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
+  )
+
+  const lastMergeFocus = useRef('')
+  useEffect(
+    () => {
+      if (!cameraReady || !instance.current || mergeAffectedIds.length === 0) return
+      const key = mergeAffectedIds.join(':')
+      if (lastMergeFocus.current === key) return
+      lastMergeFocus.current = key
+      const points = mergeAffectedIds.flatMap((id) => treePositions.get(id) ? [treePositions.get(id)!] : [])
+      const dimensions = canvas.current?.getBoundingClientRect()
+      if (!dimensions || points.length === 0) return
+      const x = Math.min(...points.map((point) => point.x))
+      const y = Math.min(...points.map((point) => point.y))
+      const bounds = { x, y,
+        width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
+        height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT,
+      }
+      const width = Math.max(200, dimensions.width - (mergePanelOpen ? Math.min(480, window.innerWidth) : 0))
+      void instance.current
+        .setViewport(
+          getViewportForBounds(bounds, width, dimensions.height, 0.1, 1, 0.2),
+          { duration: 250 }
+        )
+        .then(
+          () => { if (instance.current) rememberCamera('tree', instance.current.getViewport()) }
+        )
+    },
+    [cameraReady, mergeAffectedIds, mergePanelOpen, rememberCamera, treePositions]
+  )
+
+  const resetCamera = useCallback(
+    async (
+      cameraView: TreeEditorView = view,
+      flow = instance.current,
+      duration = 150,
+    ) => {
+      if (!flow) {
+        return
+      }
+      if (cameraView === 'tree') {
+        await flow.setCenter(0, 0, { duration, zoom: 1 })
+      } else if (snapshot.bloodNetworkState) {
+        await flow.setViewport(snapshot.bloodNetworkState.viewport, { duration })
+      } else if (bloodNetwork.nodes.length > 0) {
+        await flow.fitBounds(
+          bloodNetworkBounds(bloodNetwork.nodes),
+          {
+            duration,
+            padding: 0.2,
+          }
+        )
+      } else {
+        await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration })
+      }
+      rememberCamera(cameraView, flow.getViewport())
+    },
+    [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, view]
+  )
+  const fitCamera = useCallback(
+    async () => {
+      const flow = instance.current
+      if (!flow || nodes.length === 0) {
+        return
+      }
+      if (view === 'network') {
+        const networkNodes = latestBloodNodes.current.length > 0
+          ? latestBloodNodes.current
+          : bloodNetwork.nodes
+        if (networkNodes.length === 0) {
+          return
+        }
+        const bounds = bloodNetworkBounds(networkNodes)
+        const dimensions = canvas.current?.getBoundingClientRect()
+        if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+          await flow.setViewport(
+            getViewportForBounds(
+              bounds,
+              dimensions.width,
+              dimensions.height,
+              0.1,
+              1,
+              FIT_VIEW_PADDING,
+            ),
+            { duration: 150 }
+          )
+        } else {
+          await flow.fitBounds(bounds, { duration: 0, padding: FIT_VIEW_PADDING })
+        }
+        if (flow.getViewport().zoom > 1) {
+          await flow.setCenter(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+            { duration: 0, zoom: 1 },
+          )
+        }
+      } else {
+        await flow.fitView(
+          {
+            duration: 150,
+            maxZoom: 1,
+            minZoom: 0.1,
+            padding: FIT_VIEW_PADDING,
+          }
         )
       }
-    } else {
-      await flow.fitView({
-        duration: 150,
-        maxZoom: 1,
-        minZoom: 0.1,
-        padding: FIT_VIEW_PADDING,
-      })
-    }
-    rememberCamera(view, flow.getViewport())
-  }, [bloodNetwork.nodes, nodes.length, rememberCamera, view])
+      rememberCamera(view, flow.getViewport())
+    },
+    [bloodNetwork.nodes, nodes.length, rememberCamera, view]
+  )
   const referenceKey = JSON.stringify(snapshot.tree.reference)
   const previousReferenceKey = useRef(referenceKey)
 
-  useEffect(() => {
-    if (previousReferenceKey.current === referenceKey) return
-    previousReferenceKey.current = referenceKey
-    if (view === 'tree') void resetCamera('tree')
-  }, [referenceKey, resetCamera, view])
+  useEffect(
+    () => {
+      if (previousReferenceKey.current === referenceKey) return
+      previousReferenceKey.current = referenceKey
+      if (view === 'tree') void resetCamera('tree')
+    },
+    [referenceKey, resetCamera, view]
+  )
 
-  const restoreCamera = useCallback(async (
-    flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
-    cameraView: TreeEditorView,
-  ) => {
-    const remembered = cameras.current[cameraView]
-    if (remembered) {
-      await flow.setViewport(remembered, { duration: 0 })
-      return
-    }
-    await resetCamera(cameraView, flow, 0)
-  }, [cameras, resetCamera])
-
-  useLayoutEffect(() => {
-    const previousView = activeCameraView.current
-    if (previousView === view) {
-      return
-    }
-    const flow = instance.current
-    if (flow) {
-      rememberCamera(previousView, flow.getViewport())
-    }
-    activeCameraView.current = view
-    if (flow) {
-      void restoreCamera(flow, view)
-    }
-  }, [rememberCamera, restoreCamera, view])
-
-  useLayoutEffect(() => {
-    if (!treeContextMenu || !treeContextMenuElement.current) return
-    const positionedMenu = constrainContextMenuPosition(
-      treeContextMenu,
-      treeContextMenuElement.current,
-    )
-    if (
-      positionedMenu.x !== treeContextMenu.x
-      || positionedMenu.y !== treeContextMenu.y
-    ) {
-      setTreeContextMenu(positionedMenu)
-    }
-  }, [treeContextMenu])
-
-  useLayoutEffect(() => {
-    if (!bloodNetworkContextMenu || !bloodNetworkContextMenuElement.current) return
-    const positionedMenu = constrainContextMenuPosition(
-      bloodNetworkContextMenu,
-      bloodNetworkContextMenuElement.current,
-    )
-    if (
-      positionedMenu.x !== bloodNetworkContextMenu.x
-      || positionedMenu.y !== bloodNetworkContextMenu.y
-    ) {
-      setBloodNetworkContextMenu(positionedMenu)
-    }
-  }, [bloodNetworkContextMenu])
-
-  useLayoutEffect(() => {
-    if (view !== 'network') {
-      activeBloodNetwork.current = null
-      latestBloodNodes.current = []
-      setSimulatedBloodNodes([])
-      return
-    }
-    const continueSimulation = activeBloodNetwork.current === bloodNetwork
-      && latestBloodNodes.current.length === bloodNetwork.nodes.length
-    const simulation = createBloodNetworkSimulation({
-      edges: bloodNetwork.edges,
-      nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
-    }, bloodNetworkSimulationForces)
-    if (draggedBloodNodeId.current) {
-      simulation.setNodeDragging(draggedBloodNodeId.current, true)
-    }
-    bloodNetworkSimulation.current = simulation
-    activeBloodNetwork.current = bloodNetwork
-    let animationTimer: number | null = null
-    let active = true
-    let previousFrameTimestamp = performance.now()
-    const initialNodes = simulation.getNodes()
-    latestBloodNodes.current = initialNodes
-    setSimulatedBloodNodes(initialNodes)
-    // fitView waits for React Flow to measure every node. For a large graph
-    // that postpones a camera jump until well after the force map opens.
-    // The temporary nodes have known sizes, so their initial bounds can place
-    // the viewport immediately and the camera remains under the user's control.
-    if (!continueSimulation) {
-      if (cameras.current.network) {
-        void instance.current?.setViewport(cameras.current.network, { duration: 0 })
-      } else if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
-        void instance.current?.setViewport(snapshot.bloodNetworkState.viewport, {
-          duration: 0,
-        })
-      } else {
-        void instance.current?.fitBounds(bloodNetworkBounds(initialNodes), {
-          duration: 0,
-          padding: 0.2,
-        })
+  const restoreCamera = useCallback(
+    async (
+      flow: ReactFlowInstance<EditorFlowNode, EditorFlowEdge>,
+      cameraView: TreeEditorView,
+    ) => {
+      const remembered = cameras.current[cameraView]
+      if (remembered) {
+        await flow.setViewport(remembered, { duration: 0 })
+        return
       }
-    }
+      await resetCamera(cameraView, flow, 0)
+    },
+    [cameras, resetCamera]
+  )
 
-    if (bloodNetworkRotationPivotNodeId) {
+  useLayoutEffect(
+    () => {
+      const previousView = activeCameraView.current
+      if (previousView === view) {
+        return
+      }
+      const flow = instance.current
+      if (flow) {
+        rememberCamera(previousView, flow.getViewport())
+      }
+      activeCameraView.current = view
+      if (flow) {
+        void restoreCamera(flow, view)
+      }
+    },
+    [rememberCamera, restoreCamera, view]
+  )
+
+  useLayoutEffect(
+    () => {
+      if (!treeContextMenu || !treeContextMenuElement.current) return
+      const positionedMenu = constrainContextMenuPosition(
+        treeContextMenu,
+        treeContextMenuElement.current,
+      )
+      if (
+        positionedMenu.x !== treeContextMenu.x
+        || positionedMenu.y !== treeContextMenu.y
+      ) {
+        setTreeContextMenu(positionedMenu)
+      }
+    },
+    [treeContextMenu]
+  )
+
+  useLayoutEffect(
+    () => {
+      if (!bloodNetworkContextMenu || !bloodNetworkContextMenuElement.current) return
+      const positionedMenu = constrainContextMenuPosition(
+        bloodNetworkContextMenu,
+        bloodNetworkContextMenuElement.current,
+      )
+      if (
+        positionedMenu.x !== bloodNetworkContextMenu.x
+        || positionedMenu.y !== bloodNetworkContextMenu.y
+      ) {
+        setBloodNetworkContextMenu(positionedMenu)
+      }
+    },
+    [bloodNetworkContextMenu]
+  )
+
+  useLayoutEffect(
+    () => {
+      if (view !== 'network') {
+        activeBloodNetwork.current = null
+        latestBloodNodes.current = []
+        setSimulatedBloodNodes([])
+        return
+      }
+      const continueSimulation = activeBloodNetwork.current === bloodNetwork
+        && latestBloodNodes.current.length === bloodNetwork.nodes.length
+      const simulation = createBloodNetworkSimulation(
+        {
+          edges: bloodNetwork.edges,
+          nodes: continueSimulation ? latestBloodNodes.current : bloodNetwork.nodes,
+        },
+        bloodNetworkSimulationForces
+      )
+      if (draggedBloodNodeId.current) {
+        simulation.setNodeDragging(draggedBloodNodeId.current, true)
+      }
+      bloodNetworkSimulation.current = simulation
+      activeBloodNetwork.current = bloodNetwork
+      let animationTimer: number | null = null
+      let active = true
+      let previousFrameTimestamp = performance.now()
+      const initialNodes = simulation.getNodes()
+      latestBloodNodes.current = initialNodes
+      setSimulatedBloodNodes(initialNodes)
+      // fitView waits for React Flow to measure every node. For a large graph
+      // that postpones a camera jump until well after the force map opens.
+      // The temporary nodes have known sizes, so their initial bounds can place
+      // the viewport immediately and the camera remains under the user's control.
+      if (!continueSimulation) {
+        if (cameras.current.network) {
+          void instance.current?.setViewport(cameras.current.network, { duration: 0 })
+        } else if (isSavedBloodNetworkStateCompatible && snapshot.bloodNetworkState) {
+          void instance.current?.setViewport(
+            snapshot.bloodNetworkState.viewport,
+            {
+              duration: 0,
+            }
+          )
+        } else {
+          void instance.current?.fitBounds(
+            bloodNetworkBounds(initialNodes),
+            {
+              duration: 0,
+              padding: 0.2,
+            }
+          )
+        }
+      }
+
+      if (bloodNetworkRotationPivotNodeId) {
+        return () => {
+          if (bloodNetworkSimulation.current === simulation) {
+            bloodNetworkSimulation.current = null
+          }
+        }
+      }
+
+      let animationScheduled = false
+      const scheduleAnimation = () => {
+        if (!active || animationScheduled) {
+          return
+        }
+        animationScheduled = true
+        animationTimer = window.setTimeout(
+          () => {
+            animationScheduled = false
+            animate()
+          },
+          16
+        )
+      }
+      function animate() {
+        // A timer separates each state update into a browser task. React Flow
+        // can therefore paint every force step instead of batching a whole
+        // simulation into one visible jump on a dense map.
+        const frameTimestamp = performance.now()
+        simulation.tick()
+        const nextNodes = simulation.getNodes()
+        const averageMovementPerSecond = bloodNetworkAverageNodeMovement(
+          latestBloodNodes.current,
+          nextNodes,
+        ) * 1_000 / Math.max(frameTimestamp - previousFrameTimestamp, 1)
+        previousFrameTimestamp = frameTimestamp
+        latestBloodNodes.current = nextNodes
+        setSimulatedBloodNodes(nextNodes)
+        if (
+          active
+          && averageMovementPerSecond > bloodNetworkStopThresholdRef.current
+        ) {
+          scheduleAnimation()
+        }
+      }
+      resumeBloodNetworkAnimation.current = () => {
+        previousFrameTimestamp = performance.now()
+        scheduleAnimation()
+      }
+      scheduleAnimation()
+
       return () => {
+        active = false
+        resumeBloodNetworkAnimation.current = null
         if (bloodNetworkSimulation.current === simulation) {
           bloodNetworkSimulation.current = null
         }
+        if (animationTimer !== null) {
+          window.clearTimeout(animationTimer)
+        }
       }
-    }
-
-    let animationScheduled = false
-    const scheduleAnimation = () => {
-      if (!active || animationScheduled) {
-        return
-      }
-      animationScheduled = true
-      animationTimer = window.setTimeout(() => {
-        animationScheduled = false
-        animate()
-      }, 16)
-    }
-    function animate() {
-      // A timer separates each state update into a browser task. React Flow
-      // can therefore paint every force step instead of batching a whole
-      // simulation into one visible jump on a dense map.
-      const frameTimestamp = performance.now()
-      simulation.tick()
-      const nextNodes = simulation.getNodes()
-      const averageMovementPerSecond = bloodNetworkAverageNodeMovement(
-        latestBloodNodes.current,
-        nextNodes,
-      ) * 1_000 / Math.max(frameTimestamp - previousFrameTimestamp, 1)
-      previousFrameTimestamp = frameTimestamp
-      latestBloodNodes.current = nextNodes
-      setSimulatedBloodNodes(nextNodes)
-      if (
-        active
-        && averageMovementPerSecond > bloodNetworkStopThresholdRef.current
-      ) {
-        scheduleAnimation()
-      }
-    }
-    resumeBloodNetworkAnimation.current = () => {
-      previousFrameTimestamp = performance.now()
-      scheduleAnimation()
-    }
-    scheduleAnimation()
-
-    return () => {
-      active = false
-      resumeBloodNetworkAnimation.current = null
-      if (bloodNetworkSimulation.current === simulation) {
-        bloodNetworkSimulation.current = null
-      }
-      if (animationTimer !== null) {
-        window.clearTimeout(animationTimer)
-      }
-    }
-  }, [
-    bloodNetwork,
-    bloodNetworkSimulationForces,
-    bloodNetworkMotionRevision,
-    bloodNetworkRotationPivotNodeId,
-    cameras,
-    isSavedBloodNetworkStateCompatible,
-    snapshot.bloodNetworkState,
-    view,
-  ])
+    },
+    [
+      bloodNetwork,
+      bloodNetworkSimulationForces,
+      bloodNetworkMotionRevision,
+      bloodNetworkRotationPivotNodeId,
+      cameras,
+      isSavedBloodNetworkStateCompatible,
+      snapshot.bloodNetworkState,
+      view,
+    ]
+  )
 
   const saveBloodNetworkState = async () => {
     const viewport = instance.current?.getViewport()
     if (!viewport || latestBloodNodes.current.length === 0) {
       throw new Error('Blood network state is unavailable')
     }
-    await onSaveBloodNetworkState({
-      forces: { ...bloodNetworkForces },
-      nodes: latestBloodNodes.current.map((node) => ({
-        coordinates: { ...node.position },
-        id: node.id,
-      })),
-      viewport,
-    })
+    await onSaveBloodNetworkState(
+      {
+        forces: { ...bloodNetworkForces },
+        nodes: latestBloodNodes.current.map(
+          (node) => ({
+            coordinates: { ...node.position },
+            id: node.id,
+          })
+        ),
+        viewport,
+      }
+    )
   }
 
   const requestBloodNetworkSave = () => {
@@ -1522,454 +1750,506 @@ function TreeCanvas({
 
   const pathDisplayTargetName = pathDisplay
     ? (() => {
-        const target = pathDisplay.people.find((person) => person.id === pathDisplay.targetPersonId)
-        return target ? formatPersonName(target, t) : t('person.unknown')
-      })()
+      const target = pathDisplay.people.find((person) => person.id === pathDisplay.targetPersonId)
+      return target ? formatPersonName(target, t) : t('person.unknown')
+    })()
     : null
-  const focusPathDisplayTarget = useCallback(() => {
-    if (!pathDisplay) {
-      return
-    }
+  const focusPathDisplayTarget = useCallback(
+    () => {
+      if (!pathDisplay) {
+        return
+      }
 
-    const targetId = pathDisplay.targetPersonId
-    onSelectPerson(targetId)
-    const position = pathProjection?.positions.get(targetId) ?? treePositions.get(targetId)
-    const flow = instance.current
-    if (!position || !flow) {
-      return
-    }
+      const targetId = pathDisplay.targetPersonId
+      onSelectPerson(targetId)
+      const position = pathProjection?.positions.get(targetId) ?? treePositions.get(targetId)
+      const flow = instance.current
+      if (!position || !flow) {
+        return
+      }
 
-    centeredPersonId.current = targetId
-    void flow.setCenter(
-      position.x + PERSON_CARD_WIDTH / 2,
-      position.y + PERSON_CARD_HEIGHT / 2,
-      { duration: 150, zoom: flow.getViewport().zoom },
-    ).then(() => rememberCamera('tree', flow.getViewport()))
-  }, [onSelectPerson, pathDisplay, pathProjection?.positions, rememberCamera, treePositions])
+      centeredPersonId.current = targetId
+      void flow
+        .setCenter(
+          position.x + PERSON_CARD_WIDTH / 2,
+          position.y + PERSON_CARD_HEIGHT / 2,
+          { duration: 150, zoom: flow.getViewport().zoom },
+        )
+        .then(
+          () => rememberCamera('tree', flow.getViewport())
+        )
+    },
+    [onSelectPerson, pathDisplay, pathProjection?.positions, rememberCamera, treePositions]
+  )
 
   return (
     <>
-    <div
-      aria-busy={!cameraReady}
-      className={`blood-network-canvas${cameraReady ? '' : ' editor-camera-pending'}${bloodNetworkRotationPivotNodeId
-        ? ' blood-network-rotation-mode'
-        : ''}`}
-      ref={canvas}
-      onContextMenuCapture={(event) => {
-        if (!bloodNetworkRotationPivotNodeId) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        bloodNetworkRotationSession.current = null
-        setBloodNetworkContextMenu(null)
-        setBloodNetworkRotationPivotNodeId(null)
-      }}
-      onPointerDownCapture={(event) => {
-        if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        const pivot = latestBloodNodes.current.find((node) => (
-          node.id === bloodNetworkRotationPivotNodeId
-        ))
-        const flow = instance.current
-        if (!pivot || !flow) {
-          return
-        }
-        const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
-        const pivotCenter = bloodNetworkNodeCenter(pivot)
-        if (Math.hypot(pointer.x - pivotCenter.x, pointer.y - pivotCenter.y) < 1) {
-          return
-        }
-        bloodNetworkRotationSession.current = {
-          initialAngle: Math.atan2(pointer.y - pivotCenter.y, pointer.x - pivotCenter.x),
-          nodes: latestBloodNodes.current,
-          pivot: pivotCenter,
-          pivotNodeId: bloodNetworkRotationPivotNodeId,
-        }
-        event.currentTarget.setPointerCapture(event.pointerId)
-      }}
-      onPointerMove={(event) => {
-        const session = bloodNetworkRotationSession.current
-        if (!session || (event.buttons & 1) === 0) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        const flow = instance.current
-        if (!flow) {
-          return
-        }
-        const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
-        const angle = Math.atan2(pointer.y - session.pivot.y, pointer.x - session.pivot.x)
-          - session.initialAngle
-        const rotatedNodes = rotateBloodNetworkNodes(
-          session.nodes,
-          session.pivotNodeId,
-          angle,
-        )
-        latestBloodNodes.current = rotatedNodes
-        setSimulatedBloodNodes(rotatedNodes)
-      }}
-      onPointerUpCapture={(event) => {
-        if (event.button !== 0 || !bloodNetworkRotationSession.current) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        bloodNetworkRotationSession.current = null
-        event.currentTarget.releasePointerCapture(event.pointerId)
-      }}
-    >
-    <ReactFlow<EditorFlowNode, EditorFlowEdge>
-      defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-      edges={activeEdges}
-      edgeTypes={edgeTypes}
-      elementsSelectable={view === 'tree' || bloodNetworkRotationPivotNodeId !== null}
-      maxZoom={2}
-      minZoom={0.1}
-      nodeTypes={nodeTypes}
-      nodes={nodes}
-      nodesConnectable={false}
-      nodesDraggable={view === 'network' && bloodNetworkRotationPivotNodeId === null}
-      onInit={(flow) => {
-        instance.current = flow
-        activeCameraView.current = view
-        void restoreCamera(flow, view).finally(() => setCameraReady(true))
-      }}
-      onMoveEnd={(_event, viewport) => rememberCamera(
-        activeCameraView.current,
-        viewport,
-      )}
-      onNodeClick={(_event, node) => {
-        if (mergeProjection) return
-        if (view === 'tree') {
-          onSelectPerson(node.id)
-        }
-      }}
-      onNodeContextMenu={(event, node) => {
-        event.preventDefault()
-        if (mergeProjection) return
-        if (view === 'tree') {
-          setTreeContextMenu({
-            kind: 'person',
-            personId: node.id,
-            x: event.clientX,
-            y: event.clientY,
-          })
-          return
-        }
-        setBloodNetworkContextMenu({
-          nodeId: node.id,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      }}
-      onEdgeContextMenu={(event, edge) => {
-        if (mergeProjection) { event.preventDefault(); return }
-        if (
-          view !== 'tree'
-          || edge.type !== 'family'
-        ) return
-        const data = (edge as FamilyFlowEdge).data
-        if (!data?.personIds) return
-        event.preventDefault()
-        setTreeContextMenu({
-          kind: 'family',
-          married: data.married,
-          personIds: data.personIds,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      }}
-      onNodeDrag={(_event, node) => {
-        if (view !== 'network') {
-          return
-        }
-        bloodNetworkSimulation.current?.moveNode(node.id, node.position)
-        const nextNodes = bloodNetworkSimulation.current?.getNodes()
-        if (!nextNodes) {
-          return
-        }
-        latestBloodNodes.current = nextNodes
-        setSimulatedBloodNodes(nextNodes)
-        setBloodNetworkMotionRevision((revision) => revision + 1)
-      }}
-      onNodeDragStart={(_event, node) => {
-        if (view !== 'network') {
-          return
-        }
-        draggedBloodNodeId.current = node.id
-        bloodNetworkSimulation.current?.setNodeDragging(node.id, true)
-      }}
-      onNodeDragStop={(_event, node) => {
-        if (view !== 'network') {
-          return
-        }
-        bloodNetworkSimulation.current?.moveNode(node.id, node.position)
-        bloodNetworkSimulation.current?.setNodeDragging(node.id, false)
-        draggedBloodNodeId.current = null
-        const nextNodes = bloodNetworkSimulation.current?.getNodes()
-        if (!nextNodes) {
-          return
-        }
-        latestBloodNodes.current = nextNodes
-        setSimulatedBloodNodes(nextNodes)
-        setBloodNetworkMotionRevision((revision) => revision + 1)
-      }}
-      onPaneClick={() => {
-        if (mergeProjection) return
-        setBloodNetworkContextMenu(null)
-        setTreeContextMenu(null)
-        if (view === 'tree') {
-          onClearSelection()
-        }
-      }}
-      onPaneContextMenu={(event) => {
-        event.preventDefault()
-        setBloodNetworkContextMenu(null)
-      }}
-      panOnDrag={bloodNetworkRotationPivotNodeId ? [1] : true}
-      proOptions={{ hideAttribution: true }}
-      zoomOnDoubleClick={false}
-      zoomOnPinch
-      zoomOnScroll
-    >
-      {view === 'network' && (
-        <BloodNetworkEdgesOverlay
-          edges={bloodNetwork.edges}
-          nodes={activeBloodNodes}
-        />
-      )}
-      <Background color="var(--color-border)" gap={22} size={1} />
-      {view === 'tree' && !mergeProjection && (
-        <Panel className="editor-search-panel" position="top-right">
-          <PersonSearchPanel
-            onSearch={searchPeople}
-            onSelect={(person) => void selectSearchResult(person)}
-            visiblePersonIds={renderedPersonIds}
-          />
-        </Panel>
-      )}
-      {view === 'tree' && pathDisplay && !mergeProjection && (
-        <Panel className="path-display-panel" position="top-left">
-          <span className="path-display-title">
-            {t('editor.pathDisplayTitle', { name: '' }).trim()}&nbsp;
-            <button
-              aria-label={t('editor.pathDisplayTitle', {
-                name: pathDisplayTargetName ?? t('person.unknown'),
-              })}
-              className="path-display-target"
-              onClick={focusPathDisplayTarget}
-              type="button"
-            >
-              {pathDisplayTargetName}
-            </button>
-          </span>
-          <button
-            aria-label={t('editor.closePathDisplay')}
-            className="editor-tool-button path-display-close"
-            onClick={onClosePathDisplay}
-            title={t('editor.closePathDisplay')}
-            type="button"
-          >
-            <CloseIcon aria-hidden="true" />
-          </button>
-        </Panel>
-      )}
-      <LayoutToolbar
-        previewing={Boolean(mergeProjection)}
-        isNetworkView={view === 'network'}
-        onExport={onExport}
-        onRegenerateNetwork={() => {
-          cameras.current.network = null
-          setNetworkGeneration((generation) => generation + 1)
-        }}
-        onSaveNetworkState={requestBloodNetworkSave}
-        onToggleNetworkView={onToggleNetworkView}
-      />
-      {view === 'network' && bloodNetworkSidebarContainer && createPortal(
-        <BloodNetworkSidebar
-          activePresetId={activeBloodNetworkPresetId}
-          canSavePreset={
-            bloodNetworkPresetsChanged
-            && bloodNetworkPresets.every((preset) => preset.name.trim().length > 0)
+      <div
+        aria-busy={!cameraReady}
+        className={`blood-network-canvas${cameraReady ? '' : ' editor-camera-pending'}${bloodNetworkRotationPivotNodeId
+          ? ' blood-network-rotation-mode'
+          : ''}`}
+        ref={canvas}
+        onContextMenuCapture={(event) => {
+          if (!bloodNetworkRotationPivotNodeId) {
+            return
           }
-          forces={bloodNetworkForces}
-          onForceChange={(key, value) => {
-            const forces = { ...bloodNetworkForces, [key]: value }
-            setBloodNetworkForces(forces)
-            setBloodNetworkPresets((presets) => presets.map((preset) => (
-              preset.id === activeBloodNetworkPresetId
-                ? { ...preset, forces }
-                : preset
-            )))
-          }}
-          onPresetChange={(presetId) => {
-            const preset = bloodNetworkPresets.find((item) => item.id === presetId)
-            if (!preset) {
-              return
-            }
-            setActiveBloodNetworkPresetId(presetId)
-            setBloodNetworkForces({ ...preset.forces })
-          }}
-          onPresetDefaultChange={(presetId) => {
-            setBloodNetworkPresets((presets) => presets.map((preset) => ({
-              ...preset,
-              isDefault: preset.id === presetId,
-            })))
-          }}
-          onPresetNameChange={(presetId, name) => {
-            setBloodNetworkPresets((presets) => presets.map((preset) => (
-              preset.id === presetId ? { ...preset, name } : preset
-            )))
-          }}
-          onPresetReload={() => {
-            const savedPreset = savedBloodNetworkPresets.find((preset) => (
-              preset.id === activeBloodNetworkPresetId
-            ))
-            if (!savedPreset) {
-              return
-            }
-            const forces = { ...savedPreset.forces }
-            setBloodNetworkForces(forces)
-            setBloodNetworkPresets((presets) => presets.map((preset) => (
-              preset.id === savedPreset.id ? { ...preset, forces } : preset
-            )))
-          }}
-          onSavePreset={() => {
-            if (!user || !bloodNetworkPresetsChanged) {
-              return
-            }
-            const presets = bloodNetworkPresets.map((preset) => ({
-              ...preset,
-              name: preset.name.trim(),
-            }))
-            if (presets.some((preset) => !preset.name)) {
-              return
-            }
-            setBloodNetworkPresets(presets)
-            void request<User>('/me/blood-network-presets', {
-              method: 'PATCH',
-              body: JSON.stringify({ presets }),
-            }).then((updatedUser) => {
-              onUpdateUser(updatedUser)
-            }).catch(() => undefined)
-          }}
-          presets={bloodNetworkPresets}
-        />,
-        bloodNetworkSidebarContainer,
-      )}
-      <ZoomControls
-        onFitView={() => void fitCamera()}
-        onReset={() => void resetCamera()}
-      />
-    </ReactFlow>
-    </div>
-    {treeContextMenu && createPortal(
-      <menu
-        aria-label={t('editor.personContextMenu')}
-        className="blood-network-node-menu tree-context-menu"
-        ref={treeContextMenuElement}
-        role="menu"
-        style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
+          event.preventDefault()
+          event.stopPropagation()
+          bloodNetworkRotationSession.current = null
+          setBloodNetworkContextMenu(null)
+          setBloodNetworkRotationPivotNodeId(null)
+        }}
+        onPointerDownCapture={(event) => {
+          if (event.button !== 0 || !bloodNetworkRotationPivotNodeId) {
+            return
+          }
+          event.preventDefault()
+          event.stopPropagation()
+          const pivot = latestBloodNodes.current.find(
+            (node) => (
+              node.id === bloodNetworkRotationPivotNodeId
+            )
+          )
+          const flow = instance.current
+          if (!pivot || !flow) {
+            return
+          }
+          const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+          const pivotCenter = bloodNetworkNodeCenter(pivot)
+          if (Math.hypot(pointer.x - pivotCenter.x, pointer.y - pivotCenter.y) < 1) {
+            return
+          }
+          bloodNetworkRotationSession.current = {
+            initialAngle: Math.atan2(pointer.y - pivotCenter.y, pointer.x - pivotCenter.x),
+            nodes: latestBloodNodes.current,
+            pivot: pivotCenter,
+            pivotNodeId: bloodNetworkRotationPivotNodeId,
+          }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={(event) => {
+          const session = bloodNetworkRotationSession.current
+          if (!session || (event.buttons & 1) === 0) {
+            return
+          }
+          event.preventDefault()
+          event.stopPropagation()
+          const flow = instance.current
+          if (!flow) {
+            return
+          }
+          const pointer = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+          const angle = Math.atan2(pointer.y - session.pivot.y, pointer.x - session.pivot.x)
+            - session.initialAngle
+          const rotatedNodes = rotateBloodNetworkNodes(
+            session.nodes,
+            session.pivotNodeId,
+            angle,
+          )
+          latestBloodNodes.current = rotatedNodes
+          setSimulatedBloodNodes(rotatedNodes)
+        }}
+        onPointerUpCapture={(event) => {
+          if (event.button !== 0 || !bloodNetworkRotationSession.current) {
+            return
+          }
+          event.preventDefault()
+          event.stopPropagation()
+          bloodNetworkRotationSession.current = null
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }}
       >
-        {treeContextMenu.kind === 'person' && treeContextMenu.personId && (
-          <>
-            {treeMenuPerson && !treeMenuParentRoles.has('father')
-              && !treeMenuParentRoles.has('mother') && (
+        <ReactFlow<EditorFlowNode, EditorFlowEdge>
+          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          edges={activeEdges}
+          edgeTypes={edgeTypes}
+          elementsSelectable={view === 'tree' || bloodNetworkRotationPivotNodeId !== null}
+          maxZoom={2}
+          minZoom={0.1}
+          nodeTypes={nodeTypes}
+          nodes={nodes}
+          nodesConnectable={false}
+          nodesDraggable={view === 'network' && bloodNetworkRotationPivotNodeId === null}
+          onInit={(flow) => {
+            instance.current = flow
+            activeCameraView.current = view
+            void restoreCamera(flow, view).finally(() => setCameraReady(true))
+          }}
+          onMoveEnd={(_event, viewport) => rememberCamera(
+            activeCameraView.current,
+            viewport,
+          )}
+          onNodeClick={(_event, node) => {
+            if (mergeProjection) return
+            if (view === 'tree') {
+              onSelectPerson(node.id)
+            }
+          }}
+          onNodeContextMenu={(event, node) => {
+            event.preventDefault()
+            if (mergeProjection) return
+            if (view === 'tree') {
+              setTreeContextMenu(
+                {
+                  kind: 'person',
+                  personId: node.id,
+                  x: event.clientX,
+                  y: event.clientY,
+                }
+              )
+              return
+            }
+            setBloodNetworkContextMenu(
+              {
+                nodeId: node.id,
+                x: event.clientX,
+                y: event.clientY,
+              }
+            )
+          }}
+          onEdgeContextMenu={(event, edge) => {
+            if (mergeProjection) { event.preventDefault(); return }
+            if (
+              view !== 'tree'
+              || edge.type !== 'family'
+            ) return
+            const data = (edge as FamilyFlowEdge).data
+            if (!data?.personIds) return
+            event.preventDefault()
+            setTreeContextMenu(
+              {
+                kind: 'family',
+                married: data.married,
+                personIds: data.personIds,
+                x: event.clientX,
+                y: event.clientY,
+              }
+            )
+          }}
+          onNodeDrag={(_event, node) => {
+            if (view !== 'network') {
+              return
+            }
+            bloodNetworkSimulation.current?.moveNode(node.id, node.position)
+            const nextNodes = bloodNetworkSimulation.current?.getNodes()
+            if (!nextNodes) {
+              return
+            }
+            latestBloodNodes.current = nextNodes
+            setSimulatedBloodNodes(nextNodes)
+            setBloodNetworkMotionRevision((revision) => revision + 1)
+          }}
+          onNodeDragStart={(_event, node) => {
+            if (view !== 'network') {
+              return
+            }
+            draggedBloodNodeId.current = node.id
+            bloodNetworkSimulation.current?.setNodeDragging(node.id, true)
+          }}
+          onNodeDragStop={(_event, node) => {
+            if (view !== 'network') {
+              return
+            }
+            bloodNetworkSimulation.current?.moveNode(node.id, node.position)
+            bloodNetworkSimulation.current?.setNodeDragging(node.id, false)
+            draggedBloodNodeId.current = null
+            const nextNodes = bloodNetworkSimulation.current?.getNodes()
+            if (!nextNodes) {
+              return
+            }
+            latestBloodNodes.current = nextNodes
+            setSimulatedBloodNodes(nextNodes)
+            setBloodNetworkMotionRevision((revision) => revision + 1)
+          }}
+          onPaneClick={() => {
+            if (mergeProjection) return
+            setBloodNetworkContextMenu(null)
+            setTreeContextMenu(null)
+            if (view === 'tree') {
+              onClearSelection()
+            }
+          }}
+          onPaneContextMenu={(event) => {
+            event.preventDefault()
+            setBloodNetworkContextMenu(null)
+          }}
+          panOnDrag={bloodNetworkRotationPivotNodeId ? [1] : true}
+          proOptions={{ hideAttribution: true }}
+          zoomOnDoubleClick={false}
+          zoomOnPinch
+          zoomOnScroll
+        >
+          {view === 'network' && (
+            <BloodNetworkEdgesOverlay
+              edges={bloodNetwork.edges}
+              nodes={activeBloodNodes}
+            />
+          )}
+          <Background color="var(--color-border)" gap={22} size={1} />
+          {view === 'tree' && !mergeProjection && (
+            <Panel className="editor-search-panel" position="top-right">
+              <PersonSearchPanel
+                onSearch={searchPeople}
+                onSelect={(person) => void selectSearchResult(person)}
+                visiblePersonIds={renderedPersonIds}
+              />
+            </Panel>
+          )}
+          {view === 'tree' && pathDisplay && !mergeProjection && (
+            <Panel className="path-display-panel" position="top-left">
+              <span className="path-display-title">
+                {t('editor.pathDisplayTitle', { name: '' }).trim()}&nbsp;
+                <button
+                  aria-label={t(
+                    'editor.pathDisplayTitle',
+                    {
+                      name: pathDisplayTargetName ?? t('person.unknown'),
+                    }
+                  )}
+                  className="path-display-target"
+                  onClick={focusPathDisplayTarget}
+                  type="button"
+                >
+                  {pathDisplayTargetName}
+                </button>
+              </span>
+              <button
+                aria-label={t('editor.closePathDisplay')}
+                className="editor-tool-button path-display-close"
+                onClick={onClosePathDisplay}
+                title={t('editor.closePathDisplay')}
+                type="button"
+              >
+                <CloseIcon aria-hidden="true" />
+              </button>
+            </Panel>
+          )}
+          <LayoutToolbar
+            previewing={Boolean(mergeProjection)}
+            isNetworkView={view === 'network'}
+            onExport={onExport}
+            onRegenerateNetwork={() => {
+              cameras.current.network = null
+              setNetworkGeneration((generation) => generation + 1)
+            }}
+            onSaveNetworkState={requestBloodNetworkSave}
+            onToggleNetworkView={onToggleNetworkView}
+          />
+          {view === 'network' && bloodNetworkSidebarContainer && createPortal(
+            <BloodNetworkSidebar
+              activePresetId={activeBloodNetworkPresetId}
+              canSavePreset={
+                bloodNetworkPresetsChanged
+                && bloodNetworkPresets.every((preset) => preset.name.trim().length > 0)
+              }
+              forces={bloodNetworkForces}
+              onForceChange={(key, value) => {
+                const forces = { ...bloodNetworkForces, [key]: value }
+                setBloodNetworkForces(forces)
+                setBloodNetworkPresets(
+                  (presets) => presets.map(
+                    (preset) => (
+                      preset.id === activeBloodNetworkPresetId
+                        ? { ...preset, forces }
+                        : preset
+                    )
+                  )
+                )
+              }}
+              onPresetChange={(presetId) => {
+                const preset = bloodNetworkPresets.find((item) => item.id === presetId)
+                if (!preset) {
+                  return
+                }
+                setActiveBloodNetworkPresetId(presetId)
+                setBloodNetworkForces({ ...preset.forces })
+              }}
+              onPresetDefaultChange={(presetId) => {
+                setBloodNetworkPresets(
+                  (presets) => presets.map(
+                    (preset) => ({
+                      ...preset,
+                      isDefault: preset.id === presetId,
+                    })
+                  )
+                )
+              }}
+              onPresetNameChange={(presetId, name) => {
+                setBloodNetworkPresets(
+                  (presets) => presets.map(
+                    (preset) => (
+                      preset.id === presetId ? { ...preset, name } : preset
+                    )
+                  )
+                )
+              }}
+              onPresetReload={() => {
+                const savedPreset = savedBloodNetworkPresets.find(
+                  (preset) => (
+                    preset.id === activeBloodNetworkPresetId
+                  )
+                )
+                if (!savedPreset) {
+                  return
+                }
+                const forces = { ...savedPreset.forces }
+                setBloodNetworkForces(forces)
+                setBloodNetworkPresets(
+                  (presets) => presets.map(
+                    (preset) => (
+                      preset.id === savedPreset.id ? { ...preset, forces } : preset
+                    )
+                  )
+                )
+              }}
+              onSavePreset={() => {
+                if (!user || !bloodNetworkPresetsChanged) {
+                  return
+                }
+                const presets = bloodNetworkPresets.map(
+                  (preset) => ({
+                    ...preset,
+                    name: preset.name.trim(),
+                  })
+                )
+                if (presets.some((preset) => !preset.name)) {
+                  return
+                }
+                setBloodNetworkPresets(presets)
+                void request<User>(
+                  '/me/blood-network-presets',
+                  {
+                    method: 'PATCH',
+                    body: JSON.stringify({ presets }),
+                  }
+                )
+                  .then(
+                    (updatedUser) => {
+                      onUpdateUser(updatedUser)
+                    }
+                  )
+                  .catch(
+                    () => undefined
+                  )
+              }}
+              presets={bloodNetworkPresets}
+            />,
+            bloodNetworkSidebarContainer,
+          )}
+          <ZoomControls
+            onFitView={() => void fitCamera()}
+            onReset={() => void resetCamera()}
+          />
+        </ReactFlow>
+      </div>
+      {treeContextMenu && createPortal(
+        <menu
+          aria-label={t('editor.personContextMenu')}
+          className="blood-network-node-menu tree-context-menu"
+          ref={treeContextMenuElement}
+          role="menu"
+          style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
+        >
+          {treeContextMenu.kind === 'person' && treeContextMenu.personId && (
+            <>
+              {treeMenuPerson && !treeMenuParentRoles.has('father')
+                && !treeMenuParentRoles.has('mother') && (
+                  <li>
+                    <button
+                      onClick={() => {
+                        void onAddParents(treeMenuPerson.id).catch(() => undefined)
+                        setTreeContextMenu(null)
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      {t('relationships.add.parents')}
+                    </button>
+                  </li>
+                )}
+              {!treeMenuParentRoles.has('father') && (
                 <li>
                   <button
                     onClick={() => {
-                      void onAddParents(treeMenuPerson.id).catch(() => undefined)
+                      onOpenRelativeDialog(treeContextMenu.personId!, 'father')
                       setTreeContextMenu(null)
                     }}
                     role="menuitem"
                     type="button"
                   >
-                    {t('relationships.add.parents')}
+                    {t('relationships.add.father')}
                   </button>
                 </li>
               )}
-            {!treeMenuParentRoles.has('father') && (
-              <li>
-                <button
-                  onClick={() => {
-                    onOpenRelativeDialog(treeContextMenu.personId!, 'father')
-                    setTreeContextMenu(null)
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t('relationships.add.father')}
-                </button>
-              </li>
-            )}
-            {!treeMenuParentRoles.has('mother') && (
-              <li>
-                <button
-                  onClick={() => {
-                    onOpenRelativeDialog(treeContextMenu.personId!, 'mother')
-                    setTreeContextMenu(null)
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t('relationships.add.mother')}
-                </button>
-              </li>
-            )}
-            {treeMenuPerson?.gender === 'female' && (
-              <li>
-                <button
-                  onClick={() => {
-                    onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
-                    setTreeContextMenu(null)
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t('relationships.add.husband')}
-                </button>
-              </li>
-            )}
-            {treeMenuPerson?.gender === 'male' && (
-              <li>
-                <button
-                  onClick={() => {
-                    onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
-                    setTreeContextMenu(null)
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t('relationships.add.wife')}
-                </button>
-              </li>
-            )}
-            <li>
-              <button
-                onClick={() => {
-                  onOpenRelativeDialog(treeContextMenu.personId!, 'child')
-                  setTreeContextMenu(null)
-                }}
-                role="menuitem"
-                type="button"
-              >
-                {t('relationships.add.child')}
-              </button>
-            </li>
-            {snapshot.tree.reference?.type !== 'person'
-              || snapshot.tree.reference.personId !== treeContextMenu.personId ? (
+              {!treeMenuParentRoles.has('mother') && (
                 <li>
                   <button
                     onClick={() => {
-                      void onChangeReference({
-                        type: 'person',
-                        personId: treeContextMenu.personId!,
-                      }).catch(() => undefined)
+                      onOpenRelativeDialog(treeContextMenu.personId!, 'mother')
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('relationships.add.mother')}
+                  </button>
+                </li>
+              )}
+              {treeMenuPerson?.gender === 'female' && (
+                <li>
+                  <button
+                    onClick={() => {
+                      onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('relationships.add.husband')}
+                  </button>
+                </li>
+              )}
+              {treeMenuPerson?.gender === 'male' && (
+                <li>
+                  <button
+                    onClick={() => {
+                      onOpenRelativeDialog(treeMenuPerson.id, 'spouse')
+                      setTreeContextMenu(null)
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t('relationships.add.wife')}
+                  </button>
+                </li>
+              )}
+              <li>
+                <button
+                  onClick={() => {
+                    onOpenRelativeDialog(treeContextMenu.personId!, 'child')
+                    setTreeContextMenu(null)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t('relationships.add.child')}
+                </button>
+              </li>
+              {snapshot.tree.reference?.type !== 'person'
+                || snapshot.tree.reference.personId !== treeContextMenu.personId ? (
+                <li>
+                  <button
+                    onClick={() => {
+                      void onChangeReference(
+                        {
+                          type: 'person',
+                          personId: treeContextMenu.personId!,
+                        }
+                      )
+                        .catch(
+                          () => undefined
+                        )
                       setTreeContextMenu(null)
                     }}
                     role="menuitem"
@@ -1979,127 +2259,142 @@ function TreeCanvas({
                   </button>
                 </li>
               ) : null}
-            {treeMenuSpouses.map((spouse) => (
-              !isReferenceMarriage([treeContextMenu.personId!, spouse.id]) && (
-                <li key={spouse.id}>
-                  <button
-                    onClick={() => {
-                      void onChangeReference({
-                        type: 'marriage',
-                        personIds: [treeContextMenu.personId!, spouse.id],
-                      }).catch(() => undefined)
-                      setTreeContextMenu(null)
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >
-                    {t('editor.setReferenceMarriage', {
-                      name: formatPersonName(spouse, t),
-                    })}
-                  </button>
-                </li>
-              )
-            ))}
-          </>
-        )}
-        {treeContextMenu.kind === 'family' && treeContextMenu.personIds && (
-          <>
-            <li>
-              <button
-                onClick={() => {
-                  onOpenRelativeDialog(
-                    treeContextMenu.personIds![0],
-                    'child',
-                    treeContextMenu.personIds,
+              {treeMenuSpouses.map(
+                (spouse) => (
+                  !isReferenceMarriage([treeContextMenu.personId!, spouse.id]) && (
+                    <li key={spouse.id}>
+                      <button
+                        onClick={() => {
+                          void onChangeReference(
+                            {
+                              type: 'marriage',
+                              personIds: [treeContextMenu.personId!, spouse.id],
+                            }
+                          )
+                            .catch(
+                              () => undefined
+                            )
+                          setTreeContextMenu(null)
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        {t(
+                          'editor.setReferenceMarriage',
+                          {
+                            name: formatPersonName(spouse, t),
+                          }
+                        )}
+                      </button>
+                    </li>
                   )
-                  setTreeContextMenu(null)
-                }}
-                role="menuitem"
-                type="button"
-              >
-                {t('relationships.add.child')}
-              </button>
-            </li>
-            {!treeContextMenu.married && (
+                )
+              )}
+            </>
+          )}
+          {treeContextMenu.kind === 'family' && treeContextMenu.personIds && (
+            <>
               <li>
                 <button
                   onClick={() => {
                     onOpenRelativeDialog(
                       treeContextMenu.personIds![0],
-                      'spouse',
-                      undefined,
-                      treeContextMenu.personIds![1],
+                      'child',
+                      treeContextMenu.personIds,
                     )
                     setTreeContextMenu(null)
                   }}
                   role="menuitem"
                   type="button"
                 >
-                  {t('relationships.createMarriage')}
+                  {t('relationships.add.child')}
                 </button>
               </li>
-            )}
-            {treeContextMenu.married
-              && !isReferenceMarriage(treeContextMenu.personIds) && (
+              {!treeContextMenu.married && (
                 <li>
                   <button
                     onClick={() => {
-                      void onChangeReference({
-                        type: 'marriage',
-                        personIds: treeContextMenu.personIds!,
-                      }).catch(() => undefined)
+                      onOpenRelativeDialog(
+                        treeContextMenu.personIds![0],
+                        'spouse',
+                        undefined,
+                        treeContextMenu.personIds![1],
+                      )
                       setTreeContextMenu(null)
                     }}
                     role="menuitem"
                     type="button"
                   >
-                    {t('editor.setReferenceMarriageFromBracket')}
+                    {t('relationships.createMarriage')}
                   </button>
                 </li>
               )}
-          </>
-        )}
-      </menu>,
-      document.body,
-    )}
-    {bloodNetworkContextMenu && createPortal(
-      <menu
-        aria-label={t('editor.bloodNetworkNodeMenu')}
-        className="blood-network-node-menu"
-        ref={bloodNetworkContextMenuElement}
-        role="menu"
-        style={{ left: bloodNetworkContextMenu.x, top: bloodNetworkContextMenu.y }}
-      >
-        <li>
-          <button
-            onClick={() => {
-              bloodNetworkRotationSession.current = null
-              setBloodNetworkRotationPivotNodeId(bloodNetworkContextMenu.nodeId)
-              setBloodNetworkContextMenu(null)
-            }}
-            role="menuitem"
-            type="button"
-          >
-            {t('editor.rotateBloodNetwork')}
-          </button>
-        </li>
-      </menu>,
-      document.body,
-    )}
-    {bloodNetworkSaveConfirmation && (
-      <ConfirmRelationshipDialog
-        confirmClassName="primary-button"
-        confirmLabel={t('common.save')}
-        description={t('editor.bloodNetworkSaveChangesDescription')}
-        errorMessage={t('editor.bloodNetworkSaveFailed')}
-        onCancel={() => setBloodNetworkSaveConfirmation(false)}
-        onConfirm={async () => {
-          await saveBloodNetworkState()
-          setBloodNetworkSaveConfirmation(false)
-        }}
-        title={t('editor.bloodNetworkSaveChangesTitle')}
-      />
-    )}
+              {treeContextMenu.married
+                && !isReferenceMarriage(treeContextMenu.personIds) && (
+                  <li>
+                    <button
+                      onClick={() => {
+                        void onChangeReference(
+                          {
+                            type: 'marriage',
+                            personIds: treeContextMenu.personIds!,
+                          }
+                        )
+                          .catch(
+                            () => undefined
+                          )
+                        setTreeContextMenu(null)
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      {t('editor.setReferenceMarriageFromBracket')}
+                    </button>
+                  </li>
+                )}
+            </>
+          )}
+        </menu>,
+        document.body,
+      )}
+      {bloodNetworkContextMenu && createPortal(
+        <menu
+          aria-label={t('editor.bloodNetworkNodeMenu')}
+          className="blood-network-node-menu"
+          ref={bloodNetworkContextMenuElement}
+          role="menu"
+          style={{ left: bloodNetworkContextMenu.x, top: bloodNetworkContextMenu.y }}
+        >
+          <li>
+            <button
+              onClick={() => {
+                bloodNetworkRotationSession.current = null
+                setBloodNetworkRotationPivotNodeId(bloodNetworkContextMenu.nodeId)
+                setBloodNetworkContextMenu(null)
+              }}
+              role="menuitem"
+              type="button"
+            >
+              {t('editor.rotateBloodNetwork')}
+            </button>
+          </li>
+        </menu>,
+        document.body,
+      )}
+      {bloodNetworkSaveConfirmation && (
+        <ConfirmRelationshipDialog
+          confirmClassName="primary-button"
+          confirmLabel={t('common.save')}
+          description={t('editor.bloodNetworkSaveChangesDescription')}
+          errorMessage={t('editor.bloodNetworkSaveFailed')}
+          onCancel={() => setBloodNetworkSaveConfirmation(false)}
+          onConfirm={async () => {
+            await saveBloodNetworkState()
+            setBloodNetworkSaveConfirmation(false)
+          }}
+          title={t('editor.bloodNetworkSaveChangesTitle')}
+        />
+      )}
     </>
   )
 }
@@ -2114,17 +2409,22 @@ type EditorBreadcrumbsProps = {
   treeName: string | undefined
 }
 
-function EditorBreadcrumbs({
-  personCounts,
-  status,
-  treeName,
-}: EditorBreadcrumbsProps) {
+function EditorBreadcrumbs(
+  {
+    personCounts,
+    status,
+    treeName,
+  }: EditorBreadcrumbsProps
+) {
   const { t } = useTranslation()
   const [container, setContainer] = useState<HTMLElement | null>(null)
 
-  useEffect(() => {
-    setContainer(document.getElementById('header-breadcrumbs'))
-  }, [])
+  useEffect(
+    () => {
+      setContainer(document.getElementById('header-breadcrumbs'))
+    },
+    []
+  )
 
   if (!container) {
     return null
@@ -2145,17 +2445,23 @@ function EditorBreadcrumbs({
       </strong>
       {personCounts !== undefined && (
         <span>{personCounts.additionalFromPath > 0
-          ? t('editor.personCountWithPath', {
+          ? t(
+            'editor.personCountWithPath',
+            {
               path: personCounts.additionalFromPath,
               total: personCounts.total,
               visible: personCounts.visible,
-            })
+            }
+          )
           : personCounts.visible === personCounts.total
             ? t('editor.personCount', { count: personCounts.visible })
-            : t('editor.personCountPartial', {
+            : t(
+              'editor.personCountPartial',
+              {
                 total: personCounts.total,
                 visible: personCounts.visible,
-              })}</span>
+              }
+            )}</span>
       )}
     </nav>,
     container,
@@ -2196,8 +2502,12 @@ function fallbackPersonDetails(
     events,
     relationships: {
       people: snapshot.people
-        .filter((relative) => relative.id !== person.id)
-        .map(relationshipPerson),
+        .filter(
+          (relative) => relative.id !== person.id
+        )
+        .map(
+          relationshipPerson
+        ),
       parentLinks: snapshot.parentLinks,
       marriages: snapshot.marriages,
     },
@@ -2236,12 +2546,15 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   )
   const [placeRecognitionNotice, setPlaceRecognitionNotice] = useState(importWarningCount)
 
-  useEffect(() => {
-    setPlaceRecognitionNotice(importWarningCount)
-    if (importWarningCount) {
-      window.history.replaceState({}, '', window.location.href)
-    }
-  }, [importWarningCount])
+  useEffect(
+    () => {
+      setPlaceRecognitionNotice(importWarningCount)
+      if (importWarningCount) {
+        window.history.replaceState({}, '', window.location.href)
+      }
+    },
+    [importWarningCount]
+  )
   const [creating, setCreating] = useState(false)
   const [chatOpen, setChatOpen] = useState(() => new URLSearchParams(window.location.search).has('chat'))
   const [mergeProposal, setMergeProposal] = useState<TreeMergePendingProposal | null>(null)
@@ -2262,16 +2575,22 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   )
   const [marriageEditing, setMarriageEditing] = useState<
     MarriagePeriod | null
-  >(null)
+  >(
+    null
+  )
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(
     null,
   )
   const [eventEditing, setEventEditing] = useState<
     GenealogicalEvent | 'new' | null
-  >(null)
+  >(
+    null
+  )
   const [eventPendingDeletion, setEventPendingDeletion] = useState<
     GenealogicalEvent | null
-  >(null)
+  >(
+    null
+  )
   const [placeEditing, setPlaceEditing] = useState<GenealogicalEvent | null>(
     null,
   )
@@ -2280,87 +2599,112 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [photoViewing, setPhotoViewing] = useState(false)
   const [bloodNetworkSidebarContainer, setBloodNetworkSidebarContainer] = useState<
     HTMLElement | null
-  >(null)
+  >(
+    null
+  )
 
-  useEffect(() => {
-    if (isCurrentTreeRoute && treeRoute.view === null) {
-      navigate(treeEditorPath(treeId, 'tree'), { replace: true })
-    }
-  }, [isCurrentTreeRoute, treeId, treeRoute?.view])
-
-  const closePersonDetails = useCallback(() => {
-    setSelectedPerson(null)
-    setSelectedDetails(null)
-    setEvents([])
-    setEventEditing(null)
-    setEventPendingDeletion(null)
-    setPlaceEditing(null)
-    setPhotoEditing(false)
-    setPhotoDeleting(false)
-    setPhotoViewing(false)
-  }, [])
-
-  const closePathDisplay = useCallback(() => {
-    if (
-      pathDisplay
-      && selectedPerson
-      && snapshot
-      && !focusedTreeSnapshot(snapshot).people.some((person) => person.id === selectedPerson.id)
-    ) {
-      closePersonDetails()
-    }
-    setPathDisplay(null)
-  }, [closePersonDetails, pathDisplay, selectedPerson, snapshot])
-
-  const replaceSnapshot = useCallback((
-    nextSnapshot: TreeSnapshot,
-    preserveIfUnchanged = false,
-  ) => {
-    if (preserveIfUnchanged && snapshotRef.current?.etag === nextSnapshot.etag) {
-      return false
-    }
-
-    snapshotRef.current = nextSnapshot
-    personDetailsCache.current.clear()
-    setPathDisplay(null)
-    setSnapshot(nextSnapshot)
-
-    return true
-  }, [])
-
-  const saveTreeLayout = useCallback(async (
-    layout: SaveTreeLayoutRequest,
-    referenceKey: string,
-  ) => {
-    const key = [
-      treeId,
-      referenceKey,
-      layout.layoutRevision,
-      layout.algorithmVersion,
-    ].join(':')
-    if (layoutSaveRequests.current.has(key)) return
-    layoutSaveRequests.current.add(key)
-    try {
-      await treeApi.saveLayout(request, treeId, layout)
-    } catch (error) {
-      if (!(error instanceof ApiRequestError && error.body.code === 'LAYOUT_REVISION_CONFLICT')) {
-        layoutSaveRequests.current.delete(key)
+  useEffect(
+    () => {
+      if (isCurrentTreeRoute && treeRoute.view === null) {
+        navigate(treeEditorPath(treeId, 'tree'), { replace: true })
       }
-    }
-  }, [request, treeId])
+    },
+    [isCurrentTreeRoute, treeId, treeRoute?.view]
+  )
 
-  const cachePersonDetails = useCallback((
-    etag: string,
-    person: Person,
-    personEvents: GenealogicalEvent[],
-    details?: PersonDetails,
-  ) => {
-    personDetailsCache.current.set(personDetailsCacheKey(person.id, etag), {
-      ...(details ? { details } : {}),
-      events: personEvents,
-      person,
-    })
-  }, [])
+  const closePersonDetails = useCallback(
+    () => {
+      setSelectedPerson(null)
+      setSelectedDetails(null)
+      setEvents([])
+      setEventEditing(null)
+      setEventPendingDeletion(null)
+      setPlaceEditing(null)
+      setPhotoEditing(false)
+      setPhotoDeleting(false)
+      setPhotoViewing(false)
+    },
+    []
+  )
+
+  const closePathDisplay = useCallback(
+    () => {
+      if (
+        pathDisplay
+        && selectedPerson
+        && snapshot
+        && !focusedTreeSnapshot(snapshot).people.some((person) => person.id === selectedPerson.id)
+      ) {
+        closePersonDetails()
+      }
+      setPathDisplay(null)
+    },
+    [closePersonDetails, pathDisplay, selectedPerson, snapshot]
+  )
+
+  const replaceSnapshot = useCallback(
+    (
+      nextSnapshot: TreeSnapshot,
+      preserveIfUnchanged = false,
+    ) => {
+      if (preserveIfUnchanged && snapshotRef.current?.etag === nextSnapshot.etag) {
+        return false
+      }
+
+      snapshotRef.current = nextSnapshot
+      personDetailsCache.current.clear()
+      setPathDisplay(null)
+      setSnapshot(nextSnapshot)
+
+      return true
+    },
+    []
+  )
+
+  const saveTreeLayout = useCallback(
+    async (
+      layout: SaveTreeLayoutRequest,
+      referenceKey: string,
+    ) => {
+      const key = [
+        treeId,
+        referenceKey,
+        layout.layoutRevision,
+        layout.algorithmVersion,
+      ].join(
+        ':'
+      )
+      if (layoutSaveRequests.current.has(key)) return
+      layoutSaveRequests.current.add(key)
+      try {
+        await treeApi.saveLayout(request, treeId, layout)
+      } catch (error) {
+        if (!(error instanceof ApiRequestError && error.body.code === 'LAYOUT_REVISION_CONFLICT')) {
+          layoutSaveRequests.current.delete(key)
+        }
+      }
+    },
+    [request, treeId]
+  )
+
+  const cachePersonDetails = useCallback(
+    (
+      etag: string,
+      person: Person,
+      personEvents: GenealogicalEvent[],
+      details?: PersonDetails,
+    ) => {
+      personDetailsCache.current.set(
+        personDetailsCacheKey(person.id, etag),
+        {
+          ...(details ? { details } : {}),
+          events: personEvents,
+          person,
+        }
+      )
+    },
+    []
+  )
 
   const toggleNetworkView = () => {
     if (view === 'network') {
@@ -2371,68 +2715,80 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     navigate(treeEditorPath(treeId, 'network'))
   }
 
-  const loadSnapshot = useCallback(async (resetUi = false) => {
-    if (!snapshotRef.current) {
-      setStatus('loading')
-    }
-    try {
-      const loaded = await treeApi.snapshot(request, treeId)
-      const changed = replaceSnapshot(loaded, true)
-      setConflict(false)
-      if (changed || resetUi) {
-        setSelectedPerson(null)
-        setEvents([])
-        setRelativeDialog(null)
-        setParentsDialogChildId(null)
-        setMarriageEditing(null)
-        setPendingRemoval(null)
-        setEventEditing(null)
-        setEventPendingDeletion(null)
-        setPlaceEditing(null)
-        setPhotoEditing(false)
-        setPhotoDeleting(false)
-        setPhotoViewing(false)
+  const loadSnapshot = useCallback(
+    async (resetUi = false) => {
+      if (!snapshotRef.current) {
+        setStatus('loading')
       }
-      setStatus('ready')
-    } catch (error) {
-      setStatus(
-        error instanceof ApiRequestError && error.status === 404
-          ? 'missing'
-          : 'error',
-      )
-    }
-  }, [replaceSnapshot, request, treeId])
+      try {
+        const loaded = await treeApi.snapshot(request, treeId)
+        const changed = replaceSnapshot(loaded, true)
+        setConflict(false)
+        if (changed || resetUi) {
+          setSelectedPerson(null)
+          setEvents([])
+          setRelativeDialog(null)
+          setParentsDialogChildId(null)
+          setMarriageEditing(null)
+          setPendingRemoval(null)
+          setEventEditing(null)
+          setEventPendingDeletion(null)
+          setPlaceEditing(null)
+          setPhotoEditing(false)
+          setPhotoDeleting(false)
+          setPhotoViewing(false)
+        }
+        setStatus('ready')
+      } catch (error) {
+        setStatus(
+          error instanceof ApiRequestError && error.status === 404
+            ? 'missing'
+            : 'error',
+        )
+      }
+    },
+    [replaceSnapshot, request, treeId]
+  )
 
-  useEffect(() => {
-    if (conflict) {
-      setPathDisplay(null)
-    }
-  }, [conflict])
-
-  const showPathDisplay = useCallback(async (personId: string) => {
-    if (!snapshot || conflict) return false
-    try {
-      const route = await personApi.routeToReference(request, treeId, personId)
-      if (route.etag !== snapshot.etag) {
+  useEffect(
+    () => {
+      if (conflict) {
         setPathDisplay(null)
-        await loadSnapshot(true)
+      }
+    },
+    [conflict]
+  )
+
+  const showPathDisplay = useCallback(
+    async (personId: string) => {
+      if (!snapshot || conflict) return false
+      try {
+        const route = await personApi.routeToReference(request, treeId, personId)
+        if (route.etag !== snapshot.etag) {
+          setPathDisplay(null)
+          await loadSnapshot(true)
+          return false
+        }
+        setPathDisplay(route)
+
+        return true
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
+          setConflict(true)
+        }
+
         return false
       }
-      setPathDisplay(route)
+    },
+    [conflict, loadSnapshot, request, snapshot, treeId]
+  )
 
-      return true
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.body.code === 'TREE_VERSION_CONFLICT') {
-        setConflict(true)
-      }
-
-      return false
-    }
-  }, [conflict, loadSnapshot, request, snapshot, treeId])
-
-  useEffect(() => {
-    void loadSnapshot()
-  }, [loadSnapshot])
+  useEffect(
+    () => {
+      void loadSnapshot()
+    },
+    [loadSnapshot]
+  )
 
   const createFirstPerson = async (person: PersonInput) => {
     if (!snapshot) {
@@ -2516,10 +2872,12 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
     const visibleTree = focusedTreeSnapshot(snapshot)
     const visiblePersonIds = new Set(visibleTree.people.map((person) => person.id))
-    const renderedPersonIds = new Set([
-      ...visiblePersonIds,
-      ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
-    ])
+    const renderedPersonIds = new Set(
+      [
+        ...visiblePersonIds,
+        ...(pathDisplay?.nodes.map((node) => node.personId) ?? []),
+      ]
+    )
     if (renderedPersonIds.has(navigation.person.id)) {
       await selectPerson(navigation.person.id)
       return
@@ -2535,11 +2893,13 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       return
     }
 
-    setPathDisplay(createLocalRelationshipPath(
-      selectedPerson,
-      selectedDetails,
-      navigation,
-    ))
+    setPathDisplay(
+      createLocalRelationshipPath(
+        selectedPerson,
+        selectedDetails,
+        navigation,
+      )
+    )
     await selectPerson(navigation.person.id)
   }
 
@@ -2561,24 +2921,30 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         selectedPerson.id,
       )
       setSelectedPerson(result.person)
-      replaceSnapshot({
-        ...snapshot,
-        etag: result.etag,
-        people: snapshot.people.map((person) => (
-          person.id === result.person.id ? result.person : person
-        )),
-      })
+      replaceSnapshot(
+        {
+          ...snapshot,
+          etag: result.etag,
+          people: snapshot.people.map(
+            (person) => (
+              person.id === result.person.id ? result.person : person
+            )
+          ),
+        }
+      )
       setEvents(timeline.items)
-      setSelectedDetails((current) => (
-        current?.person.id === result.person.id
-          ? {
+      setSelectedDetails(
+        (current) => (
+          current?.person.id === result.person.id
+            ? {
               ...current,
               etag: result.etag,
               events: timeline.items,
               person: result.person,
             }
-          : current
-      ))
+            : current
+        )
+      )
       cachePersonDetails(result.etag, result.person, timeline.items)
     } catch (error) {
       if (
@@ -2691,7 +3057,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     if (!anchor) return
     const parents: ParentSpecification[] = relativeDialog.action === 'child'
       ? relativeDialog.fixedParentIds
-        ? relativeDialog.fixedParentIds.map((personId) => {
+        ? relativeDialog.fixedParentIds.map(
+          (personId) => {
             const person = snapshot.people.find((item) => item.id === personId)
             if (!person || person.gender === 'unknown') {
               throw new Error('Family parents must have known genders')
@@ -2701,36 +3068,42 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
               personId,
               role: person.gender === 'male' ? 'father' : 'mother',
             }
-          })
-        : [{
+          }
+        )
+        : [
+          {
             personId: anchor.id,
             role: options.parentRole,
-          }, ...(options.secondParent ? [{
-            ...options.secondParent,
-            role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
-          }] : [])]
+          },
+          ...(options.secondParent ? [
+            {
+              ...options.secondParent,
+              role: (options.parentRole === 'father' ? 'mother' : 'father') as ParentRole,
+            }
+          ] : [])
+        ]
       : []
     const mutation: GraphMutation = relativeDialog.action === 'father'
       || relativeDialog.action === 'mother'
       ? {
-          type: 'add_parent',
-          childId: anchor.id,
-          role: relativeDialog.action,
-          relative,
-        }
+        type: 'add_parent',
+        childId: anchor.id,
+        role: relativeDialog.action,
+        relative,
+      }
       : relativeDialog.action === 'child'
         ? { type: 'add_child', parents, relative }
         : {
-            type: 'add_marriage_period',
-            personId: anchor.id,
-            relative,
-            marriageDate: options.marriageDate,
-            dissolutionDate: options.dissolutionDate,
-            marriagePlace: options.marriagePlace,
-            dissolutionPlace: options.dissolutionPlace,
-            maleNewSurname: options.maleNewSurname,
-            femaleNewSurname: options.femaleNewSurname,
-          }
+          type: 'add_marriage_period',
+          personId: anchor.id,
+          relative,
+          marriageDate: options.marriageDate,
+          dissolutionDate: options.dissolutionDate,
+          marriagePlace: options.marriagePlace,
+          dissolutionPlace: options.dissolutionPlace,
+          maleNewSurname: options.maleNewSurname,
+          femaleNewSurname: options.femaleNewSurname,
+        }
     await applyMutation(mutation)
     setRelativeDialog(null)
   }
@@ -2743,11 +3116,13 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     if (!parentsDialogChildId) {
       throw new Error('Parent creation is unavailable')
     }
-    await applyMutation({
-      type: 'add_parents',
-      childId: parentsDialogChildId,
-      ...value,
-    })
+    await applyMutation(
+      {
+        type: 'add_parents',
+        childId: parentsDialogChildId,
+        ...value,
+      }
+    )
     setParentsDialogChildId(null)
   }
 
@@ -2758,13 +3133,15 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     fixedRelativeId?: string,
     initialSecondParentId?: string,
   ) => {
-    setRelativeDialog({
-      action,
-      anchorId,
-      ...(fixedParentIds ? { fixedParentIds } : {}),
-      ...(fixedRelativeId ? { fixedRelativeId } : {}),
-      ...(initialSecondParentId ? { initialSecondParentId } : {}),
-    })
+    setRelativeDialog(
+      {
+        action,
+        anchorId,
+        ...(fixedParentIds ? { fixedParentIds } : {}),
+        ...(fixedRelativeId ? { fixedRelativeId } : {}),
+        ...(initialSecondParentId ? { initialSecondParentId } : {}),
+      }
+    )
   }
 
   const confirmRemoval = async () => {
@@ -2792,13 +3169,17 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         snapshot.etag,
         patch,
       )
-      replaceSnapshot({
-        ...snapshot,
-        etag: result.etag,
-        marriages: snapshot.marriages.map((marriage) => (
-          marriage.id === result.marriage.id ? result.marriage : marriage
-        )),
-      })
+      replaceSnapshot(
+        {
+          ...snapshot,
+          etag: result.etag,
+          marriages: snapshot.marriages.map(
+            (marriage) => (
+              marriage.id === result.marriage.id ? result.marriage : marriage
+            )
+          ),
+        }
+      )
       if (selectedPerson) {
         const timeline = await personApi.events(
           request,
@@ -2820,23 +3201,35 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
-  const localizeSurname = useCallback(async (
-    surname: string,
-    sourceGender: 'female' | 'male',
-    targetGender: 'female' | 'male',
-  ) => (await surnameApi.localize(request, {
-    surname,
-    sourceGender,
-    targetGender,
-  })).surname, [request])
+  const localizeSurname = useCallback(
+    async (
+      surname: string,
+      sourceGender: 'female' | 'male',
+      targetGender: 'female' | 'male',
+    ) => (await surnameApi.localize(
+      request,
+      {
+        surname,
+        sourceGender,
+        targetGender,
+      }
+    )).surname,
+    [request]
+  )
 
-  const determinePatronymic = useCallback(async (
-    fatherGivenName: string,
-    childGender: 'female' | 'male',
-  ) => (await patronymicApi.localize(request, {
-    fatherGivenName,
-    childGender,
-  })).patronymic, [request])
+  const determinePatronymic = useCallback(
+    async (
+      fatherGivenName: string,
+      childGender: 'female' | 'male',
+    ) => (await patronymicApi.localize(
+      request,
+      {
+        fatherGivenName,
+        childGender,
+      }
+    )).patronymic,
+    [request]
+  )
 
   const saveEvent = async (payload: ManualEventRequest) => {
     if (!snapshot || !selectedPerson || !eventEditing || conflict) {
@@ -2845,20 +3238,20 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     try {
       const result = eventEditing === 'new'
         ? await eventApi.create(
-            request,
-            treeId,
-            selectedPerson.id,
-            snapshot.etag,
-            payload,
-          )
+          request,
+          treeId,
+          selectedPerson.id,
+          snapshot.etag,
+          payload,
+        )
         : await eventApi.update(
-            request,
-            treeId,
-            selectedPerson.id,
-            eventEditing.id,
-            snapshot.etag,
-            payload,
-          )
+          request,
+          treeId,
+          selectedPerson.id,
+          eventEditing.id,
+          snapshot.etag,
+          payload,
+        )
       const timeline = await personApi.events(
         request,
         treeId,
@@ -2891,10 +3284,12 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         eventPendingDeletion.id,
         snapshot.etag,
       )
-      const [updated, timeline] = await Promise.all([
-        treeApi.snapshot(request, treeId),
-        personApi.events(request, treeId, selectedPerson.id),
-      ])
+      const [updated, timeline] = await Promise.all(
+        [
+          treeApi.snapshot(request, treeId),
+          personApi.events(request, treeId, selectedPerson.id),
+        ]
+      )
       replaceSnapshot(updated)
       const nextSelected = updated.people.find((person) => person.id === selectedPerson.id)
         ?? null
@@ -2917,15 +3312,17 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
   const refreshAfterPlaceMutation = async () => {
     if (!selectedPerson) return
-    const [updated, timeline] = await Promise.all([
-      treeApi.snapshot(request, treeId),
-      personApi.events(request, treeId, selectedPerson.id),
-    ])
+    const [updated, timeline] = await Promise.all(
+      [
+        treeApi.snapshot(request, treeId),
+        personApi.events(request, treeId, selectedPerson.id),
+      ]
+    )
     replaceSnapshot(updated)
     if (marriageEditing) {
       setMarriageEditing(
         updated.marriages.find((item) => item.id === marriageEditing.id)
-          ?? null,
+        ?? null,
       )
     }
     const nextSelected = updated.people.find((person) => person.id === selectedPerson.id)
@@ -3011,21 +3408,27 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
-  const applyPhotoResult = (result: {
-    person: Person
-    etag: string
-  }) => {
+  const applyPhotoResult = (
+    result: {
+      person: Person
+      etag: string
+    }
+  ) => {
     if (!snapshot) {
       return
     }
     setSelectedPerson(result.person)
-    replaceSnapshot({
-      ...snapshot,
-      etag: result.etag,
-      people: snapshot.people.map((person) => (
-        person.id === result.person.id ? result.person : person
-      )),
-    })
+    replaceSnapshot(
+      {
+        ...snapshot,
+        etag: result.etag,
+        people: snapshot.people.map(
+          (person) => (
+            person.id === result.person.id ? result.person : person
+          )
+        ),
+      }
+    )
     cachePersonDetails(result.etag, result.person, events)
   }
 
@@ -3083,29 +3486,36 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     }
   }
 
-  const personCounts = useMemo(() => {
-    if (!snapshot) {
-      return undefined
-    }
+  const personCounts = useMemo(
+    () => {
+      if (!snapshot) {
+        return undefined
+      }
 
-    const total = snapshot.people.length
-    if (view === 'network') {
-      return { additionalFromPath: 0, total, visible: total }
-    }
+      const total = snapshot.people.length
+      if (view === 'network') {
+        return { additionalFromPath: 0, total, visible: total }
+      }
 
-    const visiblePersonIds = new Set(focusedTreeSnapshot(snapshot).people.map((person) => person.id))
-    const additionalFromPath = new Set(
-      pathDisplay?.nodes
-        .map((node) => node.personId)
-        .filter((personId) => !visiblePersonIds.has(personId)) ?? [],
-    ).size
+      const visiblePersonIds = new Set(focusedTreeSnapshot(snapshot).people.map((person) => person.id))
+      const additionalFromPath = new Set(
+        pathDisplay?.nodes
+          .map(
+            (node) => node.personId
+          )
+          .filter(
+            (personId) => !visiblePersonIds.has(personId)
+          ) ?? [],
+      ).size
 
-    return {
-      additionalFromPath,
-      total,
-      visible: visiblePersonIds.size,
-    }
-  }, [pathDisplay, snapshot, view])
+      return {
+        additionalFromPath,
+        total,
+        visible: visiblePersonIds.size,
+      }
+    },
+    [pathDisplay, snapshot, view]
+  )
 
   return (
     <main className={`tree-editor-page${chatOpen ? ' tree-chat-open' : ''}`}>
@@ -3152,7 +3562,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         chatOpen ? '' : view === 'network'
           ? ' editor-workspace-network-sidebar-open'
           : selectedPerson ? ' editor-workspace-panel-open' : ''
-      }`}>
+        }`}>
         {status === 'loading' && (
           <div className="editor-state">{t('editor.loading')}</div>
         )}
@@ -3235,10 +3645,12 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             onClose={closePersonDetails}
             onCreateEvent={() => setEventEditing('new')}
             onDeleteEvent={setEventPendingDeletion}
-            onDeletePerson={() => setPendingRemoval({
-              kind: 'person',
-              person: selectedPerson,
-            })}
+            onDeletePerson={() => setPendingRemoval(
+              {
+                kind: 'person',
+                person: selectedPerson,
+              }
+            )}
             onDeletePhoto={() => setPhotoDeleting(true)}
             onEditEvent={setEventEditing}
             onEditEventPlace={setPlaceEditing}
@@ -3246,14 +3658,18 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             onOpenPhoto={() => setPhotoViewing(true)}
             onPatch={patchPerson}
             onReorderEvents={reorderEvents}
-            onRemoveMarriage={(marriage) => setPendingRemoval({
-              kind: 'marriage',
-              marriage,
-            })}
-            onRemoveParentLink={(link) => setPendingRemoval({
-              kind: 'parent',
-              link,
-            })}
+            onRemoveMarriage={(marriage) => setPendingRemoval(
+              {
+                kind: 'marriage',
+                marriage,
+              }
+            )}
+            onRemoveParentLink={(link) => setPendingRemoval(
+              {
+                kind: 'parent',
+                link,
+              }
+            )}
             onSelectPerson={(navigation) => void navigateToRelationship(navigation)}
             onUploadPhoto={() => setPhotoEditing(true)}
             person={selectedPerson}
@@ -3311,10 +3727,12 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
           marriage={marriageEditing}
           onCancel={() => setMarriageEditing(null)}
           onEditPlace={(type) => {
-            const event = events.find((item) => (
-              item.type === type
-              && item.sourceEntityId === marriageEditing.id
-            ))
+            const event = events.find(
+              (item) => (
+                item.type === type
+                && item.sourceEntityId === marriageEditing.id
+              )
+            )
             if (event) setPlaceEditing(event)
           }}
           onSave={editMarriage}
@@ -3362,7 +3780,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
             selectedPerson.photoThumbnailUrl.includes('?')
               ? `?${selectedPerson.photoThumbnailUrl.split('?')[1]}`
               : ''
-          }`}
+            }`}
         />
       )}
       {photoDeleting && (

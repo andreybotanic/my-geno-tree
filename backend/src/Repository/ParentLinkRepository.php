@@ -25,7 +25,8 @@ final class ParentLinkRepository extends ServiceEntityRepository
     public function findAllForTree(FamilyTree $tree): array
     {
         /** @var list<ParentLink> $links */
-        $links = $this->createQueryBuilder('link')
+        $links = $this
+            ->createQueryBuilder('link')
             ->addSelect('parent', 'child')
             ->join('link.parent', 'parent')
             ->join('link.child', 'child')
@@ -43,7 +44,8 @@ final class ParentLinkRepository extends ServiceEntityRepository
      */
     public function findAllStructuralForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        $query = $this->createQueryBuilder('link')
+        $query = $this
+            ->createQueryBuilder('link')
             ->andWhere('link.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('link.id', 'ASC')
@@ -71,14 +73,16 @@ final class ParentLinkRepository extends ServiceEntityRepository
             return [];
         }
         /** @var list<ParentLink> $links */
-        $links = $this->createQueryBuilder('link')
+        $links = $this
+            ->createQueryBuilder('link')
             ->addSelect('parent', 'child')
             ->join('link.parent', 'parent')
             ->join('link.child', 'child')
             ->andWhere('link.tree = :tree AND link.child IN (:children)')
             ->setParameter('tree', $tree)
             ->setParameter('children', $childIds)
-            ->getQuery()->getResult();
+            ->getQuery()
+            ->getResult();
 
         return $links;
     }
@@ -87,7 +91,8 @@ final class ParentLinkRepository extends ServiceEntityRepository
     public function findBoundedContext(FamilyTree $tree, Person $person): array
     {
         /** @var list<array{parentId: string, childId: string, role: string}> $rows */
-        $rows = $this->createQueryBuilder('link')
+        $rows = $this
+            ->createQueryBuilder('link')
             ->select('IDENTITY(link.parent) AS parentId', 'IDENTITY(link.child) AS childId', 'link.role AS role')
             ->andWhere('link.tree = :tree')
             ->andWhere('link.parent = :person OR link.child = :person')
@@ -106,13 +111,15 @@ final class ParentLinkRepository extends ServiceEntityRepository
      */
     public function findRelationshipContext(FamilyTree $tree, Person $person): array
     {
-        $children = $this->createQueryBuilder('childLink')
+        $children = $this
+            ->createQueryBuilder('childLink')
             ->select('IDENTITY(childLink.child)')
             ->andWhere('childLink.tree = :tree')
             ->andWhere('childLink.parent = :person');
 
         /** @var list<ParentLink> $links */
-        $links = $this->createQueryBuilder('link')
+        $links = $this
+            ->createQueryBuilder('link')
             ->addSelect('parent', 'child')
             ->join('link.parent', 'parent')
             ->join('link.child', 'child')

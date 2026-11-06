@@ -30,8 +30,10 @@ final class GuardedMessageStore implements MessageStoreInterface
     private array $held = [];
 
     public function __construct(
-        #[AutowireDecorated] private readonly MessageStoreInterface $inner,
-        #[Target('cache.chat_index')] private readonly CacheItemPoolInterface $index,
+        #[AutowireDecorated]
+        private readonly MessageStoreInterface $inner,
+        #[Target('cache.chat_index')]
+        private readonly CacheItemPoolInterface $index,
         private readonly ClockInterface $clock,
         private readonly LockFactory $locks,
         private readonly RequestStack $requests,
@@ -50,23 +52,31 @@ final class GuardedMessageStore implements MessageStoreInterface
         if (!$state instanceof Conversation) {
             throw new \LogicException('Missing conversation metadata');
         }
-        $this->synchronized($state->contextKey, function () use ($messages): void {
-            $execution = $this->requests->getMainRequest()?->attributes->get(ChatExecution::class);
-            if ($execution instanceof ChatExecution) {
-                $this->assertRunning($execution);
-            }
-            $this->inner->save($messages);
-        }, $state->sessionId->toRfc4122());
+        $this->synchronized(
+            $state->contextKey,
+            function () use ($messages): void {
+                $execution = $this->requests->getMainRequest()?->attributes->get(ChatExecution::class);
+                if ($execution instanceof ChatExecution) {
+                    $this->assertRunning($execution);
+                }
+                $this->inner->save($messages);
+            },
+            $state->sessionId->toRfc4122()
+        );
     }
 
     public function delete(AbstractUid&TimeBasedUidInterface $id): void
     {
         $state = $this->inner->load($id)->getMetadata()->get(Conversation::METADATA);
         if ($state instanceof Conversation) {
-            $this->synchronized($state->contextKey, function () use ($id, $state): void {
-                $this->inner->delete($id);
-                $this->index->deleteItem($this->indexKey($state->contextKey, $state->sessionId->toRfc4122()));
-            }, $state->sessionId->toRfc4122());
+            $this->synchronized(
+                $state->contextKey,
+                function () use ($id, $state): void {
+                    $this->inner->delete($id);
+                    $this->index->deleteItem($this->indexKey($state->contextKey, $state->sessionId->toRfc4122()));
+                },
+                $state->sessionId->toRfc4122()
+            );
         }
     }
 
@@ -95,27 +105,30 @@ final class GuardedMessageStore implements MessageStoreInterface
     /** @param array<string, string|null> $context */
     public function open(string $contextKey, string $profile, array $context): Conversation
     {
-        return $this->synchronized($contextKey, function () use ($contextKey, $profile, $context): Conversation {
-            $current = $this->current($contextKey);
-            if (null !== $current && $current->profile === $profile && $current->context === $context) {
-                return $current;
-            }
-            if (null !== $current) {
-                $this->delete($current->id);
-            }
-            $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
-            if (!$session instanceof AuthSession) {
-                throw new ApiException(401, 'AUTH_REQUIRED');
-            }
-            $state = new Conversation($contextKey, $profile, $context, $session->getId(), $session->getUser()->getId(), $this->clock->now());
-            $messages = MessageBag::forId($state->id);
-            $messages->getMetadata()->add(Conversation::METADATA, $state);
-            $this->save($messages);
-            $item = $this->index->getItem($this->indexKey($contextKey));
-            $this->index->save($item->set($state->id->toRfc4122()));
+        return $this->synchronized(
+            $contextKey,
+            function () use ($contextKey, $profile, $context): Conversation {
+                $current = $this->current($contextKey);
+                if (null !== $current && $current->profile === $profile && $current->context === $context) {
+                    return $current;
+                }
+                if (null !== $current) {
+                    $this->delete($current->id);
+                }
+                $session = $this->requests->getMainRequest()?->attributes->get(AuthSession::class);
+                if (!$session instanceof AuthSession) {
+                    throw new ApiException(401, 'AUTH_REQUIRED');
+                }
+                $state = new Conversation($contextKey, $profile, $context, $session->getId(), $session->getUser()->getId(), $this->clock->now());
+                $messages = MessageBag::forId($state->id);
+                $messages->getMetadata()->add(Conversation::METADATA, $state);
+                $this->save($messages);
+                $item = $this->index->getItem($this->indexKey($contextKey));
+                $this->index->save($item->set($state->id->toRfc4122()));
 
-            return $state;
-        });
+                return $state;
+            }
+        );
     }
 
     public function persist(Conversation $state): void

@@ -24,7 +24,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     public function findAllForTree(FamilyTree $tree): array
     {
         /** @var list<MarriagePeriod> $marriages */
-        $marriages = $this->createQueryBuilder('marriage')
+        $marriages = $this
+            ->createQueryBuilder('marriage')
             ->addSelect('male', 'female', 'marriagePlace', 'dissolutionPlace')
             ->join('marriage.malePerson', 'male')
             ->join('marriage.femalePerson', 'female')
@@ -45,7 +46,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
      */
     public function findAllStructuralForTree(FamilyTree $tree, bool $refresh = false): array
     {
-        $query = $this->createQueryBuilder('marriage')
+        $query = $this
+            ->createQueryBuilder('marriage')
             ->andWhere('marriage.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('marriage.createdAt', 'ASC')
@@ -65,7 +67,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
         string $id,
     ): ?MarriagePeriod {
         /** @var MarriagePeriod|null $marriage */
-        $marriage = $this->createQueryBuilder('marriage')
+        $marriage = $this
+            ->createQueryBuilder('marriage')
             ->addSelect('marriagePlace', 'dissolutionPlace')
             ->leftJoin('marriage.marriagePlace', 'marriagePlace')
             ->leftJoin('marriage.dissolutionPlace', 'dissolutionPlace')
@@ -83,7 +86,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     public function findBoundedContext(FamilyTree $tree, Person $person): array
     {
         /** @var list<array{first: string, second: string}> $rows */
-        $rows = $this->createQueryBuilder('marriage')
+        $rows = $this
+            ->createQueryBuilder('marriage')
             ->select('IDENTITY(marriage.malePerson) AS first', 'IDENTITY(marriage.femalePerson) AS second')
             ->andWhere('marriage.tree = :tree')
             ->andWhere('marriage.malePerson = :person OR marriage.femalePerson = :person')
@@ -103,7 +107,8 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
     public function findForPerson(Person $person): array
     {
         /** @var list<MarriagePeriod> $marriages */
-        $marriages = $this->createQueryBuilder('marriage')
+        $marriages = $this
+            ->createQueryBuilder('marriage')
             ->addSelect('male', 'female', 'marriagePlace', 'dissolutionPlace')
             ->join('marriage.malePerson', 'male')
             ->join('marriage.femalePerson', 'female')
@@ -121,11 +126,12 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
 
     public function countForPair(Person $first, Person $second): int
     {
-        return (int)$this->createQueryBuilder('marriage')
+        return (int)$this
+            ->createQueryBuilder('marriage')
             ->select('COUNT(marriage.id)')
             ->andWhere(
                 '(marriage.malePerson = :first AND marriage.femalePerson = :second)'
-                . ' OR (marriage.malePerson = :second AND marriage.femalePerson = :first)',
+                    . ' OR (marriage.malePerson = :second AND marriage.femalePerson = :first)',
             )
             ->setParameter('first', $first)
             ->setParameter('second', $second)

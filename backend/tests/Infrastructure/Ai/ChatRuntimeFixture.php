@@ -43,7 +43,13 @@ final readonly class ChatRuntimeFixture
         $messages = MessageBag::forId($this->conversation->id);
         $messages->getMetadata()->add(Conversation::METADATA, $this->conversation);
         $this->inner->save($messages);
-        $this->store = new GuardedMessageStore($this->inner, new ArrayAdapter(), new NativeClock(),
-            new LockFactory(new InMemoryStore()), $this->requests, $authorization);
+        $this->store = new GuardedMessageStore(
+            $this->inner,
+            new ArrayAdapter(),
+            new NativeClock(),
+            new LockFactory(new InMemoryStore()),
+            $this->requests,
+            $authorization
+        );
     }
 }

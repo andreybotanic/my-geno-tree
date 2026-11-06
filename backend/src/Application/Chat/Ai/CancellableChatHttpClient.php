@@ -17,9 +17,12 @@ final class CancellableChatHttpClient implements HttpClientInterface
 {
     use DecoratorTrait;
 
-    public function __construct(#[AutowireDecorated] HttpClientInterface $client,
-        private readonly GuardedMessageStore $store, private readonly RequestStack $requests)
-    {
+    public function __construct(
+        #[AutowireDecorated]
+        HttpClientInterface $client,
+        private readonly GuardedMessageStore $store,
+        private readonly RequestStack $requests,
+    ) {
         $this->client = $client;
     }
 
