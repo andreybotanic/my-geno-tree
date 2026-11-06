@@ -61,6 +61,7 @@
 
 - Format each array either entirely on one line or with every element on its own line and the opening and closing delimiters on separate lines. Apply this rule recursively to nested arrays; do not mix these layouts within one array.
 - Format each method-call chain either entirely on one line or with every call on its own line. Once a chain spans multiple lines, do not place multiple chained calls on the same line.
+- Format method declarations and calls either with the method name and the entire parameter or argument list on one line, or with every parameter or argument starting on its own line after the opening parenthesis and the closing parenthesis on a separate line. Do not mix inline and multiline parameters or arguments within one declaration or call.
 
 ## Frontend Rules
 
