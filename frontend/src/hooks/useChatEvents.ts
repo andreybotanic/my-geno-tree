@@ -10,16 +10,25 @@ export function mergeChatEvent(current: ChatConversation | null, event: ChatEven
     const next = event.conversation
     if (next.id !== current.id || next.profile !== current.profile || next.version < current.version) return current
     if (next.version !== current.version || next.attemptId !== current.attemptId) return next
-    return { ...next, progress: current.progress.length > next.progress.length ? current.progress : next.progress,
+    const merged = { ...next,
+      messages: JSON.stringify(next.messages) === JSON.stringify(current.messages) ? current.messages : next.messages,
+      tools: JSON.stringify(next.tools) === JSON.stringify(current.tools) ? current.tools : next.tools,
+      progress: current.progress.length > next.progress.length ? current.progress : next.progress,
       tokenUsage: current.tokenUsage.total > next.tokenUsage.total ? current.tokenUsage : next.tokenUsage }
+    // A fresh server clock alone must not reset previews, scrolling or draft input.
+    const comparable = { ...current, access: { ...current.access, serverTime: next.access.serverTime } }
+    return JSON.stringify(merged) === JSON.stringify(comparable) ? current : merged
   }
   if (event.kind !== 'progress' || event.id !== current.id || event.version < current.version
     || (event.version === current.version && (event.attemptId !== current.attemptId || current.status !== 'processing'))) return current
   const sameAttempt = event.attemptId === current.attemptId
-  return { ...current, version: event.version, status: 'processing', attemptId: event.attemptId,
+  const next = { ...current, version: event.version, status: 'processing' as const, attemptId: event.attemptId,
     attemptStartedAt: event.attemptStartedAt,
     progress: sameAttempt && current.progress.length > event.progress.length ? current.progress : event.progress,
     tokenUsage: sameAttempt && current.tokenUsage.total > event.tokenUsage.total ? current.tokenUsage : event.tokenUsage }
+  return JSON.stringify(next.progress) === JSON.stringify(current.progress)
+    && JSON.stringify(next.tokenUsage) === JSON.stringify(current.tokenUsage)
+    && next.version === current.version && next.status === current.status && sameAttempt ? current : next
 }
 
 export function useChatEvents(
@@ -39,9 +48,12 @@ export function useChatEvents(
       if (!path) return
       const controller = new AbortController()
       let source: EventSource | null = null
+      let candidate: EventSource | null = null
       let timer: number | undefined
+      let errorTimer: number | undefined
       let failures = 0
       let authorizing = false
+      let openedBefore = false
 
       function receive(event: ChatEvent) {
         if (controller.signal.aborted) return
@@ -49,19 +61,29 @@ export function useChatEvents(
         if (event.kind === 'tool') tool(event)
       }
 
-      function failed(cause?: unknown) {
-        if (controller.signal.aborted) return
-        source?.close()
-        source = null
+      function failed(cause?: unknown, failedSource?: EventSource) {
+        if (controller.signal.aborted || (failedSource && failedSource !== source && failedSource !== candidate)) return
         window.clearTimeout(timer)
-        if (cause instanceof ApiRequestError && cause.status === 404) {
-          setConversation(null)
-          setError(null)
+        if (cause instanceof ApiRequestError && (cause.status === 404 || cause.status === 401)) {
+          source?.close()
+          candidate?.close()
+          source = candidate = null
+          window.clearTimeout(errorTimer)
+          errorTimer = undefined
+          if (cause.status === 404) setConversation(null)
+          setError(cause.status === 401 ? 'chat.unauthorized' : null)
           return
         }
-        const unauthorized = cause instanceof ApiRequestError && cause.status === 401
-        setError(unauthorized ? 'chat.unauthorized' : 'chat.streamDisconnected')
-        if (!unauthorized) timer = window.setTimeout(() => void authorize(), Math.min(30000, 2000 * 2 ** failures++))
+        if (failedSource === source) { source?.close(); source = null }
+        if (failedSource === candidate) { candidate?.close(); candidate = null }
+        // A failed renewal does not tear down a healthy stream.
+        if (!source && errorTimer === undefined) {
+          errorTimer = window.setTimeout(() => {
+            errorTimer = undefined
+            if (!controller.signal.aborted && !source) setError('chat.streamDisconnected')
+          }, 5000)
+        }
+        timer = window.setTimeout(() => void authorize(), Math.min(30000, 2000 * 2 ** failures++))
       }
 
       async function authorize() {
@@ -70,36 +92,54 @@ export function useChatEvents(
         try {
           const subscription = await request<ChatSubscription>(`${path}/events`, { method: 'POST', signal: controller.signal })
           if (controller.signal.aborted) return
+          const renewalAt = Date.now() + Math.max(1000, (subscription.expiresIn - 60) * 1000)
           window.clearTimeout(timer)
-          // Refresh authorization only. A healthy connection needs no repeated state GETs.
-          timer = window.setTimeout(() => void authorize(), Math.max(1000, (subscription.expiresIn - 60) * 1000))
-          if (source) return
-          source = new EventSource(subscription.url, { withCredentials: true })
-          source.onopen = () => {
+          candidate?.close()
+          const next = new EventSource(subscription.url, { withCredentials: true })
+          candidate = next
+          next.onopen = () => {
+            if (controller.signal.aborted || candidate !== next) return
+            const uninterrupted = source !== null
+            const reconnecting = openedBefore
+            source?.close()
+            source = next
+            candidate = null
+            openedBefore = true
             failures = 0
+            window.clearTimeout(errorTimer)
+            errorTimer = undefined
             setError(null)
-            // The hub keeps no history. One snapshot closes the initial/reconnect race.
+            window.clearTimeout(timer)
+            timer = window.setTimeout(() => void authorize(), Math.max(1000, renewalAt - Date.now()))
+            // During planned rotation both streams overlap: no missed state and no extra GET.
+            if (uninterrupted) return
             void request<ChatConversation>(path!, { signal: controller.signal })
-              .then(
-                (draft) => {
-                  receive({ kind: 'conversation', conversation: draft })
-                  opened()
-                }
-              )
-              .catch(
-                failed
-              )
+              .then((draft) => {
+                if (controller.signal.aborted || source !== next) return
+                receive({ kind: 'conversation', conversation: draft })
+                if (reconnecting) opened()
+              })
+              .catch((cause: unknown) => {
+                if (source === next && cause instanceof ApiRequestError && (cause.status === 404 || cause.status === 401)) failed(cause)
+              })
           }
-          source.onmessage = (message) => {
+          next.onmessage = (message) => {
+            if (source !== next) return
             try { receive(JSON.parse(message.data) as ChatEvent) }
-            catch { failed() }
+            catch (cause) { failed(cause, next) }
           }
-          source.onerror = () => failed()
+          next.onerror = () => failed(undefined, next)
         } catch (cause) { failed(cause) }
         finally { authorizing = false }
       }
       void authorize()
-      return () => { controller.abort(); source?.close(); window.clearTimeout(timer) }
+      return () => {
+        controller.abort()
+        source?.close()
+        candidate?.close()
+        window.clearTimeout(timer)
+        window.clearTimeout(errorTimer)
+      }
     },
     [path, request, setConversation, revision]
   )

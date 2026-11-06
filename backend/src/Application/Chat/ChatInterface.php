@@ -50,7 +50,7 @@ interface ChatInterface
      */
     public function messages(Conversation $conversation): array;
 
-    /** @return array{remaining: int, limit: int} */
+    /** @return array{remaining: int, limit: int, retryAt?: string} */
     public function budget(Uuid $user): array;
 
     /** @return array{

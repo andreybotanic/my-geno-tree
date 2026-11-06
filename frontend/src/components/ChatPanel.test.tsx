@@ -51,22 +51,29 @@ describe(
       expect(apply).toHaveBeenCalledOnce()
     })
 
-    it('refreshes access on focus and restores sending after expiry without a saved conversation', async () => {
+    it('waits for ban expiry without polling or focus requests, then restores sending once', async () => {
+      vi.useFakeTimers()
       const banned = { ...conversation.access, status: 'temporary_ban' as const,
         bannedUntil: '2026-11-06T11:00:00Z', serverTime: '2026-11-06T10:00:00Z' }
       let access = banned as ChatConversation['access']
       const { request } = setup(async () => ({ conversation: null, tokenBudget: conversation.tokenBudget, access }))
-      const input = await screen.findByRole('textbox', { name: 'Message' })
-      await waitFor(() => expect(input).toBeDisabled())
+      await act(async () => {})
+      const input = screen.getByRole('textbox', { name: 'Message' })
+      expect(input).toBeDisabled()
       expect(screen.getByRole('alert')).toHaveTextContent(/until/i)
-      access = { ...banned, status: 'allowed', serverTime: '2026-11-06T11:00:01Z' }
       fireEvent(window, new Event('focus'))
-      await waitFor(() => expect(input).toBeEnabled())
+      await act(async () => { await vi.advanceTimersByTimeAsync(3600000) })
+      expect(request).toHaveBeenCalledOnce()
+      access = { ...banned, status: 'allowed', serverTime: '2026-11-06T11:00:01Z' }
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      expect(input).toBeEnabled()
       expect(request).toHaveBeenCalledTimes(2)
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3600000) })
+      expect(request).toHaveBeenCalledTimes(2)
     })
 
-    it('polls while open and automatically retries an expired AI outage', async () => {
+    it('automatically refreshes only after the known AI outage deadline', async () => {
       vi.useFakeTimers()
       const unavailable = { ...conversation.access, status: 'unavailable' as const,
         serverTime: '2026-11-06T10:00:00Z', unavailableUntil: '2026-11-06T10:00:30Z' }
@@ -75,7 +82,7 @@ describe(
       await act(async () => {})
       expect(screen.getByRole('textbox')).toBeDisabled()
       await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
-      expect(request).toHaveBeenCalledTimes(2)
+      expect(request).toHaveBeenCalledOnce()
       access = { ...unavailable, status: 'allowed', serverTime: '2026-11-06T10:00:31Z' }
       await act(async () => { await vi.advanceTimersByTimeAsync(15100) })
       expect(screen.getByRole('textbox')).toBeEnabled()
@@ -95,6 +102,101 @@ describe(
       expect(screen.getByRole('textbox')).toBeDisabled()
       expect(screen.getByText(/3.*3/)).toBeInTheDocument()
       expect(screen.getByText(user.content)).toBeInTheDocument()
+    })
+
+    it('keeps idle history and unsent text stable without polling or requests on focus', async () => {
+      vi.useFakeTimers()
+      const { request, changed } = setup(async () => ({
+        conversation: completed, tokenBudget: completed.tokenBudget, access: completed.access,
+      }))
+      await act(async () => {})
+      const input = screen.getByRole('textbox', { name: 'Message' })
+      fireEvent.change(input, { target: { value: 'A draft which must stay here' } })
+      const notifications = changed.mock.calls.length
+      fireEvent(window, new Event('focus'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(86400000) })
+      expect(request).toHaveBeenCalledOnce()
+      expect(changed).toHaveBeenCalledTimes(notifications)
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBe(input)
+      expect(input).toHaveValue('A draft which must stay here')
+      expect(screen.getByText('An ordinary answer.')).toBeInTheDocument()
+    })
+
+    it('refreshes an exhausted budget once at the server-provided retry deadline', async () => {
+      vi.useFakeTimers()
+      let budget = { remaining: 0, limit: 1000, retryAt: '2026-11-06T10:00:10Z' }
+      let access = { ...conversation.access, serverTime: '2026-11-06T10:00:00Z' }
+      const { request } = setup(async () => ({ conversation: null, tokenBudget: budget, access }))
+      await act(async () => {})
+      await act(async () => { await vi.advanceTimersByTimeAsync(10000) })
+      expect(request).toHaveBeenCalledOnce()
+      budget = { ...budget, remaining: 1000 }
+      access = { ...access, serverTime: '2026-11-06T10:00:11Z' }
+      await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
+      expect(request).toHaveBeenCalledTimes(2)
+      await act(async () => { await vi.advanceTimersByTimeAsync(86400000) })
+      expect(request).toHaveBeenCalledTimes(2)
+    })
+
+    it('pauses updates while closed and rechecks an elapsed ban when reopened', async () => {
+      vi.useFakeTimers()
+      let access: ChatConversation['access'] = { ...conversation.access, status: 'temporary_ban',
+        bannedUntil: '2026-11-06T10:00:10Z', serverTime: '2026-11-06T10:00:00Z' }
+      const request = vi.fn(async () => ({ conversation: { ...completed, access }, tokenBudget: completed.tokenBudget, access })) as unknown as AuthorizedJsonRequest
+      const props = { contextPath: '/example/chat', createBody: {}, request, onClose: vi.fn() }
+      const view = render(<ChatPanel {...props} />)
+      await act(async () => {})
+      expect(vi.mocked(useChatEvents).mock.lastCall?.[0]).toBe('/chats/chat')
+      view.rerender(<ChatPanel {...props} open={false} />)
+      expect(vi.mocked(useChatEvents).mock.lastCall?.[0]).toBeNull()
+      await act(async () => { await vi.advanceTimersByTimeAsync(20000) })
+      expect(request).toHaveBeenCalledOnce()
+      access = { ...access, status: 'allowed', serverTime: '2026-11-06T10:00:20Z' }
+      view.rerender(<ChatPanel {...props} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+      expect(screen.getByText('An ordinary answer.')).toBeInTheDocument()
+    })
+
+    it('offers an explicit retry when the one scheduled access refresh fails', async () => {
+      vi.useFakeTimers()
+      const unavailable = { ...conversation.access, status: 'unavailable' as const,
+        serverTime: '2026-11-06T10:00:00Z', unavailableUntil: '2026-11-06T10:00:01Z' }
+      let attempts = 0
+      let online = false
+      const { request } = setup(async () => {
+        if (++attempts > 1 && !online) throw new Error('offline')
+        return { conversation: null, tokenBudget: conversation.tokenBudget,
+          access: online ? { ...unavailable, status: 'allowed', serverTime: '2026-11-06T10:00:02Z' } : unavailable }
+      })
+      await act(async () => {})
+      await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+      expect(request).toHaveBeenCalledTimes(2)
+      online = true
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: /refresh|reload/i })))
+      expect(request).toHaveBeenCalledTimes(3)
+      expect(screen.getByRole('textbox')).toBeEnabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('learns about a ban from another device only when sending and keeps the unsent draft', async () => {
+      const banned = { ...completed, access: { ...completed.access, status: 'temporary_ban' as const,
+        bannedUntil: '2099-11-06T11:00:00Z', serverTime: '2099-11-06T10:00:00Z' } }
+      const { request } = setup(async (path) => {
+        if (path.endsWith('/messages')) throw new ApiRequestError(403, { code: 'CHAT_BANNED', message: null, fields: {}, details: {} })
+        if (path === '/chats/chat') return banned
+        return { conversation: completed, tokenBudget: completed.tokenBudget, access: completed.access }
+      })
+      const input = await screen.findByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Another device blocked AI access' } })
+      fireEvent.submit(input.closest('form')!)
+      expect(await screen.findByText(/blocked until/i)).toBeInTheDocument()
+      await waitFor(() => expect(input).toBeDisabled())
+      expect(input).toHaveValue('Another device blocked AI access')
+      expect(vi.mocked(request).mock.calls.filter(([path]) => path === '/example/chat')).toHaveLength(1)
     })
 
     it(

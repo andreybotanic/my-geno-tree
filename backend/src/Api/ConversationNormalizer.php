@@ -55,12 +55,17 @@ final readonly class ConversationNormalizer implements NormalizerInterface
         ];
     }
 
-    /** @return array{remaining: int, limit: int} */
+    /** @return array{remaining: int, limit: int, retryAt?: string} */
     public function budget(Uuid $user): array
     {
         $limit = $this->tokens->create($user->toRfc4122())->consume(0);
 
-        return ['remaining' => max(0, $limit->getRemainingTokens()), 'limit' => $limit->getLimit()];
+        $budget = ['remaining' => max(0, $limit->getRemainingTokens()), 'limit' => $limit->getLimit()];
+        if (0 === $budget['remaining']) {
+            $budget['retryAt'] = $limit->getRetryAfter()->format(\DateTimeInterface::ATOM);
+        }
+
+        return $budget;
     }
 
     /**

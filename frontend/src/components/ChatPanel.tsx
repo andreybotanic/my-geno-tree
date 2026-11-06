@@ -27,9 +27,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const { t } = useTranslation()
   const [conversation, setConversation] = useState<ChatConversation | null>(null)
   const [budget, setBudget] = useState<ChatTokenBudget | null>(null)
-  const [access, setAccess] = useState<ChatAccess | null>(null)
+  const [accessState, setAccess] = useState<{ value: ChatAccess; receivedAt: number } | null>(null)
+  const access = accessState?.value ?? null
   const acceptAccess = useCallback((next: ChatAccess | undefined) => {
-    if (next) setAccess((saved) => !saved || Date.parse(next.serverTime) >= Date.parse(saved.serverTime) ? next : saved)
+    if (next) setAccess((saved) => saved?.value === next
+      || (saved && Date.parse(next.serverTime) < Date.parse(saved.value.serverTime))
+      ? saved : { value: next, receivedAt: Date.now() })
   }, [])
   const [content, setContent] = useState('')
   const [voiceBusy, setVoiceBusy] = useState(false)
@@ -46,7 +49,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const thinking = thinkingSince !== null || conversation?.status === 'processing'
   const blocked = access !== null && access.status !== 'allowed'
   const stream = useChatEvents(
-    conversation ? `/chats/${conversation.id}` : null,
+    open && conversation ? `/chats/${conversation.id}` : null,
     request,
     setConversation,
     (event) => onToolEvent?.(event),
@@ -102,26 +105,32 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
           ? mergeChatEvent(saved, { kind: 'conversation', conversation: next.conversation })
           : next.conversation
         : activeRequest.current ? saved : null)
-    } catch { /* Keep readable history during a temporary connectivity failure. */ }
+      setError(null)
+    } catch {
+      if (!signal?.aborted) setError('chat.loadFailed')
+    }
   }, [base, request, acceptAccess])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !accessState) return
     const controller = new AbortController()
     const refresh = () => { void refreshAccess(controller.signal) }
-    const timer = window.setInterval(refresh, 15000)
-    window.addEventListener('focus', refresh)
-    const deadline = access?.status === 'temporary_ban' ? access.bannedUntil
-      : access?.status === 'unavailable' ? access.unavailableUntil : null
-    const expiry = deadline && access ? window.setTimeout(refresh,
-      Math.min(2147483647, Math.max(0, Date.parse(deadline) - Date.parse(access.serverTime)) + 100)) : null
+    const { value: state, receivedAt } = accessState
+    const accessDeadline = state.status === 'temporary_ban' ? state.bannedUntil
+      : state.status === 'unavailable' ? state.unavailableUntil : null
+    const deadlines: number[] = []
+    if (accessDeadline) deadlines.push(Date.parse(accessDeadline))
+    // RateLimiter's retry timestamp is rounded down to whole seconds.
+    if (budget?.remaining === 0 && budget.retryAt) deadlines.push(Date.parse(budget.retryAt) + 1000)
+    if (!deadlines.length) return () => controller.abort()
+    const dueAt = Math.min(...deadlines) - Date.parse(state.serverTime) + receivedAt
+    const expiry = window.setTimeout(refresh,
+      Math.min(2147483647, Math.max(0, dueAt - Date.now()) + 100))
     return () => {
       controller.abort()
-      window.clearInterval(timer)
-      if (expiry !== null) window.clearTimeout(expiry)
-      window.removeEventListener('focus', refresh)
+      window.clearTimeout(expiry)
     }
-  }, [open, access, refreshAccess])
+  }, [open, accessState, budget, refreshAccess])
 
   useEffect(
     () => {
@@ -353,7 +362,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>}
         {error && <div role="alert">
           <p>{t(error)}</p>
-          {conversation && <button type="button" disabled={busy} onClick={() => void reload()}>{t('chat.reload')}</button>}
+          <button type="button" disabled={busy}
+            onClick={() => { if (conversation) void reload(); else void refreshAccess() }}>{t('chat.reload')}</button>
         </div>}
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
           {conversation?.messages.map(

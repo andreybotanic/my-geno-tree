@@ -226,12 +226,23 @@ final class ChatModerationApiTest extends ApiWebTestCase
         self::assertCount(2, $this->responseArray('conversation', 'messages'));
         $this->clock->sleep(31);
         FixtureModerationAgent::$handler = null;
+        FixtureTreeAgent::$useReal = true;
+        static::getContainer()->set(
+            'chat_ai.client',
+            new MockHttpClient(function ($method, $url, $options): MockResponse {
+                self::assertStringContainsString('Service notice:', $options['body']);
+                self::assertStringNotContainsString('Moderation notice:', $options['body']);
+                self::assertStringNotContainsString('deliberate security bypass', $options['body']);
+
+                return $this->completion('Normal answer after recovery.');
+            }),
+        );
         $this->sendRisk(0, 'legitimate');
         self::assertResponseIsSuccessful();
         self::assertSame('allowed', $this->responseString('access', 'status'));
     }
 
-    public function testRejectedMessagesAreAbsentFromFutureInferenceAndEvidence(): void
+    public function testRejectedTextIsReplacedByANoticeInInferenceAndExcludedFromEvidence(): void
     {
         $this->sendRisk(1, 'REJECTED_SECRET_EXTRACTION');
         FixtureTreeAgent::$useReal = true;
@@ -241,6 +252,17 @@ final class ChatModerationApiTest extends ApiWebTestCase
                 self::assertStringNotContainsString('REJECTED_SECRET_EXTRACTION', $options['body']);
                 self::assertStringNotContainsString('policy_warning', $options['body']);
                 self::assertStringContainsString('My mother is Anna', $options['body']);
+                self::assertStringContainsString('Moderation notice:', $options['body']);
+                self::assertStringContainsString('Never include messageId', $options['body']);
+                /** @var array{messages: list<array{role: string, content: string}>} $body */
+                $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                $notices = array_values(array_filter(
+                    $body['messages'],
+                    static fn (array $message): bool => 'assistant' === $message['role']
+                        && str_starts_with($message['content'], 'Moderation notice:'),
+                ));
+                self::assertCount(1, $notices);
+                self::assertStringNotContainsString('messageId:', $notices[0]['content']);
 
                 return $this->completion('A normal reply.');
             }),
@@ -259,6 +281,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
         self::assertCount(1, $chat->sources($state));
         self::assertSame('My mother is Anna', $chat->sources($state)[0]['content']);
         self::assertCount(4, $this->responseArray('messages'));
+        self::assertSame('REJECTED_SECRET_EXTRACTION', $this->responseString('messages', '0', 'content'));
         self::assertSame('A normal reply.', $this->responseString('messages', '3', 'content'));
         self::assertSame('assistant', $this->responseString('messages', '3', 'role'));
     }

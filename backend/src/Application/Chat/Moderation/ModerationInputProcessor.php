@@ -80,8 +80,15 @@ final readonly class ModerationInputProcessor implements InputProcessorInterface
         }
         $prepared = MessageBag::forId($messages->getId());
         foreach ($messages as $item) {
-            if (($item instanceof UserMessage && false === $item->getMetadata()->get('moderationAllowed'))
-                || ($item instanceof SystemMessage && $item->getMetadata()->has('failureCode'))) {
+            if ($item instanceof UserMessage && false === $item->getMetadata()->get('moderationAllowed')) {
+                $notice = is_float($item->getMetadata()->get('moderationRisk'))
+                    ? 'Moderation notice: A user message here was blocked for a suspected chat-policy violation. '
+                        . 'The user received a warning. Its original text is unavailable; do not infer or quote it.'
+                    : 'Service notice: A user message here was not processed. Its original text is unavailable.';
+                $prepared = $prepared->with(Message::ofAssistant($notice)->withId($item->getId()));
+                continue;
+            }
+            if ($item instanceof SystemMessage && $item->getMetadata()->has('failureCode')) {
                 continue;
             }
             $prepared = $prepared->with($item);

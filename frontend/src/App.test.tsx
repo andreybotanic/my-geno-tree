@@ -15,7 +15,7 @@ const apiError = {
 
 const authenticated = {
   accessToken: 'access-token',
-  accessTokenExpiresAt: '2026-07-31T12:00:00+00:00',
+  accessTokenExpiresAt: new Date(Date.now() + 3600000).toISOString(),
   user: {
     id: '019861c4-6a93-7a2e-8ca8-51813740d4a5',
     username: 'family_admin',

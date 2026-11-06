@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 #[AsInputProcessor(agent: 'ai.agent.tree', priority: -100)]
 final readonly class TreeChatContextInputProcessor implements InputProcessorInterface
 {
-    public const string VERSION = 'tree-v17-chat-profile';
+    public const string VERSION = 'tree-v18-moderation-notices';
 
     public function __construct(private RequestStack $requests)
     {

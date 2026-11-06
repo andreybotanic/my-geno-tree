@@ -148,6 +148,10 @@ export type ChatTokenUsage = {
 export type ChatTokenBudget = {
     remaining: number;
     limit: number;
+    /**
+     * Next availability reported by the daily rate limiter when remaining is zero; otherwise omitted.
+     */
+    retryAt?: string;
 };
 
 export type ChatTranscription = {

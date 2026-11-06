@@ -68,6 +68,7 @@ final class ChatTokenBudgetTest extends TestCase
         );
         $metered = MockPlatformFactory::createPlatform(static fn () => clone $result, eventDispatcher: $events);
         self::assertSame(100, $view->budget($runtime->conversation->userId)['remaining']);
+        self::assertArrayNotHasKey('retryAt', $view->budget($runtime->conversation->userId));
         $first = $metered->invoke('model', 'first');
         self::assertSame('fixture', $first->asText());
         $first->asText();
@@ -79,6 +80,9 @@ final class ChatTokenBudgetTest extends TestCase
         $metered->invoke('model', 'second')->asText();
         self::assertSame(220, $runtime->conversation->usage['total']);
         self::assertSame(0, $view->budget($runtime->conversation->userId)['remaining']);
+        $budget = $view->budget($runtime->conversation->userId);
+        self::assertArrayHasKey('retryAt', $budget);
+        self::assertGreaterThan(new \DateTimeImmutable(), new \DateTimeImmutable($budget['retryAt']));
         $this->expectException(ApiException::class);
         $metered->invoke('model', 'blocked')->asText();
     }

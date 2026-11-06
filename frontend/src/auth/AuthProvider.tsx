@@ -24,12 +24,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null)
   const [isBooting, setIsBooting] = useState(true)
   const accessTokenRef = useRef<string | null>(null)
+  const accessTokenExpiresAt = useRef(0)
   const bootRequest = useRef<ReturnType<typeof authApi.refresh> | null>(null)
   const refreshRequest = useRef<ReturnType<typeof authApi.refresh> | null>(null)
 
   const acceptAuth = useCallback(
     (response: Awaited<ReturnType<typeof authApi.refresh>>) => {
       accessTokenRef.current = response.accessToken
+      accessTokenExpiresAt.current = Date.parse(response.accessTokenExpiresAt)
       setAccessToken(response.accessToken)
       setUser(response.user)
       void i18n.changeLanguage(response.user.preferredLanguage)
@@ -83,12 +85,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [acceptAuth])
 
+  const getAccessToken = useCallback(async () => {
+    const token = accessTokenRef.current
+    if (!token) throw new Error('An authenticated session is required')
+    return accessTokenExpiresAt.current <= Date.now() + 5000 ? refreshAccessToken(token) : token
+  }, [refreshAccessToken])
+
   const request = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-      const accessToken = accessTokenRef.current
-      if (!accessToken) {
-        throw new Error('An authenticated session is required')
-      }
+      const accessToken = await getAccessToken()
 
       const withToken = (token: string) => {
         const headers = new Headers(init.headers)
@@ -110,15 +115,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return withToken(await refreshAccessToken(accessToken))
       }
     },
-    [refreshAccessToken],
+    [getAccessToken, refreshAccessToken],
   )
 
   const requestBlob = useCallback(
     async (path: string, init: RequestInit = {}): Promise<Blob> => {
-      const accessToken = accessTokenRef.current
-      if (!accessToken) {
-        throw new Error('An authenticated session is required')
-      }
+      const accessToken = await getAccessToken()
       const withToken = (token: string) => {
         const headers = new Headers(init.headers)
         headers.set('Authorization', `Bearer ${token}`)
@@ -134,7 +136,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return withToken(await refreshAccessToken(accessToken))
       }
     },
-    [refreshAccessToken],
+    [getAccessToken, refreshAccessToken],
   )
 
   const value = useMemo<AuthContextValue>(

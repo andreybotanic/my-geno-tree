@@ -2306,6 +2306,10 @@ components:
         limit:
           type: integer
           minimum: 1
+        retryAt:
+          type: string
+          format: date-time
+          description: 'Next availability reported by the daily rate limiter when remaining is zero; otherwise omitted.'
     ChatTranscription:
       type: object
       additionalProperties: false

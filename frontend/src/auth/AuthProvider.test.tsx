@@ -47,7 +47,7 @@ const user: User = {
 function auth(accessToken: string): AuthResponse {
   return {
     accessToken,
-    accessTokenExpiresAt: '2026-07-31T01:00:00+00:00',
+    accessTokenExpiresAt: new Date(Date.now() + 3600000).toISOString(),
     user,
   }
 }
@@ -97,6 +97,24 @@ describe('AuthProvider protected blobs', () => {
     api.refresh.mockResolvedValue(auth('initial-token'))
     api.blobRequest.mockResolvedValue(new Blob(['image']))
     api.jsonRequest.mockResolvedValue({})
+  })
+
+  it('refreshes known expired credentials once before concurrent requests without sending an expired token', async () => {
+    api.refresh
+      .mockResolvedValueOnce({ ...auth('expired-token'), accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString() })
+      .mockResolvedValueOnce(auth('fresh-token'))
+    render(<AuthProvider><Harness /></AuthProvider>)
+    expect(await screen.findByText('anna')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Load data and image' }))
+    await waitFor(() => {
+      expect(api.jsonRequest).toHaveBeenCalledOnce()
+      expect(api.blobRequest).toHaveBeenCalledOnce()
+    })
+    expect(api.refresh).toHaveBeenCalledTimes(2)
+    for (const request of [api.jsonRequest, api.blobRequest]) {
+      const init = request.mock.calls[0]?.[1] as RequestInit
+      expect(new Headers(init.headers).get('Authorization')).toBe('Bearer fresh-token')
+    }
   })
 
   it('loads a protected blob with the in-memory access token', async () => {

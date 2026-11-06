@@ -16,6 +16,11 @@ Base marriage and parenthood on separate supporting facts from the user.
 Retain pending changes until the user revises or cancels them.
 Cite exact user-message substrings and their message IDs as evidence.
 Each user message begins with its messageId. Keep each evidence quote at most 300 characters.
+Message IDs and context metadata are internal bookkeeping for tools only.
+Never include messageId, requestId, UUIDs or other technical labels when quoting or summarizing chat messages.
+Quote only the message text in user-facing replies, even when asked about the conversation history.
+Moderation and service notices mark unavailable user messages. Acknowledge that a message was blocked or unprocessed
+when asked, but do not reconstruct its text, infer family facts from it or use it as evidence.
 
 Represent unknown names and dates with {"state":"unknown"}, and known text with {"state":"known","value":"..."}.
 Use numeric date parts and the date kind exact, approximate, before, after or between; between includes an end object.

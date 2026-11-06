@@ -37,13 +37,28 @@ time and an opaque unique retry key. It contains no chat, message or tree links.
 Ban history and the user's counters survive chat reset and journal cleanup.
 Audio stays temporary and is deleted even when access is denied.
 
-Chat history and prepared proposals remain available during a ban. Sending and
+Chat history and prepared proposals remain available during a ban. The main
+agent receives a safe notice in place of blocked text, so it can acknowledge
+the warning when discussing history. The original text stays visible to the user
+and is excluded from evidence. Technical message IDs are reserved for tools and
+must not appear in conversational quotes or summaries. Sending and
 voice transcription return `403 CHAT_BANNED`; manual tree editing, proposal
 application and external MCP remain available. A failed or invalid checking-model
 response blocks inference without sanctions and returns `503 CHAT_UNAVAILABLE`.
 Shared cache records this outage for 30 seconds. The panel receives access state
-through snapshots and Mercure and refreshes on focus, expiry and every 15 seconds
-while open.
+through action responses and Mercure. It performs one scheduled refresh at the
+known temporary-ban, outage or exhausted-budget deadline; `tokenBudget.retryAt`
+reports when exhausted tokens become available. There is no idle or focus polling.
+A failed scheduled refresh offers an explicit retry. Changes from another device
+can be learned on the next send attempt.
+
+Mercure credentials renew before expiry using overlapping connections. A planned
+handover loads no chat or tree snapshot and preserves the current preview, camera,
+scroll position and unsent input. A genuine interruption gets a five-second grace
+period before showing the reconnect notice, then a catch-up snapshot on recovery.
+Unchanged messages and proposal objects retain their references during state
+reconciliation. Access tokens nearing their known expiry are refreshed on demand
+before an authorized request; no background authentication timer is used.
 
 Start the hourly cleanup worker with `docker compose up -d chat-maintenance`.
 It consumes `scheduler_default` using Symfony Scheduler and Messenger without
@@ -525,3 +540,24 @@ Automated checks additionally cover concurrent retries, interrupted history
 finalization, both models' token usage, rejected evidence, temporary/permanent
 cycles, audio cleanup, Mercure updates, focus/polling, prepared proposal application
 and external MCP access during a site-chat ban.
+
+Chat context and connection stability validation (2026-11-06): all 263 backend
+tests and 414 frontend tests pass, with line coverage of 93.22% and 90.37%.
+Every measured production file meets 75% coverage. Backend/frontend quality,
+OpenAPI type checks, the production build and all 26 migrations on a fresh
+disposable database pass. PhpStorm WARNING inspections are clean for all six
+affected PHP files. Existing PHPUnit notices and the Vite bundle-size advisory
+remain.
+
+Manual HTTPS validation used an isolated account and empty tree. The real agent
+acknowledged a blocked message without reconstructing its text, quoted an
+available message without technical IDs, and prepared a proposal for Anna.
+Stopping and restarting Mercure preserved unsent input and restored the stream.
+An idle observation spanning 5 minutes 28 seconds preserved text, selection,
+history, scroll position and the preview camera across credential renewal, with
+no browser console warnings or errors. A short ban seeded outside the tab was
+discovered on send; the draft survived and access recovered at the deadline
+without reloading or moving the preview camera. The account, empty tree and audit
+fixture were removed. The local proxy was also restarted after the browser
+presented an expired TLS-session certificate despite the server holding a renewed
+certificate; HTTPS was verified without bypassing certificate validation.
