@@ -4,6 +4,8 @@ export const conversation: ChatConversation = {
   id: 'chat', profile: 'tree', version: 1, status: 'idle', tools: {},
   attemptId: null, attemptStartedAt: null, messages: [], progress: [],
   tokenUsage: { input: 0, output: 0, total: 0 }, tokenBudget: { remaining: 1000, limit: 1000 },
+  access: { status: 'allowed', warnings: 0, warningLimit: 3, banCount: 0,
+    bannedUntil: null, unavailableUntil: null, serverTime: '2026-11-05T10:00:00Z' },
   createdAt: '2026-11-05T10:00:00Z', updatedAt: '2026-11-05T10:00:00Z',
 }
 export const mergeProposal: TreeMergePendingProposal = {

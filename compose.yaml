@@ -19,6 +19,12 @@ services:
       database:
         condition: service_healthy
 
+  chat-maintenance:
+    extends:
+      service: backend
+    command: ['php', 'bin/console', 'messenger:consume', 'scheduler_default', '--time-limit=3600']
+    restart: unless-stopped
+
   frontend:
     image: node:24.18.0-alpine
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"

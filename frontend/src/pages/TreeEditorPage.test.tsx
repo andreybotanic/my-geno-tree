@@ -253,6 +253,8 @@ describe(
           const original = snapshot(empty ? [] : [person])
           const prepared: ChatConversation = {
             id: 'chat-preview', profile: 'tree', version: 2, status: 'idle',
+            access: { status: 'allowed', warnings: 0, warningLimit: 3, banCount: 0,
+              bannedUntil: null, unavailableUntil: null, serverTime: person.createdAt },
             attemptId: null, attemptStartedAt: null,
             messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
             createdAt: person.createdAt, updatedAt: person.updatedAt,

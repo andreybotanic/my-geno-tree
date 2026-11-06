@@ -152,7 +152,7 @@ final class GuardedMessageStore implements MessageStoreInterface
         }
     }
 
-    public function execution(): ChatExecution
+    public function execution(bool $allowBlocked = false): ChatExecution
     {
         $execution = $this->requests->getMainRequest()?->attributes->get(ChatExecution::class);
         if (!$execution instanceof ChatExecution) {
@@ -160,6 +160,9 @@ final class GuardedMessageStore implements MessageStoreInterface
         }
         if (!$this->authorization->isGranted(ChatVoter::USE, $execution->conversation)) {
             throw new ApiException(403, 'CHAT_AGENT_REQUIRED');
+        }
+        if (!$allowBlocked && !$this->authorization->isGranted(ChatVoter::INTERACT, $execution->conversation)) {
+            throw new ApiException(403, 'CHAT_BANNED');
         }
         $this->assertRunning($execution);
 

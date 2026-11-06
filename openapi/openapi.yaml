@@ -209,6 +209,18 @@ paths:
                 $ref: '#/components/schemas/ChatTranscription'
         401:
           $ref: '#/components/responses/Unauthorized'
+        403:
+          description: CHAT_BANNED — the user cannot interact with AI.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        503:
+          description: CHAT_UNAVAILABLE — moderation is temporarily unavailable; no sanction is applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         404:
           $ref: '#/components/responses/NotFound'
         409:
@@ -331,6 +343,18 @@ paths:
                 $ref: '#/components/schemas/ChatConversation'
         401:
           $ref: '#/components/responses/Unauthorized'
+        403:
+          description: CHAT_BANNED — the user cannot interact with AI.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        503:
+          description: CHAT_UNAVAILABLE — moderation is temporarily unavailable; no sanction is applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         404:
           $ref: '#/components/responses/NotFound'
         409:
@@ -2181,6 +2205,24 @@ components:
           format: uuid
         result:
           $ref: '#/components/schemas/TreeMergeResult'
+    ChatAccess:
+      type: object
+      additionalProperties: false
+      required: [status, warnings, warningLimit, banCount, bannedUntil, unavailableUntil, serverTime]
+      properties:
+        status:
+          type: string
+          enum: [allowed, temporary_ban, permanent_ban, unavailable]
+        warnings: { type: integer, minimum: 0, maximum: 2 }
+        warningLimit: { type: integer, const: 3 }
+        banCount: { type: integer, minimum: 0 }
+        bannedUntil:
+          type: [string, 'null']
+          format: date-time
+        unavailableUntil:
+          type: [string, 'null']
+          format: date-time
+        serverTime: { type: string, format: date-time }
     ChatMessage:
       type: object
       additionalProperties: false
@@ -2211,7 +2253,12 @@ components:
             - provider_unavailable
             - token_limit
             - stopped
-          description: 'System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.'
+            - policy_warning
+            - chat_banned
+            - chat_unavailable
+          description: 'Localized system notice. Policy warnings are terminal decisions; other failures can be retried.'
+        warningNumber: { type: integer, minimum: 1, maximum: 3 }
+        blocked: { type: boolean, description: 'Excluded from inference and evidence sources.' }
         createdAt:
           type: string
           format: date-time
@@ -2289,6 +2336,7 @@ components:
         - progress
         - tokenUsage
         - tokenBudget
+        - access
         - createdAt
         - updatedAt
       properties:
@@ -2331,13 +2379,15 @@ components:
           $ref: '#/components/schemas/ChatTokenUsage'
         tokenBudget:
           $ref: '#/components/schemas/ChatTokenBudget'
+        access:
+          $ref: '#/components/schemas/ChatAccess'
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-      description: 'Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat table or application receipt. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.'
+      description: 'Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat history. Independent moderation audit records and bans survive chat expiration. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.'
     ChatEvent:
       oneOf:
         -
@@ -2480,6 +2530,7 @@ components:
       required:
         - conversation
         - tokenBudget
+        - access
       properties:
         conversation:
           oneOf:
@@ -2487,6 +2538,8 @@ components:
             - type: 'null'
         tokenBudget:
           $ref: '#/components/schemas/ChatTokenBudget'
+        access:
+          $ref: '#/components/schemas/ChatAccess'
     Health:
       type: object
       additionalProperties: false

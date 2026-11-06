@@ -114,6 +114,27 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         self::assertFalse($vera->getDeathDate()->isKnown());
     }
 
+    public function testAChatBanDoesNotPreventApplyingAnAlreadyPreparedProposal(): void
+    {
+        $this->revise($this->family());
+        self::assertResponseIsSuccessful();
+        $manager = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $manager->getRepository(\App\Entity\User::class)->findOneBy(['username' => 'family_admin']);
+        self::assertInstanceOf(\App\Entity\User::class, $user);
+        $now = new \DateTimeImmutable();
+        $user->warnAboutChat($now, 3600, 0);
+        $user->warnAboutChat($now, 3600, 0);
+        $ban = $user->warnAboutChat($now, 3600, 0);
+        self::assertNotNull($ban);
+        $manager->persist($ban);
+        $manager->flush();
+        $this->apply();
+        self::assertResponseIsSuccessful();
+        self::assertSame('permanent_ban', $this->responseString('conversation', 'access', 'status'));
+        $this->snapshot();
+        self::assertCount(4, $this->arrayAt('people'));
+    }
+
     public function testRevalidationConflictsWhenTheProposedPersonWasDeleted(): void
     {
         $this->revise($this->family());

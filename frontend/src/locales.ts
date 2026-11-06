@@ -12,6 +12,12 @@ export const resources = {
         redirecting: 'Returning to the application…',
       },
       chat: {
+        access: {
+          temporary: 'AI chat is blocked until {{until}}.',
+          blocked: 'Your access to AI chat is blocked.',
+          permanent: 'Your access to AI chat is permanently blocked.',
+          unavailable: 'AI chat is temporarily unavailable. Please try again later.',
+        },
         "voice": {
           "record": "Record voice",
           "stop": "Stop recording",
@@ -44,7 +50,10 @@ export const resources = {
           "empty_response": "The AI returned an empty response; please try again.",
           "stopped": "Processing stopped.",
           "token_limit": "The daily token limit has been reached. Please continue later.",
-          "provider_unavailable": "The AI service is unavailable; please try again shortly."
+          "provider_unavailable": "The AI service is unavailable; please try again shortly.",
+          "policy_warning": "This request violates the chat rules. Warning {{number}} of 3.",
+          "chat_banned": "Your access to AI chat is blocked.",
+          "chat_unavailable": "AI chat is temporarily unavailable. Please try again later."
         },
         "action": "Open AI chat",
         "close": "Collapse AI chat",
@@ -499,6 +508,12 @@ export const resources = {
         redirecting: 'Возвращаемся в приложение…',
       },
       chat: {
+        access: {
+          temporary: 'ИИ-чат заблокирован до {{until}}.',
+          blocked: 'Доступ к ИИ-чату заблокирован.',
+          permanent: 'Доступ к ИИ-чату заблокирован навсегда.',
+          unavailable: 'ИИ-чат временно недоступен. Попробуйте позже.',
+        },
         "voice": {
           "record": "Записать голос",
           "stop": "Остановить запись",
@@ -531,7 +546,10 @@ export const resources = {
           "empty_response": "ИИ вернул пустой ответ; повторите попытку.",
           "stopped": "Обработка остановлена.",
           "token_limit": "Дневной лимит токенов исчерпан. Продолжите позже.",
-          "provider_unavailable": "Сервис ИИ недоступен; повторите попытку чуть позже."
+          "provider_unavailable": "Сервис ИИ недоступен; повторите попытку чуть позже.",
+          "policy_warning": "Запрос нарушает правила чата. Предупреждение {{number}} из 3.",
+          "chat_banned": "Доступ к ИИ-чату заблокирован.",
+          "chat_unavailable": "ИИ-чат временно недоступен. Попробуйте позже."
         },
         "action": "Открыть AI-чат",
         "close": "Свернуть AI-чат",

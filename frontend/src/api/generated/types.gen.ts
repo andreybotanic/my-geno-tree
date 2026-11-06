@@ -101,15 +101,30 @@ export type TreeMergeApplied = {
     result: TreeMergeResult;
 };
 
+export type ChatAccess = {
+    status: 'allowed' | 'temporary_ban' | 'permanent_ban' | 'unavailable';
+    warnings: number;
+    warningLimit: 3;
+    banCount: number;
+    bannedUntil: string | null;
+    unavailableUntil: string | null;
+    serverTime: string;
+};
+
 export type ChatMessage = {
     id: string;
     requestId: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
     /**
-     * System processing notice, never an assistant reply. It does not mark the user message as answered; a successful retry replaces this notice.
+     * Localized system notice. Policy warnings are terminal decisions; other failures can be retried.
      */
-    failureCode?: 'empty_response' | 'provider_unavailable' | 'token_limit' | 'stopped';
+    failureCode?: 'empty_response' | 'provider_unavailable' | 'token_limit' | 'stopped' | 'policy_warning' | 'chat_banned' | 'chat_unavailable';
+    warningNumber?: number;
+    /**
+     * Excluded from inference and evidence sources.
+     */
+    blocked?: boolean;
     createdAt: string;
 };
 
@@ -141,7 +156,7 @@ export type ChatTranscription = {
 };
 
 /**
- * Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat table or application receipt. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.
+ * Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat history. Independent moderation audit records and bans survive chat expiration. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.
  */
 export type ChatConversation = {
     id: string;
@@ -157,6 +172,7 @@ export type ChatConversation = {
     progress: Array<string>;
     tokenUsage: ChatTokenUsage;
     tokenBudget: ChatTokenBudget;
+    access: ChatAccess;
     createdAt: string;
     updatedAt: string;
 };
@@ -211,6 +227,7 @@ export type TreeChatCreateRequest = {
 export type TreeChatCurrent = {
     conversation: ChatConversation | null;
     tokenBudget: ChatTokenBudget;
+    access: ChatAccess;
 };
 
 export type Health = {
@@ -1158,6 +1175,10 @@ export type TranscribeChatAudioErrors = {
      */
     401: ApiError;
     /**
+     * CHAT_BANNED — the user cannot interact with AI.
+     */
+    403: ApiError;
+    /**
      * The private resource is missing or unavailable to this owner
      */
     404: ApiError;
@@ -1173,6 +1194,10 @@ export type TranscribeChatAudioErrors = {
      * Shared or per-user request limit exceeded
      */
     429: ApiError;
+    /**
+     * CHAT_UNAVAILABLE — moderation is temporarily unavailable; no sanction is applied.
+     */
+    503: ApiError;
 };
 
 export type TranscribeChatAudioError = TranscribeChatAudioErrors[keyof TranscribeChatAudioErrors];
@@ -1318,6 +1343,10 @@ export type SendChatMessageErrors = {
      */
     401: ApiError;
     /**
+     * CHAT_BANNED — the user cannot interact with AI.
+     */
+    403: ApiError;
+    /**
      * The private resource is missing or unavailable to this owner
      */
     404: ApiError;
@@ -1329,6 +1358,10 @@ export type SendChatMessageErrors = {
      * One or more fields are invalid
      */
     422: ApiError;
+    /**
+     * CHAT_UNAVAILABLE — moderation is temporarily unavailable; no sanction is applied.
+     */
+    503: ApiError;
 };
 
 export type SendChatMessageError = SendChatMessageErrors[keyof SendChatMessageErrors];

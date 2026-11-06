@@ -3642,6 +3642,15 @@ select:not([multiple]) {
   max-width: 760px;
 }
 
+.chat-access-notice {
+  background: var(--color-state-danger-soft);
+  border: 1px solid var(--color-state-danger);
+  border-radius: 8px;
+  color: var(--color-text-strong);
+  margin: 0 0 12px;
+  padding: 12px;
+}
+
 .oauth-consent {
   min-width: 0;
 }

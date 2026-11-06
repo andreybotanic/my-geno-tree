@@ -5,6 +5,7 @@ namespace App\EventListener;
 use App\Api\ApiException;
 use App\Application\Chat\ChatEventPublisherInterface;
 use App\Application\Chat\GuardedMessageStore;
+use App\Application\Chat\Moderation\ChatModeration;
 use App\Model\Conversation;
 use App\Security\ChatExecution;
 use App\Tool\TreeReadTools;
@@ -37,6 +38,7 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         private RequestStack $requests,
         #[Target('chat_tokens')]
         private RateLimiterFactoryInterface $tokens,
+        private ChatModeration $moderation,
     ) {
     }
 
@@ -62,6 +64,7 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
     {
         if ($this->executing()) {
             $state = $this->store->execution()->conversation;
+            $this->moderation->assertCanInteract($state->userId);
             if ($this->tokens->create($state->userId->toRfc4122())->consume(0)->getRemainingTokens() <= 0) {
                 throw new ApiException(429, 'CHAT_TOKEN_LIMIT');
             }
@@ -76,6 +79,7 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         }
         try {
             $execution = $this->store->execution();
+            $this->moderation->assertCanInteract($execution->conversation->userId);
             if (TreeReadTools::class === $event->getDefinition()->getReference()->getClass()) {
                 if (($event->getToolCall()->getArguments()['treeId'] ?? null)
                     !== ($execution->conversation->context['treeId'] ?? null)) {
@@ -107,7 +111,7 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         }
     }
 
-    #[AsEventListener]
+    #[AsEventListener(priority: -100)]
     public function onResult(ResultEvent $event): void
     {
         $state = $this->requests->getMainRequest()?->attributes->get(Conversation::class);

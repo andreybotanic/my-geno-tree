@@ -43,11 +43,21 @@ interface ChatInterface
      *     role: string,
      *     content: string,
      *     createdAt: string,
-     *     failureCode?: string
+     *     failureCode?: string,
+     *     blocked?: bool,
+     *     warningNumber?: int
      * }>
      */
     public function messages(Conversation $conversation): array;
 
     /** @return array{remaining: int, limit: int} */
     public function budget(Uuid $user): array;
+
+    /** @return array{status: string, warnings: int, warningLimit: int, banCount: int,
+     * bannedUntil: ?string, unavailableUntil: ?string, serverTime: string}
+     */
+    public function access(Uuid $user): array;
+
+    /** @return list<array{id: string, role: string, content: string}> */
+    public function sources(Conversation $conversation): array;
 }

@@ -42,9 +42,12 @@ final class ChatApiTest extends ApiWebTestCase
         self::assertSame(3, $this->responseData()['version']);
         self::assertSame('idle', $this->responseString('status'));
         $saved = $this->responseData();
+        $saved['access'] = $this->responseArray('access');
         $this->jsonRequest('POST', $this->path . '/messages', $message, $this->headers);
+        $saved['access']['serverTime'] = $this->responseString('access', 'serverTime');
         self::assertSame($saved, $this->responseData());
         $this->jsonRequest('GET', $this->base, headers: $this->headers);
+        $saved['access']['serverTime'] = $this->responseString('conversation', 'access', 'serverTime');
         self::assertSame($saved, $this->responseData()['conversation']);
         $this->jsonRequest(
             'POST',

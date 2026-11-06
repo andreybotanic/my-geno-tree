@@ -70,7 +70,9 @@ final readonly class ConversationNormalizer implements NormalizerInterface
      *     role: string,
      *     content: string,
      *     createdAt: string,
-     *     failureCode?: string
+     *     failureCode?: string,
+     *     blocked?: bool,
+     *     warningNumber?: int
      * }>
      */
     public function messages(Conversation $conversation): array
@@ -78,7 +80,8 @@ final readonly class ConversationNormalizer implements NormalizerInterface
         $rows = $outcomes = [];
         $requestId = '';
         foreach ($this->store->load($conversation->id) as $message) {
-            /** @var array{requestId?: string, createdAt?: string, failureCode?: string} $metadata */
+            /** @var array{requestId?: string, createdAt?: string, failureCode?: string,
+             * warningNumber?: int, moderationAllowed?: bool} $metadata */
             $metadata = $message->getMetadata()->all();
             if ($message instanceof UserMessage) {
                 $requestId = $metadata['requestId'] ?? $message->getId()->toRfc4122();
@@ -100,6 +103,12 @@ final readonly class ConversationNormalizer implements NormalizerInterface
             ];
             if (isset($metadata['failureCode'])) {
                 $row['failureCode'] = $metadata['failureCode'];
+            }
+            if (is_int($metadata['warningNumber'] ?? null)) {
+                $row['warningNumber'] = $metadata['warningNumber'];
+            }
+            if (false === ($metadata['moderationAllowed'] ?? null)) {
+                $row['blocked'] = true;
             }
             if (!$message instanceof UserMessage) {
                 $index = $outcomes[$row['requestId']] ?? count($rows);

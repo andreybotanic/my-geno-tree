@@ -210,7 +210,12 @@ final class ChatEventsApiTest extends ApiWebTestCase
         self::assertSame('progress', $packets[1]['kind']);
         self::assertSame(['model_request'], $packets[1]['progress']);
         self::assertSame('conversation', $packets[2]['kind']);
-        self::assertSame($this->responseData(), $packets[2]['conversation']);
+        $response = $this->responseData();
+        self::assertIsArray($packets[2]['conversation']);
+        self::assertIsArray($packets[2]['conversation']['access']);
+        $response['access'] = $this->responseArray('access');
+        $response['access']['serverTime'] = $packets[2]['conversation']['access']['serverTime'];
+        self::assertSame($response, $packets[2]['conversation']);
         self::assertIsArray($packets[0]['conversation']);
         self::assertSame('processing', $packets[0]['conversation']['status']);
         foreach (TestMergeEvents::updates() as $event) {

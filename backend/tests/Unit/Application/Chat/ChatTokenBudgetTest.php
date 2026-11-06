@@ -4,9 +4,15 @@ namespace App\Tests\Unit\Application\Chat;
 
 use App\Api\ApiException;
 use App\Api\ConversationNormalizer;
+use App\Application\Chat\Moderation\ChatModeration;
+use App\Application\Chat\Moderation\ModerationPolicy;
 use App\EventListener\ChatAgentHooks;
+use App\Repository\SuspiciousChatMessageRepository;
+use App\Repository\UserRepository;
 use App\Tests\Infrastructure\Ai\ChatRuntimeFixture;
 use App\Tests\Infrastructure\Ai\TestMergeEvents;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\AI\Platform\Event\ResultEvent;
@@ -14,6 +20,7 @@ use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Test\MockPlatformFactory;
 use Symfony\AI\Platform\TokenUsage\TokenUsage;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\Clock\NativeClock;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
@@ -38,6 +45,17 @@ final class ChatTokenBudgetTest extends TestCase
             TestMergeEvents::publisher($authorization),
             $runtime->requests,
             $factory,
+            new ChatModeration(
+                new ModerationPolicy(3600, 50000, 2, 0.5, 0.9, 30),
+                $this->createStub(EntityManagerInterface::class),
+                new UserRepository($this->createStub(ManagerRegistry::class)),
+                new SuspiciousChatMessageRepository($this->createStub(ManagerRegistry::class)),
+                new NativeClock(),
+                new LockFactory(new InMemoryStore()),
+                $authorization,
+                $factory,
+                new ArrayAdapter(),
+            ),
         );
         $view = new ConversationNormalizer($runtime->store, $factory);
         $events = new EventDispatcher();

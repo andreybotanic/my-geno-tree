@@ -54,6 +54,30 @@ describe(
     )
     afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
+    it('discards a recording immediately when a ban arrives', async () => {
+      const view = setup()
+      fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+      await screen.findByRole('button', { name: 'Stop recording' })
+      view.rerender(<ChatVoiceInput {...view.props} blocked />)
+      expect(Recorder.instance.state).toBe('inactive')
+      expect(stopTrack).toHaveBeenCalled()
+      expect(view.request).not.toHaveBeenCalled()
+      expect(view.onTranscript).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Record voice' })).toBeDisabled()
+    })
+
+    it('aborts transcription and ignores its late result after a ban', async () => {
+      let finish!: (value: { text: string }) => void
+      const view = setup(() => new Promise((resolve) => { finish = resolve }))
+      await record()
+      const signal = vi.mocked(view.request).mock.calls[0]?.[1]?.signal
+      view.rerender(<ChatVoiceInput {...view.props} blocked />)
+      expect(signal?.aborted).toBe(true)
+      await act(async () => finish({ text: 'late audio' }))
+      expect(view.onTranscript).not.toHaveBeenCalled()
+      expect(view.onBusy).toHaveBeenLastCalledWith(false)
+    })
+
     it(
       'records until stop, releases the microphone and returns only editable text without creating a draft',
       async () => {

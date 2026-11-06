@@ -91,6 +91,7 @@ final readonly class TreeItemController
             [
                 'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
                 'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
+                'access'       => $chat->access($tree->getOwner()->getId()),
             ]
         );
     }

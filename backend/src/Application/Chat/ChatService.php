@@ -4,6 +4,8 @@ namespace App\Application\Chat;
 
 use App\Api\ApiException;
 use App\Api\ConversationNormalizer;
+use App\Application\Chat\Moderation\ChatModeration;
+use App\Application\Chat\Moderation\ModerationWarning;
 use App\Model\Conversation;
 use App\Security\ChatExecution;
 use Psr\Log\LoggerInterface;
@@ -37,6 +39,7 @@ final readonly class ChatService implements ChatInterface
         private RateLimiterFactoryInterface $limiter,
         #[AutowireLocator('ai.agent', indexAttribute: 'name')]
         private ServiceProviderInterface $agents,
+        private ChatModeration $moderation,
     ) {
     }
 
@@ -77,11 +80,13 @@ final readonly class ChatService implements ChatInterface
                 }
                 if (array_any(
                     $messages,
-                    static fn ($message) => 'assistant' === $message['role']
+                    static fn ($message) => ('assistant' === $message['role']
+                        || 'policy_warning' === ($message['failureCode'] ?? null))
                         && $payload['requestId'] === $message['requestId'],
                 )) {
                     return null;
                 }
+                $this->moderation->assertCanInteract($current->userId);
                 if (null === $existing) {
                     $this->version($current, $payload['version']);
                     $length = mb_strlen($payload['content']) + array_sum(
@@ -129,35 +134,48 @@ final readonly class ChatService implements ChatInterface
         try {
             $answered = false;
             $failure = 'empty_response';
+            $warning = null;
+            $accessError = null;
             try {
                 $agent = $this->agents->get($running->profile);
                 $execution->native = $agent->call(MessageBag::forId($running->id));
                 $execution->native->onProgress(fn (Progress $progress) => $this->progress($progress));
                 $answered = '' !== trim($execution->native->asText());
+            } catch (ModerationWarning $notice) {
+                $failure = 'policy_warning';
+                $warning = $notice->number;
             } catch (\Throwable $error) {
                 $this->logger->warning('Chat agent failed: ' . $error::class);
+                if ($error instanceof ApiException
+                    && in_array($error->getErrorCode(), ['CHAT_UNAVAILABLE', 'CHAT_BANNED'], true)) {
+                    $accessError = $error;
+                }
                 $failure = $error instanceof ApiException && 'CHAT_TOKEN_LIMIT' === $error->getErrorCode()
                     ? 'token_limit'
-                    : 'provider_unavailable';
+                    : (null !== $accessError ? strtolower($accessError->getErrorCode()) : 'provider_unavailable');
             }
             $this->store->synchronized(
                 $running->contextKey,
-                function () use ($running, $answered, $failure, $payload): void {
+                function () use ($running, $answered, $failure, $payload, $warning): void {
                     try {
-                        $this->execution();
+                        $this->store->execution(allowBlocked: true);
                     } catch (ApiException) {
                         return;
                     }
-                    $running->finishAttempt($this->clock->now(), !$answered);
+                    $running->finishAttempt($this->clock->now(), !$answered && null === $warning);
                     if ($answered) {
                         $this->store->persist($running);
                     } else {
-                        $this->append($running, $payload['requestId'], $failure, true);
+                        $this->append($running, $payload['requestId'], $failure, true, $warning);
                     }
                 }
             );
             $current = $this->get($running->id->toRfc4122());
             $this->publish($current);
+
+            if (null !== $accessError) {
+                throw $accessError;
+            }
 
             return $current;
         } finally {
@@ -258,7 +276,10 @@ final readonly class ChatService implements ChatInterface
 
     public function snapshot(Conversation $conversation): array
     {
-        return $this->views->normalize($conversation);
+        return [
+            ...$this->views->normalize($conversation),
+            'access' => $this->access($conversation->userId),
+        ];
     }
 
     public function messages(Conversation $conversation): array
@@ -269,6 +290,19 @@ final readonly class ChatService implements ChatInterface
     public function budget(Uuid $user): array
     {
         return $this->views->budget($user);
+    }
+
+    public function access(Uuid $user): array
+    {
+        return $this->moderation->access($user);
+    }
+
+    public function sources(Conversation $conversation): array
+    {
+        return array_values(array_filter(
+            $this->messages($conversation),
+            static fn (array $row): bool => 'user' === $row['role'] && !($row['blocked'] ?? false),
+        ));
     }
 
     private function progress(Progress $progress): void
@@ -299,6 +333,7 @@ final readonly class ChatService implements ChatInterface
         string $requestId,
         string $content,
         bool $failure = false,
+        ?int $warning = null,
     ): void {
         $message = $failure ? Message::forSystem('') : Message::ofUser($content);
         $message->getMetadata()->set(
@@ -306,6 +341,11 @@ final readonly class ChatService implements ChatInterface
         );
         if ($failure) {
             $message->getMetadata()->add('failureCode', $content);
+            if (null !== $warning) {
+                $message->getMetadata()->add('warningNumber', $warning);
+            }
+        } elseif ('tree' === $conversation->profile) {
+            $message->getMetadata()->add('moderationAllowed', false);
         }
         $messages = $this->store->load($conversation->id)->with($message);
         $messages->getMetadata()->add(Conversation::METADATA, $conversation);

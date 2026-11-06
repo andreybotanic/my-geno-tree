@@ -580,6 +580,25 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         self::assertCount(1, $this->responseArray('marriages'));
     }
 
+    public function testSiteChatBanDoesNotAffectExternalMcpAccess(): void
+    {
+        $manager = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $user = $manager->getRepository(User::class)->findOneBy(['username' => 'family_admin']);
+        self::assertInstanceOf(User::class, $user);
+        $now = new \DateTimeImmutable();
+        $user->warnAboutChat($now, 3600, 0);
+        $user->warnAboutChat($now, 3600, 0);
+        $ban = $user->warnAboutChat($now, 3600, 0);
+        self::assertNotNull($ban);
+        $manager->persist($ban);
+        $manager->flush();
+        $this->authorize();
+        $this->call('find_trees', ['query' => $this->treeId]);
+        self::assertSame($this->treeId, $this->responseString('result', 'structuredContent', 'trees', '0', 'id'));
+        $this->call('get_tree_context', ['treeId' => $this->treeId]);
+        self::assertSame($this->etag, $this->responseString('result', 'structuredContent', 'etag'));
+    }
+
     /** @return array<string, string> */
     private function headers(): array
     {

@@ -45,6 +45,7 @@ final class TreeMergeConversationApiTest extends ApiWebTestCase
         $this->send('Vera was born about 1938.', 'first');
         $preparedMerge = $this->responseArray('tools', 'merge');
         self::assertSame(1, FixtureTreeAgent::$calls);
+        $prepared['access'] = $this->responseArray('access');
         self::assertSame($prepared, $this->responseData());
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertSame([], $this->responseData()['people']);

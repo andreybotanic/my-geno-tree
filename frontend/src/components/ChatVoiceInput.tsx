@@ -8,13 +8,15 @@ type Props = {
   children: ReactNode
   request: AuthorizedJsonRequest
   disabled: boolean
+  blocked?: boolean
   onBusy: (busy: boolean) => void
   onTranscript: (text: string) => void
+  onAccessError?: () => void
 }
 
 const maxBytes = 10 * 1024 * 1024
 
-export function ChatVoiceInput({ active, children, request, disabled, onBusy, onTranscript }: Props) {
+export function ChatVoiceInput({ active, children, request, disabled, blocked = false, onBusy, onTranscript, onAccessError }: Props) {
   const { t } = useTranslation()
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -25,6 +27,8 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
   const timer = useRef<number | null>(null)
   const mounted = useRef(true)
   const visible = useRef(active)
+  const transcription = useRef<AbortController | null>(null)
+  const denied = useRef(blocked)
 
   useEffect(
     () => {
@@ -34,11 +38,20 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
     [active]
   )
 
+  useEffect(() => {
+    denied.current = blocked
+    if (!blocked) return
+    if (recorder.current?.state === 'recording') recorder.current.stop()
+    stream.current?.getTracks().forEach((track) => track.stop())
+    transcription.current?.abort()
+  }, [blocked])
+
   useEffect(
     () => {
       mounted.current = true
       return () => {
         mounted.current = false
+        transcription.current?.abort()
         if (timer.current !== null) window.clearInterval(timer.current)
         if (recorder.current?.state === 'recording') recorder.current.stop()
         stream.current?.getTracks().forEach((track) => track.stop())
@@ -53,15 +66,21 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
     onBusy(true)
     setError(null)
     try {
+      const controller = new AbortController()
+      transcription.current = controller
       const form = new FormData()
       form.set('audio', file, 'recording')
-      const result = await request<ChatTranscription>('/chat-transcriptions', { method: 'POST', body: form })
-      if (mounted.current) onTranscript(result.text)
+      const result = await request<ChatTranscription>('/chat-transcriptions', { method: 'POST', body: form, signal: controller.signal })
+      if (mounted.current && !denied.current) onTranscript(result.text)
     } catch (cause) {
       if (!mounted.current) return
       const code = cause instanceof ApiRequestError ? cause.body.code : ''
+      if (transcription.current?.signal.aborted) return
+      if (code === 'CHAT_BANNED' || code === 'CHAT_UNAVAILABLE') onAccessError?.()
       setError(
-        code === 'CHAT_AUDIO_DURATION' ? 'chat.voice.duration'
+        code === 'CHAT_BANNED' ? 'chat.access.blocked'
+          : code === 'CHAT_UNAVAILABLE' ? 'chat.access.unavailable'
+          : code === 'CHAT_AUDIO_DURATION' ? 'chat.voice.duration'
           : code === 'CHAT_AUDIO_SIZE' ? 'chat.voice.size'
             : code === 'CHAT_AUDIO_FORMAT' ? 'chat.voice.format'
               : cause instanceof ApiRequestError && cause.status === 429 ? 'chat.voice.rateLimit'
@@ -81,7 +100,7 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
     setWorking(true)
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      if (!mounted.current || !visible.current) {
+      if (!mounted.current || !visible.current || denied.current) {
         audioStream.getTracks().forEach((track) => track.stop())
         if (mounted.current) { setWorking(false); onBusy(false) }
         return
@@ -111,6 +130,7 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
         if (!mounted.current) { chunks.length = 0; return }
         setRecording(false)
         onBusy(false)
+        if (denied.current) { chunks.length = 0; return }
         const file = new Blob(chunks, { type: mimeType })
         chunks.length = 0
         void transcribe(file)
@@ -136,7 +156,7 @@ export function ChatVoiceInput({ active, children, request, disabled, onBusy, on
     }
   }
 
-  const unavailable = disabled || working || recording
+  const unavailable = disabled || blocked || working || recording
   return <div className="chat-voice">
     <div className="chat-input">
       {children}

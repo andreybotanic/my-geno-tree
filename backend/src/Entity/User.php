@@ -44,6 +44,48 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToOne(mappedBy: 'user', targetEntity: MediaAttachment::class)]
     private ?MediaAttachment $avatarAttachment = null;
 
+    #[ORM\Column(options: ['default' => 0])]
+    private int $chatWarnings = 0;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?ChatBan $lastChatBan = null;
+
+    public function getChatWarnings(): int
+    {
+        return $this->chatWarnings;
+    }
+
+    public function getLastChatBan(): ?ChatBan
+    {
+        return $this->lastChatBan;
+    }
+
+    public function hasChatBan(\DateTimeImmutable $now): bool
+    {
+        return $this->lastChatBan?->isActive($now) ?? false;
+    }
+
+    public function warnAboutChat(\DateTimeImmutable $now, int $banSeconds, int $temporaryBans): ?ChatBan
+    {
+        if ($this->hasChatBan($now)) {
+            throw new \LogicException('An active chat ban cannot receive another warning.');
+        }
+        if (++$this->chatWarnings < 3) {
+            return null;
+        }
+        $number = ($this->lastChatBan?->getNumber() ?? 0) + 1;
+        $this->lastChatBan = new ChatBan(
+            $this,
+            $number,
+            $now,
+            $number > $temporaryBans ? null : $now->modify('+' . $banSeconds . ' seconds'),
+        );
+        $this->chatWarnings = 0;
+
+        return $this->lastChatBan;
+    }
+
     public function __construct(
         string $username,
         string $email,

@@ -3,6 +3,7 @@
 namespace App\Tests\Infrastructure\Ai;
 
 use App\Application\Chat\ChatInterface;
+use App\Application\Chat\Moderation\ModerationInputProcessor;
 use App\Model\Conversation;
 use App\Tool\TreeMergeTool;
 use App\Tool\TreeReadTools;
@@ -10,6 +11,7 @@ use Symfony\AI\Agent\AgentInterface;
 use Symfony\AI\Agent\Execution\Execution;
 use Symfony\AI\Agent\Execution\ExecutionInterface;
 use Symfony\AI\Agent\Execution\Update\Result as ResultUpdate;
+use Symfony\AI\Agent\Input;
 use Symfony\AI\Agent\MessageStore\MessageStoreInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
@@ -39,6 +41,7 @@ final class FixtureTreeAgent implements AgentInterface
         ChatInterface $chat,
         #[Target('chat')]
         private readonly MessageStoreInterface $store,
+        private readonly ModerationInputProcessor $moderation,
     ) {
         self::$merge = $merge;
         self::$reads = $reads;
@@ -59,6 +62,8 @@ final class FixtureTreeAgent implements AgentInterface
 
         return new Execution(
             function (): \Generator {
+                $conversation = self::$chat->execution()->conversation;
+                $this->moderation->processInput(new Input('fixture', $this->store->load($conversation->id)));
                 ++self::$calls;
                 yield new \Symfony\AI\Agent\Execution\Update\Progress(
                     \Symfony\AI\Agent\Execution\Update\Progress::STAGE_MODEL_REQUEST,
@@ -89,7 +94,9 @@ final class FixtureTreeAgent implements AgentInterface
      *     role: string,
      *     content: string,
      *     createdAt: string,
-     *     failureCode?: string
+     *     failureCode?: string,
+     *     blocked?: bool,
+     *     warningNumber?: int
      * }>
      */
     public static function messages(Conversation $conversation): array

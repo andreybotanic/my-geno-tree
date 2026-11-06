@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
-import type { ChatConversation, ChatTokenBudget, ChatEvent } from '../api/generated'
+import type { ChatAccess, ChatConversation, ChatTokenBudget, ChatEvent, TreeChatCurrent } from '../api/generated'
 import { ChatBudget } from './ChatBudget'
 import { ChatThinking } from './ChatThinking'
 import { ChatVoiceInput } from './ChatVoiceInput'
@@ -27,6 +27,10 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const { t } = useTranslation()
   const [conversation, setConversation] = useState<ChatConversation | null>(null)
   const [budget, setBudget] = useState<ChatTokenBudget | null>(null)
+  const [access, setAccess] = useState<ChatAccess | null>(null)
+  const acceptAccess = useCallback((next: ChatAccess | undefined) => {
+    if (next) setAccess((saved) => !saved || Date.parse(next.serverTime) >= Date.parse(saved.serverTime) ? next : saved)
+  }, [])
   const [content, setContent] = useState('')
   const [voiceBusy, setVoiceBusy] = useState(false)
   const [busy, setBusy] = useState(true)
@@ -40,6 +44,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const pending = useRef<{ requestId: string; content: string; accepted: boolean } | null>(null)
   const base = contextPath
   const thinking = thinkingSince !== null || conversation?.status === 'processing'
+  const blocked = access !== null && access.status !== 'allowed'
   const stream = useChatEvents(
     conversation ? `/chats/${conversation.id}` : null,
     request,
@@ -53,13 +58,14 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   useEffect(
     () => {
       const controller = new AbortController()
-      const loading = request<{ conversation: ChatConversation | null; tokenBudget: ChatTokenBudget }>(base, { signal: controller.signal })
+      const loading = request<TreeChatCurrent>(base, { signal: controller.signal })
       loading
         .then(
-          ({ conversation: restored, tokenBudget }) => {
+          ({ conversation: restored, tokenBudget, access }) => {
             if (controller.signal.aborted) return
             setConversation(restored)
             setBudget(tokenBudget ?? null)
+            acceptAccess(access)
             setBusy(false)
           }
         )
@@ -73,16 +79,49 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         )
       return () => controller.abort()
     },
-    [base, request]
+    [base, request, acceptAccess]
   )
 
   useEffect(
     () => {
       if (conversation) setBudget(conversation.tokenBudget)
+      acceptAccess(conversation?.access)
       onConversationChange?.(conversation)
     },
-    [conversation, onConversationChange]
+    [conversation, onConversationChange, acceptAccess]
   )
+
+  const refreshAccess = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const next = await request<TreeChatCurrent>(base, signal ? { signal } : {})
+      if (signal?.aborted) return
+      acceptAccess(next.access)
+      setBudget(next.tokenBudget)
+      setConversation((saved) => next.conversation
+        ? saved?.id === next.conversation.id
+          ? mergeChatEvent(saved, { kind: 'conversation', conversation: next.conversation })
+          : next.conversation
+        : activeRequest.current ? saved : null)
+    } catch { /* Keep readable history during a temporary connectivity failure. */ }
+  }, [base, request, acceptAccess])
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    const refresh = () => { void refreshAccess(controller.signal) }
+    const timer = window.setInterval(refresh, 15000)
+    window.addEventListener('focus', refresh)
+    const deadline = access?.status === 'temporary_ban' ? access.bannedUntil
+      : access?.status === 'unavailable' ? access.unavailableUntil : null
+    const expiry = deadline && access ? window.setTimeout(refresh,
+      Math.min(2147483647, Math.max(0, Date.parse(deadline) - Date.parse(access.serverTime)) + 100)) : null
+    return () => {
+      controller.abort()
+      window.clearInterval(timer)
+      if (expiry !== null) window.clearTimeout(expiry)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [open, access, refreshAccess])
 
   useEffect(
     () => {
@@ -190,7 +229,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   }
 
   async function send() {
-    if (busy || disabled || voiceBusy || thinking || stopping || !content.trim()) return
+    if (busy || disabled || blocked || voiceBusy || thinking || stopping || !content.trim()) return
     setBusy(true)
     setError(null)
     if (pending.current?.content !== content) pending.current = { requestId: crypto.randomUUID(), content, accepted: false }
@@ -304,6 +343,11 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>}
       </header>
       <div className="chat-content">
+        {blocked && <p role="alert" className="chat-access-notice">
+          {access?.status === 'temporary_ban' && access.bannedUntil
+            ? t('chat.access.temporary', { until: new Date(access.bannedUntil).toLocaleString() })
+            : t(access?.status === 'permanent_ban' ? 'chat.access.permanent' : 'chat.access.unavailable')}
+        </p>}
         {stream.error && <div role="status"><p>{t(stream.error)}</p>
           <button type="button" onClick={stream.reconnect}>{t('chat.reconnect')}</button>
         </div>}
@@ -314,7 +358,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
           {conversation?.messages.map(
             (message) => message.role === 'system' ? (
-              <p key={message.id} role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`) : message.content}</p>
+              <p key={message.id} role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`, { number: message.warningNumber }) : message.content}</p>
             ) : (
               <article key={message.id} className={`chat-message chat-message-${message.role}`}
                 aria-label={t(message.role === 'user' ? 'chat.you' : 'chat.assistant')}>
@@ -330,11 +374,13 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       </div>
       <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
         <ChatVoiceInput request={request} active={open}
-          disabled={busy || disabled || conversation?.status === 'processing'}
+          blocked={blocked}
+          disabled={busy || disabled || blocked || conversation?.status === 'processing'}
+          onAccessError={() => { void refreshAccess() }}
           onBusy={setVoiceBusy}
           onTranscript={(text) => setContent(content ? `${content}\n${text}` : text)}>
           <textarea id="chat-message" aria-label={t('chat.message')} placeholder={placeholder ?? t('chat.placeholder')}
-            ref={textarea} value={content} maxLength={10000} disabled={busy || disabled || voiceBusy}
+            ref={textarea} value={content} maxLength={10000} disabled={busy || disabled || blocked || voiceBusy}
             onChange={(event) => setContent(event.target.value)} rows={2}
             onKeyDown={(event) => {
               if (event.ctrlKey && event.key === 'Enter' && !event.nativeEvent.isComposing) {
@@ -348,7 +394,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
           </button> : <button className="chat-send" type="submit" aria-label={t('chat.send')}
             title={t('chat.sendShortcut')} aria-keyshortcuts="Control+Enter"
-            disabled={busy || disabled || voiceBusy || !content.trim()}>
+            disabled={busy || disabled || blocked || voiceBusy || !content.trim()}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
               <path d="m5 12 7-7 7 7m-7-7v15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

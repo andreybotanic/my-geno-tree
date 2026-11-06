@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { ChatConversation } from '../api/generated'
 import { conversation } from '../test/chatFixtures'
@@ -33,6 +33,69 @@ describe(
   'reusable ChatPanel',
   () => {
     beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
+    afterEach(() => vi.useRealTimers())
+
+    it('keeps banned history and prepared tools readable while disabling text and voice', async () => {
+      const banned: ChatConversation = { ...completed, access: {
+        ...conversation.access, status: 'permanent_ban', banCount: 3,
+      } }
+      const request = vi.fn(async () => ({ conversation: banned, tokenBudget: banned.tokenBudget, access: banned.access })) as unknown as AuthorizedJsonRequest
+      const apply = vi.fn()
+      render(<ChatPanel contextPath="/example/chat" createBody={{}} request={request} onClose={vi.fn()}
+        renderTools={(_state, busy) => <button disabled={busy} onClick={apply}>Apply prepared proposal</button>} />)
+      expect(await screen.findByText('An ordinary answer.')).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Record voice' })).toBeDisabled()
+      expect(screen.getByRole('alert')).toHaveTextContent(/permanently/i)
+      fireEvent.click(screen.getByRole('button', { name: 'Apply prepared proposal' }))
+      expect(apply).toHaveBeenCalledOnce()
+    })
+
+    it('refreshes access on focus and restores sending after expiry without a saved conversation', async () => {
+      const banned = { ...conversation.access, status: 'temporary_ban' as const,
+        bannedUntil: '2026-11-06T11:00:00Z', serverTime: '2026-11-06T10:00:00Z' }
+      let access = banned as ChatConversation['access']
+      const { request } = setup(async () => ({ conversation: null, tokenBudget: conversation.tokenBudget, access }))
+      const input = await screen.findByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeDisabled())
+      expect(screen.getByRole('alert')).toHaveTextContent(/until/i)
+      access = { ...banned, status: 'allowed', serverTime: '2026-11-06T11:00:01Z' }
+      fireEvent(window, new Event('focus'))
+      await waitFor(() => expect(input).toBeEnabled())
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('polls while open and automatically retries an expired AI outage', async () => {
+      vi.useFakeTimers()
+      const unavailable = { ...conversation.access, status: 'unavailable' as const,
+        serverTime: '2026-11-06T10:00:00Z', unavailableUntil: '2026-11-06T10:00:30Z' }
+      let access = unavailable as ChatConversation['access']
+      const { request } = setup(async () => ({ conversation: null, tokenBudget: conversation.tokenBudget, access }))
+      await act(async () => {})
+      expect(screen.getByRole('textbox')).toBeDisabled()
+      await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+      expect(request).toHaveBeenCalledTimes(2)
+      access = { ...unavailable, status: 'allowed', serverTime: '2026-11-06T10:00:31Z' }
+      await act(async () => { await vi.advanceTimersByTimeAsync(15100) })
+      expect(screen.getByRole('textbox')).toBeEnabled()
+    })
+
+    it('renders warning numbers as localized notices and accepts a Mercure ban', async () => {
+      setup(async () => ({ conversation, access: conversation.access, tokenBudget: conversation.tokenBudget }))
+      await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled())
+      const blocked: ChatConversation = { ...conversation, version: 20, access: {
+        ...conversation.access, status: 'permanent_ban', banCount: 3,
+        serverTime: '2099-11-06T10:00:00Z',
+      }, messages: [
+        { ...user, blocked: true },
+        { id: 'warning', requestId: 'first', role: 'system', content: '', failureCode: 'policy_warning', warningNumber: 3, createdAt: 'now' },
+      ] }
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](blocked))
+      expect(screen.getByRole('textbox')).toBeDisabled()
+      expect(screen.getByText(/3.*3/)).toBeInTheDocument()
+      expect(screen.getByText(user.content)).toBeInTheDocument()
+    })
 
     it(
       'creates the selected context, saves plain text, renders a normal answer and resets the chat',

@@ -112,7 +112,7 @@ final readonly class TreeMergeTool
             $pending = $this->merge->prepare(
                 $this->trees->tree($treeId, true),
                 $proposal,
-                $this->chat->messages($conversation),
+                $this->chat->sources($conversation),
                 $current instanceof TreeMergeProposal ? $current : null,
                 false,
                 ($conversation->toolVersions['merge'] ?? 0) + 1
@@ -176,7 +176,7 @@ final readonly class TreeMergeTool
                 ? $this->merge->prepare(
                     $tree,
                     $payload['proposal'] ?? null,
-                    $this->chat->messages($conversation),
+                    $this->chat->sources($conversation),
                     $pending,
                     true,
                 )

@@ -3,6 +3,7 @@
 namespace App\Application\Chat\Voice;
 
 use App\Api\ApiException;
+use App\Application\Chat\Moderation\ChatModeration;
 use App\Entity\User;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
@@ -17,6 +18,7 @@ final readonly class ChatTranscriptionService
         private LoggerInterface $logger,
         #[Target('chat_voice')]
         private RateLimiterFactoryInterface $limiter,
+        private ChatModeration $moderation,
     ) {
     }
 
@@ -24,10 +26,12 @@ final readonly class ChatTranscriptionService
     public function transcribe(User $user, UploadedFile $file): array
     {
         try {
+            $this->moderation->assertCanInteract($user->getId());
             if (!$this->limiter->create($user->getId()->toRfc4122())->consume()->isAccepted()) {
                 throw new ApiException(429, 'CHAT_VOICE_RATE_LIMIT');
             }
             $recording = $this->normalizer->normalize($file);
+            $this->moderation->assertCanInteract($user->getId());
             try {
                 $text = $this->provider->transcribe($recording->wav, $user->getPreferredLanguage());
                 if ('' === trim($text) || mb_strlen($text) > 10000) {

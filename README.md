@@ -2,6 +2,53 @@
 
 Local HTTPS MVP for creating and editing private genealogy trees.
 
+## AI chat moderation
+
+The site agent checks each submitted text, including reviewed voice transcripts,
+with the separate Symfony AI `chat_moderation` agent. It uses the existing
+CLIProxyAPI platform, `gpt-5.6-luna`, native Structured Output and Validator.
+The checking agent has no tools or message store. Ordinary off-topic questions,
+quoted instructions and family narratives are allowed.
+
+Application parameters in `backend/config/services.yaml`:
+
+| Parameter prefix: `app.chat_moderation.` | Default |
+| --- | --- |
+| `ban_seconds` | 3600 |
+| `penalty_tokens` | 50000 |
+| `temporary_bans` | 2 |
+| `audit_threshold` | 0.5 |
+| `warning_threshold` | 0.9 |
+| `retention_days` | 30 |
+
+Scores below the audit threshold pass without an SQL record. Scores between the
+thresholds are logged and pass. Scores at or above the warning threshold block
+the message and issue a localized warning. Every third warning resets the count
+and creates a ban: two temporary bans, followed by a permanent ban represented
+by a null expiration. Changing settings does not recalculate existing bans.
+Each ban debits at most the remaining daily quota; unpaid penalties never carry
+forward. Both models' actual usage is metered separately from penalties.
+
+The independent SQL journal stores only suspicious text, risk, warning outcome,
+time and an opaque unique retry key. It contains no chat, message or tree links.
+Ban history and the user's counters survive chat reset and journal cleanup.
+Audio stays temporary and is deleted even when access is denied.
+
+Chat history and prepared proposals remain available during a ban. Sending and
+voice transcription return `403 CHAT_BANNED`; manual tree editing, proposal
+application and external MCP remain available. A failed or invalid checking-model
+response blocks inference without sanctions and returns `503 CHAT_UNAVAILABLE`.
+Shared cache records this outage for 30 seconds. The panel receives access state
+through snapshots and Mercure and refreshes on focus, expiry and every 15 seconds
+while open.
+
+Start the hourly cleanup worker with `docker compose up -d chat-maintenance`.
+It consumes `scheduler_default` using Symfony Scheduler and Messenger without
+an external broker. The stateful schedule runs the last missed cleanup after a
+restart. Run cleanup manually with
+`docker compose exec -T backend php bin/console app:chat-moderation:purge`.
+Only expired suspicious-message records are removed; bans and counters remain.
+
 ## Requirements
 
 - Docker Desktop with Docker Compose v2
@@ -440,3 +487,34 @@ normal viewport and at 375 px: headings wrap between words and callback URLs sta
 inside the card. Temporary CLI credentials and OAuth clients were removed after
 testing. API regression tests also check refresh without `resource`, the exact MCP
 audience, rejected foreign resources, and denial of ordinary REST access.
+
+AI chat moderation validation (2026-11-06): all 263 backend tests and 405 frontend
+tests pass; line coverage is 93.22% and 90.27%. Every measured production file
+exceeds 75%. Backend/frontend quality, OpenAPI generation checks, Composer
+validation, schema validation and the production build pass. All 26 migrations
+were replayed on a disposable database; the new migration was rolled back,
+reapplied and schema-validated. The maintenance worker starts and restarts, and
+Scheduler tests cover processing the last missed run without replaying it twice.
+The existing nine PHPUnit notices and Vite bundle-size advisory remain.
+
+PhpStorm WARNING inspections covered all 33 affected PHP files. Fixable findings
+were corrected and re-inspected. Remaining IDE findings are documented exceptions:
+35 unrecognized `list` types in the generated Symfony reference, 30 SQL assistance
+warnings without an IDE data source, and three ORM false positives. Both new
+entities are explicitly `container.excluded` with no service usages according to
+`debug:container`; their User constructors express persisted associations. The
+private operation key is read through ORM QueryBuilder/DQL and its unique index,
+not a PHP getter. No unused getter or inspection suppression was added.
+
+Manual local HTTPS validation used an isolated account and empty tree. A family
+story quoting instructions passed the real moderation and main models. Three
+deliberate security violations produced numbered Russian warnings, a ban, the
+quota penalty and disabled text/microphone controls while preserving history.
+The temporary deadline was shortened only in the QA fixture to check automatic
+expiry without reloading. An unavailable moderation model showed the localized
+outage notice without another warning or ban, then recovered automatically.
+Temporary model configuration and the isolated account/tree were removed.
+Automated checks additionally cover concurrent retries, interrupted history
+finalization, both models' token usage, rejected evidence, temporary/permanent
+cycles, audio cleanup, Mercure updates, focus/polling, prepared proposal application
+and external MCP access during a site-chat ban.
