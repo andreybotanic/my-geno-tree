@@ -29,7 +29,6 @@ describe('OAuth consent', () => {
     expect(await screen.findByText(/<img src=x> External agent/)).toBeVisible()
     expect(container.querySelector('img')).toBeNull()
     expect(screen.getByText(/all trees you own/)).toBeVisible()
-    expect(screen.getByText(/Automatic approval/)).toBeVisible()
     expect(request).toHaveBeenCalledWith('/oauth/authorization-requests', expect.objectContaining({ method: 'POST', body: JSON.stringify({ client_id: 'agent', state: 'original-state' }) }))
   })
 
@@ -102,6 +101,6 @@ describe('OAuth consent', () => {
     request.mockResolvedValueOnce(consent)
     renderPage()
     expect(await screen.findByRole('button', { name: 'Разрешить доступ' })).toBeVisible()
-    expect(screen.getByText(/читать и изменять все ваши деревья/)).toBeVisible()
+    expect(screen.getByText(/просматривать и изменять все ваши деревья/)).toBeVisible()
   })
 })

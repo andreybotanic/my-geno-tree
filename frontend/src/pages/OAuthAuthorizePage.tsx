@@ -58,8 +58,6 @@ function OAuthConsent() {
         {authorization.data && !authorization.isError && <>
           <p>{t('oauth.request', { name: authorization.data.clientName })}</p>
           <p>{t('oauth.access')}</p>
-          <p>{t('oauth.approvals')}</p>
-          <p>{t('oauth.redirect')} <bdi className="oauth-redirect-uri">{authorization.data.redirectUri}</bdi></p>
           {decisionFailed && <p role="alert">{t('oauth.failed')}</p>}
           {saving && <p role="status">{t('oauth.redirecting')}</p>}
           <div className="form-actions">

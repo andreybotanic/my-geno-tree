@@ -3,10 +3,8 @@ export const resources = {
     translation: {
       oauth: {
         title: 'Connect an external agent',
-        request: '“{{name}}” requests access to your MyGenoTree account.',
-        access: 'Allow this application to read and change all trees you own, including people and family relationships.',
-        approvals: 'Approval of individual changes follows your agent’s settings. Automatic approval lets it apply changes without another prompt.',
-        redirect: 'After your decision, return to:',
+        request: '“{{name}}” wants to connect to MyGenoTree.',
+        access: 'The application will be able to view and edit all trees you own.',
         allow: 'Allow access', deny: 'Deny', retry: 'Try again',
         invalid: 'This authorization request is invalid or unavailable. Start the connection again in your agent.',
         unavailable: 'Could not load the authorization request. Check your connection and try again.',
@@ -492,10 +490,8 @@ export const resources = {
     translation: {
       oauth: {
         title: 'Подключение внешнего агента',
-        request: '«{{name}}» запрашивает доступ к вашему аккаунту MyGenoTree.',
-        access: 'Разрешить приложению читать и изменять все ваши деревья, включая персон и родственные связи.',
-        approvals: 'Подтверждение отдельных изменений зависит от настроек агента. При автоподтверждении он сможет применять изменения без дополнительного запроса.',
-        redirect: 'После вашего решения вернуться в:',
+        request: '«{{name}}» хочет подключиться к MyGenoTree.',
+        access: 'Приложение сможет просматривать и изменять все ваши деревья.',
         allow: 'Разрешить доступ', deny: 'Отказать', retry: 'Повторить запрос',
         invalid: 'Запрос авторизации недействителен или недоступен. Начните подключение заново во внешнем агенте.',
         unavailable: 'Не удалось загрузить запрос авторизации. Проверьте соединение и повторите запрос.',

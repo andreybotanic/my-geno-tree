@@ -3656,12 +3656,6 @@ select:not([multiple]) {
   overflow-wrap: break-word;
 }
 
-.oauth-redirect-uri {
-  color: var(--color-text-muted);
-  display: block;
-  overflow-wrap: anywhere;
-}
-
 .oauth-consent .form-actions {
   display: flex;
   flex-wrap: wrap;
