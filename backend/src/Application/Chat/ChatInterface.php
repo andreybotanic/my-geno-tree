@@ -53,8 +53,15 @@ interface ChatInterface
     /** @return array{remaining: int, limit: int} */
     public function budget(Uuid $user): array;
 
-    /** @return array{status: string, warnings: int, warningLimit: int, banCount: int,
-     * bannedUntil: ?string, unavailableUntil: ?string, serverTime: string}
+    /** @return array{
+     *     status: string,
+     *     warnings: int,
+     *     warningLimit: int,
+     *     banCount: int,
+     *     bannedUntil: ?string,
+     *     unavailableUntil: ?string,
+     *     serverTime: string
+     * }
      */
     public function access(Uuid $user): array;
 
