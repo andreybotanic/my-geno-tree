@@ -23,7 +23,7 @@ export function ChatAudioHistogram({ history }: { history: AmplitudeHistory }) {
     observer.observe(element)
     const draw = (now: number) => {
       if (now - lastDraw >= 1000 / 30) {
-        drawHistogram(context, history, width, 48, getComputedStyle(element).color)
+        drawHistogram(context, history, width, 48, getComputedStyle(element).color, now)
         lastDraw = now
       }
       frame = requestAnimationFrame(draw)

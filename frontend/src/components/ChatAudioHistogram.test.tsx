@@ -14,13 +14,18 @@ it('renders a localized, responsive histogram at no more than thirty frames a se
   vi.stubGlobal('cancelAnimationFrame', cancel)
   const context = { clearRect: vi.fn(), fillRect: vi.fn(), setTransform: vi.fn() }
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
-  const view = render(<ChatAudioHistogram history={new AmplitudeHistory()} />)
+  const history = new AmplitudeHistory()
+  for (let index = 0; index < 4; index++) history.push(0.5, -80 + index * 20)
+  const view = render(<ChatAudioHistogram history={history} />)
   expect(screen.getByRole('img')).toHaveAccessibleName(/10/)
   draw(0)
   draw(16)
   draw(34)
   expect(context.clearRect).toHaveBeenCalledTimes(2)
-  expect(context.fillRect).toHaveBeenCalled()
+  const first = context.fillRect.mock.calls[0]!
+  const second = context.fillRect.mock.calls[1]!
+  expect(second[0]).toBeLessThan(first[0])
+  expect(second.slice(1)).toEqual(first.slice(1))
   expect(context.setTransform).toHaveBeenCalled()
   view.unmount()
   expect(cancel).toHaveBeenCalledWith(7)

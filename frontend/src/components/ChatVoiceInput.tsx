@@ -24,7 +24,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
   const [phase, setPhase] = useState<Phase>('idle')
   const [seconds, setSeconds] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [history] = useState(() => new AmplitudeHistory())
+  const [history, setHistory] = useState(() => new AmplitudeHistory())
   const current = useRef<Recording | null>(null)
 
   useEffect(() => { if (!active) current.current?.stop() }, [active])
@@ -41,7 +41,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
     if (current.current) return
     setPhase('preparing')
     onBusy(true)
-    history.clear()
+    const recordingHistory = new AmplitudeHistory()
+    setHistory(recordingHistory)
     const controller = new AbortController()
     let stream: MediaStream | undefined
     let capture: MicrophoneCapture | undefined
@@ -105,7 +106,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
       if (!valid()) { stream.getTracks().forEach((track) => track.stop()); return }
-      capture = await captureMicrophone(stream, (value) => { if (acceptingAudio) history.push(value) }, (buffer) => {
+      capture = await captureMicrophone(stream, (value) => { if (acceptingAudio) recordingHistory.push(value) }, (buffer) => {
         if (!valid() || !acceptingAudio) return
         const remaining = 4320000 - audioBytes
         const part = buffer.byteLength <= remaining ? buffer : buffer.slice(0, remaining)
@@ -132,7 +133,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
           if (message.type === 'ready' && !acceptingAudio && !finishing) {
             window.clearTimeout(timeout)
             acceptingAudio = true
-            history.clear()
+            recordingHistory.clear()
             setSeconds(0)
             setPhase('recording')
             const started = Date.now()

@@ -394,8 +394,12 @@ the draft, without reconnecting or replaying old audio automatically.
 
 During recording, a centered bar histogram shows the last ten seconds of
 microphone volume. Four-pixel bars are separated by two-pixel gaps and use the
-maximum of twenty-millisecond peaks in each visible group. The same microphone
-stream feeds recording and the silent AudioWorklet; stopping releases both.
+maximum of twenty-millisecond peaks in each recording-aligned fragment. Fragment
+boundaries are fixed when the recording first gets a nonzero display width;
+completed bars retain their height while moving left, including after resizing.
+Alpha gradients at both edges fade bars in and out. Successive recognized phrases
+join with one space, preserving paragraphs already typed in the draft. The same
+microphone stream feeds recording and the silent AudioWorklet; stopping releases both.
 
 The CPU Speaches/Whisper service and gateway are optional. Install the gateway's
 locked dependencies once, then start recognition:
@@ -464,6 +468,19 @@ tree. Stopping the gateway preserved completed phrases and restored editing;
 after restarting it, another recording appended to the same draft. A simulated
 microphone-permission denial showed the localized error. The temporary audio,
 browser fixture and QA tree were removed, and the original tree list restored.
+
+Voice presentation follow-up (2026-11-07): all 278 backend, 437 frontend and 27
+gateway tests pass. Frontend line coverage is 90.63%; histogram/history files
+have 100%, and every measurable production source file remains above 75%.
+The complete frontend coverage run used two workers after the existing
+101-person force-simulation test exceeded its five-second limit under parallel
+load. Quality, OpenAPI, coverage, production builds and fresh-database migration
+checks pass. No PHP files changed in this follow-up.
+Manual Chrome HTTPS checks with disposable synthetic audio covered stable
+scrolling bars, both edge fades, successive phrases joined by spaces, Stop
+mid-speech, final-phrase delivery, editing the draft and microphone denial.
+Temporary fixtures and the empty QA tree were removed; the user's open draft
+was preserved.
 
 The configured Symfony AI agent invokes native PHP tools directly.
 

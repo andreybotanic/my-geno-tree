@@ -6,6 +6,12 @@ import { conversation } from '../test/chatFixtures'
 import i18n from '../i18n'
 import { ChatPanel } from './ChatPanel'
 import { useChatEvents } from '../hooks/useChatEvents'
+import { ChatVoiceInput } from './ChatVoiceInput'
+
+vi.mock('./ChatVoiceInput', async (original) => {
+  const actual = await original<typeof import('./ChatVoiceInput')>()
+  return { ...actual, ChatVoiceInput: vi.fn(actual.ChatVoiceInput) }
+})
 
 vi.mock(
   '../hooks/useChatEvents',
@@ -32,8 +38,22 @@ const completed: ChatConversation = { ...sent, version: 4, messages: [
 describe(
   'reusable ChatPanel',
   () => {
-    beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
+    beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); vi.mocked(ChatVoiceInput).mockClear(); await i18n.changeLanguage('en') })
     afterEach(() => vi.useRealTimers())
+
+    it('appends successive voice phrases with single spaces while preserving paragraphs already typed', async () => {
+      const { request } = setup(async () => ({ conversation: null, access: conversation.access }))
+      const input = screen.getByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Existing\nparagraph.  \n' } })
+      const voice = vi.mocked(ChatVoiceInput).mock.lastCall![0]
+      act(() => { voice.onTranscript('  First phrase.  '); voice.onTranscript(' Second phrase. ') })
+      expect(input).toHaveValue('Existing\nparagraph. First phrase. Second phrase.')
+      expect(request).toHaveBeenCalledOnce()
+      fireEvent.change(input, { target: { value: '' } })
+      act(() => { voice.onTranscript('  Another phrase.  '); voice.onTranscript('   ') })
+      expect(input).toHaveValue('Another phrase.')
+    })
 
     it('renders assistant Markdown with nested lists, tables, code and safe links', async () => {
       const markdown = [
