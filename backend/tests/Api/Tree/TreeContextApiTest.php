@@ -15,6 +15,7 @@ use App\Entity\Value\ParentRole;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
+use App\Tool\TreeReadTools;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class TreeContextApiTest extends ApiWebTestCase
@@ -76,9 +77,13 @@ final class TreeContextApiTest extends ApiWebTestCase
         );
         $em->persist($spouse);
         $em->persist(new MarriagePeriod($tree, $spouse, $reference, GenealogicalDate::unknown(), null, $now));
+        $tree->referencePerson($reference);
         $em->flush();
         $id = $reference->getId()->toRfc4122();
-        $data = static::getContainer()->get(TreeContextService::class)->context($this->treeId, $id);
+        $tools = static::getContainer()->get(TreeReadTools::class);
+        $data = $tools->tree($this->treeId);
+        self::assertSame($id, $data['referencePersonId']);
+        self::assertSame($data, $tools->tree($this->treeId, null));
         self::assertIsArray($data['parents']);
         self::assertIsArray($data['marriages']);
         self::assertIsArray($data['people']);
@@ -105,17 +110,45 @@ final class TreeContextApiTest extends ApiWebTestCase
         $candidates = static::getContainer()->get(TreeContextService::class)->find($this->treeId, 'Vera');
         self::assertIsArray($candidates);
         self::assertCount(5, $candidates);
+
+        $spouseId = $spouse->getId()->toRfc4122();
+        self::assertSame($spouseId, $tools->tree($this->treeId, $spouseId)['referencePersonId']);
+        $tree->referencePerson($spouse);
+        $em->flush();
+        self::assertSame($spouseId, $tools->tree($this->treeId)['referencePersonId']);
+        self::assertSame($id, $tools->tree($this->treeId, $id)['referencePersonId']);
+
+        $tree->referenceMarriage($spouse, $reference);
+        $em->flush();
+        $pair = [$id, $spouseId];
+        sort($pair);
+        $marriageContext = $tools->tree($this->treeId);
+        self::assertSame($pair[0], $marriageContext['referencePersonId']);
+        self::assertIsArray($marriageContext['people']);
+        self::assertContains($spouseId, array_column($marriageContext['people'], 'id'));
+
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $em->clear();
         $counter = static::getContainer()->get(QueryCountingMiddleware::class . '.default');
         self::assertInstanceOf(QueryCountingMiddleware::class, $counter);
         $counter->reset();
-        static::getContainer()->get(TreeContextService::class)->context($this->treeId, $id);
+        $tools->tree($this->treeId);
         self::assertGreaterThan(0, $counter->count());
         self::assertLessThanOrEqual(
             8,
             $counter->count(),
             'Immediate-family context must use bounded, batched queries.',
         );
+    }
+
+    public function testEmptyTreeWithoutAnExplicitPersonHasNoReferenceOrPeople(): void
+    {
+        $context = static::getContainer()->get(TreeReadTools::class)->tree($this->treeId);
+        self::assertSame(0, $context['personCount']);
+        self::assertNull($context['referencePersonId']);
+        self::assertSame([], $context['people']);
+        self::assertSame([], $context['parents']);
+        self::assertSame([], $context['marriages']);
+        self::assertFalse($context['truncated']);
     }
 }

@@ -232,7 +232,7 @@ export type ChatStopRequest = {
 
 export type TreeChatCreateRequest = {
     /**
-     * Optional narrative reference. Use null to name people directly in an empty or existing tree.
+     * Optional narrative reference. Null makes get_tree_context follow the current primary tree reference, including the first person of a reference pair. Empty trees have no default reference.
      */
     referencePersonId: string | null;
 };

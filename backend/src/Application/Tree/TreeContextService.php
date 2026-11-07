@@ -49,6 +49,7 @@ final readonly class TreeContextService
     public function context(string $treeId, ?string $referencePersonId): array
     {
         $tree = $this->tree($treeId);
+        $referencePersonId ??= $tree->getReferencePrimaryPerson()?->getId()->toRfc4122();
         $context = [
             'treeId'            => $treeId,
             'etag'              => $this->versions->etag($tree),

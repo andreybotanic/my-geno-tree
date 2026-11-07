@@ -14,7 +14,9 @@ use Symfony\Bundle\SecurityBundle\Security;
 #[AsTool(
     name: 'get_tree_context',
     description: <<<'DESCRIPTION'
-    Read the selected tree, narrative reference, bounded immediate family and ETag.
+    Read the selected tree around a person, their bounded immediate family and ETag.
+    Omitted or null referencePersonId uses the tree's current primary reference.
+    An empty tree has no reference and returns no people.
     DESCRIPTION,
     method: 'tree'
 )]
@@ -64,7 +66,10 @@ final readonly class TreeReadTools
     /** @return array<string, mixed> */
     #[McpTool(
         name: 'get_tree_context',
-        description: 'Read the specified tree, optional reference person, immediate family and current ETag.',
+        description: <<<'DESCRIPTION'
+        Read the tree around an explicit person or its current primary reference when omitted or null.
+        Includes bounded immediate family and ETag. An empty tree has no reference and returns no people.
+        DESCRIPTION,
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function tree(string $treeId, ?string $referencePersonId = null): array

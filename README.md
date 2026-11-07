@@ -315,6 +315,12 @@ Search and view/export controls share one toolbar with separate groups. Camera
 position and zoom controls use the same grouped panel structure below the graph.
 Merge confirmation takes only the width of its controls and wraps when needed.
 
+Without an explicit narrative reference, `get_tree_context` uses the tree's
+current primary reference person, including the first person of a canonical
+reference pair. An explicit person takes priority. Empty trees return no people.
+The resolved reference and its bounded immediate family include structured dates;
+this context is not a complete listing of every person in the tree.
+
 The tree profile permits eight context reads, sixteen tool calls and ten new
 people per proposal. Existing endpoints must have been observed through a current
 context read. User messages total at most 10,000 characters and 200 visible
@@ -635,3 +641,19 @@ Search results, the empty-result state and Escape were checked in the shared
 toolbar. Search with the chat open, zoom/reset controls and switching to the
 blood-network view were also exercised. Both toolbars use the same panel/group
 structure. The isolated QA tree and migration-check database were removed.
+
+Default tree-context reference validation (2026-11-07): 271 backend and 423
+frontend tests pass, with line coverage of 93.24% and 90.37%. Backend/frontend
+quality, OpenAPI generation, production build, Composer validation, schema and
+production container checks pass. All 26 migrations were replayed and validated
+on a disposable database. PhpStorm WARNING inspections are clean for all three
+affected PHP files. Existing PHPUnit notices and the Vite bundle-size advisory
+remain.
+
+Manual Chrome HTTPS validation covered an empty tree, context with structured
+birth dates around the default reference, and changing the reference through
+the person menu in the same conversation. Recorded tool calls omitted
+`referencePersonId` and resolved the current reference on each call. Automated
+tests additionally cover explicit overrides, null arguments, canonical reference
+pairs and bounded query counts. The isolated QA tree and migration-check
+database were removed.
