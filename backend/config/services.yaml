@@ -1,6 +1,7 @@
 parameters:
     app.chat_topic_prefix: '%env(MERCURE_JWT_ISSUER)%/api/v1/chat-events/sessions/{sessionId}/conversations/'
     app.chat_ttl: 3600
+    app.chat_token_limit: 10000000
     app.chat_moderation.ban_seconds: 3600
     app.chat_moderation.penalty_tokens: 50000
     app.chat_moderation.temporary_bans: 2

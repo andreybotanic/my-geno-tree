@@ -8,7 +8,7 @@ framework:
     rate_limiter:
         chat_tokens:
             policy: fixed_window
-            limit: '%env(int:CHAT_TOKEN_LIMIT)%'
+            limit: '%app.chat_token_limit%'
             interval: '1 day'
             cache_pool: cache.chat_access
             lock_factory: lock.default.factory

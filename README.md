@@ -357,7 +357,8 @@ model is `gpt-5.6-luna` at `http://cli-proxy-api:8317`.
 
 The `chat_tokens` Symfony limiter counts every model round, including input
 and completion usage. The initial limit is 10,000,000 tokens per user per day,
-configured by `CHAT_TOKEN_LIMIT`. Already spent tokens are counted even when
+configured by `app.chat_token_limit` in `backend/config/services.yaml`.
+Already spent tokens are counted even when
 a response crosses the remaining quota. New rounds then stop with a localized
 notice. Attempts are limited to twenty per user per hour; inference has a
 270-second timeout. Tests use prepared HTTP responses and require no live model.
