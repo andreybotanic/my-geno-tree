@@ -96,14 +96,14 @@ describe(
     it('shows only the last completed tool from restored and live progress', async () => {
       const running: ChatConversation = { ...conversation, status: 'processing', progress: ['get_tree_context'] }
       setup(async () => ({ conversation: running }))
-      expect(await screen.findByRole('status')).toHaveTextContent('Tree context received')
+      expect(await screen.findByRole('status')).toHaveTextContent('Completed: get_tree_context')
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
       act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({
         ...running, version: 2, progress: ['get_tree_context', 'merge'],
       }))
-      expect(screen.getByRole('status')).toHaveTextContent('Proposal prepared')
+      expect(screen.getByRole('status')).toHaveTextContent('Completed: merge')
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
-      expect(screen.queryByText('Tree context received')).not.toBeInTheDocument()
+      expect(screen.queryByText('Completed: get_tree_context')).not.toBeInTheDocument()
     })
 
     it('shows each message time below its text, with a full localized date in the tooltip', async () => {

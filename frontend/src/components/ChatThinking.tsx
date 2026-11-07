@@ -16,7 +16,7 @@ export function ChatThinking({ startedAt, progress }: { startedAt: number; progr
   return <div className="chat-thinking">
     <p role="status"><span className="chat-thinking-dot" aria-hidden="true" />
       <span className="chat-thinking-label">{action && action !== 'model_request'
-        ? t(`chat.progress.${action}`, { defaultValue: t('chat.processing') }) : t('chat.processing')}</span>
+        ? t('chat.completed', { tool: action }) : t('chat.processing')}</span>
       <span className="chat-thinking-time" aria-label={t('chat.elapsed')}>{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>
     </p>
   </div>

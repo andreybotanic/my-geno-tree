@@ -39,13 +39,7 @@ export const resources = {
         "budgetPercent": "{{percent}}% of tokens remaining",
         "budgetDetails": "{{remaining}} of {{limit}} tokens remaining in your daily allowance, shared across all chats.",
         "budgetUnavailable": "Token allowance is unavailable",
-        "progress": {
-          "model_request": "Requesting a response",
-          "get_tree_context": "Tree context received",
-          "find_people": "Names searched",
-          "get_person_context": "Related people checked",
-          "merge": "Proposal prepared"
-        },
+        "completed": "Completed: {{tool}}",
         "processingFailed": "Could not process the message. Try again or add a clarification.",
         "failure": {
           "empty_response": "The AI returned an empty response; please try again.",
@@ -541,13 +535,7 @@ export const resources = {
         "budgetPercent": "Осталось {{percent}}% токенов",
         "budgetDetails": "Осталось {{remaining}} из {{limit}} токенов дневного лимита для всех чатов.",
         "budgetUnavailable": "Лимит токенов недоступен",
-        "progress": {
-          "model_request": "Подготовка ответа",
-          "get_tree_context": "Контекст дерева получен",
-          "find_people": "Поиск по именам выполнен",
-          "get_person_context": "Связанные персоны проверены",
-          "merge": "Предложение подготовлено"
-        },
+        "completed": "Выполнено: {{tool}}",
         "processingFailed": "Не удалось обработать сообщение. Попробуйте снова или добавьте уточнение.",
         "failure": {
           "empty_response": "ИИ вернул пустой ответ; повторите попытку.",

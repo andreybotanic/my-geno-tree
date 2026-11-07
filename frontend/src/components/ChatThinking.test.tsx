@@ -6,7 +6,7 @@ import { ChatThinking } from './ChatThinking'
 afterEach(() => vi.useRealTimers())
 
 it(
-  'shows one latest action with elapsed time and localized fallbacks',
+  'shows the latest completed tool name with a localized prefix and elapsed time',
   async () => {
     await i18n.changeLanguage('ru')
     vi.useFakeTimers()
@@ -18,18 +18,17 @@ it(
     act(() => vi.advanceTimersByTime(65000))
     expect(screen.getByLabelText('Затраченное время')).toHaveTextContent('1:05')
     view.rerender(<ChatThinking startedAt={Date.now() - 65000} progress={['get_tree_context', 'find_people']} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Поиск по именам выполнен')
-    expect(screen.queryByText('Контекст дерева получен')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Выполнено: find_people')
+    expect(screen.queryByText('Выполнено: get_tree_context')).not.toBeInTheDocument()
     await act(async () => i18n.changeLanguage('en'))
     view.rerender(<ChatThinking startedAt={Date.now() - 65000} progress={['get_tree_context', 'find_people', 'get_tree_context']} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Tree context received')
-    expect(screen.queryByText('Names searched')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Completed: get_tree_context')
+    expect(screen.queryByText('Completed: find_people')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Elapsed time')).toHaveTextContent('1:05')
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
     view.rerender(<ChatThinking startedAt={Date.now()} progress={['model_request']} />)
     expect(screen.getByRole('status')).toHaveTextContent('Thinking...')
     view.rerender(<ChatThinking startedAt={Date.now()} progress={['custom_tool']} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Thinking...')
-    expect(screen.queryByText('chat.progress.custom_tool')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Completed: custom_tool')
   }
 )

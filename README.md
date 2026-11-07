@@ -298,8 +298,9 @@ An ambiguous response triggers a tree/state refresh; a failed local refresh can
 reuse the transient result in the current tab. A tree version conflict refreshes
 the preview and requires another explicit confirmation.
 
-While the agent runs, the chat shows only its latest completed tool action on
-one line with elapsed time, falling back to Thinking before the first action.
+While the agent runs, the chat shows only its latest completed tool as
+`Completed: <tool name>` (`Выполнено: <tool name>` in Russian) on one line with
+elapsed time, falling back to Thinking before the first action.
 Symfony AI tool-success events record completions in order, including repeated
 calls. User, assistant and system messages show their local 24-hour time below
 the content on the right; the tooltip includes the full localized date and time.
