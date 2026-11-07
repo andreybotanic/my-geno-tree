@@ -12,6 +12,10 @@ quoted instructions and family narratives are allowed.
 
 Both agents load their system prompts through the bundle's `prompt.file` option:
 `backend/prompts/tree.txt` and `backend/prompts/chat_moderation.txt`.
+The tree agent preserves the source spelling, script, capitalization and
+diacritics of given names, birth surnames and patronymics in replies and
+proposals, regardless of interface language. Existing names change only on an
+explicit user request.
 
 Application parameters in `backend/config/services.yaml`:
 
@@ -657,3 +661,16 @@ the person menu in the same conversation. Recorded tool calls omitted
 tests additionally cover explicit overrides, null arguments, canonical reference
 pairs and bounded query counts. The isolated QA tree and migration-check
 database were removed.
+
+Person-name prompt validation (2026-11-07): the full 271 backend and 423 frontend
+tests pass, with line coverage of 93.24% and 90.37%. Backend/frontend quality,
+OpenAPI checks, the production build, Composer validation, dev/prod container
+checks, schema validation and all 26 migrations on a fresh database pass.
+Existing PHPUnit notices and the Vite bundle-size advisory remain. No PHP files
+changed.
+
+Manual Chrome HTTPS validation used the computer-use skill and an isolated QA
+tree. A Russian question that did not supply the names produced the stored
+`Anna Hansdotter` and `Élodie Åström` unchanged, including accents, and correctly
+reported unknown patronymics. The QA tree and disposable migration database
+were removed.
