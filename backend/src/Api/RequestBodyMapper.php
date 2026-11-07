@@ -74,7 +74,7 @@ final readonly class RequestBodyMapper
             throw new ApiException(JsonResponse::HTTP_BAD_REQUEST, 'INVALID_REQUEST_BODY', 'invalid_request_body', previous: $exception);
         }
 
-        if (!is_array($payload) || array_is_list($payload)) {
+        if (!is_array($payload) || !str_starts_with(ltrim($request->getContent()), '{')) {
             throw new ApiException(JsonResponse::HTTP_BAD_REQUEST, 'INVALID_REQUEST_BODY', 'json_object_required');
         }
         $object = [];

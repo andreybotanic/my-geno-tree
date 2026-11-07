@@ -399,7 +399,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
           disabled={busy || disabled || blocked || conversation?.status === 'processing'}
           onAccessError={() => { void refreshAccess() }}
           onBusy={setVoiceBusy}
-          onTranscript={(text) => setContent(content ? `${content}\n${text}` : text)}>
+          onTranscript={(text) => setContent((saved) => saved ? `${saved}\n${text}` : text)}>
           <textarea id="chat-message" aria-label={t('chat.message')} placeholder={placeholder ?? t('chat.placeholder')}
             ref={textarea} value={content} maxLength={10000} disabled={busy || disabled || blocked || voiceBusy}
             onChange={(event) => setContent(event.target.value)} rows={2}

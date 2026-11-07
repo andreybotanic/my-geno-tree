@@ -385,23 +385,59 @@ and [CLIProxyAPI source](https://github.com/router-for-me/CLIProxyAPI).
 
 ### Voice
 
-Voice recording fills the composer for review before Send. The backend checks
-actual MIME, codec, a 10 MiB limit and at most 90 seconds of decoded audio, then
-normalizes it with FFmpeg to mono PCM WAV at 16 kHz. Uploads are deleted before
-returning. The CPU Speaches/Whisper service is optional:
+Voice recording streams PCM16 mono at 24 kHz through the same-origin WebSocket
+gateway to Speaches. Completed phrases fill the composer while recording; Stop
+finishes the last phrase before enabling editing and Send. Nothing is submitted
+to the AI chat until the user sends the reviewed text. A disconnected recording
+stops the microphone and keeps completed phrases; another recording can continue
+the draft, without reconnecting or replaying old audio automatically.
 
 During recording, a centered bar histogram shows the last ten seconds of
 microphone volume. Four-pixel bars are separated by two-pixel gaps and use the
 maximum of twenty-millisecond peaks in each visible group. The same microphone
 stream feeds recording and the silent AudioWorklet; stopping releases both.
 
+The CPU Speaches/Whisper service and gateway are optional. Install the gateway's
+locked dependencies once, then start recognition:
+
 ```sh
+docker compose run --rm --no-deps voice-gateway npm ci
 docker compose --profile ai up -d whisper
 docker compose exec -T backend curl --fail -X POST http://whisper:8000/v1/models/Systran/faster-whisper-small
+docker compose --profile ai up -d voice-gateway
+docker compose exec -T proxy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-`WHISPER_URL` and `WHISPER_MODEL` configure recognition; its model volume is
-`whisper_models`. Each user has ten recognition attempts per hour.
+The gateway builds its strict TypeScript on startup. Restart it after changing
+its source. `WHISPER_MODEL` configures its recognition model; `SPEACHES_URL`,
+`VOICE_AUTH_URL` and `VOICE_ORIGINS` configure the internal connections and browser
+origin allowlist. The existing `WHISPER_URL` and `WHISPER_MODEL` backend settings
+still configure file transcription. The model volume is `whisper_models`.
+
+Symfony issues one-use recording grants bound to the login. The gateway consumes
+them through a Docker-internal authorization listener, checks active access every
+two seconds and before releasing phrases, and releases temporary state on close.
+The public authorization URL returns 404. Both voice APIs share ten attempts per
+user per hour. Credentials never appear in URLs or application logs.
+
+Recordings are limited to 90 seconds, inbound frames to 64 KiB and send queues to
+256 KiB. Speaches VAD uses a 700 ms pause; the gateway orders completed phrases
+and handles its 0.8.3 configuration warning explicitly. Internal silence finishes
+active speech on Stop and is excluded from duration. Finalization has a 180-second
+timeout. `LOOPBACK_HOST_URL` is required for Speaches' internal transcription call.
+
+The original file endpoint remains compatible: it validates actual MIME/codec,
+10 MiB and 90 seconds, normalizes to 16 kHz WAV with FFmpeg, and deletes uploads.
+The browser uses the streaming path without automatic fallback. No audio, media
+objects or database recording sessions are persisted.
+
+Gateway verification runs independently inside Docker:
+
+```sh
+docker compose run --rm --no-deps voice-gateway npm run quality
+docker compose run --rm --no-deps voice-gateway npm run test:coverage
+docker compose run --rm --no-deps voice-gateway npm run build
+```
 
 Audio histogram validation (2026-11-07): all 271 backend and 431 frontend tests
 pass. Line coverage is 93.24% backend and 90.46% frontend; new histogram/capture
@@ -411,6 +447,23 @@ validation, schema and production-container checks, production build, and all
 Manual Chrome HTTPS validation covered starting the microphone, the centered
 histogram, disabled editing during recording, Stop releasing capture, and the
 localized empty-recording error returning the composer to an editable state.
+
+Streaming voice validation (2026-11-07): all 278 backend, 433 frontend and 27
+gateway tests pass. Line coverage is 93.32%, 90.58% and 98.43%, respectively;
+every measured production file meets 75%. Backend/frontend/gateway quality,
+OpenAPI, Composer validation, dev/prod container checks, schema validation,
+production builds and all 26 migrations on a fresh disposable database pass.
+PhpStorm WARNING inspections are clean for all five affected PHP files. Existing
+PHPUnit notices and the Vite bundle-size advisory remain.
+
+Manual Chrome HTTPS validation used an isolated empty tree and disposable
+synthetic Russian audio. It covered centered bars during speech, phrases arriving
+before Stop, finishing mid-speech, preserving existing draft text, editing before
+manual Send, and receiving the real agent's acknowledgment without changing the
+tree. Stopping the gateway preserved completed phrases and restored editing;
+after restarting it, another recording appended to the same draft. A simulated
+microphone-permission denial showed the localized error. The temporary audio,
+browser fixture and QA tree were removed, and the original tree list restored.
 
 The configured Symfony AI agent invokes native PHP tools directly.
 

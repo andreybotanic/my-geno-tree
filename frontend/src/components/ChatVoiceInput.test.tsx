@@ -1,197 +1,240 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
+import { captureMicrophone } from '../voice/capture'
 import i18n from '../i18n'
 import { ChatVoiceInput } from './ChatVoiceInput'
 
-vi.mock('../voice/capture', () => ({ captureAmplitude: vi.fn(async () => vi.fn()) }))
+vi.mock('../voice/capture', () => ({ captureMicrophone: vi.fn() }))
 
-class Recorder {
-  static isTypeSupported = vi.fn(() => true)
-  static instance: Recorder
-  static blob = new Blob(['audio'], { type: 'audio/webm' })
-  state = 'inactive'
-  ondataavailable: ((event: { data: Blob }) => void) | null = null
-  onstop: (() => void) | null = null
+class Socket {
+  static OPEN = 1
+  static instance: Socket
+  readyState = 0
+  bufferedAmount = 0
+  onopen: (() => void) | null = null
+  onmessage: ((event: MessageEvent<string>) => void) | null = null
   onerror: (() => void) | null = null
-  constructor() { Recorder.instance = this }
-  start() { this.state = 'recording' }
-  stop() {
-    this.state = 'inactive'
-    this.ondataavailable?.({ data: Recorder.blob })
-    this.onstop?.()
-  }
+  onclose: (() => void) | null = null
+  sent: unknown[] = []
+  close = vi.fn(() => { this.readyState = 3 })
+  readonly url: string
+  constructor(url: string) { this.url = url; Socket.instance = this }
+  send(data: unknown) { this.sent.push(typeof data === 'string' ? JSON.parse(data) : data) }
+  open() { this.readyState = 1; this.onopen?.() }
+  event(data: unknown) { this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(data) })) }
 }
+
+const grant = { id: '01900000-0000-7000-8000-000000000001', credential: 'secret',
+  url: '/api/v1/chat-transcriptions/stream', sampleRate: 24000, maxDurationSeconds: 90, expiresIn: 30 }
 const stopTrack = vi.fn()
-const getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack }] }))
+const getUserMedia = vi.fn()
+const cancel = vi.fn()
+const stop = vi.fn()
+let amplitude!: (value: number) => void
+let audio!: (value: ArrayBuffer) => void
 
-function setup(handler: (path: string, init?: RequestInit) => Promise<unknown> = async () => ({ text: 'Мама — Вера.', durationSeconds: 2 })) {
+function setup(handler: () => Promise<unknown> = async () => grant) {
   const request = vi.fn(handler) as unknown as AuthorizedJsonRequest
-  const onBusy = vi.fn()
-  const onTranscript = vi.fn()
-  const props = { active: true, children: <textarea aria-label="Message" />,
-    request, disabled: false, onBusy, onTranscript }
-  return { ...render(<ChatVoiceInput {...props} />), props, request, onBusy, onTranscript }
+  const props = { active: true, children: <textarea aria-label="Message" />, request,
+    disabled: false, onBusy: vi.fn(), onTranscript: vi.fn(), onAccessError: vi.fn() }
+  return { ...render(<ChatVoiceInput {...props} />), props, request }
 }
 
-async function record() {
+async function begin() {
   fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
+  await waitFor(() => expect(Socket.instance?.readyState).toBe(0))
+  await act(async () => { Socket.instance.open(); Socket.instance.event({ type: 'ready' }) })
+  return Socket.instance
 }
 
-describe(
-  'ChatVoiceInput',
-  () => {
-    beforeEach(
-      async () => {
-        localStorage.clear()
-        Recorder.blob = new Blob(['audio'], { type: 'audio/webm' })
-        vi.clearAllMocks()
-        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-        Recorder.isTypeSupported.mockReturnValue(true)
-        getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] })
-        vi.stubGlobal('MediaRecorder', Recorder)
-        Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } })
-        await i18n.changeLanguage('en')
-      }
-    )
-    afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
-
-    it('discards a recording immediately when a ban arrives', async () => {
-      const view = setup()
-      fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
-      await screen.findByRole('button', { name: 'Stop recording' })
-      view.rerender(<ChatVoiceInput {...view.props} blocked />)
-      expect(Recorder.instance.state).toBe('inactive')
-      expect(stopTrack).toHaveBeenCalled()
-      expect(view.request).not.toHaveBeenCalled()
-      expect(view.onTranscript).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'Record voice' })).toBeDisabled()
+describe('streaming voice input', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    Socket.instance = undefined as unknown as Socket
+    getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] })
+    stop.mockResolvedValue(undefined)
+    vi.mocked(captureMicrophone).mockImplementation(async (_stream, onAmplitude, onAudio) => {
+      amplitude = onAmplitude; audio = onAudio
+      return { stop, cancel }
     })
+    vi.stubGlobal('WebSocket', Socket)
+    vi.stubGlobal('AudioContext', class {})
+    vi.stubGlobal('AudioWorkletNode', class {})
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    await i18n.changeLanguage('en')
+  })
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
-    it('aborts transcription and ignores its late result after a ban', async () => {
-      let finish!: (value: { text: string }) => void
-      const view = setup(() => new Promise((resolve) => { finish = resolve }))
-      await record()
-      const signal = vi.mocked(view.request).mock.calls[0]?.[1]?.signal
-      view.rerender(<ChatVoiceInput {...view.props} blocked />)
-      expect(signal?.aborted).toBe(true)
-      await act(async () => finish({ text: 'late audio' }))
-      expect(view.onTranscript).not.toHaveBeenCalled()
-      expect(view.onBusy).toHaveBeenLastCalledWith(false)
+  it('streams audio and phrases, deduplicates results and flushes the final audio before Stop', async () => {
+    const view = setup()
+    const socket = await begin()
+    expect(view.request).toHaveBeenCalledWith('/chat-transcription-sessions', expect.objectContaining({ body: '{}', method: 'POST' }))
+    expect(socket.url).not.toContain('secret')
+    expect(socket.sent[0]).toEqual({ type: 'start', sessionId: grant.id, credential: 'secret' })
+    expect(screen.getByRole('img')).toHaveAccessibleName(/10 seconds/)
+    const pcm = new ArrayBuffer(4800)
+    await act(async () => {
+      amplitude(0.5); audio(pcm)
+      socket.event({ type: 'phrase', phraseId: 'one', sequence: 0, text: 'Мама — Вера.' })
+      socket.event({ type: 'phrase', phraseId: 'one', sequence: 0, text: 'Мама — Вера.' })
     })
+    expect(view.props.onTranscript).toHaveBeenCalledExactlyOnceWith('Мама — Вера.')
+    expect(socket.sent).toContain(pcm)
+    stop.mockImplementationOnce(async () => { audio(new ArrayBuffer(200)) })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
+    await waitFor(() => expect(socket.sent.at(-1)).toEqual({ type: 'stop' }))
+    expect(socket.sent.at(-2)).toBeInstanceOf(ArrayBuffer)
+    expect(stopTrack).toHaveBeenCalled()
+    expect(view.props.onBusy).toHaveBeenLastCalledWith(true)
+    expect(screen.getByRole('status')).toHaveTextContent('last phrase')
+    await act(async () => {
+      socket.event({ type: 'phrase', phraseId: 'two', sequence: 1, text: 'Папа — Иван.' })
+      socket.event({ type: 'done', durationSeconds: 1 })
+    })
+    expect(view.props.onTranscript).toHaveBeenLastCalledWith('Папа — Иван.')
+    expect(view.props.onBusy).toHaveBeenLastCalledWith(false)
+    expect(cancel).toHaveBeenCalled()
+    expect(socket.close).toHaveBeenCalled()
+    expect(view.request).toHaveBeenCalledOnce()
+  })
 
-    it(
-      'records until stop, releases the microphone and returns only editable text without creating a draft',
-      async () => {
-        const { request, onTranscript, onBusy, container } = setup()
-        await record()
-        await waitFor(() => expect(onTranscript).toHaveBeenCalledWith('Мама — Вера.'))
-        expect(stopTrack).toHaveBeenCalledOnce()
-        expect(onBusy).toHaveBeenLastCalledWith(false)
-        expect(request).toHaveBeenCalledOnce()
-        const [path, init] = vi.mocked(request).mock.calls[0]!
-        expect(path).toBe('/chat-transcriptions')
-        const form = init!.body as FormData
-        expect(form.get('audio')).toBeInstanceOf(File)
-        expect(form.get('treeId')).toBeNull()
-        expect(form.get('version')).toBeNull()
-        expect(container.querySelector('input[type=file]')).toBeNull()
-      }
-    )
+  it('keeps completed phrases on interruption and permits a new recording without reconnecting', async () => {
+    const view = setup()
+    const socket = await begin()
+    const late = socket.onmessage!
+    await act(async () => {
+      socket.event({ type: 'phrase', phraseId: 'one', sequence: 0, text: 'Kept' })
+      socket.onclose?.()
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept')
+    expect(view.props.onTranscript).toHaveBeenCalledExactlyOnceWith('Kept')
+    expect(view.request).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Record voice' })).toBeEnabled()
+    Socket.instance = undefined as unknown as Socket
+    await begin()
+    await act(async () => late(new MessageEvent('message', { data: JSON.stringify({ type: 'phrase', phraseId: 'late', sequence: 1, text: 'Ignore' }) })))
+    expect(view.props.onTranscript).toHaveBeenCalledOnce()
+    expect(view.request).toHaveBeenCalledTimes(2)
+  })
 
-    it(
-      'discards a failed upload and asks to record again without a saved-audio retry',
-      async () => {
-        const { request, onTranscript } = setup(async () => { throw new Error('offline') })
-        await record()
-        expect(await screen.findByRole('alert')).toHaveTextContent('record it again')
-        expect(screen.queryByRole('button', { name: 'Retry transcription' })).toBeNull()
-        expect(request).toHaveBeenCalledOnce()
-        expect(onTranscript).not.toHaveBeenCalled()
-      }
-    )
+  it('cancels on a ban, unmounts safely and ignores late results', async () => {
+    const view = setup()
+    const socket = await begin()
+    const late = socket.onmessage!
+    view.rerender(<ChatVoiceInput {...view.props} blocked />)
+    expect(socket.close).toHaveBeenCalled()
+    expect(stopTrack).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Record voice' })).toBeDisabled()
+    await act(async () => late(new MessageEvent('message', { data: '{"type":"phrase","text":"late","phraseId":"late","sequence":0}' })))
+    expect(view.props.onTranscript).not.toHaveBeenCalled()
+    view.unmount()
+  })
 
-    it
-      .each(
-        [
-          ['CHAT_AUDIO_DURATION', 422, 'at most 90 seconds'],
-          ['CHAT_AUDIO_SIZE', 422, 'must not exceed 10 MB'],
-          ['CHAT_AUDIO_FORMAT', 422, 'without a video track'],
-          ['CHAT_VOICE_RATE_LIMIT', 429, 'Too many'],
-        ]
-      )(
-        'explains validation error %s',
-        async (code, status, text) => {
-          setup(
-            async () => {
-              throw new ApiRequestError(status, { code, message: null, fields: {}, details: {} })
-            }
-          )
-          await record()
-          expect(await screen.findByRole('alert')).toHaveTextContent(text)
-        }
-      )
+  it('finishes when hidden and cancels a late microphone permission', async () => {
+    const view = setup()
+    const socket = await begin()
+    view.rerender(<ChatVoiceInput {...view.props} active={false} />)
+    await waitFor(() => expect(socket.sent).toContainEqual({ type: 'stop' }))
+    view.unmount()
+    let resolve!: (value: { getTracks: () => { stop: typeof stopTrack }[] }) => void
+    getUserMedia.mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    const late = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    late.rerender(<ChatVoiceInput {...late.props} active={false} />)
+    await act(async () => resolve({ getTracks: () => [{ stop: stopTrack }] }))
+    expect(late.request).not.toHaveBeenCalled()
+  })
 
-    it(
-      'rejects oversized recordings and explains microphone permission failures',
-      async () => {
-        const { request } = setup()
-        Recorder.blob = new Blob([new Uint8Array(10 * 1024 * 1024 + 1)])
-        await record()
-        expect(screen.getByRole('alert')).toHaveTextContent('10 MB')
-        expect(request).not.toHaveBeenCalled()
-        getUserMedia.mockRejectedValueOnce(new Error('permission'))
-        fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
-        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('microphone'))
-      }
-    )
+  it.each([
+    ['CHAT_BANNED', 403, 'blocked'], ['CHAT_UNAVAILABLE', 503, 'unavailable'],
+    ['CHAT_VOICE_RATE_LIMIT', 429, 'Too many'],
+  ])('explains %s when issuing a recording grant', async (code, status, text) => {
+    const view = setup(async () => { throw new ApiRequestError(status, { code, message: null, fields: {}, details: {} }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(text)
+    expect(cancel).toHaveBeenCalled()
+    expect(view.props.onBusy).toHaveBeenLastCalledWith(false)
+    if (code !== 'CHAT_VOICE_RATE_LIMIT') expect(view.props.onAccessError).toHaveBeenCalled()
+  })
 
-    it(
-      'keeps text available when recording is unsupported',
-      async () => {
-        vi.stubGlobal('MediaRecorder', undefined)
-        setup()
-        fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
-        expect(screen.getByRole('alert')).toHaveTextContent('unavailable')
-      }
-    )
+  it('handles unsupported capture, permission denial and worklet failures', async () => {
+    const view = setup()
+    vi.stubGlobal('AudioContext', undefined)
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('unavailable in this browser')
+    vi.stubGlobal('AudioContext', class {})
+    getUserMedia.mockRejectedValueOnce(new Error('denied'))
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check browser permission')
+    vi.mocked(captureMicrophone).mockRejectedValueOnce(new Error('CHAT_AUDIO_UNSUPPORTED'))
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('unavailable in this browser'))
+    expect(view.request).not.toHaveBeenCalled()
+  })
 
-    it(
-      'stops automatically within 90 seconds and releases resources on unmount',
-      async () => {
-        vi.useFakeTimers()
-        const first = setup()
-        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
-        await act(async () => { vi.advanceTimersByTime(89000) })
-        expect(first.request).toHaveBeenCalledOnce()
-        first.unmount()
-        const second = setup()
-        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
-        second.unmount()
-        expect(Recorder.instance.state).toBe('inactive')
-        expect(second.request).not.toHaveBeenCalled()
-        expect(stopTrack).toHaveBeenCalled()
-      }
-    )
+  it('enforces duration and reports a finalization timeout', async () => {
+    vi.useFakeTimers()
+    setup()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
+    const socket = Socket.instance
+    await act(async () => { socket.open(); socket.event({ type: 'ready' }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(90000) })
+    expect(socket.sent).toContainEqual({ type: 'stop' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(185000) })
+    expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept')
+  })
 
-    it(
-      'stops recording when the panel closes and does not start after a late microphone permission',
-      async () => {
-        const view = setup()
-        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
-        view.rerender(<ChatVoiceInput {...view.props} active={false} />)
-        await waitFor(() => expect(view.onTranscript).toHaveBeenCalled())
-        expect(Recorder.instance.state).toBe('inactive')
-        view.unmount()
-        let grant!: (value: { getTracks: () => { stop: typeof stopTrack }[] }) => void
-        getUserMedia.mockReturnValueOnce(new Promise((resolve) => { grant = resolve }))
-        const late = setup()
-        fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
-        late.rerender(<ChatVoiceInput {...late.props} active={false} />)
-        await act(async () => grant({ getTracks: () => [{ stop: stopTrack }] }))
-        expect(late.request).not.toHaveBeenCalled()
-      }
-    )
-  }
-)
+  it('rejects malformed events and a slow connection without losing earlier phrases', async () => {
+    const view = setup()
+    const socket = await begin()
+    await act(async () => socket.event({ type: 'error', code: 'AUTH_REQUIRED' }))
+    expect(view.props.onAccessError).toHaveBeenCalled()
+    Socket.instance = undefined as unknown as Socket
+    const next = await begin()
+    await act(async () => next.onmessage!(new MessageEvent('message', { data: 'broken' })))
+    expect(screen.getByRole('alert')).toBeVisible()
+    Socket.instance = undefined as unknown as Socket
+    const slow = await begin()
+    slow.bufferedAmount = 262145
+    await act(async () => audio(new ArrayBuffer(4800)))
+    expect(slow.close).toHaveBeenCalled()
+  })
+
+  it('cancels capture that finishes initializing after the component closes', async () => {
+    let resolve!: (value: { stop: typeof stop; cancel: typeof cancel }) => void
+    vi.mocked(captureMicrophone).mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    const view = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    await waitFor(() => expect(captureMicrophone).toHaveBeenCalled())
+    view.unmount()
+    await act(async () => resolve({ stop, cancel }))
+    expect(cancel).toHaveBeenCalled()
+    expect(view.request).not.toHaveBeenCalled()
+  })
+
+  it('caps streamed samples at ninety seconds and flushes only once', async () => {
+    setup()
+    const socket = await begin()
+    await act(async () => {
+      for (let frame = 0; frame < 901; frame++) audio(new ArrayBuffer(4800))
+    })
+    const frames = socket.sent.filter((value): value is ArrayBuffer => value instanceof ArrayBuffer)
+    expect(frames.reduce((total, value) => total + value.byteLength, 0)).toBe(4320000)
+    expect(stop).toHaveBeenCalledOnce()
+    expect(socket.sent.filter((value) => (value as { type?: string }).type === 'stop')).toHaveLength(1)
+  })
+
+  it('reports unsupported context creation and failed audio flushing', async () => {
+    const view = setup()
+    vi.mocked(captureMicrophone).mockRejectedValueOnce(new DOMException('Unsupported sample rate', 'NotSupportedError'))
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('unavailable in this browser')
+    await begin()
+    stop.mockRejectedValueOnce(new Error('audio thread stopped'))
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept'))
+    expect(view.props.onBusy).toHaveBeenLastCalledWith(false)
+  })
+})

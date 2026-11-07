@@ -55,11 +55,31 @@ services:
     image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
     profiles: [ai]
     environment:
+      LOOPBACK_HOST_URL: http://127.0.0.1:8000
       WHISPER__INFERENCE_DEVICE: cpu
       WHISPER__COMPUTE_TYPE: int8
       WHISPER__NUM_WORKERS: 1
     volumes:
       - whisper_models:/home/ubuntu/.cache/huggingface/hub
+
+  voice-gateway:
+    image: node:24.18.0-alpine
+    profiles: [ai]
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /srv/voice-gateway
+    command: ['sh', '-lc', 'npm run build && npm start']
+    restart: unless-stopped
+    environment:
+      VOICE_PORT: 8080
+      VOICE_AUTH_URL: http://proxy:8082/api/v1/chat-transcription-sessions
+      SPEACHES_URL: ws://whisper:8000/v1/realtime
+      WHISPER_MODEL: Systran/faster-whisper-small
+      VOICE_ORIGINS: https://localhost,https://my-geno-tree.localhost
+    volumes:
+      - ./voice-gateway:/srv/voice-gateway
+      - ./frontend/src/api:/srv/frontend/src/api:ro
+    depends_on:
+      - whisper
 
   database:
     image: postgres:18.4-alpine

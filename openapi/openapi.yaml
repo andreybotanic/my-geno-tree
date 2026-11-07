@@ -179,6 +179,70 @@ paths:
           description: 'Subscription session is active; the hub validates topic grants separately'
         401:
           $ref: '#/components/responses/Unauthorized'
+  /chat-transcription-sessions:
+    post:
+      operationId: createChatVoiceSession
+      description: 'Issues a single-use recording credential bound to the current login. Connect within 30 seconds. Shares the ten-per-hour voice limit with file transcription.'
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        201:
+          description: Recording credential; never cache or log it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatVoiceSession' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        403: { description: CHAT_BANNED }
+        422: { $ref: '#/components/responses/ValidationError' }
+        429: { description: CHAT_VOICE_RATE_LIMIT }
+        503: { description: CHAT_UNAVAILABLE }
+  /chat-transcription-sessions/{id}/authorize:
+    servers: [{ url: 'http://proxy:8082/api/v1' }]
+    post:
+      operationId: authorizeChatVoiceGateway
+      description: 'Internal gateway-only endpoint. The public HTTPS listener returns 404. Validates the recording credential and owning login; claim consumes the credential atomically, check revalidates access, release removes temporary state.'
+      security: [{ voiceCredential: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operation]
+              properties:
+                operation: { type: string, enum: [claim, check, release] }
+      responses:
+        200:
+          description: Current recognition language.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [language]
+                properties:
+                  language: { type: string, enum: [en, ru] }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        403: { description: CHAT_BANNED }
+        422: { $ref: '#/components/responses/ValidationError' }
+        503: { description: CHAT_UNAVAILABLE }
+  /chat-transcriptions/stream:
+    get:
+      operationId: streamChatVoice
+      description: 'WebSocket upgrade. Within five seconds send ChatVoiceClientMessage start, then binary signed little-endian PCM16 mono 24000 Hz (normally 100ms), followed by stop or cancel. Audio is accepted only after ready. Server messages follow ChatVoiceServerMessage. Stop drains recognition; cancel discards unfinished work. No automatic reconnect or replay.'
+      responses:
+        101: { description: WebSocket established; authenticate with the first start message. }
+        403: { description: Origin is not allowed. }
   /chat-transcriptions:
     post:
       operationId: transcribeChatAudio
@@ -1882,6 +1946,10 @@ paths:
           $ref: "#/components/responses/BadGateway"
 components:
   securitySchemes:
+    voiceCredential:
+      type: http
+      scheme: bearer
+      description: Single-use recording credential; accepted only by the internal voice authorization endpoint.
     mcpOAuth:
       type: oauth2
       flows:
@@ -2312,6 +2380,58 @@ components:
           type: string
           format: date-time
           description: 'Next availability reported by the daily rate limiter when remaining is zero; otherwise omitted.'
+    ChatVoiceSession:
+      type: object
+      additionalProperties: false
+      required: [id, url, credential, expiresIn, maxDurationSeconds, sampleRate]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, const: '/api/v1/chat-transcriptions/stream' }
+        credential: { type: string, description: 'Secret single-use credential; never put in URLs or logs.' }
+        expiresIn: { type: integer, const: 30 }
+        maxDurationSeconds: { type: integer, const: 90 }
+        sampleRate: { type: integer, const: 24000 }
+    ChatVoiceClientMessage:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [type, sessionId, credential]
+          properties:
+            type: { type: string, const: start }
+            sessionId: { type: string, format: uuid }
+            credential: { type: string }
+        - type: object
+          additionalProperties: false
+          required: [type]
+          properties:
+            type: { type: string, enum: [stop, cancel] }
+    ChatVoiceServerMessage:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [type]
+          properties:
+            type: { type: string, const: ready }
+        - type: object
+          additionalProperties: false
+          required: [type, phraseId, sequence, text]
+          properties:
+            type: { type: string, const: phrase }
+            phraseId: { type: string }
+            sequence: { type: integer, minimum: 0 }
+            text: { type: string, maxLength: 10000 }
+        - type: object
+          additionalProperties: false
+          required: [type, durationSeconds]
+          properties:
+            type: { type: string, const: done }
+            durationSeconds: { type: number, minimum: 0, maximum: 90 }
+        - type: object
+          additionalProperties: false
+          required: [type, code]
+          properties:
+            type: { type: string, const: error }
+            code: { type: string }
     ChatTranscription:
       type: object
       additionalProperties: false

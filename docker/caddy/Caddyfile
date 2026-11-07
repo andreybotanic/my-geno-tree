@@ -7,9 +7,27 @@ http://127.0.0.1:8081 {
 	php_fastcgi backend:9000
 }
 
+http://:8082 {
+	@voice_authorization path_regexp ^/api/v1/chat-transcription-sessions/[^/]+/authorize$
+	handle @voice_authorization {
+		root * /srv/backend/public
+		php_fastcgi backend:9000
+	}
+	respond 404
+}
+
 localhost, my-geno-tree.localhost {
 	tls internal
 	encode zstd gzip
+
+	@voice_authorization path_regexp ^/api/v1/chat-transcription-sessions/[^/]+/authorize$
+	handle @voice_authorization {
+		respond 404
+	}
+
+	handle /api/v1/chat-transcriptions/stream {
+		reverse_proxy voice-gateway:8080
+	}
 
 	handle /.well-known/mercure {
 		@subscriber method GET

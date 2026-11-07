@@ -8,4 +8,7 @@
 /frontend/dist/
 /frontend/coverage/
 /frontend/node_modules/
+/voice-gateway/node_modules/
+/voice-gateway/dist/
+/voice-gateway/coverage/
 /storage/

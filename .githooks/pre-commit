@@ -9,3 +9,6 @@ docker compose exec -T backend composer quality
 
 echo 'Running frontend quality checks...'
 docker compose exec -T frontend npm run quality
+
+echo 'Running voice gateway quality checks...'
+docker compose run --rm --no-deps voice-gateway npm run quality

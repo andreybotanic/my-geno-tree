@@ -1,0 +1,26 @@
+{
+  "name": "mygenotree-voice-gateway",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "start": "node dist/voice-gateway/src/main.js",
+    "build": "tsc -p tsconfig.json",
+    "quality": "tsc -p tsconfig.json --noEmit && oxlint src tests && eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": { "ws": "^8.22.1" },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
+    "oxlint": "^1.75.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  }
+}

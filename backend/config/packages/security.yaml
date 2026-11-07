@@ -11,6 +11,14 @@ security:
                 property: id
 
     firewalls:
+        chat_voice:
+            pattern: ^/api/v1/chat-transcription-sessions/[^/]+/authorize$
+            stateless: true
+            provider: app_users
+            access_token:
+                token_handler: App\Security\ChatVoiceTokenHandler
+                failure_handler: App\Security\BearerSessionAuthenticator
+            entry_point: App\Security\BearerSessionAuthenticator
         mcp:
             pattern: ^/api/v1/mcp$
             stateless: true
