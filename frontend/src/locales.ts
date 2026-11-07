@@ -20,6 +20,7 @@ export const resources = {
         },
         "voice": {
           "record": "Record voice",
+          "visualization": "Microphone volume over the last 10 seconds",
           "stop": "Stop recording",
           "elapsed": "{{seconds}} s",
           "processing": "Transcribing recording…",
@@ -516,6 +517,7 @@ export const resources = {
         },
         "voice": {
           "record": "Записать голос",
+          "visualization": "Громкость микрофона за последние 10 секунд",
           "stop": "Остановить запись",
           "elapsed": "{{seconds}} с",
           "processing": "Распознаём запись…",

@@ -4,6 +4,8 @@ import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import i18n from '../i18n'
 import { ChatVoiceInput } from './ChatVoiceInput'
 
+vi.mock('../voice/capture', () => ({ captureAmplitude: vi.fn(async () => vi.fn()) }))
+
 class Recorder {
   static isTypeSupported = vi.fn(() => true)
   static instance: Recorder
@@ -45,6 +47,7 @@ describe(
         localStorage.clear()
         Recorder.blob = new Blob(['audio'], { type: 'audio/webm' })
         vi.clearAllMocks()
+        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
         Recorder.isTypeSupported.mockReturnValue(true)
         getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] })
         vi.stubGlobal('MediaRecorder', Recorder)

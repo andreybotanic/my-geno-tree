@@ -390,6 +390,11 @@ actual MIME, codec, a 10 MiB limit and at most 90 seconds of decoded audio, then
 normalizes it with FFmpeg to mono PCM WAV at 16 kHz. Uploads are deleted before
 returning. The CPU Speaches/Whisper service is optional:
 
+During recording, a centered bar histogram shows the last ten seconds of
+microphone volume. Four-pixel bars are separated by two-pixel gaps and use the
+maximum of twenty-millisecond peaks in each visible group. The same microphone
+stream feeds recording and the silent AudioWorklet; stopping releases both.
+
 ```sh
 docker compose --profile ai up -d whisper
 docker compose exec -T backend curl --fail -X POST http://whisper:8000/v1/models/Systran/faster-whisper-small
@@ -397,6 +402,15 @@ docker compose exec -T backend curl --fail -X POST http://whisper:8000/v1/models
 
 `WHISPER_URL` and `WHISPER_MODEL` configure recognition; its model volume is
 `whisper_models`. Each user has ten recognition attempts per hour.
+
+Audio histogram validation (2026-11-07): all 271 backend and 431 frontend tests
+pass. Line coverage is 93.24% backend and 90.46% frontend; new histogram/capture
+files have 100% line coverage. Backend/frontend quality, OpenAPI, Composer
+validation, schema and production-container checks, production build, and all
+26 migrations on a fresh disposable database pass. No PHP files changed.
+Manual Chrome HTTPS validation covered starting the microphone, the centered
+histogram, disabled editing during recording, Stop releasing capture, and the
+localized empty-recording error returning the composer to an editable state.
 
 The configured Symfony AI agent invokes native PHP tools directly.
 

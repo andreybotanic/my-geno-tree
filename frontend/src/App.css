@@ -3635,6 +3635,7 @@ select:not([multiple]) {
 .chat-panel > p { margin: 4px 0; }
 .chat-messages { min-height: 0; overflow-y: auto; flex: 1 1 auto; }
 .chat-voice { display: grid; gap: 8px; }
+.chat-audio-histogram { display: block; width: 100%; height: 48px; color: var(--color-accent); }
 .chat-voice > p { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
 @media (prefers-reduced-motion: reduce) {
   .tree-chat-drawer, .react-flow__panel.right { transition: none; }

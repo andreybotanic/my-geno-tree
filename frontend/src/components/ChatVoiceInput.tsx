@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { ChatTranscription } from '../api/generated'
+import { AmplitudeHistory } from '../voice/amplitudeHistory'
+import { captureAmplitude } from '../voice/capture'
+import { ChatAudioHistogram } from './ChatAudioHistogram'
 
 type Props = {
   active: boolean
@@ -29,6 +32,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
   const visible = useRef(active)
   const transcription = useRef<AbortController | null>(null)
   const denied = useRef(blocked)
+  const [history] = useState(() => new AmplitudeHistory())
+  const stopCapture = useRef<(() => void) | null>(null)
 
   useEffect(
     () => {
@@ -52,6 +57,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       return () => {
         mounted.current = false
         transcription.current?.abort()
+        stopCapture.current?.()
+        stopCapture.current = null
         if (timer.current !== null) window.clearInterval(timer.current)
         if (recorder.current?.state === 'recording') recorder.current.stop()
         stream.current?.getTracks().forEach((track) => track.stop())
@@ -106,6 +113,15 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
         return
       }
       stream.current = audioStream
+      history.clear()
+      const release = await captureAmplitude(audioStream, (value) => history.push(value))
+      if (!mounted.current || !visible.current || denied.current) {
+        release()
+        audioStream.getTracks().forEach((track) => track.stop())
+        if (mounted.current) { setWorking(false); onBusy(false) }
+        return
+      }
+      stopCapture.current = release
       const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4']
         .find(
           (mime) => MediaRecorder.isTypeSupported(mime)
@@ -121,6 +137,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
         if (size > maxBytes && instance.state === 'recording') instance.stop()
       }
       instance.onstop = () => {
+        stopCapture.current?.()
+        stopCapture.current = null
         if (timer.current !== null) window.clearInterval(timer.current)
         audioStream.getTracks().forEach((track) => track.stop())
         recorder.current = null
@@ -151,6 +169,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
         250
       )
     } catch {
+      stopCapture.current?.()
+      stopCapture.current = null
       stream.current?.getTracks().forEach((track) => track.stop())
       if (mounted.current) { setError('chat.voice.permission'); setWorking(false); onBusy(false) }
     }
@@ -158,6 +178,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
 
   const unavailable = disabled || blocked || working || recording
   return <div className="chat-voice">
+    {recording && <ChatAudioHistogram history={history} />}
     <div className="chat-input">
       {children}
       <button type="button" className={`chat-microphone${recording ? ' is-recording' : ''}`}
