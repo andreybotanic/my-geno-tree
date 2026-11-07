@@ -2,15 +2,15 @@
 
 ## Core Rules
 
-- Treat `spec-v2/spec.md` as the entry point and source of truth for product requirements. Read the linked domain, MVP, API, date, quality, and future-extension documents before implementing related behavior.
-- Keep the original `spec` directory unchanged. Change `spec-v2` only when the user explicitly requests a requirements update.
+- Treat `spec/spec.md` as the entry point and source of truth for product requirements. Read the linked domain, MVP, API, date, quality, and future-extension documents before implementing related behavior.
+- Keep the original `spec` directory unchanged. Change `spec` only when the user explicitly requests a requirements update.
 - Use PHP 8.5 and Symfony 8.1 capabilities as the default backend target.
 - Use PostgreSQL 18, Doctrine ORM, Doctrine Migrations, and Flysystem as defined by the specification.
 - Use Node.js 24 LTS and strict TypeScript for the frontend. The frontend may use React or Vue.js, but the selected framework must be used consistently.
 - Prefer the newest stable framework and language features available within the version constraints of this project whenever they improve clarity.
 - If Context7 does not contain enough detail for the required library version, use the library's official documentation as the source of truth.
 - Keep Doctrine entity `id` properties nullable in PHP entities when the database generates the identifier.
-- Preserve the extension boundaries documented in `spec-v2/future.md`; do not implement deferred features, but do not introduce schema or architecture blockers for them.
+- Preserve the extension boundaries documented in `spec/future.md`; do not implement deferred features, but do not introduce schema or architecture blockers for them.
 
 ## Execution Environment
 
@@ -97,7 +97,7 @@
 - Before completing a user-visible feature or a substantial user-flow change, manually exercise its main happy path and important error or conflict path in the browser.
 - Browser validation should include realistic actions such as navigation, form entry, saving, refreshing, authentication, pan/zoom, image upload, or concurrent-session conflict whenever they are relevant to the change.
 - Record the manually checked browser scenarios in the final handoff for the task.
-- Run backend tests, frontend tests, OpenAPI contract checks, static analysis, linters, migration checks, and production builds required by `spec-v2/quality.md`.
+- Run backend tests, frontend tests, OpenAPI contract checks, static analysis, linters, migration checks, and production builds required by `spec/quality.md`.
 - Do not consider work complete until all applicable automated tests and quality checks pass.
 
 ## Development Workflow
