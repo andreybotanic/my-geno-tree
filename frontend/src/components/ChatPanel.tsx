@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
 import type { ChatAccess, ChatConversation, ChatTokenBudget, ChatEvent, TreeChatCurrent } from '../api/generated'
@@ -372,11 +374,13 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
             ) : (
               <article key={message.id} className={`chat-message chat-message-${message.role}`}
                 aria-label={t(message.role === 'user' ? 'chat.you' : 'chat.assistant')}>
-                <p>{message.content}</p>
+                {message.role === 'assistant'
+                  ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+                  : <p>{message.content}</p>}
               </article>
             )
           )}
-          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} progress={conversation?.progress ?? []} />}
+          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} />}
           {conversation?.status === 'error' && !conversation.messages.at(-1)?.failureCode && <p role="alert">{t('chat.processingFailed')}</p>}
           <div ref={messagesEnd} />
         </div>

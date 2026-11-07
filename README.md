@@ -298,6 +298,16 @@ An ambiguous response triggers a tree/state refresh; a failed local refresh can
 reuse the transient result in the current tab. A tree version conflict refreshes
 the preview and requires another explicit confirmation.
 
+The chat shows one thinking line with elapsed time while the agent runs; tool
+progress stays out of the conversation UI. Assistant replies use
+[`react-markdown`](https://github.com/remarkjs/react-markdown) with
+[`remark-gfm`](https://github.com/remarkjs/remark-gfm) for Markdown, including
+nested lists, tables and code. Raw HTML is escaped and unsafe URL protocols are
+filtered by the renderer's defaults. User and system messages remain plain text.
+The fixed-size chat button sits beside the top toolbar with a localized native
+tooltip; the toolbar reserves its width whether the drawer is open or closed.
+Merge confirmation takes only the width of its controls and wraps when needed.
+
 The tree profile permits eight context reads, sixteen tool calls and ten new
 people per proposal. Existing endpoints must have been observed through a current
 context read. User messages total at most 10,000 characters and 200 visible
@@ -580,3 +590,22 @@ the login expired. History and the unsent draft survived renewal; the expired
 subscription stopped, and the rejected send preserved the draft. The isolated
 account and empty tree were removed. The proxy was restarted to discard a stale
 TLS-session certificate; certificate validation remained enabled.
+
+Chat presentation validation (2026-11-07): 269 backend and 422 frontend tests
+pass, with line coverage of 93.22% and 90.37%; every measured production file
+meets 75%. Backend/frontend quality, strict TypeScript, OpenAPI generation,
+Composer validation, production container checks and the production build pass.
+All 26 migrations were replayed and schema-validated on a disposable database.
+The frontend coverage run uses two workers after the existing force-simulation
+test exceeded five seconds under parallel load. The existing nine PHPUnit
+notices and Vite bundle-size advisory remain. No PHP files changed.
+
+Manual HTTPS validation in Chrome covered the restored conversation's nested
+Markdown lists; a live AI reply with a heading, bold text and a table; the lone
+thinking line; collapsing/reopening with an unsent draft; aligned toolbar and
+chat-button geometry in both drawer states; and compact merge controls. Renaming
+an isolated QA tree in another tab produced a tree-version conflict; the UI kept
+the preview and applied it only after a second explicit confirmation, creating
+both people. The QA tree and disposable migration database were removed.
+`npm audit --omit=dev` reports existing advisories in the unchanged `maplibre-gl`
+and `zod` dependencies; updating those packages is outside this presentation change.

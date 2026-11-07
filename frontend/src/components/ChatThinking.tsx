@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export function ChatThinking({ startedAt, progress }: { startedAt: number; progress: string[] }) {
+export function ChatThinking({ startedAt }: { startedAt: number }) {
   const { t } = useTranslation()
   const [now, setNow] = useState(Date.now)
   useEffect(
@@ -16,6 +16,5 @@ export function ChatThinking({ startedAt, progress }: { startedAt: number; progr
     <p role="status"><span className="chat-thinking-dot" aria-hidden="true" />{t('chat.processing')}
       <span className="chat-thinking-time" aria-label={t('chat.elapsed')}>{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>
     </p>
-    {progress.length > 0 && <ul aria-live="polite">{progress.map((step) => <li key={step}>{t(`chat.progress.${step}`, { defaultValue: t('chat.processing') })}</li>)}</ul>}
   </div>
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { ChatConversation } from '../api/generated'
@@ -34,6 +34,78 @@ describe(
   () => {
     beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
     afterEach(() => vi.useRealTimers())
+
+    it('renders assistant Markdown with nested lists, tables, code and safe links', async () => {
+      const markdown = [
+        '## Family',
+        '',
+        '**Vera** is *Anna’s* mother.',
+        '',
+        '- Parents',
+        '  - Vera',
+        '',
+        '1. Review the proposal',
+        '2. Confirm it',
+        '',
+        '> Dates are approximate.',
+        '',
+        'Use `unknown` for missing dates.',
+        '',
+        '```text',
+        'Vera -> Anna',
+        '```',
+        '',
+        '| Person | Year |',
+        '| --- | --- |',
+        '| Vera | 1970 |',
+        '',
+        '[Source](https://example.com/family)',
+      ].join('\n')
+      const next: ChatConversation = { ...completed, messages: [
+        { ...user, content: '**Keep my text literal** <b>Vera</b>' },
+        { ...completed.messages[1]!, content: markdown },
+      ] }
+      setup(async () => ({ conversation: next }))
+      const answer = within(await screen.findByRole('article', { name: 'Assistant' }))
+      expect(answer.getByRole('heading', { name: 'Family', level: 2 })).toBeInTheDocument()
+      expect(answer.getByText('Vera', { selector: 'strong' })).toBeInTheDocument()
+      expect(answer.getByText('Anna’s', { selector: 'em' })).toBeInTheDocument()
+      expect(answer.getAllByRole('list')).toHaveLength(3)
+      expect(answer.getByRole('table')).toHaveTextContent('Vera1970')
+      expect(answer.getByText('Vera -> Anna', { selector: 'pre code' })).toBeInTheDocument()
+      expect(answer.getByText('unknown', { selector: 'code' })).toBeInTheDocument()
+      expect(answer.getByText('Dates are approximate.').closest('blockquote')).not.toBeNull()
+      expect(answer.getByRole('link', { name: 'Source' })).toHaveAttribute('href', 'https://example.com/family')
+      const ownMessage = screen.getByRole('article', { name: 'You' })
+      expect(ownMessage).toHaveTextContent('**Keep my text literal** <b>Vera</b>')
+      expect(ownMessage.querySelector('strong, b')).toBeNull()
+    })
+
+    it('escapes raw HTML and removes executable URLs from assistant Markdown', async () => {
+      const html = '<img src=x onerror="alert(1)"><script>alert(1)</script>'
+      const next: ChatConversation = { ...completed, messages: [
+        { ...completed.messages[1]!, content: `${html}\n\n[Unsafe](javascript:alert%281%29)` },
+      ] }
+      setup(async () => ({ conversation: next }))
+      const answer = await screen.findByRole('article', { name: 'Assistant' })
+      expect(answer).toHaveTextContent(html)
+      expect(answer.querySelector('img, script')).toBeNull()
+      expect(within(answer).getByText('Unsafe')).toHaveAttribute('href', '')
+    })
+
+    it('keeps completed tool stages hidden while a restored or live turn is thinking', async () => {
+      const running: ChatConversation = { ...conversation, status: 'processing', progress: ['get_tree_context'] }
+      setup(async () => ({ conversation: running }))
+      expect(await screen.findByRole('status')).toHaveTextContent('Thinking...')
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      expect(screen.queryByText('Tree context received')).not.toBeInTheDocument()
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({
+        ...running, version: 2, progress: ['get_tree_context', 'merge', 'custom_tool_finished'],
+      }))
+      expect(screen.getByRole('status')).toHaveTextContent('Thinking...')
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      expect(screen.queryByText('Preparing the proposal')).not.toBeInTheDocument()
+    })
 
     it('keeps banned history and prepared tools readable while disabling text and voice', async () => {
       const banned: ChatConversation = { ...completed, access: {
