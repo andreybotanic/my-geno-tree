@@ -25,7 +25,7 @@ class Source {
 function setup(handler?: (path: string, init?: RequestInit) => Promise<unknown>) {
   const calls = vi.fn(
     handler ?? (async (path: string) => path.endsWith('/events')
-      ? { url: '/.well-known/mercure?match=test', expiresIn: 300 } : draft)
+      ? { url: '/.well-known/mercure?match=test', expiresIn: 3600 } : draft)
   )
   const applied = vi.fn()
   const opened = vi.fn()
@@ -62,7 +62,9 @@ describe(
         expect(calls).toHaveBeenCalledTimes(2)
         act(() => source.message({ kind: 'conversation', conversation: { ...draft, version: 4, status: 'idle' } }))
         expect(result.current.saved?.status).toBe('idle')
-        await act(async () => vi.advanceTimersByTimeAsync(220000))
+        await act(async () => vi.advanceTimersByTimeAsync(3519999))
+        expect(calls).toHaveBeenCalledTimes(2)
+        await act(async () => vi.advanceTimersByTimeAsync(1))
         expect(calls).toHaveBeenCalledTimes(3)
         expect(calls.mock.lastCall?.[0]).toMatch(/\/events$/)
         expect(Source.instances).toHaveLength(2)
@@ -80,6 +82,35 @@ describe(
         expect(calls.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
       }
     )
+
+    it.each([120, 1800])('renews a session-limited %i-second token one minute before expiry', async (expiresIn) => {
+      const { calls } = setup(async (path) => path.endsWith('/events') ? { url: '/events', expiresIn } : draft)
+      await act(async () => {})
+      await act(async () => Source.instances[0]!.onopen?.())
+      await act(async () => vi.advanceTimersByTimeAsync((expiresIn - 60) * 1000 - 1))
+      expect(calls).toHaveBeenCalledTimes(2)
+      await act(async () => vi.advanceTimersByTimeAsync(1))
+      expect(calls).toHaveBeenCalledTimes(3)
+      expect(Source.instances).toHaveLength(2)
+    })
+
+    it.each([1, 30, 60])('does not repeatedly renew a token in the final %i session seconds', async (expiresIn) => {
+      let expired = false
+      const { calls, result } = setup(async (path) => {
+        if (expired) throw new ApiRequestError(401, { code: 'UNAUTHORIZED', message: null, fields: {}, details: {} })
+        return path.endsWith('/events') ? { url: '/events', expiresIn } : draft
+      })
+      await act(async () => {})
+      await act(async () => Source.instances[0]!.onopen?.())
+      await act(async () => vi.advanceTimersByTimeAsync(expiresIn * 1000 - 1))
+      expect(calls).toHaveBeenCalledTimes(2)
+      expired = true
+      await act(async () => vi.advanceTimersByTimeAsync(1))
+      expect(calls).toHaveBeenCalledTimes(3)
+      expect(result.current.error).toBe('chat.unauthorized')
+      await act(async () => vi.advanceTimersByTimeAsync(60000))
+      expect(calls).toHaveBeenCalledTimes(3)
+    })
 
     it(
       'reconnects after an interruption, restores missed state and cleans up on switching drafts',
@@ -211,7 +242,7 @@ describe(
       const first = Source.instances[0]!
       await act(async () => first.onopen?.())
       const saved = result.current.saved
-      await act(async () => vi.advanceTimersByTimeAsync(240000))
+      await act(async () => vi.advanceTimersByTimeAsync(3540000))
       const broken = Source.instances[1]!
       act(() => broken.onerror?.())
       expect(broken.close).toHaveBeenCalledOnce()

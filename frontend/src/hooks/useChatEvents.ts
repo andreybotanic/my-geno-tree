@@ -92,7 +92,9 @@ export function useChatEvents(
         try {
           const subscription = await request<ChatSubscription>(`${path}/events`, { method: 'POST', signal: controller.signal })
           if (controller.signal.aborted) return
-          const renewalAt = Date.now() + Math.max(1000, (subscription.expiresIn - 60) * 1000)
+          // In the login's final minute a new token cannot extend the subscription.
+          const renewIn = subscription.expiresIn > 60 ? subscription.expiresIn - 60 : subscription.expiresIn
+          const renewalAt = Date.now() + Math.max(1000, renewIn * 1000)
           window.clearTimeout(timer)
           candidate?.close()
           const next = new EventSource(subscription.url, { withCredentials: true })

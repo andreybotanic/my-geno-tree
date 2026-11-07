@@ -4,6 +4,7 @@ namespace App\Controller\Api;
 
 use App\Api\RequestBodyMapper;
 use App\Application\Chat\ChatInterface;
+use App\Entity\AuthSession;
 use App\Http\ChatValueResolver;
 use App\Model\Conversation;
 use App\Security\ChatVoter;
@@ -77,13 +78,17 @@ final readonly class ChatController
         #[Autowire('%app.chat_topic_prefix%')]
         string $topicPrefix,
     ): JsonResponse {
+        $session = $request->attributes->get(AuthSession::class);
+        assert($session instanceof AuthSession);
+        $now = $clock->now();
+        $expiresAt = min($now->modify('+1 hour'), $session->getExpiresAt());
         $prefix = str_replace('{sessionId}', $conversation->sessionId->toRfc4122(), $topicPrefix);
         $cookie = $authorization
             ->createCookie(
                 $request,
                 ['urlpattern' => [$prefix . '*']],
                 additionalClaims: [
-                    'exp' => $clock->now()->modify('+5 minutes'),
+                    'exp' => $expiresAt,
                     'sub' => $conversation->sessionId->toRfc4122(),
                 ],
             )
@@ -91,7 +96,7 @@ final readonly class ChatController
         $response = new JsonResponse(
             [
                 'url'       => '/.well-known/mercure?match=' . rawurlencode($prefix . $conversation->id->toRfc4122()),
-                'expiresIn' => 300,
+                'expiresIn' => $expiresAt->getTimestamp() - $now->getTimestamp(),
             ],
             headers: ['Cache-Control' => 'no-store'],
         );

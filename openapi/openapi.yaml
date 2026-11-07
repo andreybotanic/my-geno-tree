@@ -2274,7 +2274,9 @@ components:
           description: 'Same-origin Mercure subscription URL.'
         expiresIn:
           type: integer
-          minimum: 60
+          minimum: 0
+          maximum: 3600
+          description: 'Token lifetime in seconds, capped at one hour and the remaining login session lifetime. Renew one minute before expiry; in the final session minute wait for expiry instead of repeatedly renewing.'
     ChatTokenUsage:
       type: object
       additionalProperties: false

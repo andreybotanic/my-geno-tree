@@ -77,6 +77,11 @@ class AuthSession
         return $this->lastUsedAt;
     }
 
+    public function getExpiresAt(): \DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
     public function isAccessActive(\DateTimeImmutable $now): bool
     {
         return null === $this->revokedAt && $this->accessExpiresAt > $now;

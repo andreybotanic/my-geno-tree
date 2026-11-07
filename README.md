@@ -310,7 +310,9 @@ tree lock and loads automatic child-birth events only for affected children.
 Private Mercure events carry conversation snapshots, progress, token usage and
 transient tool results. The hub retains no history. Opening or reconnecting
 fetches one chat snapshot and refreshes the tree; there is no periodic chat GET.
-A five-minute Secure, HttpOnly, SameSite=Strict cookie is renewed before expiry.
+A Secure, HttpOnly, SameSite=Strict cookie lasts at most one hour and never beyond
+the login session's expiry. It renews one minute before expiry. In the session's
+final minute it waits for expiry instead of repeatedly requesting the same token.
 Caddy forwards that cookie as a Bearer credential on its loopback-only
 authorization subrequest. The dedicated `chat_subscription` firewall uses the
 standard Symfony `access_token` authenticator and `ChatSubscriptionTokenHandler`.
@@ -561,3 +563,20 @@ without reloading or moving the preview camera. The account, empty tree and audi
 fixture were removed. The local proxy was also restarted after the browser
 presented an expired TLS-session certificate despite the server holding a renewed
 certificate; HTTPS was verified without bypassing certificate validation.
+
+Mercure lifetime validation (2026-11-07): 269 backend and 419 frontend tests pass,
+with line coverage of 93.22% and 90.37%; every measured production file meets 75%.
+Backend/frontend quality, OpenAPI generation, the production build and all 26
+migrations on a fresh database pass. The frontend coverage suite was rerun with
+two workers after a force-simulation test timed out under parallel load.
+PhpStorm WARNING inspections are clean for the controller and API test. Its
+existing warning about injecting `User` in the `AuthSession` entity constructor
+is a false positive: `debug:container` confirms that Doctrine excludes the entity
+from services, and the constructor sets its owning user rather than injecting one.
+
+Manual HTTPS validation covered a real chat response, subscription renewal with
+a test login shortened to 125 seconds, and rejection of another message after
+the login expired. History and the unsent draft survived renewal; the expired
+subscription stopped, and the rejected send preserved the draft. The isolated
+account and empty tree were removed. The proxy was restarted to discard a stale
+TLS-session certificate; certificate validation remained enabled.

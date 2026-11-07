@@ -2,13 +2,84 @@
 
 namespace App\Tests\Api\Tree;
 
+use App\Entity\AuthSession;
+use App\Entity\User;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
 use App\Tests\Infrastructure\Ai\TestMergeEvents;
+use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Clock\Clock;
+use Symfony\Component\Clock\MockClock;
+use Symfony\Component\Clock\NativeClock;
 
 final class ChatEventsApiTest extends ApiWebTestCase
 {
+    #[DataProvider('subscriptionLifetimes')]
+    public function testSubscriptionLifetimeIsCappedByTheLoginSession(int $remaining, int $expected): void
+    {
+        $clock = new MockClock();
+        Clock::set($clock);
+        try {
+            $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
+            $manager = static::getContainer()->get(EntityManagerInterface::class);
+            $user = $manager->find(User::class, $this->responseString('user', 'id'));
+            self::assertInstanceOf(User::class, $user);
+            $session = new AuthSession(
+                $user,
+                hash('sha256', 'bounded-session-token'),
+                $clock->now()->modify('+15 minutes'),
+                $clock->now()->modify(sprintf('+%d seconds', $remaining)),
+                $clock->now(),
+            );
+            $manager->persist($session);
+            $manager->flush();
+            $headers = ['Authorization' => 'Bearer bounded-session-token'];
+            $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Bounded subscription'], $headers);
+            $base = '/api/v1/trees/' . $this->responseString('id') . '/chat';
+            $this->jsonRequest('POST', $base, ['referencePersonId' => null], $headers);
+            $path = '/api/v1/chats/' . $this->responseString('id') . '/events';
+            $this->jsonRequest('POST', $path, [], $headers);
+            self::assertResponseIsSuccessful();
+            self::assertSame($expected, $this->responseInt('expiresIn'));
+            $cookie = array_find(
+                $this->client->getResponse()->headers->getCookies(),
+                static fn ($cookie) => '__Secure-mercure_access_token' === $cookie->getName(),
+            );
+            self::assertNotNull($cookie);
+            $token = (string)$cookie->getValue();
+            /** @var array{exp: float} $claims */
+            $claims = json_decode(
+                (string)base64_decode(strtr(explode('.', $token)[1], '-_', '+/')),
+                true,
+                flags: JSON_THROW_ON_ERROR,
+            );
+            self::assertEqualsWithDelta($clock->now()->getTimestamp() + $expected, $claims['exp'], 1);
+            self::assertLessThanOrEqual((float)$session->getExpiresAt()->format('U.u'), $claims['exp']);
+            $clock->sleep($remaining);
+            $this->jsonRequest(
+                'GET',
+                '/api/v1/chat-events/authorize',
+                headers: ['Authorization' => 'Bearer ' . $token],
+            );
+            self::assertResponseStatusCodeSame(401);
+        } finally {
+            Clock::set(new NativeClock());
+        }
+    }
+
+    /** @return iterable<string, array{int, int}> */
+    public static function subscriptionLifetimes(): iterable
+    {
+        yield 'long login' => [7200, 3600];
+        yield 'exactly one hour' => [3600, 3600];
+        yield 'two minutes remaining' => [120, 120];
+        yield 'one minute remaining' => [60, 60];
+        yield 'last thirty seconds' => [30, 30];
+        yield 'last second' => [1, 1];
+    }
+
     public function testSubscriberCookieIsRejectedImmediatelyAfterLogoutAndWhenForgedOrExpired(): void
     {
         $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
@@ -103,10 +174,10 @@ final class ChatEventsApiTest extends ApiWebTestCase
             $container = static::getContainer();
             $request = $container->get(\Symfony\Component\HttpFoundation\RequestStack::class)->getMainRequest();
             self::assertNotNull($request);
-            $session = $request->attributes->get(\App\Entity\AuthSession::class);
-            self::assertInstanceOf(\App\Entity\AuthSession::class, $session);
+            $session = $request->attributes->get(AuthSession::class);
+            self::assertInstanceOf(AuthSession::class, $session);
             $session->revoke(new \DateTimeImmutable());
-            $container->get(\Doctrine\ORM\EntityManagerInterface::class)->flush();
+            $container->get(EntityManagerInterface::class)->flush();
             TestMergeEvents::$updates = [];
             $container->get(\App\Application\Chat\ChatEventPublisherInterface::class)->conversation(
                 $conversation,
@@ -144,7 +215,7 @@ final class ChatEventsApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         $url = $this->responseString('url');
         self::assertStringStartsWith('/.well-known/mercure?match=', $url);
-        self::assertSame(300, $this->responseData()['expiresIn']);
+        self::assertSame(3600, $this->responseData()['expiresIn']);
         self::assertStringContainsString(
             'no-store',
             (string)$this->client->getResponse()->headers->get('Cache-Control'),
@@ -183,7 +254,7 @@ final class ChatEventsApiTest extends ApiWebTestCase
         );
         self::assertSame('https://my-geno-tree.localhost', $claims['iss']);
         self::assertSame(['https://my-geno-tree.localhost/.well-known/mercure'], (array)$claims['aud']);
-        self::assertLessThanOrEqual(microtime(true) + 300, $claims['exp']);
+        self::assertLessThanOrEqual(microtime(true) + 3600, $claims['exp']);
         self::assertSame([], TestMergeEvents::$updates);
         $this->jsonRequest('GET', $path, headers: $headers);
         self::assertSame([], TestMergeEvents::$updates);

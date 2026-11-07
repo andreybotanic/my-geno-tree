@@ -133,6 +133,9 @@ export type ChatSubscription = {
      * Same-origin Mercure subscription URL.
      */
     url: string;
+    /**
+     * Token lifetime in seconds, capped at one hour and the remaining login session lifetime. Renew one minute before expiry; in the final session minute wait for expiry instead of repeatedly renewing.
+     */
     expiresIn: number;
 };
 
