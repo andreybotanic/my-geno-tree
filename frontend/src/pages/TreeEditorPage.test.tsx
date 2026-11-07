@@ -442,12 +442,16 @@ describe(
           .closest(
             '.zoom-controls'
           )
-        if (!(resetPanel instanceof HTMLElement)) {
-          throw new Error('The camera reset panel was not found.')
+        if (!(resetPanel instanceof HTMLElement) || !(zoomPanel instanceof HTMLElement)) {
+          throw new Error('The camera control groups were not found.')
         }
         expect(within(resetPanel).getByRole('button', { name: 'Fit graph to view' }))
           .toBeInTheDocument()
         expect(resetPanel?.nextElementSibling).toBe(zoomPanel)
+        const camera = screen.getByRole('toolbar', { name: 'Camera tools' })
+        expect(camera).toContainElement(resetPanel)
+        expect(camera).toContainElement(zoomPanel)
+        expect(within(camera).getAllByRole('group')).toHaveLength(2)
         expect(request)
           .toHaveBeenCalledWith(
             `/trees/${treeId}/graph-mutations`,
@@ -1722,6 +1726,11 @@ describe(
           )
 
         await userEvent.click(await screen.findByRole('button', { name: 'Search people' }))
+        const tools = screen.getByRole('toolbar', { name: 'Tree tools' })
+        expect(within(tools).getByRole('group', { name: 'Search people' })).toBeInTheDocument()
+        expect(within(tools).getByRole('group', { name: 'View and export' })).toBeInTheDocument()
+        expect(tools).toContainElement(screen.getByRole('combobox', { name: 'Search by full name' }))
+        expect(tools).toContainElement(screen.getByRole('button', { name: 'Export' }))
         await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Hidden')
         await userEvent.click(await screen.findByRole('option', { name: /Hidden Ancestor/ }))
 

@@ -2379,6 +2379,7 @@ components:
           additionalProperties: true
         progress:
           type: array
+          description: Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
           items:
             type: string
         tokenUsage:
@@ -2447,6 +2448,7 @@ components:
               format: date-time
             progress:
               type: array
+              description: Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
               items:
                 type: string
             tokenUsage:

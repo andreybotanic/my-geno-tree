@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -324,8 +325,8 @@ function ZoomControls(
   }
 
   return (
-    <Panel className="camera-controls" position="bottom-right">
-      <div className="camera-reset-controls">
+    <Panel className="camera-controls editor-controls" position="bottom-right" role="toolbar" aria-label={t('editor.cameraTools')}>
+      <div className="camera-reset-controls editor-control-group" role="group" aria-label={t('editor.cameraPosition')}>
         <button
           aria-label={t('editor.resetCamera')}
           className="editor-tool-button"
@@ -345,7 +346,7 @@ function ZoomControls(
           <FitViewIcon aria-hidden="true" />
         </button>
       </div>
-      <div className="zoom-controls">
+      <div className="zoom-controls editor-control-group" role="group" aria-label={t('editor.zoom')}>
         <button
           aria-label={t('editor.zoomOut')}
           className="editor-tool-button"
@@ -410,6 +411,7 @@ function ZoomControls(
 }
 
 type LayoutToolbarProps = {
+  search?: ReactNode
   previewing?: boolean
   isNetworkView: boolean
   onExport: () => void
@@ -420,6 +422,7 @@ type LayoutToolbarProps = {
 
 function LayoutToolbar(
   {
+    search,
     previewing = false,
     isNetworkView,
     onExport,
@@ -431,55 +434,58 @@ function LayoutToolbar(
   const { t } = useTranslation()
 
   return (
-    <Panel className="editor-toolbar" position="top-right">
-      <button
-        aria-label={t('treeExport.action')}
-        disabled={previewing}
-        className="editor-tool-button"
-        onClick={onExport}
-        title={t('treeExport.action')}
-        type="button"
-      >
-        <ExportIcon aria-hidden="true" />
-      </button>
-      <button
-        aria-label={isNetworkView
-          ? t('editor.showTreeView')
-          : t('editor.showBloodNetwork')}
-        disabled={previewing}
-        className="editor-tool-button"
-        onClick={onToggleNetworkView}
-        title={isNetworkView
-          ? t('editor.showTreeView')
-          : t('editor.showBloodNetwork')}
-        type="button"
-      >
-        {isNetworkView
-          ? <TreeIcon aria-hidden="true" />
-          : <NetworkIcon aria-hidden="true" />}
-      </button>
-      {isNetworkView && (
-        <>
-          <button
-            aria-label={t('editor.saveBloodNetworkState')}
-            className="editor-tool-button"
-            onClick={onSaveNetworkState}
-            title={t('editor.saveBloodNetworkState')}
-            type="button"
-          >
-            <SaveIcon aria-hidden="true" />
-          </button>
-          <button
-            aria-label={t('editor.regenerateBloodNetwork')}
-            className="editor-tool-button"
-            onClick={onRegenerateNetwork}
-            title={t('editor.regenerateBloodNetwork')}
-            type="button"
-          >
-            <RotateIcon aria-hidden="true" />
-          </button>
-        </>
-      )}
+    <Panel className="editor-toolbar editor-controls" position="top-right" role="toolbar" aria-label={t('editor.toolbar')}>
+      {search && <div className="editor-control-group" role="group" aria-label={t('editor.personSearch')}>{search}</div>}
+      <div className="editor-control-group" role="group" aria-label={t('editor.viewTools')}>
+        <button
+          aria-label={t('treeExport.action')}
+          disabled={previewing}
+          className="editor-tool-button"
+          onClick={onExport}
+          title={t('treeExport.action')}
+          type="button"
+        >
+          <ExportIcon aria-hidden="true" />
+        </button>
+        <button
+          aria-label={isNetworkView
+            ? t('editor.showTreeView')
+            : t('editor.showBloodNetwork')}
+          disabled={previewing}
+          className="editor-tool-button"
+          onClick={onToggleNetworkView}
+          title={isNetworkView
+            ? t('editor.showTreeView')
+            : t('editor.showBloodNetwork')}
+          type="button"
+        >
+          {isNetworkView
+            ? <TreeIcon aria-hidden="true" />
+            : <NetworkIcon aria-hidden="true" />}
+        </button>
+        {isNetworkView && (
+          <>
+            <button
+              aria-label={t('editor.saveBloodNetworkState')}
+              className="editor-tool-button"
+              onClick={onSaveNetworkState}
+              title={t('editor.saveBloodNetworkState')}
+              type="button"
+            >
+              <SaveIcon aria-hidden="true" />
+            </button>
+            <button
+              aria-label={t('editor.regenerateBloodNetwork')}
+              className="editor-tool-button"
+              onClick={onRegenerateNetwork}
+              title={t('editor.regenerateBloodNetwork')}
+              type="button"
+            >
+              <RotateIcon aria-hidden="true" />
+            </button>
+          </>
+        )}
+      </div>
     </Panel>
   )
 }
@@ -1987,15 +1993,6 @@ function TreeCanvas(
             />
           )}
           <Background color="var(--color-border)" gap={22} size={1} />
-          {view === 'tree' && !mergeProjection && (
-            <Panel className="editor-search-panel" position="top-right">
-              <PersonSearchPanel
-                onSearch={searchPeople}
-                onSelect={(person) => void selectSearchResult(person)}
-                visiblePersonIds={renderedPersonIds}
-              />
-            </Panel>
-          )}
           {view === 'tree' && pathDisplay && !mergeProjection && (
             <Panel className="path-display-panel" position="top-left">
               <span className="path-display-title">
@@ -2026,6 +2023,11 @@ function TreeCanvas(
             </Panel>
           )}
           <LayoutToolbar
+            search={view === 'tree' && !mergeProjection ? <PersonSearchPanel
+              onSearch={searchPeople}
+              onSelect={(person) => void selectSearchResult(person)}
+              visiblePersonIds={renderedPersonIds}
+            /> : null}
             previewing={Boolean(mergeProjection)}
             isNetworkView={view === 'network'}
             onExport={onExport}

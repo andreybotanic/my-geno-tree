@@ -93,18 +93,40 @@ describe(
       expect(within(answer).getByText('Unsafe')).toHaveAttribute('href', '')
     })
 
-    it('keeps completed tool stages hidden while a restored or live turn is thinking', async () => {
+    it('shows only the last completed tool from restored and live progress', async () => {
       const running: ChatConversation = { ...conversation, status: 'processing', progress: ['get_tree_context'] }
       setup(async () => ({ conversation: running }))
-      expect(await screen.findByRole('status')).toHaveTextContent('Thinking...')
+      expect(await screen.findByRole('status')).toHaveTextContent('Tree context received')
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({
+        ...running, version: 2, progress: ['get_tree_context', 'merge'],
+      }))
+      expect(screen.getByRole('status')).toHaveTextContent('Proposal prepared')
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
       expect(screen.queryByText('Tree context received')).not.toBeInTheDocument()
-      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({
-        ...running, version: 2, progress: ['get_tree_context', 'merge', 'custom_tool_finished'],
-      }))
-      expect(screen.getByRole('status')).toHaveTextContent('Thinking...')
-      expect(screen.queryByRole('list')).not.toBeInTheDocument()
-      expect(screen.queryByText('Preparing the proposal')).not.toBeInTheDocument()
+    })
+
+    it('shows each message time below its text, with a full localized date in the tooltip', async () => {
+      const times = ['2026-11-07T05:01:00Z', '2026-11-07T05:02:00Z', '2026-11-07T05:03:00Z']
+      const next: ChatConversation = { ...completed, messages: [
+        { ...user, createdAt: times[0]! },
+        { ...completed.messages[1]!, createdAt: times[1]! },
+        { ...user, id: 'notice', role: 'system', content: '', failureCode: 'stopped', createdAt: times[2]! },
+      ] }
+      setup(async () => ({ conversation: next }))
+      await screen.findByRole('article', { name: 'Assistant' })
+      for (const [index, label] of ['You', 'Assistant', 'Notice'].entries()) {
+        const time = screen.getByRole('article', { name: label }).querySelector('time')!
+        const timestamp = times[index]!
+        expect(time).toHaveAttribute('datetime', timestamp)
+        expect(time).toHaveTextContent(new Date(timestamp).toLocaleTimeString('en',
+          { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }))
+        expect(time).toHaveAttribute('title', new Date(timestamp).toLocaleString('en'))
+        expect(time.previousElementSibling).toHaveClass('chat-message-body')
+      }
+      await act(async () => i18n.changeLanguage('ru'))
+      const notice = screen.getByRole('article', { name: 'Уведомление' }).querySelector('time')!
+      expect(notice).toHaveAttribute('title', new Date(times[2]!).toLocaleString('ru'))
     })
 
     it('keeps banned history and prepared tools readable while disabling text and voice', async () => {

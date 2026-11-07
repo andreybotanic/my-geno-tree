@@ -33,6 +33,7 @@ export const resources = {
           "rateLimit": "Too many transcription attempts. Please try again later."
         },
         "processing": "Thinking...",
+        "notice": "Notice",
         "elapsed": "Elapsed time",
         "tokens": "{{count}} tokens",
         "budgetPercent": "{{percent}}% of tokens remaining",
@@ -43,7 +44,7 @@ export const resources = {
           "get_tree_context": "Tree context received",
           "find_people": "Names searched",
           "get_person_context": "Related people checked",
-          "merge": "Preparing the proposal"
+          "merge": "Proposal prepared"
         },
         "processingFailed": "Could not process the message. Try again or add a clarification.",
         "failure": {
@@ -277,6 +278,11 @@ export const resources = {
         bloodNetworkSettlementThreshold: 'Settlement threshold (px/node/s)',
         regenerateBloodNetwork: 'Regenerate blood network',
         resetCamera: 'Reset camera',
+        toolbar: 'Tree tools',
+        viewTools: 'View and export',
+        cameraTools: 'Camera tools',
+        cameraPosition: 'Camera position',
+        zoom: 'Zoom',
         personSearch: 'Search people',
         personSearchField: 'Search by full name',
         personSearchEmpty: 'No people found.',
@@ -529,6 +535,7 @@ export const resources = {
           "rateLimit": "Слишком много попыток распознавания. Попробуйте позже."
         },
         "processing": "Думаю...",
+        "notice": "Уведомление",
         "elapsed": "Затраченное время",
         "tokens": "Токены: {{count}}",
         "budgetPercent": "Осталось {{percent}}% токенов",
@@ -539,7 +546,7 @@ export const resources = {
           "get_tree_context": "Контекст дерева получен",
           "find_people": "Поиск по именам выполнен",
           "get_person_context": "Связанные персоны проверены",
-          "merge": "Подготовка предложения"
+          "merge": "Предложение подготовлено"
         },
         "processingFailed": "Не удалось обработать сообщение. Попробуйте снова или добавьте уточнение.",
         "failure": {
@@ -778,6 +785,11 @@ export const resources = {
         bloodNetworkSettlementThreshold: 'Порог остановки (пикс./узел/с)',
         regenerateBloodNetwork: 'Перестроить карту кровного родства',
         resetCamera: 'Сбросить камеру',
+        toolbar: 'Инструменты дерева',
+        viewTools: 'Вид и экспорт',
+        cameraTools: 'Инструменты камеры',
+        cameraPosition: 'Положение камеры',
+        zoom: 'Масштаб',
         personSearch: 'Поиск персон',
         personSearchField: 'Поиск по ФИО',
         personSearchEmpty: 'Персоны не найдены.',

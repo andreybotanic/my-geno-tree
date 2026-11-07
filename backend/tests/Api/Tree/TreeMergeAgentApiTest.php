@@ -258,6 +258,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         $this->send();
         self::assertSame(3, $calls);
         self::assertNull($this->responseArray('tools')['merge'] ?? null);
+        self::assertSame(['model_request'], $this->responseArray('progress'));
         self::assertSame(
             'Please describe the person you want to add.',
             $this->responseString('messages', '1', 'content'),
@@ -428,6 +429,42 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         };
         $this->send();
         self::assertCount(1, $this->responseArray('messages'));
+    }
+
+    public function testProgressTracksCompletedToolsInOrderIncludingRepeatedReads(): void
+    {
+        $calls = 0;
+        static::getContainer()->set(
+            'chat_ai.client',
+            new MockHttpClient(
+                function () use (&$calls): MockResponse {
+                    ++$calls;
+
+                    return match ($calls) {
+                        1, 3    => $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]),
+                        2       => $this->toolResponse('find_people', ['treeId' => $this->treeId, 'query' => 'Vera']),
+                        default => $this->textResponse('No people have been added.'),
+                    };
+                },
+            ),
+        );
+        FixtureTreeAgent::$useReal = true;
+        $this->send();
+        self::assertResponseIsSuccessful();
+        self::assertSame(4, $calls);
+        $expected = ['model_request', 'get_tree_context', 'find_people', 'get_tree_context'];
+        self::assertSame($expected, $this->responseArray('progress'));
+        $progress = [];
+        foreach (TestMergeEvents::updates() as $event) {
+            $packet = json_decode($event->getData(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertIsArray($packet);
+            if ('progress' === $packet['kind']) {
+                $progress[] = $packet['progress'];
+            }
+        }
+        self::assertContains(['model_request', 'get_tree_context'], $progress);
+        self::assertContains(['model_request', 'get_tree_context', 'find_people'], $progress);
+        self::assertSame($expected, array_last($progress));
     }
 
     /** @param array<string, mixed> $arguments */

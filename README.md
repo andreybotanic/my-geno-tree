@@ -298,14 +298,20 @@ An ambiguous response triggers a tree/state refresh; a failed local refresh can
 reuse the transient result in the current tab. A tree version conflict refreshes
 the preview and requires another explicit confirmation.
 
-The chat shows one thinking line with elapsed time while the agent runs; tool
-progress stays out of the conversation UI. Assistant replies use
+While the agent runs, the chat shows only its latest completed tool action on
+one line with elapsed time, falling back to Thinking before the first action.
+Symfony AI tool-success events record completions in order, including repeated
+calls. User, assistant and system messages show their local 24-hour time below
+the content on the right; the tooltip includes the full localized date and time.
+Assistant replies use
 [`react-markdown`](https://github.com/remarkjs/react-markdown) with
 [`remark-gfm`](https://github.com/remarkjs/remark-gfm) for Markdown, including
 nested lists, tables and code. Raw HTML is escaped and unsafe URL protocols are
 filtered by the renderer's defaults. User and system messages remain plain text.
 The fixed-size chat button sits beside the top toolbar with a localized native
 tooltip; the toolbar reserves its width whether the drawer is open or closed.
+Search and view/export controls share one toolbar with separate groups. Camera
+position and zoom controls use the same grouped panel structure below the graph.
 Merge confirmation takes only the width of its controls and wraps when needed.
 
 The tree profile permits eight context reads, sixteen tool calls and ten new
@@ -610,3 +616,21 @@ the preview and applied it only after a second explicit confirmation, creating
 both people. The QA tree and disposable migration database were removed.
 `npm audit --omit=dev` reports existing advisories in the unchanged `maplibre-gl`
 and `zod` dependencies; updating those packages is outside this presentation change.
+
+Chat feedback and grouped controls validation (2026-11-07): 270 backend and 423
+frontend tests pass. Line coverage is 93.22% and 90.37%, and every measured
+production file meets 75%. Backend/frontend quality, OpenAPI generation,
+production build, Composer validation, schema validation and dev/prod container
+checks pass. All 26 migrations were replayed on a disposable database.
+PhpStorm WARNING inspections are clean for all three affected PHP files. Its
+nested-ternary finding in the changed chat service was replaced with a match.
+The existing PHPUnit notices and Vite bundle-size advisory remain.
+
+Manual Chrome HTTPS validation covered restored user/assistant timestamps and
+their placement below the text; live transitions from Thinking to tree-context
+completion and then name-search completion, with exactly one action visible;
+Stop producing a timestamped notice; and restoring history after a refresh.
+Search results, the empty-result state and Escape were checked in the shared
+toolbar. Search with the chat open, zoom/reset controls and switching to the
+blood-network view were also exercised. Both toolbars use the same panel/group
+structure. The isolated QA tree and migration-check database were removed.

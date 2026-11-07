@@ -13,7 +13,6 @@ use Symfony\AI\Agent\AgentInterface;
 use Symfony\AI\Agent\Execution\Update\Progress;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
-use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\DependencyInjection\Attribute\Target;
@@ -150,9 +149,12 @@ final readonly class ChatService implements ChatInterface
                     && in_array($error->getErrorCode(), ['CHAT_UNAVAILABLE', 'CHAT_BANNED'], true)) {
                     $accessError = $error;
                 }
-                $failure = $error instanceof ApiException && 'CHAT_TOKEN_LIMIT' === $error->getErrorCode()
-                    ? 'token_limit'
-                    : (null !== $accessError ? strtolower($accessError->getErrorCode()) : 'provider_unavailable');
+                $failure = match ($error instanceof ApiException ? $error->getErrorCode() : null) {
+                    'CHAT_TOKEN_LIMIT' => 'token_limit',
+                    'CHAT_UNAVAILABLE' => 'chat_unavailable',
+                    'CHAT_BANNED'      => 'chat_banned',
+                    default            => 'provider_unavailable',
+                };
             }
             $this->store->synchronized(
                 $running->contextKey,
@@ -307,13 +309,15 @@ final readonly class ChatService implements ChatInterface
 
     private function progress(Progress $progress): void
     {
+        if (Progress::STAGE_MODEL_REQUEST !== $progress->getStage()) {
+            return;
+        }
         $current = $this->execution()->conversation;
         $this->store->synchronized(
             $current->contextKey,
             function () use ($current, $progress): void {
                 $this->execution();
-                $payload = $progress->getPayload();
-                $stage = $payload instanceof ToolCall ? $payload->getName() : $progress->getStage();
+                $stage = $progress->getStage();
                 if (!in_array($stage, $current->progress, true)) {
                     $current->progress[] = $stage;
                     $this->store->persist($current);

@@ -111,6 +111,25 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         }
     }
 
+    #[AsEventListener(priority: -10)]
+    public function recordToolProgress(ToolCallSucceeded $event): void
+    {
+        $result = $event->getResult()->getResult();
+        if (!$this->executing() || (is_array($result) && isset($result['error']))) {
+            return;
+        }
+        $state = $this->store->execution()->conversation;
+        $this->store->synchronized(
+            $state->contextKey,
+            function () use ($state, $event): void {
+                $this->store->execution();
+                $state->progress[] = $event->getDefinition()->getName();
+                $this->store->persist($state);
+                $this->events->progress($state);
+            },
+        );
+    }
+
     #[AsEventListener(priority: -100)]
     public function onResult(ResultEvent $event): void
     {

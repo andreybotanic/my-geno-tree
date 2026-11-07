@@ -26,7 +26,7 @@ type Props = {
 }
 
 export function ChatPanel({ contextPath, createBody, request, onClose, open = true, disabled = false, placeholder, onConversationChange, onToolEvent, onStreamOpen, renderTools }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [conversation, setConversation] = useState<ChatConversation | null>(null)
   const [budget, setBudget] = useState<ChatTokenBudget | null>(null)
   const [accessState, setAccess] = useState<{ value: ChatAccess; receivedAt: number } | null>(null)
@@ -369,18 +369,25 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>}
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
           {conversation?.messages.map(
-            (message) => message.role === 'system' ? (
-              <p key={message.id} role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`, { number: message.warningNumber }) : message.content}</p>
-            ) : (
+            (message) => (
               <article key={message.id} className={`chat-message chat-message-${message.role}`}
-                aria-label={t(message.role === 'user' ? 'chat.you' : 'chat.assistant')}>
-                {message.role === 'assistant'
-                  ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
-                  : <p>{message.content}</p>}
+                aria-label={t(message.role === 'user' ? 'chat.you' : message.role === 'assistant' ? 'chat.assistant' : 'chat.notice')}>
+                <div className="chat-message-body">
+                  {message.role === 'system'
+                    ? <p role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`, { number: message.warningNumber }) : message.content}</p>
+                    : message.role === 'assistant'
+                      ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+                      : <p>{message.content}</p>}
+                </div>
+                <time className="chat-message-time" dateTime={message.createdAt}
+                  title={new Date(message.createdAt).toLocaleString(i18n.resolvedLanguage)}>
+                  {new Date(message.createdAt).toLocaleTimeString(i18n.resolvedLanguage,
+                    { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
+                </time>
               </article>
             )
           )}
-          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} />}
+          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} progress={conversation?.progress ?? []} />}
           {conversation?.status === 'error' && !conversation.messages.at(-1)?.failureCode && <p role="alert">{t('chat.processingFailed')}</p>}
           <div ref={messagesEnd} />
         </div>

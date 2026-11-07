@@ -176,6 +176,9 @@ export type ChatConversation = {
     tools: {
         [key: string]: unknown;
     };
+    /**
+     * Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
+     */
     progress: Array<string>;
     tokenUsage: ChatTokenUsage;
     tokenBudget: ChatTokenBudget;
@@ -196,6 +199,9 @@ export type ChatEvent = {
     version: number;
     attemptId: string;
     attemptStartedAt: string;
+    /**
+     * Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
+     */
     progress: Array<string>;
     tokenUsage: ChatTokenUsage;
 } | {
