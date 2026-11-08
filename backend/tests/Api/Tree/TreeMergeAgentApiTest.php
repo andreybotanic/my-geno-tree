@@ -532,6 +532,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             if ('progress' === $packet['kind']) {
                 self::assertArrayNotHasKey('progress', $packet);
                 self::assertStringNotContainsString('get_tree_context', $event->getData());
+                self::assertContains($packet['commentary'], [null, 'Проверяю семью.', 'Уточняю результат.']);
                 if ($commentarySeen) {
                     self::assertIsString($packet['commentary']);
                     self::assertNotSame('', trim($packet['commentary']));

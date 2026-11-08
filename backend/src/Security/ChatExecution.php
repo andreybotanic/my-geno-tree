@@ -11,8 +11,6 @@ final class ChatExecution
 {
     public int $version;
     public ?ExecutionInterface $native = null;
-    public string $commentaryBuffer = '';
-    public float $lastCommentaryPublishedAt = 0;
     /** @var list<array<string, mixed>> */
     public array $observations = [];
 

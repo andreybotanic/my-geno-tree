@@ -19,8 +19,6 @@ use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\Stream\Delta\CommentaryComplete;
-use Symfony\AI\Platform\Result\Stream\Delta\CommentaryDelta;
-use Symfony\AI\Platform\Result\Stream\Delta\CommentaryStart;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\DependencyInjection\Attribute\Target;
@@ -326,37 +324,16 @@ final readonly class ChatService implements ChatInterface
     private function progress(Progress $progress): void
     {
         $payload = $progress->getPayload();
-        if (Progress::STAGE_MODEL_REQUEST === $progress->getStage() || $payload instanceof CommentaryStart) {
-            $this->execution()->commentaryBuffer = '';
-
+        if (!$payload instanceof CommentaryComplete || '' === trim($payload->getCommentary())) {
             return;
         }
-        if (!$payload instanceof CommentaryDelta && !$payload instanceof CommentaryComplete) {
-            return;
-        }
-        $execution = $this->execution();
-        $current = $execution->conversation;
-        if ($payload instanceof CommentaryDelta) {
-            $execution->commentaryBuffer .= $payload->getCommentary();
-            if ('' === trim($execution->commentaryBuffer)) {
-                return;
-            }
-            $current->commentary = $execution->commentaryBuffer;
-            if (microtime(true) - $execution->lastCommentaryPublishedAt < 0.1) {
-                return;
-            }
-        } else {
-            if ('' === trim($payload->getCommentary())) {
-                return;
-            }
-            $current->commentary = $payload->getCommentary();
-        }
+        $current = $this->execution()->conversation;
         $this->store->synchronized(
             $current->contextKey,
-            function () use ($current, $execution): void {
+            function () use ($current, $payload): void {
                 $this->execution();
+                $current->commentary = $payload->getCommentary();
                 ++$current->progressSequence;
-                $execution->lastCommentaryPublishedAt = microtime(true);
                 $this->store->persist($current);
                 $this->events->progress($current);
             }

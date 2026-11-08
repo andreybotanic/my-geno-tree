@@ -303,12 +303,12 @@ reuse the transient result in the current tab. A tree version conflict refreshes
 the preview and requires another explicit confirmation.
 
 The tree agent uses the official `symfony/ai-open-responses-platform` bridge
-and streams `/v1/responses` through CLIProxyAPI. Symfony AI commentary deltas
-update the current action while generation is running, before tools execute.
+and streams `/v1/responses` through CLIProxyAPI. Symfony AI `CommentaryComplete`
+events update the current action with a whole commentary block before tools execute.
 The panel shows `Thinking...` (`Думаю...`) until commentary arrives, with elapsed
 time. Tool names and reasoning are excluded from progress. Final answers remain
-complete messages. Commentary snapshots are coalesced at 100 ms, flushed on block
-completion, and ordered by `attemptId` and `progressSequence`; shorter updates and
+complete messages. Partial commentary deltas stay internal. Commentary snapshots
+are ordered by `attemptId` and `progressSequence`; shorter updates and
 cleared commentary therefore survive delayed or repeated SSE packets. Long
 commentary wraps within the panel. The latest nonempty action stays visible
 between model rounds until new commentary replaces it; empty commentary blocks
