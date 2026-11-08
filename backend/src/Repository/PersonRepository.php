@@ -4,7 +4,7 @@ namespace App\Repository;
 
 use App\Entity\FamilyTree;
 use App\Entity\Person;
-use App\Infrastructure\Doctrine\ReadsGenealogyPages;
+use App\Infrastructure\Doctrine\Hydration\GenealogyRecordHydrator;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -13,8 +13,6 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class PersonRepository extends ServiceEntityRepository
 {
-    use ReadsGenealogyPages;
-
     public const array READ_GROUPS = ['identity', 'life', 'places', 'metadata'];
     private const array READ_FIELDS = [
         'identity' => ['givenName', 'birthSurname', 'patronymic', 'gender'],
@@ -59,18 +57,32 @@ final class PersonRepository extends ServiceEntityRepository
                 ->leftJoin('item.birthPlace', 'birthPlace')
                 ->leftJoin('item.deathPlace', 'deathPlace');
         }
-        $page = $this->genealogyPage($query, $after, $limit);
+        $total = (int)(clone $query)
+            ->select('COUNT(item.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+        if (null !== $after) {
+            $query
+                ->andWhere('item.id > :after')
+                ->setParameter('after', $after);
+        }
+        /** @var list<array<string, mixed>> $items */
+        $items = $query
+            ->orderBy('item.id', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult(GenealogyRecordHydrator::MODE);
         $fields = ['id'];
         foreach ($groups as $group) {
             $fields = [...$fields, ...self::READ_FIELDS[$group]];
         }
         $selection = array_fill_keys($fields, true);
-        $page['items'] = array_map(
+        $items = array_map(
             static fn (array $record): array => array_intersect_key($record, $selection),
-            $page['items'],
+            $items,
         );
 
-        return $page;
+        return ['total' => $total, 'items' => $items];
     }
 
     /** @return list<Person> */

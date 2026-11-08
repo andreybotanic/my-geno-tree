@@ -6,7 +6,7 @@ use App\Entity\FamilyTree;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\ParentRole;
-use App\Infrastructure\Doctrine\ReadsGenealogyPages;
+use App\Infrastructure\Doctrine\Hydration\GenealogyRecordHydrator;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -15,8 +15,6 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class ParentLinkRepository extends ServiceEntityRepository
 {
-    use ReadsGenealogyPages;
-
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, ParentLink::class);
@@ -41,7 +39,23 @@ final class ParentLinkRepository extends ServiceEntityRepository
                 ->setParameter('people', $personIds);
         }
 
-        return $this->genealogyPage($query, $after, $limit);
+        $total = (int)(clone $query)
+            ->select('COUNT(item.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+        if (null !== $after) {
+            $query
+                ->andWhere('item.id > :after')
+                ->setParameter('after', $after);
+        }
+        /** @var list<array<string, mixed>> $items */
+        $items = $query
+            ->orderBy('item.id', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult(GenealogyRecordHydrator::MODE);
+
+        return ['total' => $total, 'items' => $items];
     }
 
     /**

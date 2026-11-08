@@ -5,7 +5,7 @@ namespace App\Repository;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\Person;
-use App\Infrastructure\Doctrine\ReadsGenealogyPages;
+use App\Infrastructure\Doctrine\Hydration\GenealogyRecordHydrator;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,8 +14,6 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class MarriagePeriodRepository extends ServiceEntityRepository
 {
-    use ReadsGenealogyPages;
-
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MarriagePeriod::class);
@@ -47,7 +45,23 @@ final class MarriagePeriodRepository extends ServiceEntityRepository
                 ->setParameter('people', $personIds);
         }
 
-        return $this->genealogyPage($query, $after, $limit);
+        $total = (int)(clone $query)
+            ->select('COUNT(item.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+        if (null !== $after) {
+            $query
+                ->andWhere('item.id > :after')
+                ->setParameter('after', $after);
+        }
+        /** @var list<array<string, mixed>> $items */
+        $items = $query
+            ->orderBy('item.id', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult(GenealogyRecordHydrator::MODE);
+
+        return ['total' => $total, 'items' => $items];
     }
 
     /**
