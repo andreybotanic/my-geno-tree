@@ -116,14 +116,13 @@ final class PersonRepository extends ServiceEntityRepository
      *
      * @return list<Person>
      */
-    public function findRelationshipPeopleByTreeAndIds(FamilyTree $tree, array $ids): array
+    public function findRelationshipPeopleByTreeAndIds(FamilyTree $tree, array $ids, bool $refresh = false): array
     {
         if ([] === $ids) {
             return [];
         }
 
-        /** @var list<Person> $people */
-        $people = $this
+        $query = $this
             ->createQueryBuilder('person')
             ->addSelect('photoAttachment', 'photoMedia')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
@@ -133,8 +132,12 @@ final class PersonRepository extends ServiceEntityRepository
             ->setParameter('tree', $tree)
             ->setParameter('ids', $ids)
             ->orderBy('person.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->getQuery();
+        if ($refresh) {
+            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
+        }
+        /** @var list<Person> $people */
+        $people = $query->getResult();
 
         return $people;
     }

@@ -92,6 +92,24 @@ final class EventPlaceApiTest extends ApiWebTestCase
         }
 
         $this->jsonRequest(
+            'PUT',
+            sprintf('/api/v1/trees/%s/events/%s/place', $treeId, $birth['id']),
+            ['name' => 'Historical settlement', 'coordinates' => null],
+            [
+                'Authorization' => 'Bearer ' . $token,
+                'If-Match'      => $saved['etag'],
+            ],
+        );
+        self::assertResponseIsSuccessful();
+        /** @var PlaceMutation $saved */
+        $saved = $this->responseData();
+        self::assertSame(['name' => 'Historical settlement', 'coordinates' => null], $saved['event']['place']);
+        foreach ($snapshot['parentLinks'] as $link) {
+            $projection = $this->event($token, $treeId, $link['parentId'], 'child_birth');
+            self::assertSame($saved['event']['place'], $projection['place']);
+        }
+
+        $this->jsonRequest(
             'DELETE',
             sprintf('/api/v1/trees/%s/events/%s/place', $treeId, $birth['id']),
             headers: [

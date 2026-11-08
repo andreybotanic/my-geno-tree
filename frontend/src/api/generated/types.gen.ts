@@ -507,8 +507,8 @@ export type PersonInput = {
     gender: Gender;
     birthDate: GenealogicalDate;
     deathDate: GenealogicalDate | null;
-    birthPlace?: ResolvedEventPlace | null;
-    deathPlace?: ResolvedEventPlace | null;
+    birthPlace?: EventPlace | null;
+    deathPlace?: EventPlace | null;
 };
 
 export type PersonPatchRequest = {
@@ -751,8 +751,8 @@ export type DetailedAddParentsMutation = {
 export type ParentsMarriageInput = {
     marriageDate: GenealogicalDate;
     dissolutionDate: GenealogicalDate | null;
-    marriagePlace?: ResolvedEventPlace | null;
-    dissolutionPlace?: ResolvedEventPlace | null;
+    marriagePlace?: EventPlace | null;
+    dissolutionPlace?: EventPlace | null;
     maleNewSurname: string | null;
     femaleNewSurname: string | null;
 };
@@ -785,8 +785,8 @@ export type AddMarriagePeriodMutation = {
     dissolutionDate: GenealogicalDate | null;
     maleNewSurname: string | null;
     femaleNewSurname: string | null;
-    marriagePlace?: ResolvedEventPlace | null;
-    dissolutionPlace?: ResolvedEventPlace | null;
+    marriagePlace?: EventPlace | null;
+    dissolutionPlace?: EventPlace | null;
 };
 
 export type RemoveParentLinkMutation = {
@@ -832,21 +832,21 @@ export type CustomEventRequest = {
     date: GenealogicalDate;
     title: string;
     description: string | null;
-    place?: ResolvedEventPlace | null;
+    place?: EventPlace | null;
 };
 
 export type SurnameChangeEventRequest = {
     type: 'surname_change';
     date: GenealogicalDate;
     newSurname: string;
-    place?: ResolvedEventPlace | null;
+    place?: EventPlace | null;
 };
 
 export type ResidenceEventRequest = {
     type: 'residence';
     date: GenealogicalDate;
     description: string | null;
-    place?: ResolvedEventPlace | null;
+    place?: EventPlace | null;
 };
 
 export type ManualEventRequest = CustomEventRequest | SurnameChangeEventRequest | ResidenceEventRequest;
@@ -3432,7 +3432,7 @@ export type DeleteEventPlaceResponses = {
 export type DeleteEventPlaceResponse = DeleteEventPlaceResponses[keyof DeleteEventPlaceResponses];
 
 export type PutEventPlaceData = {
-    body: ResolvedEventPlace;
+    body: EventPlace;
     headers: {
         /**
          * ETag returned by the latest tree representation

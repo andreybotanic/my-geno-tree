@@ -32,7 +32,7 @@ class EventPlace
         $this->setCoordinates($latitude, $longitude);
     }
 
-    public static function resolved(string $name, float $latitude, float $longitude): self
+    public static function resolved(string $name, ?float $latitude, ?float $longitude): self
     {
         return new self($name, $latitude, $longitude);
     }
@@ -67,7 +67,7 @@ class EventPlace
         return null !== $this->latitude;
     }
 
-    public function resolve(string $name, float $latitude, float $longitude): void
+    public function resolve(string $name, ?float $latitude, ?float $longitude): void
     {
         $this->name = $this->normalizeName($name);
         $this->setCoordinates($latitude, $longitude);

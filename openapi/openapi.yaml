@@ -1790,7 +1790,7 @@ paths:
       - $ref: "#/components/parameters/EventId"
     put:
       operationId: putEventPlace
-      summary: Create or resolve the place of any event
+      summary: Save the name and optional coordinates of any event place
       security:
         - bearerAuth: []
       parameters:
@@ -1800,7 +1800,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ResolvedEventPlace"
+              $ref: "#/components/schemas/EventPlace"
       responses:
         "200":
           description: Event place saved and related automatic projections synchronized
@@ -3223,11 +3223,11 @@ components:
             - type: "null"
         birthPlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
         deathPlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
     PersonPatchRequest:
       type: object
@@ -3874,11 +3874,11 @@ components:
             - type: "null"
         marriagePlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
         dissolutionPlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
         maleNewSurname:
           type:
@@ -3990,11 +3990,11 @@ components:
           maxLength: 100
         marriagePlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
         dissolutionPlace:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
     RemoveParentLinkMutation:
       type: object
@@ -4147,7 +4147,7 @@ components:
           maxLength: 5000
         place:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
     SurnameChangeEventRequest:
       type: object
@@ -4168,7 +4168,7 @@ components:
           maxLength: 100
         place:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
     ResidenceEventRequest:
       type: object
@@ -4190,7 +4190,7 @@ components:
           maxLength: 5000
         place:
           oneOf:
-            - $ref: "#/components/schemas/ResolvedEventPlace"
+            - $ref: "#/components/schemas/EventPlace"
             - type: "null"
     ManualEventRequest:
       oneOf:

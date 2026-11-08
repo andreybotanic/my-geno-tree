@@ -246,6 +246,19 @@ FamilyTreeVoter continues to authorize each tree. OAuthClient extends the bundle
 supported client model with normal ORM attributes; no metadata event listener is
 needed. REST and MCP exception listeners use the matched firewall configuration.
 
+### Manual event batches and text-only places
+
+ManualEventService::createMany creates independent events for a list of people
+in one transaction. It validates every participant and date before persisting
+events, rejects repeated or foreign participants and updates the tree revision
+once. Single-person REST creation delegates to this same operation. The core
+operation can also be called by tree tools and a future participant-selection UI;
+no shared-event entity or new UI is introduced.
+
+Person and event place inputs accept coordinates=null alongside a nonempty name.
+Existing geocoding responses continue to return resolved coordinates. Text-only
+places preserve historical or unresolved names without inventing a map position.
+
 ### Chat profiles and the merge tool
 
 The AI panel is a reusable Symfony AI conversation. Its backend-selected profile

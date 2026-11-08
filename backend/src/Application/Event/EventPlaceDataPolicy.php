@@ -21,6 +21,9 @@ final readonly class EventPlaceDataPolicy
             $this->invalid($field . '.name', 'text_length_invalid');
         }
         $coordinates = $value['coordinates'];
+        if (null === $coordinates) {
+            return new EventPlaceData($name, null, null);
+        }
         if (!is_array($coordinates) || array_is_list($coordinates)) {
             $this->invalid($field . '.coordinates', 'object_required');
         }

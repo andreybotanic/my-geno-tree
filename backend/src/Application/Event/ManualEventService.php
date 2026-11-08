@@ -9,6 +9,7 @@ use App\Entity\FamilyTree;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Repository\GenealogicalEventRepository;
+use App\Repository\PersonRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\ClockInterface;
@@ -22,6 +23,7 @@ final readonly class ManualEventService
         private EventChronology $chronology,
         private EventTimelineService $timeline,
         private GenealogicalEventRepository $events,
+        private PersonRepository $people,
         private TreeVersion $versions,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
@@ -37,39 +39,97 @@ final readonly class ManualEventService
         array $payload,
         ?string $ifMatch,
     ): GenealogicalEvent {
-        return $this->entityManager->wrapInTransaction(function () use (
-            $tree,
-            $person,
-            $payload,
-            $ifMatch,
-        ): GenealogicalEvent {
-            $this->lock($tree, $person, $ifMatch);
-            $data = $this->dataPolicy->event($person, $payload);
-            $changedAt = $this->clock->now();
-            $place = null;
-            if (null !== $data->place) {
-                $place = EventPlace::resolved(
-                    $data->place->name,
-                    $data->place->latitude,
-                    $data->place->longitude,
-                );
-                $this->entityManager->persist($place);
-            }
-            $event = GenealogicalEvent::manual(
-                $person,
-                $data->type,
-                $data->date,
-                $data->title,
-                $data->description,
-                $data->data,
-                $changedAt,
-                $place,
-            );
-            $this->entityManager->persist($event);
-            $tree->touch($changedAt);
+        return $this->createMany($tree, [$person], $payload, $ifMatch)[0];
+    }
 
-            return $event;
-        });
+    /**
+     * Creates independent event records for all participants atomically.
+     *
+     * @param list<Person>         $people
+     * @param array<string, mixed> $payload
+     *
+     * @return list<GenealogicalEvent>
+     */
+    public function createMany(
+        FamilyTree $tree,
+        array $people,
+        array $payload,
+        ?string $ifMatch,
+    ): array {
+        if ([] === $people || !array_is_list($people)) {
+            throw new ApiException(422, 'EVENT_PARTICIPANTS_INVALID');
+        }
+        $ids = [];
+        foreach ($people as $person) {
+            if (!$person->getTree()->getId()->equals($tree->getId())) {
+                throw new ApiException(404, 'PERSON_NOT_FOUND');
+            }
+            $id = $person->getId()->toRfc4122();
+            if (isset($ids[$id])) {
+                throw new ApiException(422, 'EVENT_PARTICIPANTS_INVALID');
+            }
+            $ids[$id] = true;
+        }
+
+        return $this->entityManager->wrapInTransaction(
+            function () use (
+                $tree,
+                $people,
+                $ids,
+                $payload,
+                $ifMatch,
+            ): array {
+                $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($tree);
+                $this->versions->assertMatches($tree, $ifMatch);
+                // Every mutation locks the tree, so one refresh query replaces per-person locks and refreshes.
+                $managed = $this->people->findRelationshipPeopleByTreeAndIds($tree, array_keys($ids), true);
+                if (count($managed) !== count($people)) {
+                    throw new ApiException(404, 'PERSON_NOT_FOUND');
+                }
+                $byId = [];
+                foreach ($managed as $person) {
+                    $byId[$person->getId()->toRfc4122()] = $person;
+                }
+                $people = array_map(
+                    static fn (Person $person): Person => $byId[$person->getId()->toRfc4122()],
+                    $people,
+                );
+                $validated = array_map(
+                    fn (Person $person): ManualEventData => $this->dataPolicy->event($person, $payload),
+                    $people,
+                );
+                $changedAt = $this->clock->now();
+                $created = [];
+                foreach ($people as $index => $person) {
+                    $data = $validated[$index];
+                    $place = null;
+                    if (null !== $data->place) {
+                        $place = EventPlace::resolved(
+                            $data->place->name,
+                            $data->place->latitude,
+                            $data->place->longitude,
+                        );
+                        $this->entityManager->persist($place);
+                    }
+                    $event = GenealogicalEvent::manual(
+                        $person,
+                        $data->type,
+                        $data->date,
+                        $data->title,
+                        $data->description,
+                        $data->data,
+                        $changedAt,
+                        $place,
+                    );
+                    $this->entityManager->persist($event);
+                    $created[] = $event;
+                }
+                $tree->touch($changedAt);
+
+                return $created;
+            },
+        );
     }
 
     /**

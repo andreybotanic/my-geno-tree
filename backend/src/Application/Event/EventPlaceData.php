@@ -6,8 +6,8 @@ final readonly class EventPlaceData
 {
     public function __construct(
         public string $name,
-        public float $latitude,
-        public float $longitude,
+        public ?float $latitude,
+        public ?float $longitude,
     ) {
     }
 }

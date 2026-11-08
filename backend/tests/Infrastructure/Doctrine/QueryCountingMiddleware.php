@@ -20,6 +20,7 @@ use Symfony\Component\DependencyInjection\Attribute\When;
 final class QueryCountingMiddleware implements Middleware
 {
     private int $queryCount = 0;
+    private int $selectCount = 0;
 
     public function wrap(Driver $driver): Driver
     {
@@ -43,17 +44,20 @@ final class QueryCountingMiddleware implements Middleware
 
                     public function prepare(string $sql): Statement
                     {
-                        return new class(parent::prepare($sql), $this->counter) extends AbstractStatementMiddleware {
+                        $statement = parent::prepare($sql);
+
+                        return new class($statement, $this->counter, $sql) extends AbstractStatementMiddleware {
                             public function __construct(
                                 Statement $statement,
                                 private readonly QueryCountingMiddleware $counter,
+                                private readonly string $sql,
                             ) {
                                 parent::__construct($statement);
                             }
 
                             public function execute(): Result
                             {
-                                $this->counter->increment();
+                                $this->counter->increment($this->sql);
 
                                 return parent::execute();
                             }
@@ -62,14 +66,14 @@ final class QueryCountingMiddleware implements Middleware
 
                     public function query(string $sql): Result
                     {
-                        $this->counter->increment();
+                        $this->counter->increment($sql);
 
                         return parent::query($sql);
                     }
 
                     public function exec(string $sql): int|string
                     {
-                        $this->counter->increment();
+                        $this->counter->increment($sql);
 
                         return parent::exec($sql);
                     }
@@ -81,15 +85,24 @@ final class QueryCountingMiddleware implements Middleware
     public function reset(): void
     {
         $this->queryCount = 0;
+        $this->selectCount = 0;
     }
 
-    public function increment(): void
+    public function increment(string $sql = ''): void
     {
         ++$this->queryCount;
+        if (str_starts_with(ltrim(strtoupper($sql)), 'SELECT')) {
+            ++$this->selectCount;
+        }
     }
 
     public function count(): int
     {
         return $this->queryCount;
+    }
+
+    public function selectCount(): int
+    {
+        return $this->selectCount;
     }
 }
