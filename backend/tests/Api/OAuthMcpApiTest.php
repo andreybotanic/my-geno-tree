@@ -21,6 +21,7 @@ use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
 use Lcobucci\JWT\Encoding\JoseEncoder;
 use Lcobucci\JWT\Token\Parser;
 use Lcobucci\JWT\UnencryptedToken;
+use Mcp\Server\Stateless\RequestStateCodec;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Uid\Uuid;
@@ -33,6 +34,8 @@ final class OAuthMcpApiTest extends ApiWebTestCase
     private string $etag;
     private string $accessToken;
     private string $refreshToken;
+    /** @var array<string, mixed> */
+    private array $clientCapabilities = [];
     private const string VERIFIER = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
     protected function setUp(): void
@@ -90,8 +93,19 @@ final class OAuthMcpApiTest extends ApiWebTestCase
                 'get_tree_context',
                 'find_people',
                 'get_person_context',
-                'merge',
-                'change_tree',
+                'create_person',
+                'update_person',
+                'delete_person',
+                'add_parent_link',
+                'remove_parent_link',
+                'create_marriage_period',
+                'update_marriage_period',
+                'remove_marriage_period',
+                'create_event',
+                'update_event',
+                'delete_event',
+                'set_event_place',
+                'reorder_events',
                 'list_people',
                 'list_relationships',
                 'list_events',
@@ -105,10 +119,182 @@ final class OAuthMcpApiTest extends ApiWebTestCase
             self::assertStringContainsString('expectedEtag', $tools[$name]['description']);
             self::assertStringContainsString('128 KiB', $tools[$name]['description']);
         }
-        self::assertFalse($tools['merge']['annotations']['readOnlyHint']);
-        self::assertArrayHasKey('idempotentHint', $tools['merge']['annotations']);
-        self::assertSame(false, $tools['merge']['annotations']['idempotentHint'] ?? null);
-        self::assertStringContainsString('APPLY', $tools['merge']['description']);
+        self::assertFalse($tools['create_person']['annotations']['readOnlyHint']);
+        self::assertArrayHasKey('idempotentHint', $tools['create_person']['annotations']);
+        self::assertSame(false, $tools['create_person']['annotations']['idempotentHint'] ?? null);
+        self::assertStringContainsString('confirmation', $tools['create_person']['description']);
+    }
+
+    public function testPersonMutationsRequireBoundClientElicitationAndChainTheirEtags(): void
+    {
+        $this->authorize();
+        $arguments = [
+            'treeId'     => $this->treeId,
+            'ifMatch'    => $this->etag,
+            'fields'     => ['givenName' => ['state' => 'known', 'value' => 'Vera']],
+            'connection' => null,
+        ];
+        $this->call('create_person', $arguments);
+        self::assertTrue($this->responseArray('result')['isError']);
+        self::assertSame('CONFIRMATION_UNSUPPORTED', $this->responseString('result', 'structuredContent', 'code'));
+        $this->clientCapabilities = ['elicitation' => ['form' => new \stdClass()]];
+        $this->call('create_person', $arguments);
+        self::assertSame('input_required', $this->responseString('result', 'resultType'));
+        self::assertSame('elicitation/create', $this->responseString('result', 'inputRequests', 'approval', 'method'));
+        $state = $this->responseString('result', 'requestState');
+        $answer = ['approval' => ['action' => 'accept', 'content' => ['approved' => true]]];
+        $changed = $arguments;
+        $changed['fields']['givenName']['value'] = 'Changed without approval';
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'create_person',
+                'arguments'      => $changed,
+                'requestState'   => $state,
+                'inputResponses' => $answer,
+            ]
+        );
+        self::assertSame('CONFIRMATION_INVALID', $this->responseString('result', 'structuredContent', 'code'));
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'create_person',
+                'arguments'      => $arguments,
+                'requestState'   => $state,
+                'inputResponses' => $answer,
+            ]
+        );
+        self::assertFalse(
+            $this->responseArray(
+                'result'
+            )['isError'] ?? false,
+            json_encode(
+                $this->responseData(),
+                JSON_THROW_ON_ERROR
+            )
+        );
+        $created = $this->responseArray('result', 'structuredContent');
+        self::assertNotSame($this->etag, $created['etag']);
+        $this->call(
+            'update_person',
+            [
+                'treeId'   => $this->treeId,
+                'ifMatch'  => $created['etag'],
+                'personId' => $created['personId'],
+                'fields'   => ['gender' => 'female'],
+            ]
+        );
+        $updated = $this->responseArray('result', 'structuredContent');
+        self::assertNotSame($created['etag'], $updated['etag']);
+        $delete = ['treeId' => $this->treeId, 'ifMatch' => $updated['etag'], 'personId' => $created['personId']];
+        $this->call('delete_person', $delete);
+        self::assertSame('input_required', $this->responseString('result', 'resultType'));
+        $deleteState = $this->responseString('result', 'requestState');
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'delete_person',
+                'arguments'      => $delete,
+                'requestState'   => $deleteState,
+                'inputResponses' => ['approval' => ['action' => 'decline']],
+            ]
+        );
+        self::assertSame('TOOL_DENIED', $this->responseString('result', 'structuredContent', 'code'));
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'delete_person',
+                'arguments'      => $delete,
+                'requestState'   => $deleteState,
+                'inputResponses' => $answer,
+            ]
+        );
+        self::assertSame('CONFIRMATION_USED', $this->responseString('result', 'structuredContent', 'code'));
+        $this->call('delete_person', $delete);
+        $deleteState = $this->responseString('result', 'requestState');
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'delete_person',
+                'arguments'      => $delete,
+                'requestState'   => $deleteState,
+                'inputResponses' => $answer,
+            ]
+        );
+        self::assertSame($created['personId'], $this->responseString('result', 'structuredContent', 'deletedId'));
+    }
+
+    public function testCancelledAndExpiredMcpConfirmationsCannotCreatePeople(): void
+    {
+        $this->authorize();
+        $arguments = ['treeId' => $this->treeId, 'ifMatch' => $this->etag, 'fields' => [], 'connection' => null];
+        $this->clientCapabilities = ['elicitation' => ['url' => new \stdClass()]];
+        $this->call('create_person', $arguments);
+        self::assertSame('CONFIRMATION_UNSUPPORTED', $this->responseString('result', 'structuredContent', 'code'));
+        $this->clientCapabilities = ['elicitation' => ['form' => new \stdClass()]];
+        foreach ([['action' => 'cancel'], ['action' => 'accept', 'content' => ['approved' => false]]] as $answer) {
+            $this->call('create_person', $arguments);
+            $state = $this->responseString('result', 'requestState');
+            $this->mcp(
+                'tools/call',
+                [
+                    'name'           => 'create_person',
+                    'arguments'      => $arguments,
+                    'requestState'   => $state,
+                    'inputResponses' => ['approval' => $answer],
+                ]
+            );
+            self::assertSame('TOOL_DENIED', $this->responseString('result', 'structuredContent', 'code'));
+        }
+        $this->call('create_person', $arguments);
+        $state = $this->responseString('result', 'requestState');
+        $secret = (string)static::getContainer()->getParameter('kernel.secret');
+        $codec = new RequestStateCodec(hash('sha256', 'mcp-confirmations:' . $secret, true), 120);
+        $expired = $codec->mint($codec->verify($state), time() - 121);
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'create_person',
+                'arguments'      => $arguments,
+                'requestState'   => $expired,
+                'inputResponses' => ['approval' => ['action' => 'accept', 'content' => ['approved' => true]]],
+            ]
+        );
+        self::assertArrayHasKey('error', $this->responseData());
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers());
+        self::assertSame([], $this->responseArray('people'));
+        self::assertSame($this->etag, $this->responseString('etag'));
+    }
+
+    public function testMcpApprovalKeepsTheOriginalEtagDuringConcurrentChanges(): void
+    {
+        $this->authorize();
+        $this->clientCapabilities = ['elicitation' => ['form' => new \stdClass()]];
+        $arguments = ['treeId' => $this->treeId, 'ifMatch' => $this->etag, 'fields' => [], 'connection' => null];
+        $this->call('create_person', $arguments);
+        $state = $this->responseString('result', 'requestState');
+        $this->jsonRequest(
+            'PATCH',
+            '/api/v1/trees/' . $this->treeId,
+            ['name' => 'Another editor'],
+            [
+                ...$this->headers(),
+                'If-Match' => $this->etag,
+            ]
+        );
+        self::assertResponseIsSuccessful();
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'create_person',
+                'arguments'      => $arguments,
+                'requestState'   => $state,
+                'inputResponses' => ['approval' => ['action' => 'accept', 'content' => ['approved' => true]]],
+            ]
+        );
+        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers());
+        self::assertSame([], $this->responseArray('people'));
     }
 
     public function testConsentIsSessionBoundOneTimeAndCanBeDenied(): void
@@ -463,7 +649,14 @@ final class OAuthMcpApiTest extends ApiWebTestCase
 
     public function testTreeSearchRankingUuidOwnerIsolationAndBoundedQueries(): void
     {
-        foreach (['Романова', 'Романов', 'Романовы II', 'Семья Ёлкиных', 'Smith', 'Smyth'] as $name) {
+        foreach ([
+            'Романова',
+            'Романов',
+            'Романовы II',
+            'Семья Ёлкиных',
+            'Smith',
+            'Smyth',
+        ] as $name) {
             $this->jsonRequest('POST', '/api/v1/trees', ['name' => $name], $this->headers());
         }
         $this->jsonRequest(
@@ -488,7 +681,16 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         $this->call('find_trees', ['query' => 'Романвы']);
         self::assertNotEmpty($this->responseArray('result', 'structuredContent', 'trees'));
         $this->call('find_trees', ['query' => 'Семья Елкиных']);
-        self::assertSame('Семья Ёлкиных', $this->responseString('result', 'structuredContent', 'trees', '0', 'name'));
+        self::assertSame(
+            'Семья Ёлкиных',
+            $this->responseString(
+                'result',
+                'structuredContent',
+                'trees',
+                '0',
+                'name'
+            )
+        );
         $this->call('find_trees', ['query' => 'Smit']);
         self::assertSame('Smith', $this->responseString('result', 'structuredContent', 'trees', '0', 'name'));
         foreach ([$otherTree, Uuid::v7()->toRfc4122(), 'zzzzzzzzzz'] as $query) {
@@ -509,149 +711,6 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         $counter->reset();
         static::getContainer()->get(FamilyTreeRepository::class)->searchForOwner($user, 'Романовы');
         self::assertSame(1, $counter->count());
-    }
-
-    public function testMergeIsAtomicUsesExternalSourcesAndRejectsStaleOrInvalidProposals(): void
-    {
-        $this->authorize();
-        $this->call('get_tree_context', ['treeId' => $this->treeId]);
-        self::assertSame($this->etag, $this->responseString('result', 'structuredContent', 'etag'));
-        $proposal = [
-            'people' => [
-                [
-                    'id'               => 'anna',
-                    'existingPersonId' => null,
-                    'resolution'       => 'new',
-                    'fields'           => [
-                        'givenName'  => ['state' => 'known', 'value' => 'Анна'],
-                        'patronymic' => ['state' => 'known', 'value' => 'Павловна'],
-                        'gender'     => 'female',
-                    ],
-                    'lifeStatus' => 'alive',
-                    'evidence'   => [['messageId' => 'source', 'quote' => 'Анна Павловна']],
-                ],
-            ],
-            'parents'   => [],
-            'marriages' => [],
-            'questions' => [],
-        ];
-        $arguments = [
-            'treeId'   => $this->treeId,
-            'ifMatch'  => $this->etag,
-            'proposal' => $proposal,
-            'sources'  => [['id' => 'source', 'role' => 'user', 'content' => 'Анна Павловна']],
-        ];
-        $this->call('merge', $arguments);
-        self::assertFalse($this->responseArray('result')['isError']);
-        $anna = $this->responseString('result', 'structuredContent', 'personIds', 'anna');
-        $nextEtag = $this->responseString('result', 'structuredContent', 'etag');
-        self::assertNotSame($this->etag, $nextEtag);
-        $this->call('merge', $arguments);
-        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
-        $this->call('find_people', ['treeId' => $this->treeId, 'query' => 'Анна']);
-        self::assertSame($anna, $this->responseString('result', 'structuredContent', 'candidates', '0', 'id'));
-        $this->call('get_person_context', ['treeId' => $this->treeId, 'personId' => $anna]);
-        self::assertSame($anna, $this->responseString('result', 'structuredContent', 'people', '0', 'id'));
-        $arguments['ifMatch'] = $nextEtag;
-        $arguments['sources'][0]['content'] = 'No matching evidence';
-        $this->call('merge', $arguments);
-        self::assertSame('TREE_MERGE_PROPOSAL_INVALID', $this->responseString('result', 'structuredContent', 'code'));
-        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', [], $this->headers());
-        self::assertCount(1, $this->responseArray('people'));
-        self::assertSame($nextEtag, $this->responseString('etag'));
-        $source = 'Добавь Анне Павловне мужа Ивана.';
-        $evidence = [['messageId' => 'marriage-request', 'quote' => $source]];
-        $this->call(
-            'merge',
-            [
-                'treeId'   => $this->treeId,
-                'ifMatch'  => $nextEtag,
-                'sources'  => [['id' => 'marriage-request', 'role' => 'user', 'content' => $source]],
-                'proposal' => [
-                    'people' => [
-                        [
-                            'id'               => 'anna',
-                            'existingPersonId' => $anna,
-                            'resolution'       => 'existing',
-                            'fields'           => [],
-                            'lifeStatus'       => 'alive',
-                            'evidence'         => $evidence,
-                        ],
-                        [
-                            'id'               => 'ivan',
-                            'existingPersonId' => null,
-                            'resolution'       => 'new',
-                            'fields'           => [
-                                'givenName' => ['state' => 'known', 'value' => 'Иван'],
-                                'gender'    => 'male',
-                            ],
-                            'lifeStatus' => 'alive',
-                            'evidence'   => $evidence,
-                        ],
-                    ],
-                    'parents'   => [],
-                    'marriages' => [
-                        [
-                            'first'           => 'ivan',
-                            'second'          => 'anna',
-                            'marriageDate'    => ['state' => 'unknown'],
-                            'dissolutionDate' => null,
-                            'newPeriod'       => false,
-                            'evidence'        => $evidence,
-                        ],
-                    ],
-                    'questions' => [],
-                ],
-            ],
-        );
-        self::assertFalse($this->responseArray('result')['isError']);
-        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', [], $this->headers());
-        self::assertCount(2, $this->responseArray('people'));
-        self::assertCount(1, $this->responseArray('marriages'));
-    }
-
-    public function testGenericMcpChangeAppliesCreationAndEventsWithoutReviewAndRejectsReplays(): void
-    {
-        $this->authorize();
-        $evidence = [['messageId' => 'm', 'quote' => 'Create Anna and record her move.']];
-        $arguments = [
-            'treeId'     => $this->treeId,
-            'ifMatch'    => $this->etag,
-            'sources'    => [['id' => 'm', 'role' => 'user', 'content' => 'Create Anna and record her move.']],
-            'operations' => [
-                [
-                    'type'   => 'create_person',
-                    'id'     => 'anna',
-                    'fields' => [
-                        'givenName' => ['state' => 'known', 'value' => 'Anna'],
-                    ],
-                    'evidence' => $evidence,
-                ],
-                [
-                    'type'      => 'create_events',
-                    'personIds' => ['anna'],
-                    'event'     => [
-                        'type'        => 'residence',
-                        'date'        => ['state' => 'known', 'kind' => 'exact', 'year' => 2000],
-                        'description' => 'Moved',
-                        'place'       => ['name' => 'Old settlement', 'coordinates' => null],
-                    ],
-                    'evidence' => $evidence,
-                ],
-            ],
-        ];
-        $this->call('change_tree', $arguments);
-        self::assertFalse($this->responseArray('result')['isError']);
-        $id = $this->responseString('result', 'structuredContent', 'personIds', 'anna');
-        self::assertSame([$id], $this->responseArray('result', 'structuredContent', 'newPersonIds'));
-        $this->call('change_tree', $arguments);
-        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
-        $this->call('list_events', ['treeId' => $this->treeId, 'source' => 'manual']);
-        self::assertSame(1, $this->responseInt('result', 'structuredContent', 'total'));
-        self::assertSame(
-            'Old settlement',
-            $this->responseString('result', 'structuredContent', 'items', '0', 'place', 'name'),
-        );
     }
 
     public function testSiteChatBanDoesNotAffectExternalMcpAccess(): void
@@ -1006,7 +1065,7 @@ final class OAuthMcpApiTest extends ApiWebTestCase
                     ...$parameters,
                     '_meta' => [
                         'io.modelcontextprotocol/protocolVersion'    => '2026-07-28',
-                        'io.modelcontextprotocol/clientCapabilities' => new \stdClass(),
+                        'io.modelcontextprotocol/clientCapabilities' => (object)$this->clientCapabilities,
                     ],
                 ],
             ],

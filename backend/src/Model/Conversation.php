@@ -11,6 +11,7 @@ use Symfony\Component\Uid\UuidV7;
 final class Conversation
 {
     public const string METADATA = 'conversation';
+    public const int TOOL_STATE_VERSION = 1;
     public readonly UuidV7 $id;
     public int $version = 1;
     public string $status = 'idle';
@@ -22,6 +23,11 @@ final class Conversation
     public array $tools = [];
     /** @var array<string, int> */
     public array $toolVersions = [];
+    /** @var list<ToolConfirmation> */
+    public array $confirmations = [];
+    public bool $autoApprovePersonActions = false;
+    // Zero is the default when unserializing conversations saved before single actions.
+    public int $toolStateVersion = 0;
     public ?string $commentary = null;
     public int $progressSequence = 0;
     /** @var array{input: int, output: int, total: int} */
@@ -38,6 +44,7 @@ final class Conversation
     ) {
         $this->id = Uuid::v7();
         $this->updatedAt = $createdAt;
+        $this->toolStateVersion = self::TOOL_STATE_VERSION;
     }
 
     public function changed(\DateTimeImmutable $now): void

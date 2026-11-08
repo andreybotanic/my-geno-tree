@@ -85,30 +85,6 @@ final class PersonRepository extends ServiceEntityRepository
         return ['total' => $total, 'items' => $items];
     }
 
-    /** @return list<Person> */
-    public function findAllForChangeSet(FamilyTree $tree, bool $refresh = false): array
-    {
-        // Join the inverse one-to-one to avoid its per-person lazy lookup; media variants are unnecessary.
-        $query = $this
-            ->createQueryBuilder('person')
-              ->addSelect('photoAttachment')
-            ->leftJoin('person.photoAttachment', 'photoAttachment')
-            ->addSelect('birthPlace', 'deathPlace')
-            ->leftJoin('person.birthPlace', 'birthPlace')
-            ->leftJoin('person.deathPlace', 'deathPlace')
-            ->andWhere('person.tree = :tree')
-            ->setParameter('tree', $tree)
-            ->orderBy('person.id', 'ASC')
-            ->getQuery();
-        if ($refresh) {
-            $query->setHint(\Doctrine\ORM\Query::HINT_REFRESH, true);
-        }
-        /** @var list<Person> $people */
-        $people = $query->getResult();
-
-        return $people;
-    }
-
     /**
      * @return list<Person>
      */

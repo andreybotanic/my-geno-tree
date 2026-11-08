@@ -4,19 +4,17 @@ namespace App\Application\TreeChat;
 
 use App\Entity\AuthSession;
 use App\Model\Conversation;
-use App\Model\TreeMergeProposal;
 use Symfony\AI\Agent\Attribute\AsInputProcessor;
 use Symfony\AI\Agent\Input;
 use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
-use Symfony\AI\Platform\Message\UserMessage;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 #[AsInputProcessor(agent: 'ai.agent.tree', priority: -100)]
 final readonly class TreeChatContextInputProcessor implements InputProcessorInterface
 {
-    public const string VERSION = 'tree-v18-moderation-notices';
+    public const string VERSION = 'tree-v19-single-actions';
 
     public function __construct(private RequestStack $requests)
     {
@@ -37,22 +35,16 @@ final readonly class TreeChatContextInputProcessor implements InputProcessorInte
                     : 'en',
                 'treeId'                     => $draft->context['treeId'] ?? null,
                 'narrativeReferencePersonId' => $draft->context['referencePersonId'] ?? null,
-                'reviewedProposal'           => ($draft->tools['merge'] ?? null) instanceof TreeMergeProposal
-                    ? $draft->tools['merge']->proposal
-                    : null,
             ],
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE,
         );
-        $messages = $input->getMessageBag()->withoutToolMessages();
+        $messages = $input->getMessageBag();
         $system = $messages->getSystemMessage()?->getContent() ?? '';
         $prepared = MessageBag::forId($messages->getId());
         foreach ($messages->withoutSystemMessage() as $message) {
-            if ($message instanceof UserMessage) {
-                $message = Message::ofUser(
-                    'messageId: ' . $message->getId()->toRfc4122() . "\n" . $message->asText(),
-                )->withId(
-                    $message->getId(),
-                );
+            if ($message instanceof \Symfony\AI\Platform\Message\AssistantMessage
+                && '' === trim($message->asText() ?? '') && !$message->hasToolCalls()) {
+                continue;
             }
             $prepared = $prepared->with($message);
         }

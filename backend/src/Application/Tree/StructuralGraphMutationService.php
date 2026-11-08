@@ -49,70 +49,91 @@ final readonly class StructuralGraphMutationService
 
     /**
      * @param array<string, mixed> $payload
+     *
+     * @return array{newPersonIds: list<string>, parentLinkIds: list<string>, marriageIds: list<string>, etag: string}
      */
     public function mutate(
         FamilyTree $tree,
         array $payload,
         ?string $ifMatch,
-    ): void {
+    ): array {
         $type = $payload['type'] ?? null;
         if (!is_string($type)) {
             $this->invalid('type', 'graph_mutation_type_invalid');
         }
 
         $removedMedia = [];
-        $this->entityManager->wrapInTransaction(function () use (
-            $tree,
-            $payload,
-            $type,
-            $ifMatch,
-            &$removedMedia,
-        ): void {
-            $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
-            $this->entityManager->refresh($tree);
-            $this->versions->assertMatches($tree, $ifMatch);
-            $changedAt = $this->clock->now();
+        $result = $this->entityManager->wrapInTransaction(
+            function () use (
+                $tree,
+                $payload,
+                $type,
+                $ifMatch,
+                &$removedMedia,
+            ): array {
+                $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
+                $this->entityManager->refresh($tree);
+                $this->versions->assertMatches($tree, $ifMatch);
+                $changedAt = $this->clock->now();
 
-            match ($type) {
-                'add_parents'       => $this->addParents($tree, $payload, $changedAt),
-                'add_parent'        => $this->addParent($tree, $payload, $changedAt),
-                'add_child'         => $this->addChild($tree, $payload, $changedAt),
-                'link_parent_child' => $this->linkParentChild(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                ),
-                'add_marriage_period' => $this->addMarriage(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                ),
-                'remove_parent_link' => $this->removeParentLink(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                ),
-                'remove_marriage_period' => $this->removeMarriage(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                ),
-                'delete_person' => $this->deletePerson(
-                    $tree,
-                    $payload,
-                    $changedAt,
-                    $removedMedia,
-                ),
-                default => $this->invalid(
-                    'type',
-                    'graph_mutation_type_invalid',
-                ),
-            };
-            $tree->touch($changedAt);
-            $this->entityManager->flush();
-            $this->layoutInvalidator->invalidateChanged($tree);
-        });
+                match ($type) {
+                    'add_parents'       => $this->addParents($tree, $payload, $changedAt),
+                    'add_parent'        => $this->addParent($tree, $payload, $changedAt),
+                    'add_child'         => $this->addChild($tree, $payload, $changedAt),
+                    'link_parent_child' => $this->linkParentChild(
+                        $tree,
+                        $payload,
+                        $changedAt,
+                    ),
+                    'add_marriage_period' => $this->addMarriage(
+                        $tree,
+                        $payload,
+                        $changedAt,
+                    ),
+                    'remove_parent_link' => $this->removeParentLink(
+                        $tree,
+                        $payload,
+                        $changedAt,
+                    ),
+                    'remove_marriage_period' => $this->removeMarriage(
+                        $tree,
+                        $payload,
+                        $changedAt,
+                    ),
+                    'delete_person' => $this->deletePerson(
+                        $tree,
+                        $payload,
+                        $changedAt,
+                        $removedMedia,
+                    ),
+                    default => $this->invalid(
+                        'type',
+                        'graph_mutation_type_invalid',
+                    ),
+                };
+                $result = ['newPersonIds' => [], 'parentLinkIds' => [], 'marriageIds' => []];
+                foreach ($this->entityManager->getUnitOfWork()->getScheduledEntityInsertions() as $created) {
+                    $key = match (true) {
+                        $created instanceof Person         => 'newPersonIds',
+                        $created instanceof ParentLink     => 'parentLinkIds',
+                        $created instanceof MarriagePeriod => 'marriageIds',
+                        default                            => null,
+                    };
+                    if (null !== $key) {
+                        $result[$key][] = $created->getId()->toRfc4122();
+                    }
+                }
+                $tree->touch($changedAt);
+                $this->entityManager->flush();
+                $this->layoutInvalidator->invalidateChanged($tree);
+
+                return $result;
+            }
+        );
+        $result['etag'] = $this->versions->etag($tree);
         $this->media->deleteStored($removedMedia);
+
+        return $result;
     }
 
     /**
@@ -123,12 +144,15 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'childId',
-            'role',
-            'relative',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'childId',
+                'role',
+                'relative',
+            ]
+        );
         $child = $this->person($tree, $payload['childId'], 'childId');
         $role = $this->parentRole($payload['role']);
         $parent = $this->relative(
@@ -152,13 +176,16 @@ final readonly class StructuralGraphMutationService
         if (!$detailed) {
             $this->assertExactKeys($payload, ['type', 'childId']);
         } else {
-            $this->assertExactKeys($payload, [
-                'type',
-                'childId',
-                'father',
-                'mother',
-                'marriage',
-            ]);
+            $this->assertExactKeys(
+                $payload,
+                [
+                    'type',
+                    'childId',
+                    'father',
+                    'mother',
+                    'marriage',
+                ]
+            );
         }
 
         $child = $this->person($tree, $payload['childId'], 'childId');
@@ -199,12 +226,17 @@ final readonly class StructuralGraphMutationService
 
         if ($detailed && null !== $payload['marriage']) {
             $marriage = $this->object($payload['marriage'], 'marriage');
-            $this->assertKeys($marriage, [
-                'marriageDate',
-                'dissolutionDate',
-                'maleNewSurname',
-                'femaleNewSurname',
-            ], ['marriagePlace', 'dissolutionPlace'], 'marriage');
+            $this->assertKeys(
+                $marriage,
+                [
+                    'marriageDate',
+                    'dissolutionDate',
+                    'maleNewSurname',
+                    'femaleNewSurname',
+                ],
+                ['marriagePlace', 'dissolutionPlace'],
+                'marriage'
+            );
             $this->createMarriage(
                 $tree,
                 $father,
@@ -224,11 +256,14 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'parents',
-            'relative',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'parents',
+                'relative',
+            ]
+        );
         $parents = $this->parentSpecifications($tree, $payload['parents'], $changedAt);
         $child = $this->relative(
             $tree,
@@ -255,12 +290,15 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'parentId',
-            'childId',
-            'role',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'parentId',
+                'childId',
+                'role',
+            ]
+        );
         $parent = $this->person($tree, $payload['parentId'], 'parentId');
         $child = $this->person($tree, $payload['childId'], 'childId');
         $role = $this->parentRole($payload['role']);
@@ -276,15 +314,19 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertKeys($payload, [
-            'type',
-            'personId',
-            'relative',
-            'marriageDate',
-            'dissolutionDate',
-            'maleNewSurname',
-            'femaleNewSurname',
-        ], ['marriagePlace', 'dissolutionPlace']);
+        $this->assertKeys(
+            $payload,
+            [
+                'type',
+                'personId',
+                'relative',
+                'marriageDate',
+                'dissolutionDate',
+                'maleNewSurname',
+                'femaleNewSurname',
+            ],
+            ['marriagePlace', 'dissolutionPlace']
+        );
         $person = $this->person($tree, $payload['personId'], 'personId');
         $partner = $this->relative(
             $tree,
@@ -308,10 +350,13 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'parentLinkId',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'parentLinkId',
+            ]
+        );
         $id = $this->id($payload['parentLinkId'], 'parentLinkId');
         $link = $this->parentLinks->findInTree($tree, $id);
         if (null === $link) {
@@ -333,10 +378,13 @@ final readonly class StructuralGraphMutationService
         array $payload,
         \DateTimeImmutable $changedAt,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'marriageId',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'marriageId',
+            ]
+        );
         $id = $this->id($payload['marriageId'], 'marriageId');
         $marriage = $this->marriages->findInTree($tree, $id);
         if (null === $marriage) {
@@ -361,10 +409,13 @@ final readonly class StructuralGraphMutationService
         \DateTimeImmutable $changedAt,
         array &$removedMedia,
     ): void {
-        $this->assertExactKeys($payload, [
-            'type',
-            'personId',
-        ]);
+        $this->assertExactKeys(
+            $payload,
+            [
+                'type',
+                'personId',
+            ]
+        );
         $person = $this->person($tree, $payload['personId'], 'personId');
         $this->invariants->assertPersonDeletionAllowed($tree, $person);
         $this->replaceReferenceAfterPersonRemoval($tree, $person);
@@ -380,6 +431,7 @@ final readonly class StructuralGraphMutationService
         }
         $places = [];
         foreach ($this->eventRepository->findTimeline($person) as $event) {
+            $this->entityManager->remove($event);
             $place = $event->getPlace();
             $placeId = $place?->getId();
             if (null !== $place && null !== $placeId) {
@@ -609,20 +661,24 @@ final readonly class StructuralGraphMutationService
         $this->entityManager->persist($marriage);
         $marriagePlace = array_key_exists('marriagePlace', $payload)
             && null !== $payload['marriagePlace']
-            ? $this->resolvedPlace($this->placeData->resolved(
-                $payload['marriagePlace'],
-                $fieldPrefix . 'marriagePlace',
-            ))
+            ? $this->resolvedPlace(
+                $this->placeData->resolved(
+                    $payload['marriagePlace'],
+                    $fieldPrefix . 'marriagePlace',
+                )
+            )
             : null;
         if (null !== $marriagePlace) {
             $marriage->changeMarriagePlace($marriagePlace, $changedAt);
         }
         $dissolutionPlace = array_key_exists('dissolutionPlace', $payload)
             && null !== $payload['dissolutionPlace']
-            ? $this->resolvedPlace($this->placeData->resolved(
-                $payload['dissolutionPlace'],
-                $fieldPrefix . 'dissolutionPlace',
-            ))
+            ? $this->resolvedPlace(
+                $this->placeData->resolved(
+                    $payload['dissolutionPlace'],
+                    $fieldPrefix . 'dissolutionPlace',
+                )
+            )
             : null;
         if (null === $dissolutionDate && null !== $dissolutionPlace) {
             $this->invalid($fieldPrefix . 'dissolutionPlace', 'dissolution_place_requires_dissolution');

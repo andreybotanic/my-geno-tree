@@ -11,8 +11,7 @@ final class ChatExecution
 {
     public int $version;
     public ?ExecutionInterface $native = null;
-    /** @var list<array<string, mixed>> */
-    public array $observations = [];
+    public bool $paused = false;
 
     public function __construct(public readonly Conversation $conversation, public readonly string $attemptId)
     {

@@ -35,7 +35,8 @@ final readonly class ChatController
     #[Route('/chats/{chatId}/messages', name: 'api_chat_message', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
     public function message(
-        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        #[ValueResolver(ChatValueResolver::class)]
+        Conversation $conversation,
         Request $request,
     ): JsonResponse {
         return new JsonResponse(
@@ -43,10 +44,47 @@ final readonly class ChatController
         );
     }
 
+    #[Route('/chats/{chatId}/confirmations/{confirmationId}/decision', methods: ['POST'])]
+    #[IsGranted(ChatVoter::INTERACT, subject: 'conversation', statusCode: 404)]
+    public function decide(
+        #[ValueResolver(ChatValueResolver::class)]
+        Conversation $conversation,
+        string $confirmationId,
+        Request $request,
+    ): JsonResponse {
+        return new JsonResponse(
+            $this->chat->snapshot(
+                $this->chat->decide(
+                    $conversation,
+                    $confirmationId,
+                    $this->body->decodeObject($request),
+                )
+            )
+        );
+    }
+
+    #[Route('/chats/{chatId}/permissions', methods: ['PATCH'])]
+    #[IsGranted(ChatVoter::INTERACT, subject: 'conversation', statusCode: 404)]
+    public function permissions(
+        #[ValueResolver(ChatValueResolver::class)]
+        Conversation $conversation,
+        Request $request,
+    ): JsonResponse {
+        return new JsonResponse(
+            $this->chat->snapshot(
+                $this->chat->permissions(
+                    $conversation,
+                    $this->body->decodeObject($request),
+                )
+            )
+        );
+    }
+
     #[Route('/chats/{chatId}/stop', name: 'api_chat_stop', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
     public function stop(
-        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        #[ValueResolver(ChatValueResolver::class)]
+        Conversation $conversation,
         Request $request,
     ): JsonResponse {
         return new JsonResponse(
@@ -59,7 +97,8 @@ final readonly class ChatController
     #[Route('/chats/{chatId}/reset', name: 'api_chat_reset', methods: ['POST'])]
     #[IsGranted(ChatVoter::USE, subject: 'conversation', statusCode: 404)]
     public function reset(
-        #[ValueResolver(ChatValueResolver::class)] Conversation $conversation,
+        #[ValueResolver(ChatValueResolver::class)]
+        Conversation $conversation,
         Request $request,
     ): JsonResponse {
         $this->chat->reset($conversation, $this->body->decodeObject($request)['version'] ?? null);

@@ -43,9 +43,21 @@ final class ChatVoter extends Voter
         if (!$session instanceof AuthSession || !$user instanceof User) {
             return false;
         }
+        if (!$this->entityManager->contains($session)) {
+            $session = $this->entityManager->find(AuthSession::class, $session->getId());
+            if (!$session instanceof AuthSession) {
+                return false;
+            }
+        }
         $this->entityManager->refresh($session);
 
         if (self::INTERACT === $attribute) {
+            if (!$this->entityManager->contains($user)) {
+                $user = $this->entityManager->find(User::class, $user->getId());
+                if (!$user instanceof User) {
+                    return false;
+                }
+            }
             $this->entityManager->refresh($user);
             if ($user->hasChatBan($this->clock->now())) {
                 return false;

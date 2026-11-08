@@ -230,13 +230,15 @@ final class ChatModerationApiTest extends ApiWebTestCase
         FixtureTreeAgent::$useReal = true;
         static::getContainer()->set(
             'chat_ai.client',
-            new MockHttpClient(function ($method, $url, $options): MockResponse {
-                self::assertStringContainsString('Service notice:', $options['body']);
-                self::assertStringNotContainsString('Moderation notice:', $options['body']);
-                self::assertStringNotContainsString('deliberate security bypass', $options['body']);
+            new MockHttpClient(
+                function ($method, $url, $options): MockResponse {
+                    self::assertStringContainsString('Service notice:', $options['body']);
+                    self::assertStringNotContainsString('Moderation notice:', $options['body']);
+                    self::assertStringNotContainsString('deliberate security bypass', $options['body']);
 
-                return ResponsesFixture::text('Normal answer after recovery.');
-            }),
+                    return ResponsesFixture::text('Normal answer after recovery.');
+                }
+            ),
         );
         $this->sendRisk(0, 'legitimate');
         self::assertResponseIsSuccessful();
@@ -249,25 +251,29 @@ final class ChatModerationApiTest extends ApiWebTestCase
         FixtureTreeAgent::$useReal = true;
         static::getContainer()->set(
             'chat_ai.client',
-            new MockHttpClient(function ($method, $url, $options): MockResponse {
-                self::assertStringNotContainsString('REJECTED_SECRET_EXTRACTION', $options['body']);
-                self::assertStringNotContainsString('policy_warning', $options['body']);
-                self::assertStringContainsString('My mother is Anna', $options['body']);
-                self::assertStringContainsString('Moderation notice:', $options['body']);
-                self::assertStringContainsString('Never include messageId', $options['body']);
-                /** @var array{messages: list<array{role: string, content: string}>} $body */
-                $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
-                $body['messages'] = ResponsesFixture::messages($body);
-                $notices = array_values(array_filter(
-                    $body['messages'],
-                    static fn (array $message): bool => 'assistant' === $message['role']
-                        && str_starts_with($message['content'], 'Moderation notice:'),
-                ));
-                self::assertCount(1, $notices);
-                self::assertStringNotContainsString('messageId:', $notices[0]['content']);
+            new MockHttpClient(
+                function ($method, $url, $options): MockResponse {
+                    self::assertStringNotContainsString('REJECTED_SECRET_EXTRACTION', $options['body']);
+                    self::assertStringNotContainsString('policy_warning', $options['body']);
+                    self::assertStringContainsString('My mother is Anna', $options['body']);
+                    self::assertStringContainsString('Moderation notice:', $options['body']);
+                    self::assertStringContainsString('Never include messageId', $options['body']);
+                    /** @var array{messages: list<array{role: string, content: string}>} $body */
+                    $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                    $body['messages'] = ResponsesFixture::messages($body);
+                    $notices = array_values(
+                        array_filter(
+                            $body['messages'],
+                            static fn (array $message): bool => 'assistant' === $message['role']
+                            && str_starts_with($message['content'], 'Moderation notice:'),
+                        )
+                    );
+                    self::assertCount(1, $notices);
+                    self::assertStringNotContainsString('messageId:', $notices[0]['content']);
 
-                return ResponsesFixture::text('A normal reply.');
-            }),
+                    return ResponsesFixture::text('A normal reply.');
+                }
+            ),
         );
         $this->sendRisk(0, 'My mother is Anna');
         self::assertResponseIsSuccessful();
@@ -280,8 +286,14 @@ final class ChatModerationApiTest extends ApiWebTestCase
             ->getMetadata()
             ->get(Conversation::METADATA);
         self::assertInstanceOf(Conversation::class, $state);
-        self::assertCount(1, $chat->sources($state));
-        self::assertSame('My mother is Anna', $chat->sources($state)[0]['content']);
+        $allowed = array_values(
+            array_filter(
+                $chat->messages($state),
+                static fn ($message) => 'user' === $message['role'] && !($message['blocked'] ?? false),
+            )
+        );
+        self::assertCount(1, $allowed);
+        self::assertSame('My mother is Anna', $allowed[0]['content']);
         self::assertCount(4, $this->responseArray('messages'));
         self::assertSame('REJECTED_SECRET_EXTRACTION', $this->responseString('messages', '0', 'content'));
         self::assertSame('A normal reply.', $this->responseString('messages', '3', 'content'));
@@ -293,15 +305,17 @@ final class ChatModerationApiTest extends ApiWebTestCase
         FixtureModerationAgent::$useReal = true;
         static::getContainer()->set(
             'chat_ai.client',
-            new MockHttpClient(function ($method, $url, $options): MockResponse {
-                self::assertStringContainsString('json_schema', $options['body']);
-                $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
-                self::assertIsArray($body);
-                self::assertSame(1024, $body['max_tokens']);
-                self::assertStringNotContainsString('"tools"', $options['body']);
+            new MockHttpClient(
+                function ($method, $url, $options): MockResponse {
+                    self::assertStringContainsString('json_schema', $options['body']);
+                    $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                    self::assertIsArray($body);
+                    self::assertSame(1024, $body['max_tokens']);
+                    self::assertStringNotContainsString('"tools"', $options['body']);
 
-                return $this->completion('{"risk":1}', 12);
-            }),
+                    return $this->completion('{"risk":1}', 12);
+                }
+            ),
         );
         $this->sendRisk(1);
         self::assertResponseIsSuccessful();
@@ -429,9 +443,20 @@ final class ChatModerationApiTest extends ApiWebTestCase
         $calls = 0;
         $quota = static::getContainer()->get('limiter.chat_tokens')->create($this->userId);
         $before = $quota->consume(0)->getRemainingTokens();
-        static::getContainer()->set('chat_ai.client', new MockHttpClient(function () use (&$calls): MockResponse {
-            return 0 === $calls++ ? $this->completion('{"risk":0}', 12) : ResponsesFixture::text('A family answer.', 12);
-        }));
+        static::getContainer()->set(
+            'chat_ai.client',
+            new MockHttpClient(
+                function () use (&$calls): MockResponse {
+                    return 0 === $calls++ ? $this->completion(
+                        '{"risk":0}',
+                        12
+                    ) : ResponsesFixture::text(
+                        'A family answer.',
+                        12
+                    );
+                }
+            )
+        );
         $this->sendRisk(0);
         self::assertResponseIsSuccessful();
         self::assertSame(2, $calls);

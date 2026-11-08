@@ -29,465 +29,6 @@ export type OAuthDecisionResponse = {
     redirectUrl: string;
 };
 
-export type TreeMergeEvidence = {
-    messageId: string;
-    quote: string;
-};
-
-export type TreeMergePersonProposal = {
-    id: string;
-    existingPersonId: string | null;
-    resolution: 'new' | 'existing' | 'undecided';
-    fields: PersonPatchRequest;
-    /**
-     * New people default to alive unless death is mentioned. Legacy uncertain values normalize to the existing person's status or alive for a new person. Missing names and dates do not require clarification.
-     */
-    lifeStatus: 'alive' | 'deceased' | 'uncertain';
-    evidence: Array<TreeMergeEvidence>;
-    readonly before?: Person | null;
-};
-
-export type TreeMergeParentProposal = {
-    parent: string;
-    child: string;
-    role: 'father' | 'mother';
-    evidence: Array<TreeMergeEvidence>;
-};
-
-export type TreeMergeMarriageProposal = {
-    first: string;
-    second: string;
-    marriageDate: GenealogicalDate;
-    dissolutionDate: GenealogicalDate | null;
-    newPeriod: boolean;
-    evidence: Array<TreeMergeEvidence>;
-};
-
-export type TreeChangeOperation = {
-    type: 'create_person';
-    id: string;
-    fields: {
-        birthSurname?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        givenName?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        patronymic?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        gender?: 'male' | 'female' | 'unknown';
-        birthDate?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        deathDate?: null | {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        birthPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-        deathPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'update_person';
-    personId: string;
-    fields: {
-        birthSurname?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        givenName?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        patronymic?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            value: string;
-        };
-        gender?: 'male' | 'female' | 'unknown';
-        birthDate?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        deathDate?: null | {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        birthPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-        deathPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'delete_person';
-    personId: string;
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'add_parent_link';
-    parent: string;
-    child: string;
-    role: 'mother' | 'father';
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'remove_parent_link';
-    parentLinkId: string;
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'create_marriage_period';
-    first: string;
-    second: string;
-    newPeriod: boolean;
-    fields: {
-        marriageDate: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        dissolutionDate?: null | {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        marriagePlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-        dissolutionPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-        maleNewSurname?: string | null;
-        femaleNewSurname?: string | null;
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'update_marriage_period';
-    marriageId: string;
-    fields: {
-        marriageDate?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        dissolutionDate?: null | {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        marriagePlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-        dissolutionPlace?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'remove_marriage_period';
-    marriageId: string;
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'create_events';
-    personIds: Array<string>;
-    /**
-     * Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.
-     */
-    event: {
-        type?: 'custom' | 'residence' | 'surname_change';
-        date?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        title?: string;
-        description?: string | null;
-        newSurname?: string;
-        place?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'update_event';
-    eventId: string;
-    /**
-     * Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.
-     */
-    fields: {
-        type?: 'custom' | 'residence' | 'surname_change';
-        date?: {
-            state: 'unknown';
-        } | {
-            state: 'known';
-            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
-            year: number;
-            month?: number;
-            day?: number;
-            end?: {
-                year: number;
-                month?: number;
-                day?: number;
-            };
-        };
-        title?: string;
-        description?: string | null;
-        newSurname?: string;
-        place?: null | {
-            name: string;
-            coordinates: null | {
-                latitude: number;
-                longitude: number;
-            };
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'delete_event';
-    eventId: string;
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'set_event_place';
-    eventId: string;
-    place: null | {
-        name: string;
-        coordinates: null | {
-            latitude: number;
-            longitude: number;
-        };
-    };
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-} | {
-    type: 'reorder_events';
-    personId: string;
-    eventIds: Array<string>;
-    evidence: Array<{
-        messageId: string;
-        quote: string;
-    }>;
-};
-
-export type TreeMergeProposal = {
-    /**
-     * At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
-     */
-    people: Array<TreeMergePersonProposal>;
-    parents: Array<TreeMergeParentProposal>;
-    marriages: Array<TreeMergeMarriageProposal>;
-    /**
-     * Authoritative edits for a general packet. The people, parents, marriages and operationSubjects groups are server projections when operations is present.
-     */
-    operations?: Array<TreeChangeOperation>;
-    readonly operationSubjects?: Array<Array<string>>;
-    questions: Array<string>;
-};
-
-export type TreeMergeProposalRequest = {
-    version: number;
-    proposal: TreeMergeProposal;
-};
-
-export type TreeMergePendingProposal = {
-    id: string;
-    treeId: string;
-    version: number;
-    treeEtag: string;
-    proposal: TreeMergeProposal;
-    state: 'questions' | 'ready' | 'no_changes' | 'conflict';
-};
-
-export type TreeMergeResult = {
-    personIds: {
-        [key: string]: string;
-    };
-    newPersonIds?: Array<string>;
-    affectedPersonIds: Array<string>;
-    etag: string;
-};
-
-export type TreeMergeApplied = {
-    conversation: ChatConversation;
-    operationId: string;
-    result: TreeMergeResult;
-};
-
 export type ChatAccess = {
     status: 'allowed' | 'temporary_ban' | 'permanent_ban' | 'unavailable';
     warnings: number;
@@ -596,20 +137,53 @@ export type ChatTranscription = {
     durationSeconds: number;
 };
 
+export type ToolConfirmation = {
+    id: string;
+    requestId: string;
+    tool: 'create_person' | 'delete_person';
+    summary: {
+        person?: Person;
+        relative?: Person;
+        fields?: PersonActionFields;
+        connection?: {
+            [key: string]: unknown;
+        } | null;
+        [key: string]: unknown;
+    };
+    status: 'pending' | 'executing' | 'applied' | 'rejected' | 'failed' | 'cancelled';
+    result: {
+        [key: string]: unknown;
+    } | null;
+    createdAt: string;
+};
+
+export type ConfirmationDecision = {
+    version: number;
+    decision: 'approve' | 'reject';
+    autoApprovePersonActions?: boolean;
+};
+
+export type ChatPermissions = {
+    version: number;
+    autoApprovePersonActions: boolean;
+};
+
 /**
- * Reusable Symfony AI conversation. Profile selects the configured agent and tools. One official ephemeral MessageStore item holds history and pending tool state, expiring together after one hour without writes. No SQL chat history. Independent moderation audit records and bans survive chat expiration. Reset deletes the item; a tool proposal can be discarded independently. Only the authenticated login session can access this chat. For the tree profile tools.merge is TreeMergePendingProposal.
+ * Session-bound ephemeral Symfony AI conversation. History, confirmations and per-chat permissions expire together after one hour without writes. Pending confirmations suspend execution and survive page reloads.
  */
 export type ChatConversation = {
     id: string;
     profile: string;
     version: number;
-    status: 'idle' | 'processing' | 'error';
+    status: 'idle' | 'processing' | 'awaiting_confirmation' | 'error';
     attemptId: string | null;
     attemptStartedAt: string | null;
     messages: Array<ChatMessage>;
     tools: {
         [key: string]: unknown;
     };
+    confirmations: Array<ToolConfirmation>;
+    autoApprovePersonActions: boolean;
     /**
      * Current user-facing model commentary, available while processing. Tool names and reasoning are excluded.
      */
@@ -898,6 +472,17 @@ export type PersonInput = {
     deathPlace?: EventPlace | null;
 };
 
+export type PersonActionFields = {
+    birthSurname?: KnownText;
+    givenName?: KnownText;
+    patronymic?: KnownText;
+    gender?: Gender;
+    birthDate?: GenealogicalDate;
+    deathDate?: GenealogicalDate | null;
+    birthPlace?: EventPlace | null;
+    deathPlace?: EventPlace | null;
+};
+
 export type PersonPatchRequest = {
     birthSurname?: KnownText;
     givenName?: KnownText;
@@ -905,6 +490,8 @@ export type PersonPatchRequest = {
     gender?: Gender;
     birthDate?: GenealogicalDate;
     deathDate?: GenealogicalDate | null;
+    birthPlace?: EventPlace | null;
+    deathPlace?: EventPlace | null;
 };
 
 export type Person = {
@@ -1084,6 +671,8 @@ export type MarriagePeriod = {
 export type MarriagePeriodPatchRequest = {
     marriageDate?: GenealogicalDate;
     dissolutionDate?: GenealogicalDate | null;
+    marriagePlace?: EventPlace | null;
+    dissolutionPlace?: EventPlace | null;
 };
 
 export type MarriagePeriodUpdateResult = {
@@ -1310,50 +899,6 @@ export type ApiError = {
     details: {
         [key: string]: unknown;
     };
-};
-
-export type TreeMergePersonProposalWritable = {
-    id: string;
-    existingPersonId: string | null;
-    resolution: 'new' | 'existing' | 'undecided';
-    fields: PersonPatchRequest;
-    /**
-     * New people default to alive unless death is mentioned. Legacy uncertain values normalize to the existing person's status or alive for a new person. Missing names and dates do not require clarification.
-     */
-    lifeStatus: 'alive' | 'deceased' | 'uncertain';
-    evidence: Array<TreeMergeEvidence>;
-};
-
-export type TreeMergeProposalWritable = {
-    /**
-     * At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
-     */
-    people: Array<TreeMergePersonProposalWritable>;
-    parents: Array<TreeMergeParentProposal>;
-    marriages: Array<TreeMergeMarriageProposal>;
-    /**
-     * Authoritative edits for a general packet. The people, parents, marriages and operationSubjects groups are server projections when operations is present.
-     */
-    operations?: Array<TreeChangeOperation>;
-    questions: Array<string>;
-};
-
-export type TreeMergeProposalRequestWritable = {
-    version: number;
-    proposal: TreeMergeProposalWritable;
-};
-
-export type TreeMergePendingProposalWritable = {
-    id: string;
-    treeId: string;
-    version: number;
-    treeEtag: string;
-    proposal: TreeMergeProposalWritable;
-    state: 'questions' | 'ready' | 'no_changes' | 'conflict';
-};
-
-export type TreeLayoutPositionsWritable = {
-    [key: string]: TreeLayoutCoordinates;
 };
 
 export type TreeId = string;
@@ -2079,17 +1624,17 @@ export type SubscribeChatEventsResponses = {
 
 export type SubscribeChatEventsResponse = SubscribeChatEventsResponses[keyof SubscribeChatEventsResponses];
 
-export type DiscardTreeMergeProposalData = {
-    body: ChatVersionRequest;
+export type DecideChatConfirmationData = {
+    body: ConfirmationDecision;
     path: {
-        treeId: string;
-        proposalId: string;
+        chatId: string;
+        confirmationId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merge-proposals/{proposalId}';
+    url: '/chats/{chatId}/confirmations/{confirmationId}/decision';
 };
 
-export type DiscardTreeMergeProposalErrors = {
+export type DecideChatConfirmationErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -2108,28 +1653,27 @@ export type DiscardTreeMergeProposalErrors = {
     422: ApiError;
 };
 
-export type DiscardTreeMergeProposalError = DiscardTreeMergeProposalErrors[keyof DiscardTreeMergeProposalErrors];
+export type DecideChatConfirmationError = DecideChatConfirmationErrors[keyof DecideChatConfirmationErrors];
 
-export type DiscardTreeMergeProposalResponses = {
+export type DecideChatConfirmationResponses = {
     /**
-     * Successful operation
+     * Updated conversation; a decision continues until the next confirmation or final answer.
      */
     200: ChatConversation;
 };
 
-export type DiscardTreeMergeProposalResponse = DiscardTreeMergeProposalResponses[keyof DiscardTreeMergeProposalResponses];
+export type DecideChatConfirmationResponse = DecideChatConfirmationResponses[keyof DecideChatConfirmationResponses];
 
-export type ReviseTreeMergeProposalData = {
-    body: TreeMergeProposalRequestWritable;
+export type UpdateChatPermissionsData = {
+    body: ChatPermissions;
     path: {
-        treeId: string;
-        proposalId: string;
+        chatId: string;
     };
     query?: never;
-    url: '/trees/{treeId}/merge-proposals/{proposalId}';
+    url: '/chats/{chatId}/permissions';
 };
 
-export type ReviseTreeMergeProposalErrors = {
+export type UpdateChatPermissionsErrors = {
     /**
      * Missing, invalid, expired, or revoked session
      */
@@ -2148,103 +1692,16 @@ export type ReviseTreeMergeProposalErrors = {
     422: ApiError;
 };
 
-export type ReviseTreeMergeProposalError = ReviseTreeMergeProposalErrors[keyof ReviseTreeMergeProposalErrors];
+export type UpdateChatPermissionsError = UpdateChatPermissionsErrors[keyof UpdateChatPermissionsErrors];
 
-export type ReviseTreeMergeProposalResponses = {
+export type UpdateChatPermissionsResponses = {
     /**
-     * Successful operation
+     * Updated conversation; a decision continues until the next confirmation or final answer.
      */
     200: ChatConversation;
 };
 
-export type ReviseTreeMergeProposalResponse = ReviseTreeMergeProposalResponses[keyof ReviseTreeMergeProposalResponses];
-
-export type RevalidateTreeMergeData = {
-    body: ChatVersionRequest;
-    path: {
-        treeId: string;
-        proposalId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merge-proposals/{proposalId}/revalidate';
-};
-
-export type RevalidateTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type RevalidateTreeMergeError = RevalidateTreeMergeErrors[keyof RevalidateTreeMergeErrors];
-
-export type RevalidateTreeMergeResponses = {
-    /**
-     * Successful operation
-     */
-    200: ChatConversation;
-};
-
-export type RevalidateTreeMergeResponse = RevalidateTreeMergeResponses[keyof RevalidateTreeMergeResponses];
-
-export type ApplyTreeMergeData = {
-    body: ChatVersionRequest;
-    headers: {
-        'If-Match': string;
-    };
-    path: {
-        treeId: string;
-        proposalId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/merge-proposals/{proposalId}/apply';
-};
-
-export type ApplyTreeMergeErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-    /**
-     * If-Match does not match the current tree version
-     */
-    412: ApiError;
-    /**
-     * One or more fields are invalid
-     */
-    422: ApiError;
-};
-
-export type ApplyTreeMergeError = ApplyTreeMergeErrors[keyof ApplyTreeMergeErrors];
-
-export type ApplyTreeMergeResponses = {
-    /**
-     * Successful operation
-     */
-    200: TreeMergeApplied;
-};
-
-export type ApplyTreeMergeResponse = ApplyTreeMergeResponses[keyof ApplyTreeMergeResponses];
+export type UpdateChatPermissionsResponse = UpdateChatPermissionsResponses[keyof UpdateChatPermissionsResponses];
 
 export type GetHealthData = {
     body?: never;

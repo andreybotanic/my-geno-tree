@@ -5,8 +5,8 @@ namespace App\Tests\Infrastructure\Ai;
 use App\Application\Chat\ChatInterface;
 use App\Application\Chat\Moderation\ModerationInputProcessor;
 use App\Model\Conversation;
-use App\Tool\TreeMergeTool;
 use App\Tool\TreeReadTools;
+use App\Tool\TreeWriteTools;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\AI\Agent\Execution\Execution;
 use Symfony\AI\Agent\Execution\ExecutionInterface;
@@ -30,20 +30,20 @@ final class FixtureTreeAgent implements AgentInterface
     public static bool $useReal = false;
     public static int $calls = 0;
     public static TreeReadTools $reads;
-    private static TreeMergeTool $merge;
+    private static TreeWriteTools $writes;
     private static ChatInterface $chat;
 
     public function __construct(
         #[AutowireDecorated]
         private readonly AgentInterface $inner,
-        TreeMergeTool $merge,
+        TreeWriteTools $writes,
         TreeReadTools $reads,
         ChatInterface $chat,
         #[Target('chat')]
         private readonly MessageStoreInterface $store,
         private readonly ModerationInputProcessor $moderation,
     ) {
-        self::$merge = $merge;
+        self::$writes = $writes;
         self::$reads = $reads;
         self::$chat = $chat;
     }
@@ -72,7 +72,7 @@ final class FixtureTreeAgent implements AgentInterface
                 $text = null === self::$handler ? 'Fixture reply.' : (string)(self::$handler)(
                     $conversation,
                     $conversation->attemptId,
-                    self::$merge,
+                    self::$writes,
                     self::$reads,
                 );
                 self::$chat->execution()->conversation;
@@ -104,16 +104,8 @@ final class FixtureTreeAgent implements AgentInterface
         return self::$chat->messages($conversation);
     }
 
-    /** @param array<string, mixed>|null $proposal */
-    public static function reply(Conversation $conversation, string $reply, ?array $proposal = null): string
+    public static function reply(Conversation $conversation, string $reply): string
     {
-        if (null !== $proposal) {
-            $result = (self::$merge)($conversation->context['treeId'] ?? '', $proposal);
-            if (isset($result['error'])) {
-                throw new \LogicException(json_encode($result, JSON_THROW_ON_ERROR));
-            }
-        }
-
         return $reply;
     }
 }

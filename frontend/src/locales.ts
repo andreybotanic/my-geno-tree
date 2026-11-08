@@ -12,6 +12,8 @@ export const resources = {
         redirecting: 'Returning to the application…',
       },
       chat: {
+        treePlaceholder: "Describe what you want to do with the tree…",
+        confirmation: {"title":"Action confirmation","allow":"Allow","reject":"Reject","allowAll":"Allow and auto-confirm in this chat","autoApprove":"Auto-confirm adding and deleting people in this chat","absent":"Not set","connection":{"parent":"New parent ({{role}}) of: {{name}}","child":"New child of: {{name}} ({{role}})","spouse":"New spouse of: {{name}}","relative":"Initial connection: {{name}}"},"deleteConsequences":"This deletes the person, their events, attachments and relationships. Other people are kept.","failed":"The action was not applied. The agent will receive the error.","status":{"pending":"Awaiting confirmation","executing":"Executing…","applied":"Applied","rejected":"Rejected","failed":"Failed","cancelled":"Cancelled"}},
         access: {
           temporary: 'AI chat is blocked until {{until}}.',
           blocked: 'Your access to AI chat is blocked.',
@@ -81,12 +83,12 @@ export const resources = {
         "placeholder": "Write a message…",
         "invalid": "Check the message and try again."
       },
-      treeChange: {
+      treeAction: {
         operations: {
           create_person: 'Create person', update_person: 'Update person', delete_person: 'Delete person',
           add_parent_link: 'Add parent link', remove_parent_link: 'Remove parent link',
           create_marriage_period: 'Add marriage period', update_marriage_period: 'Update marriage period', remove_marriage_period: 'Remove marriage period',
-          create_events: 'Add events to participants', update_event: 'Update event', delete_event: 'Delete event',
+          create_event: 'Add event', update_event: 'Update event', delete_event: 'Delete event',
           set_event_place: 'Change event place', reorder_events: 'Change event order',
         },
         fields: {
@@ -97,15 +99,6 @@ export const resources = {
           type: 'Event type', date: 'Date', title: 'Title', description: 'Description', newSurname: 'New surname', place: 'Place', role: 'Parent role',
         },
         values: { male: 'Male', female: 'Female', unknown: 'Unknown', mother: 'Mother', father: 'Father', custom: 'Personal event', residence: 'Residence', surname_change: 'Surname change' },
-      },
-      treeMerge: {
-        "treeConflict": "The tree has changed. Review the updated proposal and confirm it again.",
-        "placeholder": "Describe what you want to do with the tree…",
-        "cancel": "Discard",
-        "preview": "Review changes",
-        "revalidate": "Recheck",
-        "noChanges": "This proposal does not change the tree.",
-        "apply": "Apply"
       },
       treeImport: {
         action: 'Import', checking: 'Recognizing the file…', disconnected: 'The file contains disconnected family trees. Import them separately.',
@@ -535,6 +528,8 @@ export const resources = {
         redirecting: 'Возвращаемся в приложение…',
       },
       chat: {
+        treePlaceholder: "Опишите, что нужно сделать с деревом…",
+        confirmation: {"title":"Подтверждение действия","allow":"Разрешить","reject":"Отклонить","allowAll":"Разрешить и включить автоподтверждение","autoApprove":"Автоподтверждать добавление и удаление персон в этом чате","absent":"Не задано","connection":{"parent":"Новый родитель ({{role}}), ребёнок: {{name}}","child":"Новый ребёнок, родитель: {{name}} ({{role}})","spouse":"Новый супруг, другая персона: {{name}}","relative":"Начальная связь: {{name}}"},"deleteConsequences":"Будут удалены персона, её события, вложения и связи. Другие персоны сохранятся.","failed":"Действие не применено. Агент получит описание ошибки.","status":{"pending":"Ожидает подтверждения","executing":"Выполняется…","applied":"Применено","rejected":"Отклонено","failed":"Ошибка","cancelled":"Отменено"}},
         access: {
           temporary: 'ИИ-чат заблокирован до {{until}}.',
           blocked: 'Доступ к ИИ-чату заблокирован.',
@@ -604,12 +599,12 @@ export const resources = {
         "placeholder": "Напишите сообщение…",
         "invalid": "Проверьте сообщение и попробуйте снова."
       },
-      treeChange: {
+      treeAction: {
         operations: {
           create_person: 'Создать персону', update_person: 'Изменить персону', delete_person: 'Удалить персону',
           add_parent_link: 'Добавить родительскую связь', remove_parent_link: 'Удалить родительскую связь',
           create_marriage_period: 'Добавить период брака', update_marriage_period: 'Изменить период брака', remove_marriage_period: 'Удалить период брака',
-          create_events: 'Добавить события участникам', update_event: 'Изменить событие', delete_event: 'Удалить событие',
+          create_event: 'Добавить событие', update_event: 'Изменить событие', delete_event: 'Удалить событие',
           set_event_place: 'Изменить место события', reorder_events: 'Изменить порядок событий',
         },
         fields: {
@@ -620,15 +615,6 @@ export const resources = {
           type: 'Тип события', date: 'Дата', title: 'Название', description: 'Описание', newSurname: 'Новая фамилия', place: 'Место', role: 'Роль родителя',
         },
         values: { male: 'Мужской', female: 'Женский', unknown: 'Неизвестно', mother: 'Мать', father: 'Отец', custom: 'Личное событие', residence: 'Проживание', surname_change: 'Смена фамилии' },
-      },
-      treeMerge: {
-        "treeConflict": "Дерево изменилось. Проверьте обновлённое предложение и подтвердите его заново.",
-        "placeholder": "Опишите, что хотите сделать с деревом…",
-        "cancel": "Отказаться",
-        "preview": "Предпросмотр изменений",
-        "revalidate": "Проверить",
-        "noChanges": "Это предложение не изменяет дерево.",
-        "apply": "Применить"
       },
       treeImport: {
         action: 'Импорт', checking: 'Распознаём файл…', disconnected: 'В файле несколько несвязанных деревьев. Импортируйте их отдельно.',

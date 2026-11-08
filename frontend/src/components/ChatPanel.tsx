@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
 import type { ChatAccess, ChatConversation, ChatTokenBudget, ChatEvent, TreeChatCurrent } from '../api/generated'
+import { ActionConfirmationCard } from './ActionConfirmationCard'
 import { ChatBudget } from './ChatBudget'
 import { ChatThinking } from './ChatThinking'
 import { ChatVoiceInput } from './ChatVoiceInput'
@@ -50,7 +51,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false })
   const pending = useRef<{ requestId: string; content: string; accepted: boolean } | null>(null)
   const base = contextPath
-  const thinking = conversation?.status === 'processing' || (thinkingTurn !== null
+  const thinking = conversation?.status === 'processing' || (thinkingTurn !== null && conversation?.status !== 'awaiting_confirmation'
     && !conversation?.messages.some((message) => message.role !== 'user' && message.requestId === thinkingTurn.requestId))
   const blocked = access !== null && access.status !== 'allowed'
   const stream = useChatEvents(
@@ -140,13 +141,16 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   useEffect(
     () => {
       const message = pending.current
-      if (!message || !conversation) return
-      if (conversation.messages.some((item) => item.role === 'user' && item.requestId === message.requestId)) {
+      const requestId = message?.requestId ?? activeRequest.current?.requestId
+      if (!requestId || !conversation) return
+      if (message && conversation.messages.some((item) => item.role === 'user' && item.requestId === requestId)) {
         message.accepted = true
         setContent((value) => value === message.content ? '' : value)
       }
       if (conversation.status === 'processing'
-        || !conversation.messages.some((item) => item.role !== 'user' && item.requestId === message.requestId)) return
+        || !(conversation.messages.some((item) => item.role !== 'user' && item.requestId === requestId)
+          || (conversation.status === 'awaiting_confirmation'
+            && conversation.confirmations.some((item) => item.requestId === requestId && item.status === 'pending')))) return
       // SSE can finish the turn before its HTTP response. Ignore that response's later completion.
       ++generation.current
       activeRequest.current = null
@@ -219,7 +223,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       container.removeEventListener('scroll', updateEdges)
       observer.disconnect()
     }
-  }, [open, conversation?.messages, conversation?.status, conversation?.tools, blocked, error, stream.error, thinking])
+  }, [open, conversation?.messages, conversation?.status, conversation?.tools, conversation?.confirmations, blocked, error, stream.error, thinking])
 
   useEffect(
     () => {
@@ -327,6 +331,47 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     finally { setStopping(false) }
   }
 
+  async function confirmationDecision(id: string, decision: 'approve' | 'reject', autoApprove?: boolean) {
+    if (!conversation || busy) return
+    const confirmation = conversation.confirmations.find((item) => item.id === id)
+    if (!confirmation) return
+    const turn = ++generation.current
+    const controller = new AbortController()
+    activeRequest.current = { chatId: conversation.id, requestId: confirmation.requestId, controller }
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await request<ChatConversation>(`/chats/${conversation.id}/confirmations/${id}/decision`, {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({ version: conversation.version, decision,
+          ...(autoApprove === undefined ? {} : { autoApprovePersonActions: autoApprove }) }),
+      })
+      if (turn === generation.current) update(next)
+    } catch (cause) {
+      if (turn !== generation.current) return
+      showError(cause)
+      try { update(await request<ChatConversation>(`/chats/${conversation.id}`)) } catch { /* Reconnect can recover state. */ }
+    } finally {
+      if (turn === generation.current) {
+        setBusy(false)
+        setThinkingTurn(null)
+        activeRequest.current = null
+      }
+    }
+  }
+
+  async function setAutoApprove(value: boolean) {
+    if (!conversation || busy) return
+    setBusy(true)
+    try {
+      update(await request<ChatConversation>(`/chats/${conversation.id}/permissions`, {
+        method: 'PATCH', body: JSON.stringify({ version: conversation.version, autoApprovePersonActions: value }),
+      }))
+    } catch (cause) { showError(cause) }
+    finally { setBusy(false) }
+  }
+
   async function reload() {
     if (!conversation) return
     setBusy(true)
@@ -393,7 +438,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
           {conversation?.messages.map(
             (message) => (
-              <article key={message.id} className={`chat-message chat-message-${message.role}`}
+              <Fragment key={message.id}><article className={`chat-message chat-message-${message.role}`}
                 aria-label={t(message.role === 'user' ? 'chat.you' : message.role === 'assistant' ? 'chat.assistant' : 'chat.notice')}>
                 <div className="chat-message-body">
                   {message.role === 'system'
@@ -420,6 +465,11 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                   </time>
                 </div>
               </article>
+              {message.role === 'user' && conversation.confirmations.filter((item) => item.requestId === message.requestId).map((item) =>
+                <ActionConfirmationCard key={item.id} confirmation={item} disabled={busy || disabled || blocked || thinking}
+                  onDecision={(decision, auto) => { void confirmationDecision(item.id, decision, auto) }} />
+              )}
+              </Fragment>
             )
           )}
           {thinking && <ChatThinking startedAt={thinkingTurn?.startedAt ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} commentary={conversation?.commentary ?? null} />}
@@ -428,6 +478,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>
         {open && conversation && renderTools?.(conversation, busy || disabled || voiceBusy || thinking, update)}
       </div>
+      {conversation?.profile === 'tree' && <label className="chat-permissions">
+        <input type="checkbox" checked={conversation.autoApprovePersonActions}
+          disabled={busy || disabled || blocked || thinking || voiceBusy}
+          onChange={(event) => { void setAutoApprove(event.target.checked) }} />
+        {t('chat.confirmation.autoApprove')}
+      </label>}
       <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
         <ChatVoiceInput request={request} active={open}
           blocked={blocked}
@@ -445,6 +501,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
               }
             }} />
           <ChatBudget budget={conversation?.tokenBudget ?? budget} />
+          {conversation?.status === 'awaiting_confirmation' && <button type="button" className="secondary-button"
+            disabled={stopping || busy} onClick={() => void stop()}>{t('chat.stop')}</button>}
           {thinking ? <button className="chat-send" type="button" aria-label={t('chat.stop')}
             disabled={stopping} onClick={() => void stop()}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>

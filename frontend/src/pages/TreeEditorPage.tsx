@@ -41,7 +41,6 @@ import type {
   ResolvedEventPlace,
   SaveTreeLayoutRequest,
   TreeSnapshot,
-  TreeMergePendingProposal,
   TreeReference,
   User,
 } from '../api/generated'
@@ -120,7 +119,6 @@ import {
 import { effectiveReference, focusedTreeSnapshot } from '../focusedTree'
 import { formatPersonName } from '../personFormatting'
 import { projectSearchRoute } from '../searchRouteProjection'
-import { projectTreeMerge } from '../treeMergeProjection'
 import {
   createLocalRelationshipPath,
   relationshipPerson,
@@ -413,7 +411,6 @@ function ZoomControls(
 
 type LayoutToolbarProps = {
   search?: ReactNode
-  previewing?: boolean
   isNetworkView: boolean
   onExport: () => void
   onRegenerateNetwork: () => void
@@ -424,7 +421,6 @@ type LayoutToolbarProps = {
 function LayoutToolbar(
   {
     search,
-    previewing = false,
     isNetworkView,
     onExport,
     onRegenerateNetwork,
@@ -440,7 +436,6 @@ function LayoutToolbar(
       <div className="editor-control-group" role="group" aria-label={t('editor.viewTools')}>
         <button
           aria-label={t('treeExport.action')}
-          disabled={previewing}
           className="editor-tool-button"
           onClick={onExport}
           title={t('treeExport.action')}
@@ -452,7 +447,6 @@ function LayoutToolbar(
           aria-label={isNetworkView
             ? t('editor.showTreeView')
             : t('editor.showBloodNetwork')}
-          disabled={previewing}
           className="editor-tool-button"
           onClick={onToggleNetworkView}
           title={isNetworkView
@@ -842,8 +836,6 @@ type TreeCanvasProps = {
   onToggleNetworkView: () => void
   onUpdateUser: (user: User) => void
   selectedPersonId: string | null
-  mergeAffectedIds: string[]
-  mergeProposal: TreeMergePendingProposal | null
   snapshot: TreeSnapshot
   user: User | null
   view: 'network' | 'tree'
@@ -867,8 +859,6 @@ function TreeCanvas(
     onToggleNetworkView,
     onUpdateUser,
     selectedPersonId,
-    mergeAffectedIds,
-    mergeProposal,
     snapshot,
     user,
     view,
@@ -999,13 +989,9 @@ function TreeCanvas(
   )
   const [bloodNetworkMotionRevision, setBloodNetworkMotionRevision] = useState(0)
   const [networkGeneration, setNetworkGeneration] = useState(0)
-  const mergeProjection = useMemo(() => mergeProposal?.proposal ? projectTreeMerge(snapshot, mergeProposal.proposal) : null, [mergeProposal, snapshot])
-  const mergePreviewKey = mergeProposal ? `${mergeProposal.id}:${mergeProposal.version}` : null
-  const focusedSnapshot = useMemo(() => mergeAffectedIds.length > 0 ? snapshot : focusedTreeSnapshot(snapshot), [mergeAffectedIds, snapshot])
-  // A merge result temporarily shows the complete branch. Its positions must
-  // never replace the cache belonging to the ordinary reference projection.
-  const layoutSnapshot = mergeAffectedIds.length > 0 ? { ...snapshot, layout: null, layoutRevision: null } : snapshot
-  const currentLayoutKey = `${treeLayoutCacheKey(snapshot)}:${mergeAffectedIds.length > 0}`
+  const focusedSnapshot = useMemo(() => focusedTreeSnapshot(snapshot), [snapshot])
+  const layoutSnapshot = snapshot
+  const currentLayoutKey = treeLayoutCacheKey(snapshot)
   const [layoutResolution, setLayoutResolution] = useState<{
     key: string
     value: TreeLayoutResolution
@@ -1208,8 +1194,8 @@ function TreeCanvas(
         selected: node.id === bloodNetworkRotationPivotNodeId,
       })
     )
-    : mergeProjection?.nodes ?? [...treeNodes, ...pathNodes]
-  const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : mergeProjection?.edges ?? edges
+    : [...treeNodes, ...pathNodes]
+  const activeEdges: EditorFlowEdge[] = view === 'network' ? [] : edges
   const treeMenuSpouses = useMemo(
     () => {
       if (treeContextMenu?.kind !== 'person' || !treeContextMenu.personId) return []
@@ -1343,36 +1329,9 @@ function TreeCanvas(
       cameraView: TreeEditorView,
       viewport: Viewport,
     ) => {
-      if (mergeProjection) return
       cameras.current[cameraView] = { ...viewport }
     },
-    [cameras, mergeProjection]
-  )
-
-  const previewCamera = useRef<Viewport | null>(null)
-  const lastPreviewKey = useRef<string | null>(null)
-  useEffect(
-    () => {
-      const flow = instance.current
-      if (!cameraReady || !flow || lastPreviewKey.current === mergePreviewKey) return
-      lastPreviewKey.current = mergePreviewKey
-      if (!mergeProjection) {
-        if (previewCamera.current) void flow.setViewport(previewCamera.current, { duration: 250 })
-        previewCamera.current = null
-        return
-      }
-      previewCamera.current ??= flow.getViewport()
-      const points = mergeProjection.nodes.filter((node) => mergeProjection.proposalIds.has(node.id)).map((node) => node.position)
-      const dimensions = canvas.current?.getBoundingClientRect()
-      if (!dimensions || points.length === 0) return
-      const x = Math.min(...points.map((point) => point.x))
-      const y = Math.min(...points.map((point) => point.y))
-      const bounds = { x, y, width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
-        height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT }
-      const width = dimensions.width
-      void flow.setViewport(getViewportForBounds(bounds, width, Math.max(200, dimensions.height - 120), 0.1, 1, 0.2), { duration: 250 })
-    },
-    [cameraReady, mergePreviewKey, mergeProjection]
+    [cameras]
   )
 
   useLayoutEffect(
@@ -1383,7 +1342,6 @@ function TreeCanvas(
       }
       if (
         view !== 'tree'
-        || mergeProjection
         || !cameraReady
         || centeredPersonId.current === selectedPersonId
       ) {
@@ -1405,36 +1363,7 @@ function TreeCanvas(
           () => rememberCamera('tree', flow.getViewport())
         )
     },
-    [cameraReady, centerCamera, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
-  )
-
-  const lastMergeFocus = useRef('')
-  useEffect(
-    () => {
-      if (!cameraReady || !instance.current || mergeAffectedIds.length === 0) return
-      const key = mergeAffectedIds.join(':')
-      if (lastMergeFocus.current === key) return
-      lastMergeFocus.current = key
-      const points = mergeAffectedIds.flatMap((id) => treePositions.get(id) ? [treePositions.get(id)!] : [])
-      const dimensions = canvas.current?.getBoundingClientRect()
-      if (!dimensions || points.length === 0) return
-      const x = Math.min(...points.map((point) => point.x))
-      const y = Math.min(...points.map((point) => point.y))
-      const bounds = { x, y,
-        width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
-        height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT,
-      }
-      const width = dimensions.width
-      void instance.current
-        .setViewport(
-          getViewportForBounds(bounds, width, dimensions.height, 0.1, 1, 0.2),
-          { duration: 250 }
-        )
-        .then(
-          () => { if (instance.current) rememberCamera('tree', instance.current.getViewport()) }
-        )
-    },
-    [cameraReady, mergeAffectedIds, rememberCamera, treePositions]
+    [cameraReady, centerCamera, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
   )
 
   const resetCamera = useCallback(
@@ -1879,14 +1808,12 @@ function TreeCanvas(
             viewport,
           )}
           onNodeClick={(_event, node) => {
-            if (mergeProjection) return
             if (view === 'tree') {
               onSelectPerson(node.id)
             }
           }}
           onNodeContextMenu={(event, node) => {
             event.preventDefault()
-            if (mergeProjection) return
             if (view === 'tree') {
               setTreeContextMenu(
                 {
@@ -1907,7 +1834,6 @@ function TreeCanvas(
             )
           }}
           onEdgeContextMenu={(event, edge) => {
-            if (mergeProjection) { event.preventDefault(); return }
             if (
               view !== 'tree'
               || edge.type !== 'family'
@@ -1961,7 +1887,6 @@ function TreeCanvas(
             setBloodNetworkMotionRevision((revision) => revision + 1)
           }}
           onPaneClick={() => {
-            if (mergeProjection) return
             setBloodNetworkContextMenu(null)
             setTreeContextMenu(null)
             if (view === 'tree') {
@@ -1985,7 +1910,7 @@ function TreeCanvas(
             />
           )}
           <Background color="var(--color-border)" gap={22} size={1} />
-          {view === 'tree' && pathDisplay && !mergeProjection && (
+          {view === 'tree' && pathDisplay && (
             <Panel className="path-display-panel" position="top-left">
               <span className="path-display-title">
                 {t('editor.pathDisplayTitle', { name: '' }).trim()}&nbsp;
@@ -2015,12 +1940,11 @@ function TreeCanvas(
             </Panel>
           )}
           <LayoutToolbar
-            search={view === 'tree' && !mergeProjection ? <PersonSearchPanel
+            search={view === 'tree' ? <PersonSearchPanel
               onSearch={searchPeople}
               onSelect={(person) => void selectSearchResult(person)}
               visiblePersonIds={renderedPersonIds}
             /> : null}
-            previewing={Boolean(mergeProjection)}
             isNetworkView={view === 'network'}
             onExport={onExport}
             onRegenerateNetwork={() => {
@@ -2551,10 +2475,6 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   )
   const [creating, setCreating] = useState(false)
   const [chatOpen, setChatOpen] = useState(() => new URLSearchParams(window.location.search).has('chat'))
-  const [mergeProposal, setMergeProposal] = useState<TreeMergePendingProposal | null>(null)
-  const [mergeReviewContainer, setMergeReviewContainer] = useState<HTMLDivElement | null>(null)
-  const mergePreviewProposal = chatOpen ? mergeProposal : null
-  const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const selectedPersonIdRef = useRef<string | null>(null)
@@ -3540,12 +3460,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     <main className={`tree-editor-page${chatOpen ? ' tree-chat-open' : ''}`}>
       {snapshot && (
         <TreeChatDrawer key={treeId} snapshot={snapshot} request={request} open={chatOpen} onOpenChange={setChatOpen}
-          onProposalChange={setMergeProposal} previewContainer={mergeReviewContainer}
           onRefreshTree={refreshTreeFromChat}
-          onApplied={async (result) => {
+          onApplied={async () => {
             await refreshTreeFromChat()
-            setMergeAffectedIds(result.affectedPersonIds)
-            if (view !== 'tree') navigate(`${treeEditorPath(treeId, 'tree')}${window.location.search}`)
             setConflict(false)
             setStatus('ready')
           }} />
@@ -3603,8 +3520,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
         )}
         {status === 'ready' && snapshot && (
           <div className="tree-canvas">
-            <div className="tree-merge-review-slot" ref={setMergeReviewContainer} />
-            {snapshot.people.length === 0 && !mergePreviewProposal ? (
+            {snapshot.people.length === 0 ? (
               <div className="empty-tree-action">
                 <p>{t('trees.editorEmpty')}</p>
                 <button
@@ -3631,10 +3547,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onShowPathDisplay={showPathDisplay}
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
-                  mergeAffectedIds={mergeAffectedIds}
-                  mergeProposal={mergePreviewProposal}
                   snapshot={snapshot}
-                  view={mergePreviewProposal ? 'tree' : view}
+                  view={view}
                   onToggleNetworkView={toggleNetworkView}
                   onUpdateUser={updateUser}
                   request={request}

@@ -39,20 +39,22 @@ final readonly class ConversationNormalizer implements NormalizerInterface
         }
 
         return [
-            'id'               => $data->id->toRfc4122(),
-            'profile'          => $data->profile,
-            'version'          => $data->version,
-            'status'           => $data->status,
-            'attemptId'        => $data->attemptId,
-            'attemptStartedAt' => $data->attemptStartedAt?->format(\DateTimeInterface::ATOM),
-            'messages'         => $this->messages($data),
-            'tools'            => (object)$data->tools,
-            'commentary'       => $data->commentary,
-            'progressSequence' => $data->progressSequence,
-            'tokenUsage'       => $data->usage,
-            'tokenBudget'      => $this->budget($data->userId),
-            'createdAt'        => $data->createdAt->format(\DateTimeInterface::ATOM),
-            'updatedAt'        => $data->updatedAt->format(\DateTimeInterface::ATOM),
+            'id'                       => $data->id->toRfc4122(),
+            'profile'                  => $data->profile,
+            'version'                  => $data->version,
+            'status'                   => $data->status,
+            'attemptId'                => $data->attemptId,
+            'attemptStartedAt'         => $data->attemptStartedAt?->format(\DateTimeInterface::ATOM),
+            'messages'                 => $this->messages($data),
+            'tools'                    => (object)$data->tools,
+            'confirmations'            => $data->confirmations,
+            'autoApprovePersonActions' => $data->autoApprovePersonActions,
+            'commentary'               => $data->commentary,
+            'progressSequence'         => $data->progressSequence,
+            'tokenUsage'               => $data->usage,
+            'tokenBudget'              => $this->budget($data->userId),
+            'createdAt'                => $data->createdAt->format(\DateTimeInterface::ATOM),
+            'updatedAt'                => $data->updatedAt->format(\DateTimeInterface::ATOM),
         ];
     }
 
@@ -94,7 +96,8 @@ final readonly class ConversationNormalizer implements NormalizerInterface
             if ($message instanceof UserMessage) {
                 $requestId = $metadata['requestId'] ?? $message->getId()->toRfc4122();
                 $content = $message->asText() ?? '';
-            } elseif ($message instanceof AssistantMessage && null !== $message->asText()) {
+            } elseif ($message instanceof AssistantMessage && null !== $message->asText()
+                && '' !== trim($message->asText())) {
                 $content = $message->asText();
             } elseif ($message instanceof SystemMessage && isset($metadata['failureCode'])) {
                 $content = '';

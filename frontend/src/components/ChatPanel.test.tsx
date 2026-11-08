@@ -162,6 +162,35 @@ describe(
       expect(within(answer).getByText('Unsafe')).toHaveAttribute('href', '')
     })
 
+
+    it('enables a streamed confirmation while the message HTTP response is still pending', async () => {
+      let requestId = ''
+      let finish!: (value: ChatConversation) => void
+      setup(async (path, init) => {
+        if (path.endsWith('/messages')) {
+          requestId = (JSON.parse(init!.body as string) as { requestId: string }).requestId
+          return new Promise<ChatConversation>((resolve) => { finish = resolve })
+        }
+        return { conversation }
+      })
+      const input = screen.getByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Add Vera.' } })
+      fireEvent.submit(input.closest('form')!)
+      await waitFor(() => expect(requestId).not.toBe(''))
+      const waiting: ChatConversation = { ...sent, status: 'awaiting_confirmation',
+        messages: [{ ...user, requestId }],
+        confirmations: [{ id: 'approval', requestId, tool: 'create_person', summary: { fields: {} },
+          status: 'pending', result: null, createdAt: conversation.createdAt }] }
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](waiting))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument()
+      expect(input).toBeEnabled()
+      fireEvent.change(input, { target: { value: 'Keep this new clarification.' } })
+      await act(async () => finish(waiting))
+      expect(input).toHaveValue('Keep this new clarification.')
+    })
+
     it('shows current commentary from restored and live progress', async () => {
       const running: ChatConversation = { ...conversation, status: 'processing', commentary: 'Reading the family.' }
       setup(async () => ({ conversation: running }))

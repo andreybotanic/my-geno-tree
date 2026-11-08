@@ -6,7 +6,9 @@ use App\Api\ApiException;
 use App\Api\ConversationNormalizer;
 use App\Application\Chat\Moderation\ChatModeration;
 use App\Application\Chat\Moderation\ModerationWarning;
+use App\Application\Tree\TreeActionService;
 use App\Model\Conversation;
+use App\Model\ToolConfirmation;
 use App\Security\ChatExecution;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\AgentInterface;
@@ -19,6 +21,7 @@ use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Message\AssistantMessage;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Message\ToolCallMessage;
 use Symfony\AI\Platform\Result\Stream\Delta\CommentaryComplete;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
@@ -46,6 +49,7 @@ final readonly class ChatService implements ChatInterface
         #[AutowireLocator('ai.agent', indexAttribute: 'name')]
         private ServiceProviderInterface $agents,
         private ChatModeration $moderation,
+        private TreeActionService $actions,
     ) {
     }
 
@@ -117,6 +121,10 @@ final readonly class ChatService implements ChatInterface
                 if (!$this->limiter->create($current->userId->toRfc4122())->consume()->isAccepted()) {
                     throw new ApiException(429, 'CHAT_RATE_LIMIT');
                 }
+                if ('awaiting_confirmation' === $current->status && null !== $existing) {
+                    return null;
+                }
+                $this->cancelPending($current);
                 $current->beginAttempt($this->clock->now(), $payload['requestId']);
                 if (null === $existing) {
                     $this->append($current, $payload['requestId'], $payload['content']);
@@ -130,6 +138,15 @@ final readonly class ChatService implements ChatInterface
         if (null === $running) {
             return $this->get($conversation->id->toRfc4122());
         }
+
+        return $this->run($running);
+    }
+
+    private function run(
+        Conversation $running,
+        ?ToolConfirmation $confirmation = null,
+        bool $approve = false,
+    ): Conversation {
         $this->publish($running);
         $request = $this->requests->getMainRequest() ?? throw new ApiException(401, 'AUTH_REQUIRED');
         $previous = $request->attributes->get(ChatExecution::class);
@@ -143,6 +160,35 @@ final readonly class ChatService implements ChatInterface
             $warning = null;
             $accessError = null;
             try {
+                if (null !== $confirmation) {
+                    $this->store->synchronized(
+                        $running->contextKey,
+                        function () use ($running, $confirmation, $approve): void {
+                            $this->store->execution();
+                            $result = $approve
+                                ? $this->actions->execute(
+                                    $confirmation->call->getName(),
+                                    $confirmation->call->getArguments(),
+                                )
+                                : ['error' => ['code' => 'TOOL_DENIED']];
+                            $confirmation->result = $result;
+                            $confirmation->status = match (true) {
+                                !$approve               => 'rejected',
+                                isset($result['error']) => 'failed',
+                                default                 => 'applied',
+                            };
+                            $this->replaceToolResult($running, $confirmation, $result);
+                            if (isset($result['etag'])) {
+                                $this->events->toolApplied(
+                                    $running,
+                                    $confirmation->call->getName(),
+                                    $confirmation->call->getId(),
+                                    $result,
+                                );
+                            }
+                        },
+                    );
+                }
                 $agent = $this->agents->get($running->profile);
                 $execution->native = $agent->call(MessageBag::forId($running->id));
                 $execution->native->onProgress(fn (Progress $progress) => $this->progress($progress));
@@ -151,7 +197,7 @@ final readonly class ChatService implements ChatInterface
                 $failure = 'policy_warning';
                 $warning = $notice->number;
             } catch (\Throwable $error) {
-                $this->logger->warning('Chat agent failed: ' . $error::class);
+                $this->logger->warning('Chat agent failed: ' . $error::class, ['exception' => $error]);
                 if ($error instanceof ApiException
                     && in_array($error->getErrorCode(), ['CHAT_UNAVAILABLE', 'CHAT_BANNED'], true)) {
                     $accessError = $error;
@@ -173,13 +219,20 @@ final readonly class ChatService implements ChatInterface
             }
             $this->store->synchronized(
                 $running->contextKey,
-                function () use ($running, $answered, $failure, $payload, $warning): void {
+                function () use ($running, $answered, $failure, $warning, $execution): void {
                     try {
                         $this->store->execution(allowBlocked: true);
                     } catch (ApiException) {
                         return;
                     }
                     $finishedAt = $this->clock->now();
+                    if ($execution->paused) {
+                        $running->status = 'awaiting_confirmation';
+                        $running->changed($finishedAt);
+                        $this->store->persist($running);
+
+                        return;
+                    }
                     $running->finishAttempt($finishedAt, !$answered && null === $warning);
                     if ($answered) {
                         $messages = $this->store->load($running->id);
@@ -200,7 +253,7 @@ final readonly class ChatService implements ChatInterface
                         $messages->getMetadata()->add(Conversation::METADATA, $running);
                         $this->store->save($messages);
                     } else {
-                        $this->append($running, $payload['requestId'], $failure, true, $warning);
+                        $this->append($running, $running->attemptRequestId ?? '', $failure, true, $warning);
                     }
                 }
             );
@@ -241,6 +294,7 @@ final readonly class ChatService implements ChatInterface
                     $messages,
                     static fn ($message) => 'assistant' === $message['role'] && $message['requestId'] === $requestId,
                 )) {
+                    $this->cancelPending($current);
                     $current->finishAttempt($this->clock->now());
                     $this->append($current, $requestId, 'stopped', true);
                 }
@@ -271,41 +325,105 @@ final readonly class ChatService implements ChatInterface
         return $this->store->execution();
     }
 
-    public function replaceTool(
-        Conversation $conversation,
-        string $name,
-        ?object $state,
-        bool $invalidate = true,
-    ): Conversation {
+    public function decide(Conversation $conversation, string $id, array $payload): Conversation
+    {
+        if (array_diff(array_keys($payload), ['version', 'decision', 'autoApprovePersonActions'])
+            || !is_int($payload['version'] ?? null)
+            || !in_array($payload['decision'] ?? null, ['approve', 'reject'], true)
+            || (isset($payload['autoApprovePersonActions']) && !is_bool($payload['autoApprovePersonActions']))) {
+            throw new ApiException(422, 'CHAT_INVALID');
+        }
+        $claimed = $this->store->synchronized(
+            $conversation->contextKey,
+            function () use ($conversation, $id, $payload): ?array {
+                $current = $this->get($conversation->id->toRfc4122());
+                $this->moderation->assertCanInteract($current->userId);
+                $confirmation = array_find($current->confirmations, static fn ($row) => $row->id === $id);
+                if (null === $confirmation) {
+                    throw new ApiException(404, 'CONFIRMATION_NOT_FOUND');
+                }
+                if ('pending' !== $confirmation->status) {
+                    return null;
+                }
+                $this->version($current, $payload['version']);
+                if ('awaiting_confirmation' !== $current->status) {
+                    throw new ApiException(409, 'CHAT_PROCESSING');
+                }
+                $approve = 'approve' === $payload['decision'];
+                if (isset($payload['autoApprovePersonActions']) && $approve) {
+                    $current->autoApprovePersonActions = true === $payload['autoApprovePersonActions'];
+                }
+                $usage = $current->usage;
+                $current->beginAttempt($this->clock->now(), $confirmation->requestId);
+                $current->usage = $usage;
+                $confirmation->status = 'executing';
+                $this->store->persist($current);
+
+                return [$current, $confirmation];
+            },
+        );
+
+        return null === $claimed ? $this->get($conversation->id->toRfc4122())
+            : $this->run($claimed[0], $claimed[1], 'approve' === $payload['decision']);
+    }
+
+    public function permissions(Conversation $conversation, array $payload): Conversation
+    {
+        if (2 !== count($payload) || !is_int($payload['version'] ?? null)
+            || !is_bool($payload['autoApprovePersonActions'] ?? null)) {
+            throw new ApiException(422, 'CHAT_INVALID');
+        }
         $current = $this->store->synchronized(
             $conversation->contextKey,
-            function () use ($conversation, $name, $state, $invalidate): Conversation {
+            function () use ($conversation, $payload): Conversation {
                 $current = $this->get($conversation->id->toRfc4122());
-                $this->version($current, $conversation->version);
-                $execution = $this->requests->getMainRequest()?->attributes->get(ChatExecution::class);
-                if (!$invalidate) {
-                    $this->execution();
-                    $current = $execution instanceof ChatExecution ? $execution->conversation : $current;
+                $this->moderation->assertCanInteract($current->userId);
+                $this->version($current, $payload['version']);
+                if ('processing' === $current->status) {
+                    throw new ApiException(409, 'CHAT_PROCESSING');
                 }
-                if (null === $state) {
-                    unset($current->tools[$name]);
-                } else {
-                    $current->tools[$name] = $state;
-                }
-                $current->toolVersions[$name] = ($current->toolVersions[$name] ?? 0) + 1;
-                if ($invalidate) {
-                    $current->invalidateAttempt($this->clock->now());
-                } else {
-                    $current->changed($this->clock->now());
-                }
+                $current->autoApprovePersonActions = true === $payload['autoApprovePersonActions'];
+                $current->changed($this->clock->now());
                 $this->store->persist($current);
 
                 return $current;
-            }
+            },
         );
         $this->publish($current);
 
         return $current;
+    }
+
+    private function cancelPending(Conversation $conversation): void
+    {
+        foreach ($conversation->confirmations as $confirmation) {
+            if ('pending' === $confirmation->status) {
+                $confirmation->status = 'cancelled';
+                $confirmation->result = ['error' => ['code' => 'TOOL_CANCELLED']];
+                $this->replaceToolResult($conversation, $confirmation, $confirmation->result);
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $result */
+    private function replaceToolResult(Conversation $conversation, ToolConfirmation $confirmation, array $result): void
+    {
+        $stored = $this->store->load($conversation->id);
+        $messages = MessageBag::forId($conversation->id);
+        foreach ($stored as $message) {
+            if ($message instanceof ToolCallMessage
+                && $message->getToolCall()->getId() === $confirmation->call->getId()) {
+                $message = Message::ofToolCall(
+                    $confirmation->call,
+                    json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                )->withId($message->getId());
+            }
+            $messages = $messages->with($message);
+        }
+        $messages->getMetadata()->set($stored->getMetadata()->all());
+        $messages->getMetadata()->add(Conversation::METADATA, $conversation);
+        $this->store->save($messages);
+        $this->store->persist($conversation);
     }
 
     public function snapshot(Conversation $conversation): array
@@ -329,14 +447,6 @@ final readonly class ChatService implements ChatInterface
     public function access(Uuid $user): array
     {
         return $this->moderation->access($user);
-    }
-
-    public function sources(Conversation $conversation): array
-    {
-        return array_values(array_filter(
-            $this->messages($conversation),
-            static fn (array $row): bool => 'user' === $row['role'] && !($row['blocked'] ?? false),
-        ));
     }
 
     private function progress(Progress $progress): void

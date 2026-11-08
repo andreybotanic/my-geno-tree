@@ -16,7 +16,6 @@ use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Agent\Output;
 use Symfony\AI\Agent\OutputProcessorInterface;
 use Symfony\AI\Agent\Toolbox\Event\ToolCallRequested;
-use Symfony\AI\Agent\Toolbox\Event\ToolCallSucceeded;
 use Symfony\AI\Agent\Toolbox\ToolResult;
 use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\AI\Platform\Event\ResultEvent;
@@ -100,47 +99,6 @@ final class ChatAgentHooks extends AbstractStreamListener implements InputProces
         } catch (ApiException $error) {
             $event->setResult(new ToolResult($event->getToolCall(), ['error' => ['code' => $error->getErrorCode()]]));
         }
-    }
-
-    #[AsEventListener]
-    public function observeTreeRead(ToolCallSucceeded $event): void
-    {
-        if (!$this->executing() || !$event->getTool() instanceof TreeReadTools) {
-            return;
-        }
-        $data = $event->getResult()->getResult();
-        if (!is_array($data) || !is_string($data['treeId'] ?? null) || !is_string($data['etag'] ?? null)) {
-            return;
-        }
-        $execution = $this->store->execution();
-        $people = $data['people'] ?? [];
-        if (isset($data['items'], $data['groups'])) {
-            $people = $data['items'];
-        }
-        $receipt = [
-            'treeId'        => $data['treeId'],
-            'etag'          => $data['etag'],
-            'groups'        => $data['groups'] ?? ['identity', 'life'],
-            'people'        => [],
-            'events'        => [],
-            'relationships' => [],
-        ];
-        foreach (is_array($people) ? $people : [] as $person) {
-            if (is_array($person) && is_string($person['id'] ?? null)) {
-                $receipt['people'][] = ['id' => $person['id']];
-            }
-        }
-        foreach (is_array($data['items'] ?? null) ? $data['items'] : [] as $item) {
-            if (!is_array($item) || !is_string($item['id'] ?? null)) {
-                continue;
-            }
-            if (isset($item['personId'], $item['source'])) {
-                $receipt['events'][] = ['id' => $item['id'], 'personId' => $item['personId']];
-            } elseif (isset($item['parentId']) || isset($item['malePersonId'])) {
-                $receipt['relationships'][] = ['id' => $item['id']];
-            }
-        }
-        $execution->observations[] = $receipt;
     }
 
     public function onDelta(DeltaEvent $event): void

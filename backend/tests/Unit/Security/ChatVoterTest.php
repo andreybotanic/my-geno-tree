@@ -67,6 +67,7 @@ final class ChatVoterTest extends TestCase
             ? new NullToken()
             : new PostAuthenticationToken($user, 'main', $user->getRoles());
         $manager = $this->createMock(EntityManagerInterface::class);
+        $manager->method('contains')->willReturn(true);
         $manager->expects(
             in_array($case, ['missing', 'anonymous'], true) ? $this->never() : $this->once(),
         )->method(

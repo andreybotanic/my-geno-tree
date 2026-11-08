@@ -26,12 +26,11 @@ interface ChatInterface
 
     public function execution(): ChatExecution;
 
-    public function replaceTool(
-        Conversation $conversation,
-        string $name,
-        ?object $state,
-        bool $invalidate = true,
-    ): Conversation;
+    /** @param array<string, mixed> $payload */
+    public function decide(Conversation $conversation, string $id, array $payload): Conversation;
+
+    /** @param array<string, mixed> $payload */
+    public function permissions(Conversation $conversation, array $payload): Conversation;
 
     /** @return array<string, mixed> */
     public function snapshot(Conversation $conversation): array;
@@ -64,7 +63,4 @@ interface ChatInterface
      * }
      */
     public function access(Uuid $user): array;
-
-    /** @return list<array{id: string, role: string, content: string}> */
-    public function sources(Conversation $conversation): array;
 }

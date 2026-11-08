@@ -3698,17 +3698,6 @@ select:not([multiple]) {
 .chat-budget-tooltip { display: none; position: absolute; left: 0; bottom: 38px; width: 240px; padding: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 4px 12px var(--color-shadow); z-index: 3; }
 .chat-budget:hover .chat-budget-tooltip, .chat-budget:focus .chat-budget-tooltip { display: block; }
 .chat-budget:focus-visible { outline: 2px solid var(--color-accent); border-radius: 8px; }
-.tree-merge-review-slot { position: absolute; inset: 0; pointer-events: none; z-index: 12; }
-.tree-merge-graph-review { position: absolute; bottom: 16px; left: 16px; width: fit-content; max-width: calc(100% - 32px); min-height: 0; overflow: visible; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px var(--color-shadow); pointer-events: auto; }
-.tree-merge-graph-review .tree-merge-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0; }
-.tree-change-operations { max-height: min(55vh, 30rem); max-width: min(34rem, 75vw); overflow: auto; padding: 0 12px 0 24px; margin: 0 0 12px; }
-.tree-change-operations li { padding: 8px 0; overflow-wrap: anywhere; }
-.tree-change-operations p { margin: 4px 0; }
-.tree-change-operations dl { margin: 8px 0; }
-.tree-change-operations dt { color: var(--color-text-muted); }
-.tree-change-operations dd { margin: 0 0 8px; }
-.tree-change-operations blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--color-border); color: var(--color-text-muted); }
-.merge-preview-person { cursor: default; }
 .oauth-page {
   gap: 0;
   grid-template-columns: minmax(0, 1fr);
@@ -3743,3 +3732,13 @@ select:not([multiple]) {
   flex-wrap: wrap;
   gap: 12px;
 }
+.chat-confirmation { align-self: stretch; padding: 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); overflow-wrap: anywhere; }
+.chat-confirmation.is-pending { border-color: var(--color-accent); }
+.chat-confirmation-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.chat-confirmation-heading span, .chat-confirmation dt { color: var(--color-text-muted); font-size: 0.8rem; }
+.chat-confirmation dl { display: grid; gap: 8px; margin: 12px 0; }
+.chat-confirmation dd { margin: 2px 0 0; white-space: pre-wrap; }
+.chat-confirmation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chat-confirmation-auto { width: 100%; background: transparent; border: 0; color: var(--color-accent); text-align: left; padding: 8px 0 0; cursor: pointer; }
+.chat-permissions { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; color: var(--color-text-muted); font-size: 0.8rem; }
+.chat-permissions input { margin-top: 3px; }

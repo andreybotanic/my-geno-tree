@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedJsonRequest } from '../api/client'
-import type { TreeMergePendingProposal, TreeMergeResult, TreeSnapshot } from '../api/generated'
+import type { TreeSnapshot } from '../api/generated'
 import { TreeChatPanel } from './TreeChatPanel'
 
 type Props = {
@@ -9,10 +9,8 @@ type Props = {
   onOpenChange: (open: boolean) => void
   snapshot: TreeSnapshot
   request: AuthorizedJsonRequest
-  onApplied: (result: TreeMergeResult) => Promise<void>
+  onApplied: () => Promise<void>
   onRefreshTree?: () => Promise<void>
-  onProposalChange?: (draft: TreeMergePendingProposal | null) => void
-  previewContainer?: HTMLElement | null
 }
 
 export function TreeChatDrawer({ open, onOpenChange, ...panel }: Props) {

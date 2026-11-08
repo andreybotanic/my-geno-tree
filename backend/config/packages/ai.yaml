@@ -35,13 +35,13 @@ ai:
                 options:
                     stream: true
                     max_output_tokens: 16384
+                    parallel_tool_calls: false
             prompt:
                 file: '%kernel.project_dir%/prompts/tree.txt'
             max_tool_calls: null
             tools:
                 - App\Tool\TreeReadTools
-                - App\Tool\TreeMergeTool
-                - App\Tool\TreeChangeTool
+                - App\Tool\TreeWriteTools
         chat_moderation:
             platform: ai.platform.generic.chatgpt
             model:

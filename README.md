@@ -14,7 +14,7 @@ Both agents load their system prompts through the bundle's `prompt.file` option:
 `backend/prompts/tree.txt` and `backend/prompts/chat_moderation.txt`.
 The tree agent preserves the source spelling, script, capitalization and
 diacritics of given names, birth surnames and patronymics in replies and
-proposals, regardless of interface language. Existing names change only on an
+tool arguments, regardless of interface language. Existing names change only on an
 explicit user request.
 
 Application parameters in `backend/config/services.yaml`:
@@ -41,13 +41,13 @@ time and an opaque unique retry key. It contains no chat, message or tree links.
 Ban history and the user's counters survive chat reset and journal cleanup.
 Audio stays temporary and is deleted even when access is denied.
 
-Chat history and prepared proposals remain available during a ban. The main
+Chat history remains available during a ban. The main
 agent receives a safe notice in place of blocked text, so it can acknowledge
 the warning when discussing history. The original text stays visible to the user
-and is excluded from evidence. Technical message IDs are reserved for tools and
+and is excluded from inference. Technical message IDs are internal and
 must not appear in conversational quotes or summaries. Sending and
-voice transcription return `403 CHAT_BANNED`; manual tree editing, proposal
-application and external MCP remain available. A failed or invalid checking-model
+voice transcription return `403 CHAT_BANNED`; pending chat decisions are also blocked.
+Manual tree editing and external MCP remain available. A failed or invalid checking-model
 response blocks inference without sanctions and returns `503 CHAT_UNAVAILABLE`.
 Shared cache records this outage for 30 seconds. The panel receives access state
 through action responses and Mercure. It performs one scheduled refresh at the
@@ -57,10 +57,10 @@ A failed scheduled refresh offers an explicit retry. Changes from another device
 can be learned on the next send attempt.
 
 Mercure credentials renew before expiry using overlapping connections. A planned
-handover loads no chat or tree snapshot and preserves the current preview, camera,
+handover loads no chat or tree snapshot and preserves confirmations, camera,
 scroll position and unsent input. A genuine interruption gets a five-second grace
 period before showing the reconnect notice, then a catch-up snapshot on recovery.
-Unchanged messages and proposal objects retain their references during state
+Unchanged messages retain their references during state
 reconciliation. Access tokens nearing their known expiry are refreshed on demand
 before an authorized request; no background authentication timer is used.
 
@@ -192,30 +192,19 @@ URI and PKCE challenge. Invalid requests must be restarted in the agent.
 Network/server failures can be retried
 on the consent page; a failed decision requires reviewing fresh consent.
 
-The external tools are find_trees(query), get_tree_context(treeId,
-referencePersonId?), find_people(treeId, query), get_person_context(treeId,
-personId) and merge(treeId, ifMatch, proposal, sources). Tree discovery accepts
+The external read tools include find_trees(query), get_tree_context(treeId,
+referencePersonId?), find_people(treeId, query) and get_person_context(treeId,
+personId). Tree discovery accepts
 a fuzzy title or an exact UUID and returns up to five {id, name} candidates.
 It queries only the authenticated owner's trees. Names use the existing
 normalization, PostgreSQL trigram matching and Levenshtein distance.
 
-Read person context before selecting identities; ask the user about ambiguous
-matches. Each call explicitly names its tree. The merge tool uses the existing
-proposal schema and evidence quotes; sources is a list of original user messages
-{id, role: "user", content}. Quotes must occur in the supplied source message.
-These sources come from the external client, not from the site's chat history.
-
-**External merge applies immediately.** It is marked as a modifying,
-non-idempotent tool; the client controls approval and may auto-approve according
-to the user's settings. There is no additional elicitation or site confirmation.
-Send the latest ETag as ifMatch. Success returns personIds,
-affectedPersonIds and the new etag; conflicts return TREE_VERSION_CONFLICT
-without applying changes. Refresh context and review a new proposal after a
-conflict rather than repeating a mutation blindly.
-
-The site chat has its own explicit tool registry: no tree discovery, no tree
-switching, and its existing preview plus Apply button remain the confirmation
-mechanism. REST OAuth endpoints and consent types are documented in OpenAPI.
+Resolve identities from stored records and ask the user about ambiguous matches.
+Each call explicitly names its tree. Both transports expose the single-action
+write tools described below. Person creation and deletion require MCP form
+elicitation; clients without it can still read and use the other write tools.
+The site chat has no tree discovery or switching and displays confirmations
+inline. REST OAuth endpoints and consent types are documented in OpenAPI.
 
 Both registries also expose list_people(treeId, personIds?, groups?, cursor?,
 limit?, expectedEtag?), list_relationships(treeId, kind, personIds?, cursor?,
@@ -239,11 +228,10 @@ the registered `GenealogyRecordHydrator` assembles read records without managed
 entities or media. Tool metadata describes arguments, paging and mutation
 semantics; the system prompt contains general conversational and reasoning rules.
 
-Both registries reuse TreeReadTools, TreeMergeTool and TreeChangeTool. ChatAgentHooks enforce the
-selected tree and record context reads for the site agent; the MCP registry adds
-TreeReadTools::findTrees and exposes direct application through the merge tool's separate
-MCP method. McpToolExecutor only translates application exceptions into MCP tool
-errors. Tree search lives in FamilyTreeRepository, without a forwarding service.
+Both registries reuse TreeReadTools and TreeWriteTools. ChatConfirmationHooks enforces the
+selected tree; McpToolExecutor applies the same confirmation policy to external
+clients and translates application errors into machine-readable MCP tool results.
+Tree search lives in FamilyTreeRepository.
 
 OAuthConsent implements the one-time, session-bound consent workflow;
 OAuthClientRegistration implements DCR and safe CIMD document retrieval. These
@@ -261,127 +249,72 @@ ManualEventService::createMany creates independent events for a list of people
 in one transaction. It validates every participant and date before persisting
 events, rejects repeated or foreign participants and updates the tree revision
 once. Single-person REST creation delegates to this same operation. The core
-operation can also be called by tree tools and a future participant-selection UI;
+operation can also support a future participant-selection UI;
 no shared-event entity or new UI is introduced.
 
 Person and event place inputs accept coordinates=null alongside a nonempty name.
 Existing geocoding responses continue to return resolved coordinates. Text-only
 places preserve historical or unresolved names without inventing a map position.
 
-### Atomic general tree changes
+### Single tree actions and confirmations
 
-`change_tree(treeId, ifMatch, operations)` accepts person creation, patching and
-deletion; parent-link creation and removal; marriage-period creation, patching
-and removal; and `create_events`, `update_event`, `delete_event`,
-`set_event_place`, `reorder_events`. New people have temporary references usable
-by other operations in the same packet. Person and marriage fields use the same
-structured names, dates and nullable places as REST. Event creation accepts a
-list of participants; subsequent edits to the resulting records are independent.
-Automatic events are synchronized through their sources, with place editing
-remaining available through the existing canonical-place service.
+TreeWriteTools exposes create_person, update_person, delete_person,
+add_parent_link, remove_parent_link, create_marriage_period,
+update_marriage_period, remove_marriage_period, create_event, update_event,
+delete_event, set_event_place and reorder_events to Symfony AI and MCP.
+TreeActionService delegates each action to existing application services.
+Each successful action commits independently, synchronizing automatic events,
+reference changes, ETag and layout invalidation within its own transaction.
+A later rejection does not undo prior actions. Physical media cleanup follows commit.
 
-`TreeChangeSetFactory`, the graph projector and executor are application core,
-independent of chat and MCP. They validate the final graph and manual-event
-lifespans, then apply a packet in one transaction under the supplied tree ETag.
-One failed operation rolls back all writes. A stale ETag never triggers a retry.
-Stored media is removed only after the transaction succeeds.
+Read the initial ETag once. Every successful mutation returns its own etag and
+real resource IDs directly in the tool result; pass that etag as the next ifMatch.
+There is no intermediate snapshot/read requirement after an agent's own writes.
+All normal ownership, connectivity, date and deletion rules still apply.
+A nonempty tree requires create_person to attach the new person through an
+initial parent, child or spouse connection. Read again when facts are missing,
+a version conflict occurs or a mutation response is lost; never replay blindly.
 
-On the site, packets without `create_person` apply immediately. Packets creating
-people remain entirely pending for review, including their event and relationship
-changes. The existing `merge` adapter follows this same rule; old pending
-proposals remain supported. MCP applies every valid packet immediately, including
-new people, with exact user instructions supplied in `sources`.
-Both tools share schemas and application rules. The site records compact read
-receipts with IDs, field groups and versions, and requires fresh target reads.
-There are no separate read-count, accumulated-result-byte or tool-call limits;
-token budgets, authorization, timeouts and cancellation still apply.
+Creating and deleting a person require a separate confirmation for each call.
+The website stores the immutable call and its decision with native MessageBag
+history in the existing one-hour tmpfs cache. ToolCallRequested intercepts the
+call, ToolCallsExecuted finishes the native round, and the chat enters
+awaiting_confirmation without holding a database transaction or HTTP request.
+The panel displays an inline action card with Allow, Reject and Allow with
+auto-confirmation for this chat. A visible checkbox can disable automatic
+confirmation; new chats always start with it disabled.
 
-Mixed reviews show every operation and its unabridged text in EN/RU. Direct
-application publishes the existing chat tool notification. The client refreshes
-the tree without framing the affected people, preserving camera and chat state.
-Repeated notifications are deduplicated; completion and reconnect refreshes
-recover missed notifications without repeating mutations.
+POST /api/v1/chats/{chatId}/confirmations/{confirmationId}/decision accepts
+the conversation version, decision and optional autoApprovePersonActions.
+PATCH /api/v1/chats/{chatId}/permissions changes that mode between executions.
+Approval executes exactly the stored arguments and feeds the real tool result
+back to the configured Symfony AI agent, continuing the same user request.
+An external tree change invalidates the saved ifMatch. Repeated decisions
+cannot repeat the mutation. Stop or a new message cancels a pending call.
+Cards and decisions survive reloads and synchronize through private Mercure events.
 
-Local HTTPS validation (2026-11-08) used a separate synthetic 48-person tree:
-whole-tree age analysis reported uncertain dates explicitly; a move was saved
-for three participants without review; an anniversary celebration was saved
-for both spouses using the existing marriage, after clarifying the family side.
-A mixed packet remained unapplied until review. A concurrent rename caused a
-version conflict and required another explicit confirmation without losing the
-chat draft. Temporarily making Geoapify unreachable in the backend container
-verified that an event still saves the exact place name with null coordinates;
-the network override was then removed. A further direct event appeared in the
-already open person timeline without a page reload, retaining the 69% zoom.
+MCP clients must support form elicitation for person creation/deletion.
+Legacy clients receive elicitation/create; modern clients receive input_required
+and return their answer with the original call. Signed request state binds the
+call arguments and OAuth identity, expires after 120 seconds and is consumed once.
+Decline, cancellation, timeout, replay or unsupported elicitation cannot apply
+the action. Website automatic permissions never bypass MCP elicitation.
 
-### Chat profiles and the merge tool
+ChatService and ChatPanel remain reusable across profiles. The configured
+Symfony AI agent owns inference, progress, token accounting and cancellation.
+ChatToolExecutor permits multiple read calls but rejects any round containing
+a mutation alongside another call before side effects. Mutations therefore
+consume the actual result and ETag of their predecessor.
+The client refreshes committed data without switching representation or framing
+new people, retaining camera, selection and composer state. Reconnect reloads
+the snapshot to recover missed notifications.
 
-The AI panel is a reusable Symfony AI conversation. Its backend-selected profile
-chooses a ready agent from `ai.yaml`, with that agent's tools and prompt. The
-common chat module and `ChatPanel` handle messages, processing, Stop, events,
-voice and token usage without tree or merge types. `TreeMergeTool` and
-`TreeChatPanel` connect the tree profile to its preview and confirmation UI.
-A test runs a second configured profile without tree tools or the tree prompt.
-`ChatService` implements the application `ChatInterface`. The configured agent owns
-its inference loop; `ExecutionInterface` supplies progress and cancellation.
-`ChatAgentHooks` binds native metadata, checks authorization and meters responses.
-`ChatEventPublisherInterface` is the application notification contract.
-`MercureChatEventPublisher` implements it through the standard Mercure hub and
-rechecks `ChatVoter` before delivery. `ChatController` grants subscriptions using
-Mercure `Authorization`; Symfony Security authenticates their JWT separately.
-There is no custom agent or inference loop.
-
-`TreeMergeService` prepares and applies a change set independently of chat, AI
-and MCP. Its validator accepts explicit evidence sources. The native `merge`
-tool adapts this service to the active conversation and publishes validated
-proposals. The UI shows the latest proposal when the turn finishes, so intermediate
-tool calls cannot expose a partial preview for confirmation. Apply and discard
-share the preview's action block. Factual answers are escaped plain text;
-JSON-looking replies have no special meaning. Ctrl+Enter sends; Enter inserts a
-line break. Unsent input stays only in the mounted component.
-
-`GET /api/v1/trees/{treeId}/chat` returns `{conversation, tokenBudget}`; POST
-creates or returns the current conversation. Common operations use
-`/api/v1/chats/{chatId}`. POST `/messages` saves and executes a turn in one request;
-there is no separate process endpoint. The composer clears on send and restores
-text only if delivery remains unconfirmed after a failure. A completed SSE snapshot
-releases the local turn without waiting for HTTP; late responses preserve new input.
-Each authenticated login has one current conversation
-per context and at most one pending merge proposal for a tree. Another login
-cannot read or replace its history or proposal. There is no SQL chat table:
-`tree_merge_conversation` and its Doctrine coordinator were removed.
-
-Persistence uses the official `symfony/ai-cache-message-store`. Message history
-and pending tool state share one `MessageBag` cache item on Docker tmpfs. Its
-one-hour TTL (`app.chat_ttl`) advances on writes. Expiry, eviction, reset and
-container restart remove history and proposal together, without an HTTP cleanup
-or background job. A separate private cache index contains only the current
-conversation UUID for a login/context pair. It stores no history or proposal.
-
-Symfony Lock coordinates short state changes. The `GuardedMessageStore`
-decorator delegates storage to the official bridge and includes native agent
-saves in the same lock and attempt/version checks. Locks are released while
-waiting for the model, so Stop and concurrent actions remain available.
-`ChatVoter` checks the owning active login; `FamilyTreeVoter` enforces ownership
-for tree tools and tree endpoints. Obsolete responses cannot restore state after
-Stop, logout, reset, proposal edits, discard or a newer message.
-
-`conversation.status` describes processing; `tools.merge.state` describes the
-pending proposal. A successful `merge` replaces that single proposal. Ordinary
-answers, Stop and provider failures preserve it. Proposal actions use
-`/api/v1/trees/{treeId}/merge-proposals/{proposalId}`: DELETE discards only the
-proposal; the chat and unsent input remain. Its button disappears immediately.
-Reset deletes the whole conversation. Both actions reach other tabs by Mercure.
-
-Applying a pending proposal with new people requires a separate button, the
-proposal version and tree ETag. It consumes
-the proposal before the structural tree transaction. People, links, automatic
-events, ETag and layout invalidation change atomically. The result is returned
-once in the HTTP response and a transient tool event, then discarded. Neither
-an applied proposal nor an application receipt is retained in chat state.
-Retries of the consumed proposal return 404 and cannot mutate the tree again.
-An ambiguous response triggers a tree/state refresh; a failed local refresh can
-reuse the transient result in the current tab. A tree version conflict refreshes
-the preview and requires another explicit confirmation.
+GET /api/v1/trees/{treeId}/chat returns the current session-bound conversation;
+POST opens it. Common operations use /api/v1/chats/{chatId}, including messages,
+stop, reset and events. There is no SQL chat table. Expiry, reset and container
+restart remove chat history, confirmations and per-chat permissions together.
+Legacy cached tool proposals are discarded while visible messages are preserved.
+The original spec directory is unchanged.
 
 The tree agent uses the official `symfony/ai-open-responses-platform` bridge
 and streams `/v1/responses` through CLIProxyAPI. Symfony AI `CommentaryComplete`
@@ -419,7 +352,7 @@ The fixed-size chat button sits beside the top toolbar with a localized native
 tooltip; the toolbar reserves its width whether the drawer is open or closed.
 Search and view/export controls share one toolbar with separate groups. Camera
 position and zoom controls use the same grouped panel structure below the graph.
-Merge confirmation takes only the width of its controls and wraps when needed.
+Inline confirmation controls wrap within the chat panel when needed.
 
 Without an explicit narrative reference, `get_tree_context` uses the tree's
 current primary reference person, including the first person of a canonical
@@ -427,15 +360,12 @@ reference pair. An explicit person takes priority. Empty trees return no people.
 The resolved reference and its bounded immediate family include structured dates;
 this context is not a complete listing of every person in the tree.
 
-The tree profile permits ten new people per proposal. Reads and tool calls have
-no separate count limit; cancellation, model timeouts and the token budget remain
-active. Existing endpoints must have been observed through a current context or
-person-list read. User messages total at most 10,000 characters and 200 visible
-messages per conversation. Evidence quotes must be exact user-message substrings
-of at most 300 characters. The model receives no application credentials or
-user/session identity. Graph validation uses three bounded queries; the
-independent change-set executor constructs the prospective graph once under the
-tree lock and loads automatic child-birth events only for affected children.
+Each creation tool adds one person. Reads and tool calls have no separate count
+limit; cancellation, model timeouts and the token budget remain active. Tool
+results supply IDs and ETags for subsequent actions. User messages total at most
+10,000 characters and 200 visible messages per conversation. The model receives
+no application credentials or user/session identity. Graph validation uses
+bounded repository queries and executes under the tree lock.
 
 Private Mercure events carry conversation snapshots, progress, token usage and
 transient tool results. The hub retains no history. Opening or reconnecting
@@ -587,11 +517,10 @@ was preserved.
 
 The configured Symfony AI agent invokes native PHP tools directly.
 
-Backend/API tests cover ownership, session isolation, one-draft persistence,
-Stop/provider failures with ready proposals, evidence limits, stale attempts,
-ETag conflicts, atomic application and token accounting through the configured
-agent. Family proposal fixtures verify domain integration, not live model
-extraction quality. Browser scenarios are recorded with the completed change.
+Backend/API tests cover ownership, session isolation, persisted confirmations,
+Stop/provider failures, stale attempts, ETag chains and conflicts, atomic actions,
+MCP elicitation and token accounting through the configured agent. Fixtures verify
+domain integration; browser scenarios exercise the live model separately.
 
 Run all application tooling inside its service container:
 
@@ -630,6 +559,43 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
+
+## Single-action validation (2026-11-08)
+
+The complete suites pass: 282 backend tests, 437 frontend tests and 27 gateway
+tests. Line coverage is 93.50%, 90.83% and 98.43%, respectively. The frontend
+coverage run uses two workers because the existing 101-person force simulation
+can exceed its timeout under parallel load. Measured application behavior meets
+75% per-file coverage. Kernel compiler wiring runs before cached-container test
+coverage; the two constructor-only repository exceptions remain as documented
+below. The native-agent API tests exercise the configured executor and its
+single-mutation-round restriction.
+
+Backend/frontend/gateway quality checks, OpenAPI generation verification,
+production builds, Composer validation, schema validation and dev/prod container
+checks pass. All 26 migrations were applied and schema-validated on a clean
+disposable PostgreSQL database. No migration or SQL table was added. PhpStorm
+WARNING inspections cover all 30 affected PHP files; no findings remain.
+Two existing PHPUnit notices and the existing Vite chunk-size advisory remain.
+
+Automated scenarios include one-read mutation chains, a concurrent write between
+steps, a conflict during website and MCP approval, immutable call arguments,
+double decisions, rejection, cancellation, expired MCP state, automatic mode,
+Stop, new-message cancellation, restored waiting state, lost-response recovery,
+session isolation and legacy history migration with and without an old proposal.
+
+Manual local HTTPS checks used the synthetic tree
+`Проверка подтверждений ИИ — конфликт`: creation and reload during confirmation,
+approval, denial of deletion, automatic mode and its disabling, Stop while
+waiting, corrected calls after a domain error, and conflict from a second tab.
+Both Russian and English cards were checked. Sequential person/event updates
+kept the blood-network representation and its 69% zoom. Applied changes refreshed
+the tree without a merge preview. The synthetic four-person tree is retained.
+
+## Historical validation records
+
+These dated records describe their original revisions. Merge previews and batch
+tools mentioned below have been superseded by single actions and confirmations.
 
 Previous chat validation (before external MCP, 2026-11-06): 220 backend tests and 385 frontend tests pass. Line
 coverage is 93.00% backend and 90.18% frontend. Every production file with

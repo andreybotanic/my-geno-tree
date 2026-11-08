@@ -207,6 +207,33 @@ final class GuardedMessageStore implements MessageStoreInterface
         $uuid = Uuid::fromString($id);
         $value = $uuid instanceof UuidV7 ? $this->inner->load($uuid)->getMetadata()->get(Conversation::METADATA) : null;
 
+        if ($value instanceof Conversation
+            && ($value->toolStateVersion < Conversation::TOOL_STATE_VERSION || [] !== $value->tools)) {
+            $value = $this->synchronized(
+                $value->contextKey,
+                function () use ($uuid): ?Conversation {
+                    $messages = $this->inner->load($uuid);
+                    $state = $messages->getMetadata()->get(Conversation::METADATA);
+                    if (!$state instanceof Conversation
+                        || ($state->toolStateVersion >= Conversation::TOOL_STATE_VERSION && [] === $state->tools)) {
+                        return $state instanceof Conversation ? $state : null;
+                    }
+                    // Retire legacy tool state once, retaining visible messages and the login binding.
+                    $messages = $messages->withoutToolMessages();
+                    $state->tools = [];
+                    $state->toolVersions = [];
+                    $state->toolStateVersion = Conversation::TOOL_STATE_VERSION;
+                    $state->invalidateAttempt($this->clock->now());
+                    $messages->getMetadata()->add(Conversation::METADATA, $state);
+                    $this->inner->delete($uuid);
+                    $this->inner->save($messages);
+
+                    return $state;
+                },
+                $value->sessionId->toRfc4122(),
+            );
+        }
+
         return $value instanceof Conversation ? $value : null;
     }
 

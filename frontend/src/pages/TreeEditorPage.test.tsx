@@ -8,7 +8,6 @@ import type {
   Person,
   SearchRoutePlan,
   TreeSnapshot,
-  ChatConversation,
   User,
 } from '../api/generated'
 import {
@@ -270,71 +269,6 @@ describe(
       expect(input).toHaveValue('Retain this draft.')
       expect(screen.getByRole('button', { name: 'Current zoom' }).textContent).toBe(zoom)
     })
-
-    it
-      .each(
-        [false, true]
-      )(
-        'previews and applies a merge without highlighting the added people (empty=%s)',
-        async (empty) => {
-          const original = snapshot(empty ? [] : [person])
-          const prepared: ChatConversation = {
-            id: 'chat-preview', profile: 'tree', version: 2, status: 'idle',
-            access: { status: 'allowed', warnings: 0, warningLimit: 3, banCount: 0,
-              bannedUntil: null, unavailableUntil: null, serverTime: person.createdAt },
-            attemptId: null, attemptStartedAt: null,
-            messages: [], commentary: null, progressSequence: 0, tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
-            createdAt: person.createdAt, updatedAt: person.updatedAt,
-            tools: { merge: { id: 'proposal', treeId, version: 1, treeEtag: original.etag, state: 'ready', proposal: { people: [
-                    ...(empty ? [] : [{ id: 'a', existingPersonId: person.id, resolution: 'existing' as const, lifeStatus: 'alive' as const, fields: { deathDate: null }, evidence: [] }]),
-                    { id: 'b', existingPersonId: null, resolution: 'new', lifeStatus: 'alive', fields: { givenName: { state: 'known', value: 'Boris' }, gender: 'male', deathDate: null }, evidence: [] },
-                  ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] } } },
-          }
-          const boris: Person = { ...father, givenName: { state: 'known', value: 'Boris' } }
-          let current = original
-          const request = vi.fn(async (path: string) => {
-            if (path.endsWith('/chat')) return { conversation: prepared, tokenBudget: prepared.tokenBudget }
-            if (path.endsWith('/apply')) {
-              current = graphSnapshot(
-                [...original.people, boris],
-                empty ? [] : [parentLink],
-                [],
-                '"tree-after-merge"',
-              )
-              return {
-                conversation: { ...prepared, version: 3, tools: {} },
-                operationId: 'merge-operation',
-                result: { personIds: { b: boris.id }, affectedPersonIds: [boris.id], etag: current.etag },
-              }
-            }
-            return current
-          }) as unknown as AuthorizedJsonRequest
-          const { container } = renderEditor(request)
-          fireEvent.click(await screen.findByRole('button', { name: 'Open AI chat' }))
-          const added = await screen.findByText('Boris')
-          expect(added.closest('article')).not.toHaveClass('person-card-muted')
-          if (!empty) expect(screen.getByText('Anna').closest('article')).toHaveClass('person-card-muted')
-          expect(container.querySelector('.tree-canvas .tree-merge-graph-review')).toBeInTheDocument()
-          expect(container.querySelector('.chat-panel .tree-merge-preview')).toBeNull()
-          fireEvent.click(added)
-          expect(screen.queryByLabelText('Match in this tree')).not.toBeInTheDocument()
-          expect(screen.queryByRole('textbox', { name: 'Given name' })).not.toBeInTheDocument()
-          expect(screen.queryByRole('checkbox', { name: /reviewed proposal/ })).not.toBeInTheDocument()
-          expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
-          fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
-          await waitFor(() => expect(screen.queryByText('Boris')).not.toBeInTheDocument())
-          if (!empty) expect(screen.getByText('Anna').closest('article')).not.toHaveClass('person-card-muted')
-          expect(original.people).toHaveLength(empty ? 0 : 1)
-          expect(request).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'POST' }))
-          fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
-          fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
-          await waitFor(() => expect(screen.queryByRole('region', { name: 'Review changes' })).not.toBeInTheDocument())
-          const applied = await screen.findByRole('article', { name: 'Petrov Boris' })
-          expect(applied.closest('.react-flow__node')).not.toHaveClass('merge-affected-node')
-          expect(container.querySelector('.merge-affected-node')).toBeNull()
-          expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
-        }
-      )
 
     it
       .each(

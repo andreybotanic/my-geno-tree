@@ -2,9 +2,9 @@ mcp:
     servers:
         default:
             name: MyGenoTree
-            instructions: 'Work in the requested tree. Resolve identity and family side from explicit user facts and stored links; the tree reference is not the user. Clarify ambiguity. Preserve names and date precision. For whole-tree answers inspect the complete selection and report any missing coverage or insufficient data. Submit related changes together. After a conflict or lost response read state again; never retry a mutation blindly.'
+            instructions: 'Work in the requested tree. Resolve identity and family side from explicit user facts and stored links; the tree reference is not the user. Clarify ambiguity. Preserve names and date precision. For whole-tree answers inspect the complete selection and report any missing coverage or insufficient data. Perform single mutations sequentially. Use each successful tool result etag as the next ifMatch without rereading the tree. Use returned real resource IDs. Person creation and deletion require client elicitation. Never circumvent a denial. Each success is saved independently. After a conflict or lost response read state again; never retry a mutation blindly.'
             registry:
-                tools: ['App\Tool\TreeReadTools', 'App\Tool\TreeMergeTool', 'App\Tool\TreeChangeTool']
+                tools: ['App\Tool\TreeReadTools', 'App\Tool\TreeWriteTools']
             session:
                 directory: '/run/chat/mcp_%kernel.environment%'
 
