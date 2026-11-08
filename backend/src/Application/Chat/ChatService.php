@@ -16,6 +16,7 @@ use Symfony\AI\Platform\Exception\ContentFilterException;
 use Symfony\AI\Platform\Exception\ExceedContextSizeException;
 use Symfony\AI\Platform\Exception\MaxOutputTokensException;
 use Symfony\AI\Platform\Exception\RateLimitExceededException;
+use Symfony\AI\Platform\Message\AssistantMessage;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\Stream\Delta\CommentaryComplete;
@@ -178,9 +179,26 @@ final readonly class ChatService implements ChatInterface
                     } catch (ApiException) {
                         return;
                     }
-                    $running->finishAttempt($this->clock->now(), !$answered && null === $warning);
+                    $finishedAt = $this->clock->now();
+                    $running->finishAttempt($finishedAt, !$answered && null === $warning);
                     if ($answered) {
-                        $this->store->persist($running);
+                        $messages = $this->store->load($running->id);
+                        $answer = array_last($messages->getMessages());
+                        if ($answer instanceof AssistantMessage && null !== $answer->asText()) {
+                            $startedAt = $running->attemptStartedAt ?? $finishedAt;
+                            $duration = (float)$finishedAt->format('U.u') - (float)$startedAt->format('U.u');
+                            $answer
+                                ->getMetadata()
+                                ->add(
+                                    'responseMetrics',
+                                    [
+                                        'durationMs' => max(0, (int)round($duration * 1000)),
+                                        'tokenUsage' => $running->usage,
+                                    ],
+                                );
+                        }
+                        $messages->getMetadata()->add(Conversation::METADATA, $running);
+                        $this->store->save($messages);
                     } else {
                         $this->append($running, $payload['requestId'], $failure, true, $warning);
                     }

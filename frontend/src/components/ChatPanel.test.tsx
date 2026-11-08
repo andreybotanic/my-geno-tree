@@ -101,6 +101,51 @@ describe(
       expect(ownMessage.querySelector('strong, b')).toBeNull()
     })
 
+    it('shows response duration and token use before assistant timestamps in both languages', async () => {
+      const responseMetrics = { durationMs: 12340, tokenUsage: { input: 1000, output: 50, total: 1050 } }
+      const next: ChatConversation = { ...completed, messages: [
+        { ...user, responseMetrics },
+        { ...completed.messages[1]!, responseMetrics },
+      ] }
+      setup(async () => ({ conversation: next }))
+      const answer = await screen.findByRole('article', { name: 'Assistant' })
+      const metrics = answer.querySelector('.chat-message-metrics')!
+      expect(metrics).toHaveTextContent('12.3 s')
+      expect(metrics).toHaveTextContent('Tokens: 1,050')
+      expect(metrics.nextElementSibling?.tagName).toBe('TIME')
+      expect(screen.getByRole('article', { name: 'You' }).querySelector('.chat-message-metrics')).toBeNull()
+      await act(async () => i18n.changeLanguage('ru'))
+      expect(metrics).toHaveTextContent('12,3 с')
+      expect(metrics).toHaveTextContent('Токены: 1 050')
+      expect(screen.getByRole('button', { name: 'Удалить чат' })).toBeEnabled()
+    })
+
+    it('fades only scroll edges that have more content and removes fades when everything fits', async () => {
+      const view = setup(async () => ({ conversation: completed }))
+      await screen.findByText('An ordinary answer.')
+      const viewport = view.container.querySelector('.chat-content')!
+      expect(viewport).not.toHaveClass('is-faded-top', 'is-faded-bottom')
+      Object.defineProperties(viewport, {
+        scrollHeight: { configurable: true, value: 1000 },
+        clientHeight: { configurable: true, value: 400 },
+        scrollTop: { configurable: true, writable: true, value: 0 },
+      })
+      fireEvent.scroll(viewport)
+      expect(viewport).not.toHaveClass('is-faded-top')
+      expect(viewport).toHaveClass('is-faded-bottom')
+      viewport.scrollTop = 200
+      fireEvent.scroll(viewport)
+      expect(viewport).toHaveClass('is-faded-top', 'is-faded-bottom')
+      viewport.scrollTop = 600
+      fireEvent.scroll(viewport)
+      expect(viewport).toHaveClass('is-faded-top')
+      expect(viewport).not.toHaveClass('is-faded-bottom')
+      Object.defineProperty(viewport, 'scrollHeight', { value: 300 })
+      viewport.scrollTop = 0
+      fireEvent.scroll(viewport)
+      expect(viewport).not.toHaveClass('is-faded-top', 'is-faded-bottom')
+    })
+
     it('escapes raw HTML and removes executable URLs from assistant Markdown', async () => {
       const html = '<img src=x onerror="alert(1)"><script>alert(1)</script>'
       const next: ChatConversation = { ...completed, messages: [
@@ -181,7 +226,7 @@ describe(
         expect(time).toHaveTextContent(new Date(timestamp).toLocaleTimeString('en',
           { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }))
         expect(time).toHaveAttribute('title', new Date(timestamp).toLocaleString('en'))
-        expect(time.previousElementSibling).toHaveClass('chat-message-body')
+        expect(time.parentElement?.previousElementSibling).toHaveClass('chat-message-body')
       }
       await act(async () => i18n.changeLanguage('ru'))
       const notice = screen.getByRole('article', { name: 'Уведомление' }).querySelector('time')!
@@ -372,7 +417,7 @@ describe(
         expect(request).toHaveBeenCalledWith('/example/chat', expect.objectContaining({ body: JSON.stringify({ context: 'example' }) }))
         expect(request).toHaveBeenCalledWith('/chats/chat/messages', expect.objectContaining({ method: 'POST' }))
         expect(window.location.search).toBe('?chat=chat')
-        fireEvent.click(screen.getByRole('button', { name: 'Start another conversation' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Delete chat' }))
         await waitFor(() => expect(changed).toHaveBeenLastCalledWith(null))
         expect(window.location.search).toBe('')
         fireEvent.keyDown(screen.getByRole('complementary'), { key: 'Escape' })

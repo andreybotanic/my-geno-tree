@@ -125,7 +125,19 @@ export type ChatMessage = {
      * Excluded from inference and evidence sources.
      */
     blocked?: boolean;
+    responseMetrics?: ChatResponseMetrics;
     createdAt: string;
+};
+
+/**
+ * Metrics saved with a completed assistant message. Absent from older messages.
+ */
+export type ChatResponseMetrics = {
+    /**
+     * Total server processing time for this response, including moderation and tools.
+     */
+    durationMs: number;
+    tokenUsage: ChatTokenUsage;
 };
 
 export type ChatSubscription = {

@@ -323,6 +323,12 @@ character query bounds; application normalization and validation remain in place
 
 User, assistant and system messages show their local 24-hour time below
 the content on the right; the tooltip includes the full localized date and time.
+Hovering over an assistant message reveals response duration and token usage to
+the left of its timestamp. Metrics are saved in message metadata for each new
+completed response, including moderation and tool rounds, and survive reloads
+and later turns. Older messages without metrics keep their timestamp alone.
+The chat uses 12 px fades only at scroll edges with hidden content, hides scrollbar
+arrow buttons, and offers Delete chat to remove the conversation.
 Assistant replies use
 [`react-markdown`](https://github.com/remarkjs/react-markdown) with
 [`remark-gfm`](https://github.com/remarkjs/remark-gfm) for Markdown, including

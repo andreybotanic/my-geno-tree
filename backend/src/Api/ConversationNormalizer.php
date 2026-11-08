@@ -76,6 +76,7 @@ final readonly class ConversationNormalizer implements NormalizerInterface
      *     role: string,
      *     content: string,
      *     createdAt: string,
+     *     responseMetrics?: array{durationMs: int, tokenUsage: array{input: int, output: int, total: int}},
      *     failureCode?: string,
      *     blocked?: bool,
      *     warningNumber?: int
@@ -87,6 +88,7 @@ final readonly class ConversationNormalizer implements NormalizerInterface
         $requestId = '';
         foreach ($this->store->load($conversation->id) as $message) {
             /** @var array{requestId?: string, createdAt?: string, failureCode?: string,
+             * responseMetrics?: array{durationMs: int, tokenUsage: array{input: int, output: int, total: int}},
              * warningNumber?: int, moderationAllowed?: bool} $metadata */
             $metadata = $message->getMetadata()->all();
             if ($message instanceof UserMessage) {
@@ -109,6 +111,9 @@ final readonly class ConversationNormalizer implements NormalizerInterface
             ];
             if (isset($metadata['failureCode'])) {
                 $row['failureCode'] = $metadata['failureCode'];
+            }
+            if ($message instanceof AssistantMessage && isset($metadata['responseMetrics'])) {
+                $row['responseMetrics'] = $metadata['responseMetrics'];
             }
             if (is_int($metadata['warningNumber'] ?? null)) {
                 $row['warningNumber'] = $metadata['warningNumber'];

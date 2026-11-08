@@ -181,6 +181,11 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         $this->send();
         self::assertSame(3, $calls);
         self::assertSame(['input' => 300, 'output' => 30, 'total' => 330], $this->responseData()['tokenUsage']);
+        self::assertSame(
+            $this->responseData()['tokenUsage'],
+            $this->responseArray('messages', '1', 'responseMetrics', 'tokenUsage'),
+        );
+        self::assertGreaterThanOrEqual(0, $this->responseInt('messages', '1', 'responseMetrics', 'durationMs'));
         $budget = $this->responseData()['tokenBudget'];
         self::assertIsArray($budget);
         self::assertIsInt($budget['limit']);
@@ -232,6 +237,34 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         self::assertNull($this->responseArray('tools')['merge'] ?? null);
         $this->send('followup');
         self::assertSame(2, $calls);
+    }
+
+    public function testResponseMetricsStayWithTheirAnswerAcrossLaterTurnsAndReloads(): void
+    {
+        $calls = 0;
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(
+                    static function (string $method, string $url, array $options) use (&$calls): MockResponse {
+                        self::assertStringNotContainsString('responseMetrics', $options['body']);
+
+                        return ResponsesFixture::text('Answer ' . ++$calls, $calls * 11);
+                    },
+                ),
+            );
+        FixtureTreeAgent::$useReal = true;
+        $this->send('metrics-first');
+        $first = $this->responseArray('messages', '1', 'responseMetrics');
+        self::assertSame(11, $this->responseInt('messages', '1', 'responseMetrics', 'tokenUsage', 'total'));
+        $this->send('metrics-second');
+        $second = $this->responseArray('messages', '3', 'responseMetrics');
+        self::assertSame(22, $this->responseInt('messages', '3', 'responseMetrics', 'tokenUsage', 'total'));
+        self::assertSame($first, $this->responseArray('messages', '1', 'responseMetrics'));
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertSame($first, $this->responseArray('messages', '1', 'responseMetrics'));
+        self::assertSame($second, $this->responseArray('messages', '3', 'responseMetrics'));
+        self::assertArrayNotHasKey('responseMetrics', $this->responseArray('messages', '0'));
     }
 
     public function testDeniedReadsAndInvalidMergeReturnDiagnosticsWithoutPreviewEvents(): void

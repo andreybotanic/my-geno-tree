@@ -2332,9 +2332,23 @@ components:
           description: 'Localized system notice. Policy warnings are terminal decisions; other failures can be retried.'
         warningNumber: { type: integer, minimum: 1, maximum: 3 }
         blocked: { type: boolean, description: 'Excluded from inference and evidence sources.' }
+        responseMetrics:
+          $ref: '#/components/schemas/ChatResponseMetrics'
         createdAt:
           type: string
           format: date-time
+    ChatResponseMetrics:
+      type: object
+      additionalProperties: false
+      required: [durationMs, tokenUsage]
+      properties:
+        durationMs:
+          type: integer
+          minimum: 0
+          description: Total server processing time for this response, including moderation and tools.
+        tokenUsage:
+          $ref: '#/components/schemas/ChatTokenUsage'
+      description: 'Metrics saved with a completed assistant message. Absent from older messages.'
     ChatSubscription:
       type: object
       additionalProperties: false

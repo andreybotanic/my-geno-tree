@@ -3533,7 +3533,7 @@ select:not([multiple]) {
 
 .chat-panel {
   height: 100%;
-  padding: 20px 16px 16px;
+  padding: 12px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -3558,6 +3558,8 @@ select:not([multiple]) {
 .chat-heading h2 { font-size: 1rem; font-weight: 600; }
 .chat-reset { background: none; border: 0; color: var(--color-text-muted); font-size: 0.8rem; cursor: pointer; padding: 4px; }
 .chat-content {
+  --chat-fade-top: 0px;
+  --chat-fade-bottom: 0px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -3567,6 +3569,26 @@ select:not([multiple]) {
   margin-inline: -16px;
   padding-inline: 16px;
   scrollbar-gutter: stable;
+}
+.chat-content.is-faded-top { --chat-fade-top: 12px; }
+.chat-content.is-faded-bottom { --chat-fade-bottom: 12px; }
+.chat-content:is(.is-faded-top, .is-faded-bottom) {
+  mask-mode: alpha;
+  mask-image: linear-gradient(to bottom,
+    transparent,
+    var(--color-text) var(--chat-fade-top),
+    var(--color-text) calc(100% - var(--chat-fade-bottom)),
+    transparent);
+}
+.chat-content::-webkit-scrollbar, .chat-panel textarea::-webkit-scrollbar { width: 8px; height: 8px; }
+.chat-content::-webkit-scrollbar-track, .chat-panel textarea::-webkit-scrollbar-track { background: transparent; }
+.chat-content::-webkit-scrollbar-thumb, .chat-panel textarea::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: var(--color-border);
+}
+.chat-panel ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+  .chat-content, .chat-panel textarea { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
 }
 .chat-composer { flex: 0 0 auto; }
 .chat-input { position: relative; padding-bottom: 44px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-elevated); }
@@ -3625,8 +3647,11 @@ select:not([multiple]) {
 .chat-message-assistant table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .chat-message-assistant :is(th, td) { border: 1px solid var(--color-border); padding: 6px 8px; }
 .chat-message-assistant img { max-width: 100%; height: auto; }
-.chat-message-time {
-  display: block;
+.chat-message-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
   color: var(--color-text-muted);
   font-size: 0.7rem;
@@ -3635,6 +3660,9 @@ select:not([multiple]) {
   text-align: right;
   white-space: nowrap;
 }
+.chat-message-time { flex-shrink: 0; }
+.chat-message-metrics { display: inline-flex; gap: 6px; opacity: 0; pointer-events: none; }
+.chat-message-assistant:hover .chat-message-metrics { opacity: 1; }
 
 .chat-panel .secondary-button, .chat-panel .primary-button { min-height: 36px; }
 .chat-heading h2 { margin: 0; }

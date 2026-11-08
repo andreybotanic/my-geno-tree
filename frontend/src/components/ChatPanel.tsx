@@ -46,6 +46,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const activeRequest = useRef<{ chatId: string; requestId: string; controller: AbortController } | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
+  const scrollContainer = useRef<HTMLDivElement>(null)
+  const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false })
   const pending = useRef<{ requestId: string; content: string; accepted: boolean } | null>(null)
   const base = contextPath
   const thinking = conversation?.status === 'processing' || (thinkingTurn !== null
@@ -199,6 +201,25 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   )
 
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [conversation?.messages.length, conversation?.status])
+
+  useLayoutEffect(() => {
+    const container = scrollContainer.current
+    if (!open || !container) return
+    const updateEdges = () => {
+      const top = container.scrollTop > 1
+      const bottom = container.scrollHeight - container.clientHeight - container.scrollTop > 1
+      setScrollEdges((saved) => saved.top === top && saved.bottom === bottom ? saved : { top, bottom })
+    }
+    updateEdges()
+    container.addEventListener('scroll', updateEdges, { passive: true })
+    const observer = new ResizeObserver(updateEdges)
+    observer.observe(container)
+    for (const child of Array.from(container.children)) observer.observe(child)
+    return () => {
+      container.removeEventListener('scroll', updateEdges)
+      observer.disconnect()
+    }
+  }, [open, conversation?.messages, conversation?.status, conversation?.tools, blocked, error, stream.error, thinking])
 
   useEffect(
     () => {
@@ -354,7 +375,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
             onClick={() => void reset()}>{t('chat.newConversation')}</button>
         </div>}
       </header>
-      <div className="chat-content">
+      <div ref={scrollContainer}
+        className={`chat-content${scrollEdges.top ? ' is-faded-top' : ''}${scrollEdges.bottom ? ' is-faded-bottom' : ''}`}>
         {blocked && <p role="alert" className="chat-access-notice">
           {access?.status === 'temporary_ban' && access.bannedUntil
             ? t('chat.access.temporary', { until: new Date(access.bannedUntil).toLocaleString() })
@@ -380,11 +402,23 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                       ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                       : <p>{message.content}</p>}
                 </div>
-                <time className="chat-message-time" dateTime={message.createdAt}
-                  title={new Date(message.createdAt).toLocaleString(i18n.resolvedLanguage)}>
-                  {new Date(message.createdAt).toLocaleTimeString(i18n.resolvedLanguage,
-                    { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
-                </time>
+                <div className="chat-message-footer">
+                  {message.role === 'assistant' && message.responseMetrics && <span className="chat-message-metrics">
+                    <span title={t('chat.elapsed')}>{t('chat.responseDuration', {
+                      seconds: (message.responseMetrics.durationMs / 1000).toLocaleString(i18n.resolvedLanguage,
+                        { maximumFractionDigits: 1 }),
+                    })}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{t('chat.responseTokens', {
+                      value: message.responseMetrics.tokenUsage.total.toLocaleString(i18n.resolvedLanguage),
+                    })}</span>
+                  </span>}
+                  <time className="chat-message-time" dateTime={message.createdAt}
+                    title={new Date(message.createdAt).toLocaleString(i18n.resolvedLanguage)}>
+                    {new Date(message.createdAt).toLocaleTimeString(i18n.resolvedLanguage,
+                      { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
+                  </time>
+                </div>
               </article>
             )
           )}
