@@ -758,3 +758,25 @@ tree. A Russian question that did not supply the names produced the stored
 `Anna Hansdotter` and `Élodie Åström` unchanged, including accents, and correctly
 reported unknown patronymics. The QA tree and disposable migration database
 were removed.
+
+Editor panel validation (2026-11-08): the chat reserves its actual width in the
+workspace while person editing and force settings stay available. React Flow
+observes the remaining canvas size for camera tools; merge preview and result
+framing use those same bounds. Applied merges add no card outlines. Chat history
+uses one scroll container with padding inside the scrollbar.
+
+The full 278 backend, 437 frontend and 27 voice-gateway tests pass. Line coverage
+is 93.32%, 90.96% and 98.43%, respectively. Frontend files meet 75% line coverage;
+the two existing backend constructor-only repository exceptions remain as
+documented above. Backend/frontend/gateway quality, OpenAPI generation, strict
+TypeScript, production builds, Composer validation, schema and production
+container checks pass. All 26 migrations were replayed and schema-validated on
+a disposable database, which was removed. No PHP files changed. The existing
+nine PHPUnit notices and Vite bundle-size advisory remain.
+
+Manual Chrome HTTPS checks covered centering the empty-tree action with chat
+open, live preview and application of a two-person merge without outlines,
+opening and closing person details alongside chat, reset and fit with both
+panels, long chat-history scrolling, force settings alongside chat, refreshing
+the page, and a two-tab edit conflict followed by reloading the tree. The
+fictional tree `QA панели чата 2026-11-08` is retained for inspection.

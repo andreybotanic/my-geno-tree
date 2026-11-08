@@ -842,7 +842,6 @@ type TreeCanvasProps = {
   onUpdateUser: (user: User) => void
   selectedPersonId: string | null
   mergeAffectedIds: string[]
-  mergePanelOpen: boolean
   mergeProposal: TreeMergePendingProposal | null
   snapshot: TreeSnapshot
   user: User | null
@@ -868,7 +867,6 @@ function TreeCanvas(
     onUpdateUser,
     selectedPersonId,
     mergeAffectedIds,
-    mergePanelOpen,
     mergeProposal,
     snapshot,
     user,
@@ -1070,10 +1068,9 @@ function TreeCanvas(
           person,
         },
         selected: person.id === selectedPersonId,
-        ...(mergeAffectedIds.includes(person.id) ? { className: 'merge-affected-node' } : {}),
       })
     ),
-    [focusedSnapshot.people, mergeAffectedIds, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions]
+    [focusedSnapshot.people, pathDisplay, pathProjection?.routePersonIds, referencePersonIds, selectedPersonId, treePositions]
   )
   const pathNodes = useMemo<PersonFlowNode[]>(
     () => pathProjection?.overlayPeople.map(
@@ -1370,7 +1367,7 @@ function TreeCanvas(
       const y = Math.min(...points.map((point) => point.y))
       const bounds = { x, y, width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
         height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT }
-      const width = Math.max(200, dimensions.width - Math.min(480, window.innerWidth - 44))
+      const width = dimensions.width
       void flow.setViewport(getViewportForBounds(bounds, width, Math.max(200, dimensions.height - 120), 0.1, 1, 0.2), { duration: 250 })
     },
     [cameraReady, mergePreviewKey, mergeProjection]
@@ -1431,7 +1428,7 @@ function TreeCanvas(
         width: Math.max(...points.map((point) => point.x)) - x + PERSON_CARD_WIDTH,
         height: Math.max(...points.map((point) => point.y)) - y + PERSON_CARD_HEIGHT,
       }
-      const width = Math.max(200, dimensions.width - (mergePanelOpen ? Math.min(480, window.innerWidth) : 0))
+      const width = dimensions.width
       void instance.current
         .setViewport(
           getViewportForBounds(bounds, width, dimensions.height, 0.1, 1, 0.2),
@@ -1441,7 +1438,7 @@ function TreeCanvas(
           () => { if (instance.current) rememberCamera('tree', instance.current.getViewport()) }
         )
     },
-    [cameraReady, mergeAffectedIds, mergePanelOpen, rememberCamera, treePositions]
+    [cameraReady, mergeAffectedIds, rememberCamera, treePositions]
   )
 
   const resetCamera = useCallback(
@@ -3561,7 +3558,7 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       )}
 
       <section className={`editor-workspace${
-        chatOpen ? '' : view === 'network'
+        view === 'network'
           ? ' editor-workspace-network-sidebar-open'
           : selectedPerson ? ' editor-workspace-panel-open' : ''
         }`}>
@@ -3616,7 +3613,6 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                   onSelectPerson={(personId) => void selectPerson(personId)}
                   selectedPersonId={selectedPerson?.id ?? null}
                   mergeAffectedIds={mergeAffectedIds}
-                  mergePanelOpen={chatOpen}
                   mergeProposal={mergePreviewProposal}
                   snapshot={snapshot}
                   view={mergePreviewProposal ? 'tree' : view}

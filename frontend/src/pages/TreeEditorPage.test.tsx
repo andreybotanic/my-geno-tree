@@ -248,7 +248,7 @@ describe(
       .each(
         [false, true]
       )(
-        'previews a merge on the canvas without changing real people (empty=%s)',
+        'previews and applies a merge without highlighting the added people (empty=%s)',
         async (empty) => {
           const original = snapshot(empty ? [] : [person])
           const prepared: ChatConversation = {
@@ -263,7 +263,25 @@ describe(
                     { id: 'b', existingPersonId: null, resolution: 'new', lifeStatus: 'alive', fields: { givenName: { state: 'known', value: 'Boris' }, gender: 'male', deathDate: null }, evidence: [] },
                   ], parents: empty ? [] : [{ parent: 'b', child: 'a', role: 'father', evidence: [] }], marriages: [], questions: [] } } },
           }
-          const request = vi.fn(async (path: string) => path.endsWith('/chat') ? { conversation: prepared, tokenBudget: prepared.tokenBudget } : original) as unknown as AuthorizedJsonRequest
+          const boris: Person = { ...father, givenName: { state: 'known', value: 'Boris' } }
+          let current = original
+          const request = vi.fn(async (path: string) => {
+            if (path.endsWith('/chat')) return { conversation: prepared, tokenBudget: prepared.tokenBudget }
+            if (path.endsWith('/apply')) {
+              current = graphSnapshot(
+                [...original.people, boris],
+                empty ? [] : [parentLink],
+                [],
+                '"tree-after-merge"',
+              )
+              return {
+                conversation: { ...prepared, version: 3, tools: {} },
+                operationId: 'merge-operation',
+                result: { personIds: { b: boris.id }, affectedPersonIds: [boris.id], etag: current.etag },
+              }
+            }
+            return current
+          }) as unknown as AuthorizedJsonRequest
           const { container } = renderEditor(request)
           fireEvent.click(await screen.findByRole('button', { name: 'Open AI chat' }))
           const added = await screen.findByText('Boris')
@@ -281,6 +299,13 @@ describe(
           if (!empty) expect(screen.getByText('Anna').closest('article')).not.toHaveClass('person-card-muted')
           expect(original.people).toHaveLength(empty ? 0 : 1)
           expect(request).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'POST' }))
+          fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
+          fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
+          await waitFor(() => expect(screen.queryByRole('region', { name: 'Review changes' })).not.toBeInTheDocument())
+          const applied = await screen.findByRole('article', { name: 'Petrov Boris' })
+          expect(applied.closest('.react-flow__node')).not.toHaveClass('merge-affected-node')
+          expect(container.querySelector('.merge-affected-node')).toBeNull()
+          expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
         }
       )
 
@@ -288,7 +313,7 @@ describe(
       .each(
         ['tree', 'network'] as const
       )(
-        'releases the %s sidebar column while chatting and restores the previous selection',
+        'keeps the %s sidebar open alongside the chat and preserves selection',
         async (view) => {
           if (view === 'network') window.history.replaceState({}, '', `/trees/${treeId}/network`)
           const request = vi.fn(
@@ -309,7 +334,17 @@ describe(
           expect(workspace).toHaveClass(sidebarClass)
           fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
           await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled())
-          expect(workspace).not.toHaveClass(sidebarClass)
+          expect(workspace).toHaveClass(sidebarClass)
+          expect(container.querySelector('.tree-editor-page')).toHaveClass('tree-chat-open')
+          if (view === 'tree') {
+            expect(screen.getByRole('complementary', { name: 'Person details' })).toBeVisible()
+            fireEvent.click(within(screen.getByRole('complementary', { name: 'Person details' })).getByRole('button', { name: 'Close' }))
+            expect(workspace).not.toHaveClass(sidebarClass)
+            expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+            fireEvent.click(card)
+            await screen.findByRole('complementary', { name: 'Person details' })
+            expect(workspace).toHaveClass(sidebarClass)
+          }
           fireEvent.click(screen.getByRole('button', { name: 'Collapse AI chat' }))
           expect(workspace).toHaveClass(sidebarClass)
           if (view === 'tree') {
