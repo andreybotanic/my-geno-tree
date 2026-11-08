@@ -309,8 +309,10 @@ The panel shows `Thinking...` (`Думаю...`) until commentary arrives, with e
 time. Tool names and reasoning are excluded from progress. Final answers remain
 complete messages. Commentary snapshots are coalesced at 100 ms, flushed on block
 completion, and ordered by `attemptId` and `progressSequence`; shorter updates and
-cleared commentary therefore survive delayed or repeated SSE packets. New model
-rounds, Stop and completion clear the previous action.
+cleared commentary therefore survive delayed or repeated SSE packets. Long
+commentary wraps within the panel. The latest nonempty action stays visible
+between model rounds until new commentary replaces it; empty commentary blocks
+do not restore the Thinking fallback. A new user turn, Stop and completion clear it.
 
 Per-response output limits in `backend/config/packages/ai.yaml` are 16384 tokens
 for the tree agent and 1024 for moderation. Streaming usage is debited as reported,

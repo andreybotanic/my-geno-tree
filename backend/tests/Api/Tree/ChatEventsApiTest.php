@@ -278,17 +278,16 @@ final class ChatEventsApiTest extends ApiWebTestCase
             static fn ($update) => json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR),
             TestMergeEvents::updates(),
         );
-        self::assertSame('progress', $packets[1]['kind']);
-        self::assertNull($packets[1]['commentary']);
-        self::assertSame(1, $packets[1]['progressSequence']);
-        self::assertSame('conversation', $packets[2]['kind']);
+        self::assertSame(['conversation', 'conversation'], array_column($packets, 'kind'));
         $response = $this->responseData();
-        self::assertIsArray($packets[2]['conversation']);
-        self::assertIsArray($packets[2]['conversation']['access']);
+        self::assertIsArray($packets[1]['conversation']);
+        self::assertIsArray($packets[1]['conversation']['access']);
         $response['access'] = $this->responseArray('access');
-        $response['access']['serverTime'] = $packets[2]['conversation']['access']['serverTime'];
-        self::assertSame($response, $packets[2]['conversation']);
+        $response['access']['serverTime'] = $packets[1]['conversation']['access']['serverTime'];
+        self::assertSame($response, $packets[1]['conversation']);
         self::assertIsArray($packets[0]['conversation']);
+        self::assertNull($packets[0]['conversation']['commentary']);
+        self::assertSame(0, $packets[0]['conversation']['progressSequence']);
         self::assertSame('processing', $packets[0]['conversation']['status']);
         foreach (TestMergeEvents::updates() as $event) {
             self::assertSame([$topic], $event->getTopics());
@@ -317,6 +316,6 @@ final class ChatEventsApiTest extends ApiWebTestCase
         $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Another tree'], $headers);
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->responseString('id') . '/chat', headers: $headers);
         self::assertNull($this->responseData()['conversation']);
-        self::assertCount(3, TestMergeEvents::$updates);
+        self::assertCount(2, TestMergeEvents::$updates);
     }
 }

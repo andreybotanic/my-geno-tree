@@ -326,22 +326,30 @@ final readonly class ChatService implements ChatInterface
     private function progress(Progress $progress): void
     {
         $payload = $progress->getPayload();
-        if (Progress::STAGE_MODEL_REQUEST !== $progress->getStage()
-            && !$payload instanceof CommentaryStart && !$payload instanceof CommentaryDelta
-            && !$payload instanceof CommentaryComplete) {
+        if (Progress::STAGE_MODEL_REQUEST === $progress->getStage() || $payload instanceof CommentaryStart) {
+            $this->execution()->commentaryBuffer = '';
+
+            return;
+        }
+        if (!$payload instanceof CommentaryDelta && !$payload instanceof CommentaryComplete) {
             return;
         }
         $execution = $this->execution();
         $current = $execution->conversation;
         if ($payload instanceof CommentaryDelta) {
-            $current->commentary = ($current->commentary ?? '') . $payload->getCommentary();
+            $execution->commentaryBuffer .= $payload->getCommentary();
+            if ('' === trim($execution->commentaryBuffer)) {
+                return;
+            }
+            $current->commentary = $execution->commentaryBuffer;
             if (microtime(true) - $execution->lastCommentaryPublishedAt < 0.1) {
                 return;
             }
-        } elseif ($payload instanceof CommentaryComplete) {
-            $current->commentary = $payload->getCommentary();
         } else {
-            $current->commentary = null;
+            if ('' === trim($payload->getCommentary())) {
+                return;
+            }
+            $current->commentary = $payload->getCommentary();
         }
         $this->store->synchronized(
             $current->contextKey,

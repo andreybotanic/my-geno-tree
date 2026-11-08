@@ -39,7 +39,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const [content, setContent] = useState('')
   const [voiceBusy, setVoiceBusy] = useState(false)
   const [busy, setBusy] = useState(true)
-  const [thinkingSince, setThinkingSince] = useState<number | null>(null)
+  const [thinkingTurn, setThinkingTurn] = useState<{ startedAt: number; requestId: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
   const generation = useRef(0)
@@ -48,7 +48,8 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const messagesEnd = useRef<HTMLDivElement>(null)
   const pending = useRef<{ requestId: string; content: string; accepted: boolean } | null>(null)
   const base = contextPath
-  const thinking = thinkingSince !== null || conversation?.status === 'processing'
+  const thinking = conversation?.status === 'processing' || (thinkingTurn !== null
+    && !conversation?.messages.some((message) => message.role !== 'user' && message.requestId === thinkingTurn.requestId))
   const blocked = access !== null && access.status !== 'allowed'
   const stream = useChatEvents(
     open && conversation ? `/chats/${conversation.id}` : null,
@@ -149,7 +150,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       activeRequest.current = null
       pending.current = null
       setBusy(false)
-      setThinkingSince(null)
+      setThinkingTurn(null)
       setError(null)
     },
     [conversation]
@@ -252,7 +253,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     try {
       current = await ensureConversation()
       activeRequest.current = { chatId: current.id, requestId: message.requestId, controller }
-      setThinkingSince(Date.now())
+      setThinkingTurn({ startedAt: Date.now(), requestId: message.requestId })
       const next = await request<ChatConversation>(
         '/chats/' + current.id + '/messages',
         {
@@ -279,7 +280,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       }
       if (turn === generation.current && !message.accepted) setContent(message.content)
     } finally {
-      if (turn === generation.current) { setBusy(false); setThinkingSince(null); activeRequest.current = null }
+      if (turn === generation.current) { setBusy(false); setThinkingTurn(null); activeRequest.current = null }
     }
   }
 
@@ -296,7 +297,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       running?.controller.abort()
       activeRequest.current = null
       setConversation((saved) => mergeChatEvent(saved, { kind: 'conversation', conversation: next }))
-      setThinkingSince(null)
+      setThinkingTurn(null)
       setBusy(false)
       setContent('')
       pending.current = null
@@ -331,7 +332,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       ++generation.current
       activeRequest.current?.controller.abort()
       activeRequest.current = null
-      setThinkingSince(null)
+      setThinkingTurn(null)
       setConversation((saved) => next ? mergeChatEvent(saved, { kind: 'conversation', conversation: next }) : null)
       setError(null)
       setContent('')
@@ -387,7 +388,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
               </article>
             )
           )}
-          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} commentary={conversation?.commentary ?? null} />}
+          {thinking && <ChatThinking startedAt={thinkingTurn?.startedAt ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} commentary={conversation?.commentary ?? null} />}
           {conversation?.status === 'error' && !conversation.messages.at(-1)?.failureCode && <p role="alert">{t('chat.processingFailed')}</p>}
           <div ref={messagesEnd} />
         </div>

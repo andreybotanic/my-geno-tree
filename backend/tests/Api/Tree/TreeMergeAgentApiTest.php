@@ -448,7 +448,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
     public function testCommentaryIsPublishedBeforeTheToolAndNeverBecomesTheFinalAnswer(): void
     {
         $calls = 0;
-        $observed = false;
+        $observed = 0;
         static::getContainer()
             ->get('event_dispatcher')
             ->addListener(
@@ -463,13 +463,18 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                         },
                         TestMergeEvents::updates(),
                     );
-                    self::assertNotNull(
-                        array_find(
+                    $latest = array_last(
+                        array_filter(
                             $packets,
-                            static fn ($packet) => 'Проверяю семью.' === ($packet['commentary'] ?? null),
+                            static fn ($packet) => 'progress' === $packet['kind'],
                         ),
                     );
-                    $observed = true;
+                    self::assertNotNull($latest);
+                    self::assertSame(
+                        ['Проверяю семью.', 'Уточняю результат.'][$observed],
+                        $latest['commentary'],
+                    );
+                    ++$observed;
                 },
             );
         static::getContainer()
@@ -477,23 +482,35 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 'chat_ai.client',
                 new MockHttpClient(
                     function () use (&$calls): MockResponse {
-                        if (++$calls > 1) {
+                        if (++$calls > 2) {
                             return $this->textResponse('The family is empty.');
                         }
 
                         return ResponsesFixture::stream(
                             [
                                 [
+                                    'id'      => 'empty',
+                                    'type'    => 'message',
+                                    'role'    => 'assistant',
+                                    'phase'   => 'commentary',
+                                    'content' => [['type' => 'output_text', 'text' => ' ']],
+                                ],
+                                [
                                     'id'      => 'comment',
                                     'type'    => 'message',
                                     'role'    => 'assistant',
                                     'phase'   => 'commentary',
-                                    'content' => [['type' => 'output_text', 'text' => 'Проверяю семью.']],
+                                    'content' => [
+                                        [
+                                            'type' => 'output_text',
+                                            'text' => 1 === $calls ? 'Проверяю семью.' : 'Уточняю результат.',
+                                        ],
+                                    ],
                                 ],
                                 [
-                                    'id'        => 'read',
+                                    'id'        => 'read' . $calls,
                                     'type'      => 'function_call',
-                                    'call_id'   => 'read',
+                                    'call_id'   => 'read' . $calls,
                                     'name'      => 'get_tree_context',
                                     'arguments' => json_encode(['treeId' => $this->treeId], JSON_THROW_ON_ERROR),
                                 ],
@@ -504,16 +521,22 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             );
         FixtureTreeAgent::$useReal = true;
         $this->send();
-        self::assertTrue($observed);
-        self::assertSame(2, $calls);
+        self::assertSame(2, $observed);
+        self::assertSame(3, $calls);
         self::assertSame('The family is empty.', $this->responseString('messages', '1', 'content'));
         self::assertNull($this->responseData()['commentary']);
+        $commentarySeen = false;
         foreach (TestMergeEvents::updates() as $event) {
             $packet = json_decode($event->getData(), true, flags: JSON_THROW_ON_ERROR);
             self::assertIsArray($packet);
             if ('progress' === $packet['kind']) {
                 self::assertArrayNotHasKey('progress', $packet);
                 self::assertStringNotContainsString('get_tree_context', $event->getData());
+                if ($commentarySeen) {
+                    self::assertIsString($packet['commentary']);
+                    self::assertNotSame('', trim($packet['commentary']));
+                }
+                $commentarySeen = $commentarySeen || null !== $packet['commentary'];
             }
         }
     }

@@ -126,6 +126,45 @@ describe(
       expect(screen.queryByText('Reading the family.')).not.toBeInTheDocument()
     })
 
+    it('removes commentary without flashing Thinking when SSE finishes before HTTP', async () => {
+      let requestId = ''
+      let finish!: (value: ChatConversation) => void
+      const view = setup(async (path, init) => {
+        if (path.endsWith('/messages')) {
+          requestId = (JSON.parse(init!.body as string) as { requestId: string }).requestId
+          return new Promise<ChatConversation>((resolve) => { finish = resolve })
+        }
+        return { conversation }
+      })
+      const input = screen.getByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Hello' } })
+      fireEvent.submit(input.closest('form')!)
+      await screen.findByText('Thinking...')
+      const running: ChatConversation = { ...sent, status: 'processing', commentary: 'Reading the family.',
+        messages: [{ ...user, requestId }] }
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](running))
+      expect(screen.getByRole('status')).toHaveTextContent('Reading the family.')
+      const labels: string[] = []
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === 'characterData' && record.target.parentElement?.classList.contains('chat-thinking-label')) {
+            labels.push(record.target.textContent ?? '')
+          }
+        }
+      })
+      observer.observe(view.container, { subtree: true, characterData: true })
+      const finished: ChatConversation = { ...running, version: 4, status: 'idle', commentary: null,
+        messages: [...running.messages, { ...completed.messages[1]!, requestId }] }
+      await act(async () => vi.mocked(useChatEvents).mock.lastCall?.[2](finished))
+      observer.disconnect()
+      expect(labels).not.toContain('Thinking...')
+      expect(screen.queryByText('Reading the family.')).not.toBeInTheDocument()
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument()
+      await act(async () => finish(finished))
+      expect(screen.getByText('An ordinary answer.')).toBeInTheDocument()
+    })
+
     it('shows each message time below its text, with a full localized date in the tooltip', async () => {
       const times = ['2026-11-07T05:01:00Z', '2026-11-07T05:02:00Z', '2026-11-07T05:03:00Z']
       const next: ChatConversation = { ...completed, messages: [
