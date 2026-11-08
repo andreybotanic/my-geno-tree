@@ -63,6 +63,387 @@ export type TreeMergeMarriageProposal = {
     evidence: Array<TreeMergeEvidence>;
 };
 
+export type TreeChangeOperation = {
+    type: 'create_person';
+    id: string;
+    fields: {
+        birthSurname?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        givenName?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        patronymic?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        gender?: 'male' | 'female' | 'unknown';
+        birthDate?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        deathDate?: null | {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        birthPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+        deathPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'update_person';
+    personId: string;
+    fields: {
+        birthSurname?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        givenName?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        patronymic?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            value: string;
+        };
+        gender?: 'male' | 'female' | 'unknown';
+        birthDate?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        deathDate?: null | {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        birthPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+        deathPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'delete_person';
+    personId: string;
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'add_parent_link';
+    parent: string;
+    child: string;
+    role: 'mother' | 'father';
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'remove_parent_link';
+    parentLinkId: string;
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'create_marriage_period';
+    first: string;
+    second: string;
+    newPeriod: boolean;
+    fields: {
+        marriageDate: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        dissolutionDate?: null | {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        marriagePlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+        dissolutionPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+        maleNewSurname?: string | null;
+        femaleNewSurname?: string | null;
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'update_marriage_period';
+    marriageId: string;
+    fields: {
+        marriageDate?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        dissolutionDate?: null | {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        marriagePlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+        dissolutionPlace?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'remove_marriage_period';
+    marriageId: string;
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'create_events';
+    personIds: Array<string>;
+    /**
+     * Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.
+     */
+    event: {
+        type?: 'custom' | 'residence' | 'surname_change';
+        date?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        title?: string;
+        description?: string | null;
+        newSurname?: string;
+        place?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'update_event';
+    eventId: string;
+    /**
+     * Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.
+     */
+    fields: {
+        type?: 'custom' | 'residence' | 'surname_change';
+        date?: {
+            state: 'unknown';
+        } | {
+            state: 'known';
+            kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+            year: number;
+            month?: number;
+            day?: number;
+            end?: {
+                year: number;
+                month?: number;
+                day?: number;
+            };
+        };
+        title?: string;
+        description?: string | null;
+        newSurname?: string;
+        place?: null | {
+            name: string;
+            coordinates: null | {
+                latitude: number;
+                longitude: number;
+            };
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'delete_event';
+    eventId: string;
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'set_event_place';
+    eventId: string;
+    place: null | {
+        name: string;
+        coordinates: null | {
+            latitude: number;
+            longitude: number;
+        };
+    };
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+} | {
+    type: 'reorder_events';
+    personId: string;
+    eventIds: Array<string>;
+    evidence: Array<{
+        messageId: string;
+        quote: string;
+    }>;
+};
+
 export type TreeMergeProposal = {
     /**
      * At most ten new people. Unique exact supplied name parts may resolve an existing person; ambiguous or diminutive names require explicit clarification.
@@ -70,6 +451,11 @@ export type TreeMergeProposal = {
     people: Array<TreeMergePersonProposal>;
     parents: Array<TreeMergeParentProposal>;
     marriages: Array<TreeMergeMarriageProposal>;
+    /**
+     * Authoritative edits for a general packet. The people, parents, marriages and operationSubjects groups are server projections when operations is present.
+     */
+    operations?: Array<TreeChangeOperation>;
+    readonly operationSubjects?: Array<Array<string>>;
     questions: Array<string>;
 };
 
@@ -91,6 +477,7 @@ export type TreeMergeResult = {
     personIds: {
         [key: string]: string;
     };
+    newPersonIds?: Array<string>;
     affectedPersonIds: Array<string>;
     etag: string;
 };
@@ -849,6 +1236,37 @@ export type ResidenceEventRequest = {
     place?: EventPlace | null;
 };
 
+/**
+ * Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.
+ */
+export type ManualEventPatchRequest = {
+    type?: 'custom' | 'residence' | 'surname_change';
+    date?: {
+        state: 'unknown';
+    } | {
+        state: 'known';
+        kind: 'exact' | 'approximate' | 'before' | 'after' | 'between';
+        year: number;
+        month?: number;
+        day?: number;
+        end?: {
+            year: number;
+            month?: number;
+            day?: number;
+        };
+    };
+    title?: string;
+    description?: string | null;
+    newSurname?: string;
+    place?: null | {
+        name: string;
+        coordinates: null | {
+            latitude: number;
+            longitude: number;
+        };
+    };
+};
+
 export type ManualEventRequest = CustomEventRequest | SurnameChangeEventRequest | ResidenceEventRequest;
 
 export type EventMutationResult = {
@@ -913,6 +1331,10 @@ export type TreeMergeProposalWritable = {
     people: Array<TreeMergePersonProposalWritable>;
     parents: Array<TreeMergeParentProposal>;
     marriages: Array<TreeMergeMarriageProposal>;
+    /**
+     * Authoritative edits for a general packet. The people, parents, marriages and operationSubjects groups are server projections when operations is present.
+     */
+    operations?: Array<TreeChangeOperation>;
     questions: Array<string>;
 };
 
@@ -3249,7 +3671,7 @@ export type DeleteManualEventResponses = {
 export type DeleteManualEventResponse = DeleteManualEventResponses[keyof DeleteManualEventResponses];
 
 export type UpdateManualEventData = {
-    body: ManualEventRequest;
+    body: ManualEventPatchRequest;
     headers: {
         /**
          * ETag returned by the latest tree representation

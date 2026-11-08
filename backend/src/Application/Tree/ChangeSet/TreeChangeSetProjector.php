@@ -20,6 +20,7 @@ final readonly class TreeChangeSetProjector
         private ParentLinkRepository $parents,
         private MarriagePeriodRepository $marriages,
         private GraphInvariantPolicy $invariants,
+        private TreeOperationPolicy $operations,
     ) {
     }
 
@@ -43,9 +44,6 @@ final readonly class TreeChangeSetProjector
             }
             $references[$change->reference] = true;
             $data = $change->data;
-            if (null !== $data->birthPlace || null !== $data->deathPlace) {
-                $this->conflict('CHANGE_PLACE_NOT_SUPPORTED');
-            }
             if (null === $change->existingPersonId) {
                 $hasChanges = true;
                 if (isset($people[$change->reference])) {
@@ -85,7 +83,15 @@ final readonly class TreeChangeSetProjector
             $people[$change->reference] = $person;
         }
         $parents = $addedParents = [];
+        $removedParents = $removedMarriages = $updatedMarriages = [];
+        $removals = $this->operations->removals($changes);
         foreach ($this->parents->findAllStructuralForTree($tree, $refresh) as $link) {
+            $id = $link->getId()->toRfc4122();
+            if (isset($removals['parents'][$id])) {
+                $removedParents[] = $link;
+                unset($removals['parents'][$id]);
+                continue;
+            }
             $parents[] = new ParentLink(
                 $tree,
                 $people[$link->getParent()->getId()->toRfc4122()],
@@ -110,7 +116,13 @@ final readonly class TreeChangeSetProjector
         }
         $marriages = $addedMarriages = [];
         foreach ($this->marriages->findAllStructuralForTree($tree, $refresh) as $marriage) {
-            $marriages[] = new MarriagePeriod(
+            $id = $marriage->getId()->toRfc4122();
+            if (isset($removals['marriages'][$id])) {
+                $removedMarriages[] = $marriage;
+                unset($removals['marriages'][$id]);
+                continue;
+            }
+            $projected = new MarriagePeriod(
                 $tree,
                 $people[$marriage->getMalePerson()->getId()->toRfc4122()],
                 $people[$marriage->getFemalePerson()->getId()->toRfc4122()],
@@ -118,6 +130,10 @@ final readonly class TreeChangeSetProjector
                 $marriage->getDissolutionDate(),
                 $marriage->getCreatedAt(),
             );
+            if ($this->operations->marriage($changes, $marriage, $projected, $now)) {
+                $updatedMarriages[$id] = $projected;
+            }
+            $marriages[] = $projected;
         }
         foreach ($changes->marriages as $change) {
             [$male, $female] = $this->invariants->marriagePeople(
@@ -149,7 +165,41 @@ final readonly class TreeChangeSetProjector
                 );
             }
         }
+        foreach ($changes->operations as $operation) {
+            if ('update_marriage_period' === $operation->type
+                && !isset($updatedMarriages[$operation->string('marriageId')])) {
+                throw new ApiException(404, 'TREE_RESOURCE_NOT_FOUND');
+            }
+        }
+        if ([] !== $removals['parents'] || [] !== $removals['marriages']) {
+            $this->conflict('TREE_RESOURCE_NOT_FOUND');
+        }
+        $removedIds = array_keys($removals['people']);
+        foreach ($removedIds as $id) {
+            if (!isset($people[$id]) || isset($changedIds[$id])) {
+                $this->conflict('TREE_CHANGE_INVALID');
+            }
+            $this->invariants->assertPersonDeletionRules($people[$id], $parents, $marriages);
+        }
+        $parents = array_values(
+            array_filter(
+                $parents,
+                static fn (ParentLink $link) => !isset($removals['people'][(string)$link->getParent()->getId()])
+                    && !isset($removals['people'][$link->getChild()->getId()->toRfc4122()]),
+            ),
+        );
+        $marriages = array_values(
+            array_filter(
+                $marriages,
+                static fn (MarriagePeriod $row) => !isset($removals['people'][(string)$row->getMalePerson()->getId()])
+                        && !isset($removals['people'][$row->getFemalePerson()->getId()->toRfc4122()]),
+            ),
+        );
+        foreach ($removedIds as $id) {
+            unset($people[$id]);
+        }
         $this->validate($people, $parents, $marriages);
+        $events = $this->operations->events($tree, $changes, $people, $now);
 
         return new ProjectedTreeChangeSet(
             $people,
@@ -158,7 +208,12 @@ final readonly class TreeChangeSetProjector
             $marriages,
             $addedParents,
             $addedMarriages,
-            $hasChanges || [] !== $addedParents || [] !== $addedMarriages,
+            $hasChanges || [] !== $addedParents || [] !== $addedMarriages || [] !== $changes->operations,
+            $removedIds,
+            $removedParents,
+            $removedMarriages,
+            $updatedMarriages,
+            $events,
         );
     }
 

@@ -29,7 +29,7 @@ final readonly class EventTimelineService
      *
      * @return list<GenealogicalEvent>
      */
-    private function order(array $events): array
+    public function order(array $events): array
     {
         $count = count($events);
         $following = array_fill(0, $count, []);

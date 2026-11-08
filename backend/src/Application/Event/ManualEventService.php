@@ -154,7 +154,7 @@ final readonly class ManualEventService
             $this->lock($tree, $person, $ifMatch);
             $this->entityManager->lock($event, LockMode::PESSIMISTIC_WRITE);
             $this->entityManager->refresh($event);
-            $data = $this->dataPolicy->event($person, $payload);
+            $data = $this->dataPolicy->patch($person, $event, $payload);
             $changedAt = $this->clock->now();
             $event->changeManual(
                 $data->type,
@@ -244,38 +244,7 @@ final readonly class ManualEventService
         ): array {
             $this->lock($tree, $person, $ifMatch);
             $timeline = $this->timeline->forPerson($person);
-            $eventsById = [];
-            foreach ($timeline as $event) {
-                $eventsById[$event->getId()->toRfc4122()] = $event;
-            }
-            $ordered = [];
-            foreach ($eventIds as $eventId) {
-                if (!isset($eventsById[$eventId])) {
-                    $this->notFound();
-                }
-                $ordered[] = $eventsById[$eventId];
-            }
-            if (count($ordered) !== count($timeline)) {
-                $this->invalidOrder();
-            }
-            $changed = array_keys(array_filter(
-                $timeline,
-                static fn (GenealogicalEvent $event, int $index): bool => $event !== $ordered[$index],
-                ARRAY_FILTER_USE_BOTH,
-            ));
-            if (
-                2 !== count($changed)
-                || 1 !== $changed[1] - $changed[0]
-                || $timeline[$changed[0]] !== $ordered[$changed[1]]
-                || $timeline[$changed[1]] !== $ordered[$changed[0]]
-                || !$this->chronology->isAmbiguous(
-                    $timeline[$changed[0]]->getDate(),
-                    $timeline[$changed[1]]->getDate(),
-                )
-            ) {
-                $this->invalidOrder();
-            }
-
+            $ordered = $this->validateOrder($timeline, $eventIds);
             $changedAt = $this->clock->now();
             foreach ($ordered as $index => $event) {
                 $this->entityManager->lock(
@@ -288,6 +257,49 @@ final readonly class ManualEventService
 
             return $this->timeline->forPerson($person);
         });
+    }
+
+    /**
+     * @param list<GenealogicalEvent> $timeline
+     * @param list<string>            $eventIds
+     *
+     * @return list<GenealogicalEvent>
+     */
+    public function validateOrder(array $timeline, array $eventIds): array
+    {
+        $eventsById = [];
+        foreach ($timeline as $event) {
+            $eventsById[$event->getId()->toRfc4122()] = $event;
+        }
+        $ordered = [];
+        foreach ($eventIds as $eventId) {
+            if (!isset($eventsById[$eventId])) {
+                $this->notFound();
+            }
+            $ordered[] = $eventsById[$eventId];
+        }
+        if (count($ordered) !== count($timeline)) {
+            $this->invalidOrder();
+        }
+        $changed = array_keys(array_filter(
+            $timeline,
+            static fn (GenealogicalEvent $event, int $index): bool => $event !== $ordered[$index],
+            ARRAY_FILTER_USE_BOTH,
+        ));
+        if (
+            2 !== count($changed)
+            || 1 !== $changed[1] - $changed[0]
+            || $timeline[$changed[0]] !== $ordered[$changed[1]]
+            || $timeline[$changed[1]] !== $ordered[$changed[0]]
+            || !$this->chronology->isAmbiguous(
+                $timeline[$changed[0]]->getDate(),
+                $timeline[$changed[1]]->getDate(),
+            )
+        ) {
+            $this->invalidOrder();
+        }
+
+        return $ordered;
     }
 
     private function lock(

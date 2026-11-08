@@ -5,7 +5,7 @@ import type { PersonFlowNode } from './components/PersonCard'
 /** A disposable graph for review. Its IDs and positions never enter a mutation or layout cache. */
 export function projectTreeMerge(snapshot: TreeSnapshot, proposal: TreeMergeProposal) {
   const people = new Map(snapshot.people.map((person) => [person.id, person]))
-  const references = new Map<string, string>()
+  const references = new Map(snapshot.people.map((person) => [person.id, person.id]))
   const proposalIds = new Map<string, string>()
   const existingIds = new Set(people.keys())
   for (const row of proposal.people) {
@@ -21,7 +21,11 @@ export function projectTreeMerge(snapshot: TreeSnapshot, proposal: TreeMergeProp
     }
     people.set(id, person)
   }
-  const parentLinks = [...snapshot.parentLinks]
+  const deleted = new Set(proposal.operations?.filter((op) => op.type === 'delete_person').map((op) => op.personId))
+  const removedParents = new Set(proposal.operations?.filter((op) => op.type === 'remove_parent_link').map((op) => op.parentLinkId))
+  const removedMarriages = new Set(proposal.operations?.filter((op) => op.type === 'remove_marriage_period').map((op) => op.marriageId))
+  for (const id of deleted) people.delete(id)
+  const parentLinks = snapshot.parentLinks.filter((link) => !removedParents.has(link.id) && !deleted.has(link.parentId) && !deleted.has(link.childId))
   for (const [index, link] of proposal.parents.entries()) {
     const parentId = references.get(link.parent)
     const childId = references.get(link.child)
@@ -32,7 +36,12 @@ export function projectTreeMerge(snapshot: TreeSnapshot, proposal: TreeMergeProp
     const parent = people.get(parentId)!
     if (parent.gender === 'unknown') people.set(parentId, { ...parent, gender: link.role === 'mother' ? 'female' : 'male' })
   }
-  const marriages = [...snapshot.marriages]
+  const marriages = snapshot.marriages.filter((link) => !removedMarriages.has(link.id) && !deleted.has(link.malePersonId) && !deleted.has(link.femalePersonId))
+  for (const operation of proposal.operations ?? []) {
+    if (operation.type !== 'update_marriage_period') continue
+    const index = marriages.findIndex((marriage) => marriage.id === operation.marriageId)
+    if (index >= 0) marriages[index] = { ...marriages[index]!, ...operation.fields }
+  }
   for (const [index, link] of proposal.marriages.entries()) {
     const first = references.get(link.first)
     const second = references.get(link.second)

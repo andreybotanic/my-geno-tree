@@ -25,8 +25,11 @@ final class PersonRepository extends ServiceEntityRepository
         // Join the inverse one-to-one to avoid its per-person lazy lookup; media variants are unnecessary.
         $query = $this
             ->createQueryBuilder('person')
-            ->addSelect('photoAttachment')
+              ->addSelect('photoAttachment')
             ->leftJoin('person.photoAttachment', 'photoAttachment')
+            ->addSelect('birthPlace', 'deathPlace')
+            ->leftJoin('person.birthPlace', 'birthPlace')
+            ->leftJoin('person.deathPlace', 'deathPlace')
             ->andWhere('person.tree = :tree')
             ->setParameter('tree', $tree)
             ->orderBy('person.id', 'ASC')

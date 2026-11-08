@@ -28,6 +28,28 @@ describe(
   () => {
     beforeEach(async () => { await i18n.changeLanguage('en') })
 
+    it('shows every mixed operation, complete descriptions and precise dates as escaped text', () => {
+      setup({ ...draft, proposal: { ...proposal,
+        operationSubjects: [['Ирина'], ['Ирина', 'Мария'], ['Ирина']],
+        operations: [
+          { type: 'create_person', id: 'i', fields: { givenName: { state: 'known', value: 'Ирина' }, patronymic: { state: 'unknown' }, gender: 'female', birthDate: { state: 'known', kind: 'approximate', year: 1960 }, deathDate: null, birthPlace: { name: 'Village', coordinates: null } }, evidence: [{ messageId: 'm', quote: '<b>Ирина</b>' }] },
+          { type: 'create_events', personIds: ['i', 'm'], event: { type: 'custom', title: 'Golden wedding celebration', date: { state: 'known', kind: 'exact', year: 2010 }, description: '<script>Full description</script>', place: null }, evidence: [] },
+          { type: 'add_parent_link', parent: 'i', child: 'm', role: 'mother', evidence: [] },
+        ],
+      } })
+      expect(screen.getByText('Create person')).toBeInTheDocument()
+      expect(screen.getByText('Add events to participants')).toBeInTheDocument()
+      expect(screen.getByText('Add parent link')).toBeInTheDocument()
+      expect(screen.getByText('Golden wedding celebration')).toBeInTheDocument()
+      expect(screen.getByText('2010')).toBeInTheDocument()
+      expect(screen.getByText('Village')).toBeInTheDocument()
+      expect(screen.getByText('Female')).toBeInTheDocument()
+      expect(screen.getByText('Mother')).toBeInTheDocument()
+      expect(screen.getByText('<script>Full description</script>')).toBeInTheDocument()
+      expect(screen.getByText('<b>Ирина</b>').querySelector('b')).toBeNull()
+      expect(document.querySelector('script')).toBeNull()
+    })
+
     it(
       'confirms a checked proposal with one explicit click, without a checkbox or detailed forms',
       () => {

@@ -31,14 +31,17 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
   const applied = useRef(new Map<string, Promise<void>>())
   // Keep a failed UI refresh retryable in this tab; application receipts are not stored on the server.
   const pendingRefresh = useRef<{ id: string; result: TreeMergeResult } | null>(null)
+  const previousStatus = useRef<string | undefined>(undefined)
+  const appliedDuringAttempt = useRef(false)
 
   async function acceptApplied(id: string, result: TreeMergeResult) {
+    appliedDuringAttempt.current = true
     const previous = applied.current.get(id)
     if (previous) return previous
     pendingRefresh.current = { id, result }
     const promise = Promise
       .resolve(
-        onApplied?.(result)
+        result.newPersonIds?.length === 0 && onRefreshTree ? onRefreshTree() : onApplied?.(result)
       )
       .then(
         () => {
@@ -79,10 +82,16 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, onP
 
   return <ChatPanel {...panel} request={request} contextPath={`/trees/${snapshot.tree.id}/chat`}
     createBody={{ referencePersonId: null }} disabled={busy} placeholder={t('treeMerge.placeholder')}
-    onConversationChange={(conversation) => onProposalChange?.(conversation ? pendingMerge(conversation) : null)}
+    onConversationChange={(conversation) => {
+      onProposalChange?.(conversation ? pendingMerge(conversation) : null)
+      const finished = previousStatus.current === 'processing' && conversation?.status !== 'processing'
+      if (previousStatus.current !== 'processing' && conversation?.status === 'processing') appliedDuringAttempt.current = false
+      previousStatus.current = conversation?.status
+      if (finished && !appliedDuringAttempt.current) void onRefreshTree?.().catch(() => setError('chat.loadFailed'))
+    }}
     onStreamOpen={() => { void onRefreshTree?.().catch(() => setError('chat.loadFailed')) }}
     onToolEvent={(event) => {
-      if (event.tool === 'merge' && event.action === 'applied') {
+      if (['merge', 'change_tree'].includes(event.tool) && event.action === 'applied') {
         void acceptApplied(event.operationId, event.result as TreeMergeResult).catch(() => setError('chat.loadFailed'))
       }
     }}

@@ -2557,6 +2557,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [mergeAffectedIds, setMergeAffectedIds] = useState<string[]>([])
   const [exporting, setExporting] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
+  const selectedPersonIdRef = useRef<string | null>(null)
+  const chatRefreshSequence = useRef(0)
+  useEffect(() => { selectedPersonIdRef.current = selectedPerson?.id ?? null }, [selectedPerson])
   const [selectedDetails, setSelectedDetails] = useState<PersonDetails | null>(null)
   const [pathDisplay, setPathDisplay] = useState<PathDisplayPlan | null>(null)
   const [events, setEvents] = useState<GenealogicalEvent[]>([])
@@ -2708,6 +2711,28 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
     closePersonDetails()
     navigate(treeEditorPath(treeId, 'network'))
   }
+
+  const refreshTreeFromChat = useCallback(async () => {
+    const sequence = ++chatRefreshSequence.current
+    const updated = await treeApi.snapshot(request, treeId)
+    if (sequence !== chatRefreshSequence.current) return
+    replaceSnapshot(updated, true)
+    const selectedId = selectedPersonIdRef.current
+    if (!selectedId) return
+    const person = updated.people.find((item) => item.id === selectedId)
+    if (!person) { closePersonDetails(); return }
+    const response = await personApi.details(request, treeId, selectedId)
+    const details = isPersonDetails(response) ? response : fallbackPersonDetails(
+      updated, person, (await personApi.events(request, treeId, selectedId)).items
+    )
+    if (sequence !== chatRefreshSequence.current || selectedPersonIdRef.current !== selectedId) return
+    if (details.etag !== snapshotRef.current?.etag) throw new Error('Person details version changed')
+    cachePersonDetails(details.etag, details.person, details.events, details)
+    setSelectedPerson(details.person)
+    setSelectedDetails(details)
+    setEvents(details.events)
+    setConflict(false)
+  }, [cachePersonDetails, closePersonDetails, replaceSnapshot, request, treeId])
 
   const loadSnapshot = useCallback(
     async (resetUi = false) => {
@@ -3516,10 +3541,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
       {snapshot && (
         <TreeChatDrawer key={treeId} snapshot={snapshot} request={request} open={chatOpen} onOpenChange={setChatOpen}
           onProposalChange={setMergeProposal} previewContainer={mergeReviewContainer}
-          onRefreshTree={async () => { replaceSnapshot(await treeApi.snapshot(request, treeId)) }}
+          onRefreshTree={refreshTreeFromChat}
           onApplied={async (result) => {
-            const next = await treeApi.snapshot(request, treeId)
-            replaceSnapshot(next)
+            await refreshTreeFromChat()
             setMergeAffectedIds(result.affectedPersonIds)
             if (view !== 'tree') navigate(`${treeEditorPath(treeId, 'tree')}${window.location.search}`)
             setConflict(false)

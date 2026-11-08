@@ -13,7 +13,7 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
         'required'             => ['state'],
         'additionalProperties' => false,
     ];
-    private const array TEXT = [
+    public const array TEXT = [
         'oneOf' => [
             self::UNKNOWN,
             [
@@ -32,7 +32,7 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
         'month' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 12],
         'day'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 31],
     ];
-    private const array DATE = [
+    public const array DATE = [
         'oneOf' => [
             self::UNKNOWN,
             [
@@ -53,8 +53,8 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
             ],
         ],
     ];
-    private const array OPTIONAL_DATE = ['oneOf' => [['type' => 'null'], self::DATE]];
-    private const array EVIDENCE = [
+    public const array OPTIONAL_DATE = ['oneOf' => [['type' => 'null'], self::DATE]];
+    public const array EVIDENCE = [
         'type'     => 'array',
         'minItems' => 1,
         'maxItems' => 10,

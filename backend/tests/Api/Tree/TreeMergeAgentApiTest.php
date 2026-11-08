@@ -3,6 +3,8 @@
 namespace App\Tests\Api\Tree;
 
 use App\Entity\AuthSession;
+use App\Entity\GenealogicalEvent;
+use App\Entity\Value\EventSource;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
@@ -95,7 +97,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertArrayNotHasKey('userId', $input);
                 self::assertSame($this->treeId, $input['treeId']);
                 $schemas = array_column($body['tools'], 'parameters', 'name');
-                self::assertCount(8, $schemas);
+                self::assertCount(9, $schemas);
                 $searchProperties = $schemas['find_people']['properties'];
                 self::assertIsArray($searchProperties);
                 $querySchema = $searchProperties['query'];
@@ -656,6 +658,132 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         $this->send();
         self::assertSame(2, $calls);
         self::assertSame('Please provide at least two characters.', $this->responseString('messages', '1', 'content'));
+    }
+
+    public function testGenericChatChangesApplyImmediatelyWithoutNewPeople(): void
+    {
+        $this->checkGenericChange(false);
+    }
+
+    public function testMixedChatPacketChangesNothingBeforeReview(): void
+    {
+        $this->checkGenericChange(true);
+    }
+
+    private function checkGenericChange(bool $newPerson): void
+    {
+        $container = static::getContainer();
+        $tree = $container->get(\App\Repository\FamilyTreeRepository::class)->find($this->treeId);
+        self::assertInstanceOf(\App\Entity\FamilyTree::class, $tree);
+        $created = $container
+            ->get(\App\Application\Tree\ChangeSet\TreeChangeSetExecutor::class)
+            ->execute(
+                $tree,
+                $container
+                    ->get(\App\Application\Tree\ChangeSet\TreeChangeSetFactory::class)
+                    ->create(
+                        $tree,
+                        [
+                            ['type' => 'create_person', 'id' => 'mother', 'fields' => ['gender' => 'female']],
+                        ],
+                    ),
+                $container->get(\App\Application\Tree\TreeVersion::class)->etag($tree),
+            );
+        $id = $created['personIds']['mother'];
+        $calls = 0;
+        $container->set(
+            'chat_ai.client',
+            new MockHttpClient(
+                function ($method, $url, $options) use (&$calls, $id, $newPerson): MockResponse {
+                    ++$calls;
+                    if (1 === $calls) {
+                        return $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]);
+                    }
+                    $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                    self::assertIsArray($body);
+                    $messages = ResponsesFixture::messages($body);
+                    $last = array_last($messages);
+                    self::assertNotNull($last);
+                    $result = json_decode($last['content'], true, flags: JSON_THROW_ON_ERROR);
+                    self::assertIsArray($result);
+                    if (2 === $calls) {
+                        $messageId = substr(explode("\n", $messages[1]['content'])[0], strlen('messageId: '));
+                        $evidence = [['messageId' => $messageId, 'quote' => 'Vera is my mother.']];
+                        $operations = [];
+                        if ($newPerson) {
+                            $operations[] = [
+                                'type'     => 'create_person',
+                                'id'       => 'child',
+                                'fields'   => [],
+                                'evidence' => $evidence,
+                            ];
+                            $operations[] = [
+                                'type'     => 'add_parent_link',
+                                'parent'   => $id,
+                                'child'    => 'child',
+                                'role'     => 'mother',
+                                'evidence' => $evidence,
+                            ];
+                        }
+                        $operations[] = [
+                            'type'      => 'create_events',
+                            'personIds' => $newPerson ? [$id, 'child'] : [$id],
+                            'event'     => [
+                                'type'        => 'custom',
+                                'date'        => ['state' => 'unknown'],
+                                'title'       => 'Family occasion',
+                                'description' => null,
+                            ],
+                            'evidence' => $evidence,
+                        ];
+
+                        return $this->toolResponse(
+                            'change_tree',
+                            ['treeId' => $this->treeId, 'ifMatch' => $result['etag'], 'operations' => $operations],
+                        );
+                    }
+                    self::assertSame($newPerson ? 'ready' : 'applied', $result['state']);
+
+                    return $this->textResponse('Done.');
+                },
+            ),
+        );
+        FixtureTreeAgent::$useReal = true;
+        $this->send();
+        self::assertSame(3, $calls);
+        $em = $container->get(EntityManagerInterface::class);
+        self::assertSame(1, $em->getRepository(\App\Entity\Person::class)->count());
+        self::assertSame(
+            $newPerson ? 0 : 1,
+            $em->getRepository(GenealogicalEvent::class)->count(['source' => EventSource::MANUAL]),
+        );
+        if ($newPerson) {
+            $proposal = $this->responseArray('tools', 'merge');
+            self::assertIsString($proposal['id']);
+            self::assertIsString($proposal['treeEtag']);
+            $this->jsonRequest(
+                'POST',
+                '/api/v1/trees/' . $this->treeId . '/merge-proposals/' . $proposal['id'] . '/apply',
+                ['version' => $proposal['version']],
+                $this->headers + ['If-Match' => $proposal['treeEtag']],
+            );
+            self::assertResponseIsSuccessful();
+            self::assertSame(2, $em->getRepository(\App\Entity\Person::class)->count());
+            self::assertSame(
+                2,
+                $em->getRepository(GenealogicalEvent::class)->count(['source' => EventSource::MANUAL]),
+            );
+        } else {
+            self::assertArrayNotHasKey('merge', $this->responseArray('tools'));
+            /** @var list<array<string, mixed>> $packets */
+            $packets = array_map(
+                static fn ($event): mixed => json_decode($event->getData(), true, flags: JSON_THROW_ON_ERROR),
+                TestMergeEvents::updates(),
+            );
+            self::assertNotEmpty(
+                array_filter($packets, static fn (array $packet): bool => 'change_tree' === ($packet['tool'] ?? null)),
+            );
+        }
     }
 
     /** @param array<string, mixed> $arguments */

@@ -81,6 +81,23 @@ export const resources = {
         "placeholder": "Write a message…",
         "invalid": "Check the message and try again."
       },
+      treeChange: {
+        operations: {
+          create_person: 'Create person', update_person: 'Update person', delete_person: 'Delete person',
+          add_parent_link: 'Add parent link', remove_parent_link: 'Remove parent link',
+          create_marriage_period: 'Add marriage period', update_marriage_period: 'Update marriage period', remove_marriage_period: 'Remove marriage period',
+          create_events: 'Add events to participants', update_event: 'Update event', delete_event: 'Delete event',
+          set_event_place: 'Change event place', reorder_events: 'Change event order',
+        },
+        fields: {
+          birthSurname: 'Birth surname', givenName: 'Given name', patronymic: 'Patronymic', gender: 'Gender',
+          birthDate: 'Birth date', deathDate: 'Death date', birthPlace: 'Birth place', deathPlace: 'Death place',
+          marriageDate: 'Marriage date', dissolutionDate: 'Dissolution date', marriagePlace: 'Marriage place', dissolutionPlace: 'Dissolution place',
+          maleNewSurname: 'Husband’s new surname', femaleNewSurname: 'Wife’s new surname',
+          type: 'Event type', date: 'Date', title: 'Title', description: 'Description', newSurname: 'New surname', place: 'Place', role: 'Parent role',
+        },
+        values: { male: 'Male', female: 'Female', unknown: 'Unknown', mother: 'Mother', father: 'Father', custom: 'Personal event', residence: 'Residence', surname_change: 'Surname change' },
+      },
       treeMerge: {
         "treeConflict": "The tree has changed. Review the updated proposal and confirm it again.",
         "placeholder": "Describe what you want to do with the tree…",
@@ -586,6 +603,23 @@ export const resources = {
         "newConversation": "Удалить чат",
         "placeholder": "Напишите сообщение…",
         "invalid": "Проверьте сообщение и попробуйте снова."
+      },
+      treeChange: {
+        operations: {
+          create_person: 'Создать персону', update_person: 'Изменить персону', delete_person: 'Удалить персону',
+          add_parent_link: 'Добавить родительскую связь', remove_parent_link: 'Удалить родительскую связь',
+          create_marriage_period: 'Добавить период брака', update_marriage_period: 'Изменить период брака', remove_marriage_period: 'Удалить период брака',
+          create_events: 'Добавить события участникам', update_event: 'Изменить событие', delete_event: 'Удалить событие',
+          set_event_place: 'Изменить место события', reorder_events: 'Изменить порядок событий',
+        },
+        fields: {
+          birthSurname: 'Фамилия при рождении', givenName: 'Имя', patronymic: 'Отчество', gender: 'Пол',
+          birthDate: 'Дата рождения', deathDate: 'Дата смерти', birthPlace: 'Место рождения', deathPlace: 'Место смерти',
+          marriageDate: 'Дата брака', dissolutionDate: 'Дата расторжения', marriagePlace: 'Место брака', dissolutionPlace: 'Место расторжения',
+          maleNewSurname: 'Новая фамилия мужа', femaleNewSurname: 'Новая фамилия жены',
+          type: 'Тип события', date: 'Дата', title: 'Название', description: 'Описание', newSurname: 'Новая фамилия', place: 'Место', role: 'Роль родителя',
+        },
+        values: { male: 'Мужской', female: 'Женский', unknown: 'Неизвестно', mother: 'Мать', father: 'Отец', custom: 'Личное событие', residence: 'Проживание', surname_change: 'Смена фамилии' },
       },
       treeMerge: {
         "treeConflict": "Дерево изменилось. Проверьте обновлённое предложение и подтвердите его заново.",

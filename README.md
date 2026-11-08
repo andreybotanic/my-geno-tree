@@ -230,7 +230,7 @@ cursors bind the selection and tree version. Reuse expectedEtag across different
 lists for a consistent analysis; a changed tree returns TREE_VERSION_CONFLICT.
 Place lookup reports unavailable without fabricating coordinates.
 
-Both registries reuse TreeReadTools and TreeMergeTool. ChatAgentHooks enforce the
+Both registries reuse TreeReadTools, TreeMergeTool and TreeChangeTool. ChatAgentHooks enforce the
 selected tree and record context reads for the site agent; the MCP registry adds
 TreeReadTools::findTrees and exposes direct application through the merge tool's separate
 MCP method. McpToolExecutor only translates application exceptions into MCP tool
@@ -258,6 +258,51 @@ no shared-event entity or new UI is introduced.
 Person and event place inputs accept coordinates=null alongside a nonempty name.
 Existing geocoding responses continue to return resolved coordinates. Text-only
 places preserve historical or unresolved names without inventing a map position.
+
+### Atomic general tree changes
+
+`change_tree(treeId, ifMatch, operations)` accepts person creation, patching and
+deletion; parent-link creation and removal; marriage-period creation, patching
+and removal; and `create_events`, `update_event`, `delete_event`,
+`set_event_place`, `reorder_events`. New people have temporary references usable
+by other operations in the same packet. Person and marriage fields use the same
+structured names, dates and nullable places as REST. Event creation accepts a
+list of participants; subsequent edits to the resulting records are independent.
+Automatic events are synchronized through their sources, with place editing
+remaining available through the existing canonical-place service.
+
+`TreeChangeSetFactory`, the graph projector and executor are application core,
+independent of chat and MCP. They validate the final graph and manual-event
+lifespans, then apply a packet in one transaction under the supplied tree ETag.
+One failed operation rolls back all writes. A stale ETag never triggers a retry.
+Stored media is removed only after the transaction succeeds.
+
+On the site, packets without `create_person` apply immediately. Packets creating
+people remain entirely pending for review, including their event and relationship
+changes. The existing `merge` adapter follows this same rule; old pending
+proposals remain supported. MCP applies every valid packet immediately, including
+new people, with exact user instructions supplied in `sources`.
+Both tools share schemas and application rules. The site records compact read
+receipts with IDs, field groups and versions, and requires fresh target reads.
+There are no separate read-count, accumulated-result-byte or tool-call limits;
+token budgets, authorization, timeouts and cancellation still apply.
+
+Mixed reviews show every operation and its unabridged text in EN/RU. Direct
+application publishes the existing chat tool notification. The client refreshes
+the tree without framing the affected people, preserving camera and chat state.
+Repeated notifications are deduplicated; completion and reconnect refreshes
+recover missed notifications without repeating mutations.
+
+Local HTTPS validation (2026-11-08) used a separate synthetic 48-person tree:
+whole-tree age analysis reported uncertain dates explicitly; a move was saved
+for three participants without review; an anniversary celebration was saved
+for both spouses using the existing marriage, after clarifying the family side.
+A mixed packet remained unapplied until review. A concurrent rename caused a
+version conflict and required another explicit confirmation without losing the
+chat draft. Temporarily making Geoapify unreachable in the backend container
+verified that an event still saves the exact place name with null coordinates;
+the network override was then removed. A further direct event appeared in the
+already open person timeline without a page reload, retaining the 69% zoom.
 
 ### Chat profiles and the merge tool
 
@@ -318,7 +363,8 @@ answers, Stop and provider failures preserve it. Proposal actions use
 proposal; the chat and unsent input remain. Its button disappears immediately.
 Reset deletes the whole conversation. Both actions reach other tabs by Mercure.
 
-Apply requires a separate button, the proposal version and tree ETag. It consumes
+Applying a pending proposal with new people requires a separate button, the
+proposal version and tree ETag. It consumes
 the proposal before the structural tree transaction. People, links, automatic
 events, ETag and layout invalidation change atomically. The result is returned
 once in the HTTP response and a transient tool event, then discarded. Neither

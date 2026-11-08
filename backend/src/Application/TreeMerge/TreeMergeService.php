@@ -7,8 +7,6 @@ use App\Application\Tree\ChangeSet\TreeChangeSetExecutor;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Model\TreeMergeProposal;
-use Doctrine\DBAL\LockMode;
-use Doctrine\ORM\EntityManagerInterface;
 
 /** Tree preparation and mutation, usable independently of chat, AI and MCP. */
 final readonly class TreeMergeService
@@ -17,7 +15,7 @@ final readonly class TreeMergeService
         private TreeMergeProposalValidator $validator,
         private TreeChangeSetExecutor $executor,
         private TreeVersion $versions,
-        private EntityManagerInterface $entityManager,
+        private TreeChangeProposalValidator $changes,
     ) {
     }
 
@@ -30,7 +28,9 @@ final readonly class TreeMergeService
         bool $manual = false,
         int $version = 1,
     ): TreeMergeProposal {
-        $validated = $this->validator->validate($tree, $value, $sources, $current?->proposal, $manual);
+        $validated = is_array($value) && array_key_exists('operations', $value)
+            ? $this->changes->validate($tree, $value, $sources, $current?->proposal, $manual)
+            : $this->validator->validate($tree, $value, $sources, $current?->proposal, $manual);
         $state = match (true) {
             [] !== $validated->questions => 'questions',
             !$validated->hasChanges      => 'no_changes',
@@ -53,30 +53,26 @@ final readonly class TreeMergeService
         if ($proposal->treeId !== $tree->getId()->toRfc4122() || 'ready' !== $proposal->state) {
             throw new ApiException(409, 'TREE_MERGE_NOT_READY');
         }
-        $result = $this->entityManager->wrapInTransaction(
-            function () use ($tree, $proposal, $ifMatch): ?array {
-                $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
-                $this->entityManager->refresh($tree);
-                if ($ifMatch !== $proposal->treeEtag || $this->versions->etag($tree) !== $proposal->treeEtag) {
-                    return null;
-                }
-                $validated = $this->validator->validate(
-                    $tree,
-                    $this->validator->input($proposal->proposal),
-                    [],
-                    $proposal->proposal,
-                    true,
-                    false,
-                );
-                if (null === $validated->changes) {
-                    throw new ApiException(409, 'TREE_MERGE_NOT_READY');
-                }
+        if ($ifMatch !== $proposal->treeEtag) {
+            throw new ApiException(412, 'TREE_VERSION_CONFLICT');
+        }
+        $this->versions->assertMatches($tree, $ifMatch);
+        $input = $this->validator->input($proposal->proposal);
+        $validated = isset($input['operations'])
+            ? $this->changes->validate($tree, $input, [], $proposal->proposal, true)
+            : $this->validator->validate(
+                $tree,
+                $input,
+                [],
+                $proposal->proposal,
+                true,
+                false,
+            );
+        if (null === $validated->changes) {
+            throw new ApiException(409, 'TREE_MERGE_NOT_READY');
+        }
 
-                return $this->executor->execute($tree, $validated->changes, $proposal->treeEtag);
-            },
-        );
-
-        return $result ?? throw new ApiException(412, 'TREE_VERSION_CONFLICT');
+        return $this->executor->execute($tree, $validated->changes, $proposal->treeEtag);
     }
 
     public function revalidate(FamilyTree $tree, TreeMergeProposal $proposal): TreeMergeProposal

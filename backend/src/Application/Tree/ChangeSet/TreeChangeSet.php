@@ -9,11 +9,13 @@ final readonly class TreeChangeSet
      * @param list<PersonChange>   $people
      * @param list<ParentChange>   $parents
      * @param list<MarriageChange> $marriages
+     * @param list<TreeOperation>  $operations
      */
     public function __construct(
         public array $people,
         public array $parents = [],
         public array $marriages = [],
+        public array $operations = [],
     ) {
     }
 }

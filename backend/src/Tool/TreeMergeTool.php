@@ -15,12 +15,13 @@ use Mcp\Capability\Attribute\McpTool;
 use Mcp\Schema\ToolAnnotations;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
+use Symfony\Component\Uid\Uuid;
 
 /** The only chat adapter for pending merge proposals; tree mutations live in TreeMergeService. */
 #[AsTool(
     name: 'merge',
     description: <<<'DESCRIPTION'
-    Validate and prepare the complete tree proposal for preview and separate UI confirmation.
+    Validate the complete tree proposal. Without new people apply immediately; otherwise review the entire packet.
     Returns exact new/existing person counts and the proposal version.
     Correct rejected arguments using the returned field diagnostics.
     DESCRIPTION
@@ -88,17 +89,75 @@ final readonly class TreeMergeTool
      */
     public function __invoke(string $treeId, #[Schema(provider: TreeMergeToolSchema::class)] array $proposal): array
     {
+        return $this->submit($treeId, $proposal);
+    }
+
+    /** @param array<string, mixed> $proposal
+     * @return array<string, mixed>
+     */
+    public function submit(string $treeId, array $proposal, ?string $ifMatch = null): array
+    {
         try {
             $execution = $this->chat->execution();
             $conversation = $execution->conversation;
             if (($conversation->context['treeId'] ?? null) !== $treeId) {
                 throw new ApiException(404, 'TREE_NOT_FOUND');
             }
-            $observed = [];
+            $tree = $this->trees->tree($treeId, true);
+            $version = $ifMatch ?? $this->versions->etag($tree);
+            $this->versions->assertMatches($tree, $version);
+            $observed = $events = $relationships = [];
             foreach ($execution->observations as $context) {
+                if (($context['treeId'] ?? null) !== $treeId || ($context['etag'] ?? null) !== $version) {
+                    continue;
+                }
                 foreach (is_array($context['people'] ?? null) ? $context['people'] : [] as $person) {
                     if (is_array($person) && is_string($person['id'] ?? null)) {
                         $observed[] = $person['id'];
+                    }
+                }
+                foreach (['events', 'relationships'] as $group) {
+                    foreach (is_array($context[$group] ?? null) ? $context[$group] : [] as $row) {
+                        if (is_array($row) && is_string($row['id'] ?? null)) {
+                            if ('events' === $group) {
+                                $events[] = $row['id'];
+                            } else {
+                                $relationships[] = $row['id'];
+                            }
+                        }
+                    }
+                }
+            }
+            $new = [];
+            $operations = is_array($proposal['operations'] ?? null) ? $proposal['operations'] : [];
+            foreach ($operations as $row) {
+                if (is_array($row) && 'create_person' === ($row['type'] ?? null) && is_string($row['id'] ?? null)) {
+                    $new[] = $row['id'];
+                }
+            }
+            foreach ($operations as $row) {
+                if (!is_array($row)) {
+                    throw new ApiException(422, 'TREE_CHANGE_INVALID');
+                }
+                foreach (['personId', 'parent', 'child', 'first', 'second'] as $key) {
+                    if (isset($row[$key]) && !in_array($row[$key], [...$observed, ...$new], true)) {
+                        throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
+                    }
+                }
+                foreach (is_array($row['personIds'] ?? null) ? $row['personIds'] : [] as $id) {
+                    if (!in_array($id, [...$observed, ...$new], true)) {
+                        throw new ApiException(422, 'TREE_MERGE_UNOBSERVED_PERSON');
+                    }
+                }
+                foreach (['eventId', 'parentLinkId', 'marriageId'] as $key) {
+                    $allowed = 'eventId' === $key ? $events : $relationships;
+                    if (isset($row[$key]) && !in_array($row[$key], $allowed, true)) {
+                        throw new ApiException(422, 'TREE_CHANGE_UNOBSERVED_RESOURCE');
+                    }
+                }
+                foreach (is_array($row['eventIds'] ?? null) ? $row['eventIds'] : [] as $id) {
+                    if (!in_array($id, $events, true)) {
+                        throw new ApiException(422, 'TREE_CHANGE_UNOBSERVED_RESOURCE');
                     }
                 }
             }
@@ -110,16 +169,30 @@ final readonly class TreeMergeTool
             }
             $current = $conversation->tools['merge'] ?? null;
             $pending = $this->merge->prepare(
-                $this->trees->tree($treeId, true),
+                $tree,
                 $proposal,
                 $this->chat->sources($conversation),
                 $current instanceof TreeMergeProposal ? $current : null,
                 false,
                 ($conversation->toolVersions['merge'] ?? 0) + 1
             );
-            $this->chat->replaceTool($conversation, 'merge', $pending, false);
             /** @var list<array{resolution: string}> $people */
             $people = $pending->proposal['people'];
+            $newCount = count(array_filter($people, static fn ($person) => 'new' === $person['resolution']));
+            if (0 === $newCount && 'ready' === $pending->state) {
+                $this->chat->execution();
+                $result = $this->merge->apply($tree, $pending, $version);
+                $this->chat->replaceTool($conversation, 'merge', null, false);
+                $this->events->toolApplied(
+                    $conversation,
+                    isset($proposal['operations']) ? 'change_tree' : 'merge',
+                    Uuid::v7()->toRfc4122(),
+                    $result,
+                );
+
+                return ['state' => 'applied', 'result' => $result, 'newPeople' => 0];
+            }
+            $this->chat->replaceTool($conversation, 'merge', $pending, false);
 
             return [
                 'newPeople' => count(

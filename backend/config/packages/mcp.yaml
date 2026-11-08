@@ -2,9 +2,9 @@ mcp:
     servers:
         default:
             name: MyGenoTree
-            instructions: 'Find the requested tree with find_trees. Ask the user when trees or people are ambiguous. Read person context before preparing changes. merge applies changes immediately and follows client approval settings. Read a new ETag after a conflict; never retry a mutation blindly.'
+            instructions: 'Find the requested tree with find_trees. Read all list pages and reuse expectedEtag across lists. Ask when identity or family side is ambiguous; the tree reference is not the user. Follow stored links to resolve relatives. change_tree and merge apply all valid packets immediately, including new people, without server review. Read targets first and use the latest ETag. Preserve date precision. Obtain coordinates only through find_places; otherwise save the original name with coordinates=null. After a conflict or lost response read state again; never retry a mutation blindly.'
             registry:
-                tools: ['App\Tool\TreeReadTools', 'App\Tool\TreeMergeTool']
+                tools: ['App\Tool\TreeReadTools', 'App\Tool\TreeMergeTool', 'App\Tool\TreeChangeTool']
             session:
                 directory: '/run/chat/mcp_%kernel.environment%'
 

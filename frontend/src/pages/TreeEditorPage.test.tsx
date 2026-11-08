@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   GenealogicalEvent,
@@ -20,6 +20,8 @@ import { AuthContext } from '../auth/AuthContext'
 import i18n from '../i18n'
 import { defaultBloodNetworkPresets } from '../bloodNetwork'
 import { TreeEditorPage } from './TreeEditorPage'
+import { useChatEvents } from '../hooks/useChatEvents'
+import { conversation as chatConversation } from '../test/chatFixtures'
 
 vi.mock(
   '../hooks/useChatEvents',
@@ -243,6 +245,31 @@ describe(
         vi.unstubAllGlobals()
       }
     )
+
+    it('refreshes an open person timeline after a direct chat mutation without resetting the draft or camera', async () => {
+      let current = snapshot([person])
+      let items = [event]
+      const request = vi.fn(async (path: string) => {
+        if (path.endsWith('/chat')) return { conversation: chatConversation, tokenBudget: chatConversation.tokenBudget }
+        if (path.endsWith('/events')) return { items }
+        return current
+      }) as unknown as AuthorizedJsonRequest
+      renderEditor(request)
+      fireEvent.click(await screen.findByRole('article', { name: 'Ivanova Anna' }))
+      await screen.findByRole('complementary', { name: 'Person details' })
+      fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
+      const input = await screen.findByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Retain this draft.' } })
+      const zoom = screen.getByRole('button', { name: 'Current zoom' }).textContent
+      current = { ...current, etag: '"changed-by-chat"' }
+      items = [...items, { ...event, id: 'new-event', type: 'custom', source: 'manual', title: 'Saved by the assistant', date: { state: 'known', kind: 'exact', year: 1930 } }]
+      await act(async () => vi.mocked(useChatEvents).mock.lastCall?.[3]({ kind: 'tool', id: chatConversation.id, version: chatConversation.version, tool: 'change_tree', action: 'applied', operationId: 'direct-edit', result: { personIds: {}, affectedPersonIds: [person.id], newPersonIds: [], etag: current.etag } }))
+      expect(await screen.findByText('Saved by the assistant')).toBeInTheDocument()
+      expect(screen.getByRole('complementary', { name: 'Person details' })).toBeVisible()
+      expect(input).toHaveValue('Retain this draft.')
+      expect(screen.getByRole('button', { name: 'Current zoom' }).textContent).toBe(zoom)
+    })
 
     it
       .each(

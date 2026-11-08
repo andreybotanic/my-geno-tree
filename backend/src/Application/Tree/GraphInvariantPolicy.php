@@ -271,9 +271,22 @@ final readonly class GraphInvariantPolicy
         FamilyTree $tree,
         Person $person,
     ): void {
+        $this->assertPersonDeletionRules(
+            $person,
+            $this->parentLinks->findAllForTree($tree),
+            $this->marriages->findForPerson($person),
+        );
+        $this->assertConnectedAfter($tree, removedPerson: $person);
+    }
+
+    /**
+     * @param list<ParentLink>     $parentLinks
+     * @param list<MarriagePeriod> $marriages
+     */
+    public function assertPersonDeletionRules(Person $person, array $parentLinks, array $marriages): void
+    {
         $hasParent = false;
         $hasChild = false;
-        $parentLinks = $this->parentLinks->findAllForTree($tree);
         foreach ($parentLinks as $link) {
             $hasParent = $hasParent || $link->getChild() === $person;
             $hasChild = $hasChild || $link->getParent() === $person;
@@ -282,7 +295,10 @@ final readonly class GraphInvariantPolicy
             $this->conflict('INTERNAL_PERSON_CANNOT_BE_DELETED');
         }
         $currentPartners = [];
-        foreach ($this->marriages->findForPerson($person) as $marriage) {
+        foreach ($marriages as $marriage) {
+            if ($marriage->getMalePerson() !== $person && $marriage->getFemalePerson() !== $person) {
+                continue;
+            }
             if (null !== $marriage->getDissolutionDate()) {
                 continue;
             }
@@ -309,7 +325,6 @@ final readonly class GraphInvariantPolicy
                 }
             }
         }
-        $this->assertConnectedAfter($tree, removedPerson: $person);
     }
 
     /**

@@ -29,6 +29,24 @@ describe(
   () => {
     beforeEach(async () => { window.history.replaceState({}, '', '/'); vi.mocked(useChatEvents).mockClear(); await i18n.changeLanguage('en') })
 
+    it.each([true, false])('refreshes direct changes with notification delivered=%s while retaining the draft and history', async (delivered) => {
+      const { applied, refresh } = setup(async () => ({ conversation }))
+      const input = await screen.findByRole('textbox', { name: 'Message' })
+      await waitFor(() => expect(input).toBeEnabled())
+      fireEvent.change(input, { target: { value: 'Keep my correction.' } })
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](() => ({ ...conversation, version: 3, status: 'processing' })))
+      if (delivered) {
+        const event = { kind: 'tool' as const, id: conversation.id, version: 3, tool: 'change_tree', action: 'applied' as const, operationId: 'direct', result: { ...result, newPersonIds: [] } }
+        await act(async () => vi.mocked(useChatEvents).mock.lastCall?.[3](event))
+        await act(async () => vi.mocked(useChatEvents).mock.lastCall?.[3](event))
+      }
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](() => ({ ...conversation, version: 4, status: 'idle' })))
+      await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+      expect(applied).not.toHaveBeenCalled()
+      expect(input).toHaveValue('Keep my correction.')
+      expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
+    })
+
     it
       .each(
         ['success', 'failure'] as const

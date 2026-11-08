@@ -3,7 +3,9 @@
 namespace App\Application\Event;
 
 use App\Api\ApiException;
+use App\Api\GenealogicalDateViewFactory;
 use App\Application\Person\PersonDataPolicy;
+use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Entity\Value\EventType;
 use App\Entity\Value\GenealogicalDate;
@@ -15,6 +17,7 @@ final readonly class ManualEventDataPolicy
     public function __construct(
         private PersonDataPolicy $personData,
         private EventPlaceDataPolicy $places,
+        private GenealogicalDateViewFactory $dates,
     ) {
     }
 
@@ -80,6 +83,27 @@ final readonly class ManualEventDataPolicy
         );
     }
 
+    /** @param array<string, mixed> $fields */
+    public function patch(Person $person, GenealogicalEvent $event, array $fields): ManualEventData
+    {
+        if ([] === $fields) {
+            $this->invalid('event', 'at_least_one_field_required');
+        }
+        $type = $fields['type'] ?? $event->getType()->value;
+        $payload = [
+            'type' => $type,
+            'date' => $this->dates->create($event->getDate()),
+            ...match ($type) {
+                'custom'         => ['title' => $event->getTitle(), 'description' => $event->getDescription()],
+                'residence'      => ['description' => $event->getDescription()],
+                'surname_change' => ['newSurname' => $event->getData()['newSurname'] ?? null],
+                default          => [],
+            },
+        ];
+
+        return $this->event($person, array_replace($payload, $fields));
+    }
+
     /**
      * @param array<string, mixed> $payload
      *
@@ -106,7 +130,7 @@ final readonly class ManualEventDataPolicy
         return $ids;
     }
 
-    private function assertWithinLife(
+    public function assertWithinLife(
         Person $person,
         GenealogicalDate $date,
     ): void {

@@ -3,6 +3,7 @@
 namespace App\Mcp;
 
 use App\Api\ApiException;
+use App\Tool\TreeChangeTool;
 use App\Tool\TreeMergeTool;
 use App\Tool\TreeReadTools;
 use Mcp\Capability\Registry\ElementReference;
@@ -18,7 +19,7 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 final readonly class McpToolExecutor implements ReferenceHandlerInterface
 {
     public function __construct(
-        #[AutowireLocator([TreeReadTools::class, TreeMergeTool::class])]
+        #[AutowireLocator([TreeReadTools::class, TreeMergeTool::class, TreeChangeTool::class])]
         private ContainerInterface $tools,
     ) {
     }

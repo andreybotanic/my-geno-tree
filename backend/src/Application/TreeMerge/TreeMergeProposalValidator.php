@@ -253,6 +253,9 @@ final readonly class TreeMergeProposalValidator
      */
     public function input(array $proposal): array
     {
+        if (isset($proposal['operations'])) {
+            return ['operations' => $proposal['operations']];
+        }
         if (is_array($proposal['people'] ?? null)) {
             foreach ($proposal['people'] as &$person) {
                 if (is_array($person)) {
@@ -350,7 +353,7 @@ final readonly class TreeMergeProposalValidator
     /** @param list<array{id: string, role: string, content: string}> $sources
      * @param array<string, mixed>|null $savedProposal
      */
-    private function evidence(array $sources, ?array $savedProposal, mixed $value, bool $manual, string $path): void
+    public function evidence(array $sources, ?array $savedProposal, mixed $value, bool $manual, string $path): void
     {
         $items = $this->items($value, 10, $path);
         if (!$manual && [] === $items) {
@@ -373,7 +376,7 @@ final readonly class TreeMergeProposalValidator
             }
             $found = false;
             if ($manual && null !== $savedProposal) {
-                foreach (['people', 'parents', 'marriages'] as $group) {
+                foreach (['people', 'parents', 'marriages', 'operations'] as $group) {
                     foreach (is_array($savedProposal[$group] ?? null) ? $savedProposal[$group] : [] as $row) {
                         if (is_array($row) && is_array($row['evidence'] ?? null)
                             && in_array($item, $row['evidence'], true)) {

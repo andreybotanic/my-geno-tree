@@ -1670,7 +1670,7 @@ paths:
       - $ref: "#/components/parameters/EventId"
     patch:
       operationId: updateManualEvent
-      summary: Replace the editable fields of one manual event
+      summary: Patch the editable fields of one manual event
       security:
         - bearerAuth: []
       parameters:
@@ -1680,7 +1680,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ManualEventRequest"
+              $ref: "#/components/schemas/ManualEventPatchRequest"
       responses:
         "200":
           description: Manual event updated
@@ -2174,6 +2174,1557 @@ components:
           type: array
           maxItems: 10
           items: { $ref: "#/components/schemas/TreeMergeEvidence" }
+    TreeChangeOperation:
+      oneOf:
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: create_person
+            id:
+              type: string
+              minLength: 1
+              maxLength: 64
+            fields:
+              type: object
+              additionalProperties: false
+              properties:
+                birthSurname:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                givenName:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                patronymic:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                gender:
+                  enum:
+                    - male
+                    - female
+                    - unknown
+                birthDate:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                deathDate:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      oneOf:
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: unknown
+                          required:
+                            - state
+                          additionalProperties: false
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: known
+                            kind:
+                              enum:
+                                - exact
+                                - approximate
+                                - before
+                                - after
+                                - between
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                            end:
+                              type: object
+                              properties:
+                                year:
+                                  type: integer
+                                month:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 12
+                                day:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 31
+                              required:
+                                - year
+                              additionalProperties: false
+                          required:
+                            - state
+                            - kind
+                            - year
+                          additionalProperties: false
+                birthPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+                deathPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - id
+            - fields
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: update_person
+            personId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            fields:
+              type: object
+              additionalProperties: false
+              properties:
+                birthSurname:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                givenName:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                patronymic:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        value:
+                          type: string
+                          minLength: 1
+                      required:
+                        - state
+                        - value
+                      additionalProperties: false
+                gender:
+                  enum:
+                    - male
+                    - female
+                    - unknown
+                birthDate:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                deathDate:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      oneOf:
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: unknown
+                          required:
+                            - state
+                          additionalProperties: false
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: known
+                            kind:
+                              enum:
+                                - exact
+                                - approximate
+                                - before
+                                - after
+                                - between
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                            end:
+                              type: object
+                              properties:
+                                year:
+                                  type: integer
+                                month:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 12
+                                day:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 31
+                              required:
+                                - year
+                              additionalProperties: false
+                          required:
+                            - state
+                            - kind
+                            - year
+                          additionalProperties: false
+                birthPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+                deathPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - personId
+            - fields
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: delete_person
+            personId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - personId
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: add_parent_link
+            parent:
+              type: string
+              minLength: 1
+              maxLength: 64
+            child:
+              type: string
+              minLength: 1
+              maxLength: 64
+            role:
+              enum:
+                - mother
+                - father
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - parent
+            - child
+            - role
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: remove_parent_link
+            parentLinkId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - parentLinkId
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: create_marriage_period
+            first:
+              type: string
+              minLength: 1
+              maxLength: 64
+            second:
+              type: string
+              minLength: 1
+              maxLength: 64
+            newPeriod:
+              type: boolean
+            fields:
+              type: object
+              additionalProperties: false
+              properties:
+                marriageDate:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                dissolutionDate:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      oneOf:
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: unknown
+                          required:
+                            - state
+                          additionalProperties: false
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: known
+                            kind:
+                              enum:
+                                - exact
+                                - approximate
+                                - before
+                                - after
+                                - between
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                            end:
+                              type: object
+                              properties:
+                                year:
+                                  type: integer
+                                month:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 12
+                                day:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 31
+                              required:
+                                - year
+                              additionalProperties: false
+                          required:
+                            - state
+                            - kind
+                            - year
+                          additionalProperties: false
+                marriagePlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+                dissolutionPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+                maleNewSurname:
+                  type:
+                    - string
+                    - 'null'
+                femaleNewSurname:
+                  type:
+                    - string
+                    - 'null'
+              required:
+                - marriageDate
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - first
+            - second
+            - fields
+            - newPeriod
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: update_marriage_period
+            marriageId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            fields:
+              type: object
+              additionalProperties: false
+              properties:
+                marriageDate:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                dissolutionDate:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      oneOf:
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: unknown
+                          required:
+                            - state
+                          additionalProperties: false
+                        -
+                          type: object
+                          properties:
+                            state:
+                              const: known
+                            kind:
+                              enum:
+                                - exact
+                                - approximate
+                                - before
+                                - after
+                                - between
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                            end:
+                              type: object
+                              properties:
+                                year:
+                                  type: integer
+                                month:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 12
+                                day:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 31
+                              required:
+                                - year
+                              additionalProperties: false
+                          required:
+                            - state
+                            - kind
+                            - year
+                          additionalProperties: false
+                marriagePlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+                dissolutionPlace:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - marriageId
+            - fields
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: remove_marriage_period
+            marriageId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - marriageId
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: create_events
+            personIds:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 64
+            event:
+              type: object
+              additionalProperties: false
+              properties:
+                type:
+                  enum:
+                    - custom
+                    - residence
+                    - surname_change
+                date:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 5000
+                newSurname:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                place:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+              description: 'Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.'
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - personIds
+            - event
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: update_event
+            eventId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            fields:
+              type: object
+              additionalProperties: false
+              properties:
+                type:
+                  enum:
+                    - custom
+                    - residence
+                    - surname_change
+                date:
+                  oneOf:
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: unknown
+                      required:
+                        - state
+                      additionalProperties: false
+                    -
+                      type: object
+                      properties:
+                        state:
+                          const: known
+                        kind:
+                          enum:
+                            - exact
+                            - approximate
+                            - before
+                            - after
+                            - between
+                        year:
+                          type: integer
+                        month:
+                          type: integer
+                          minimum: 1
+                          maximum: 12
+                        day:
+                          type: integer
+                          minimum: 1
+                          maximum: 31
+                        end:
+                          type: object
+                          properties:
+                            year:
+                              type: integer
+                            month:
+                              type: integer
+                              minimum: 1
+                              maximum: 12
+                            day:
+                              type: integer
+                              minimum: 1
+                              maximum: 31
+                          required:
+                            - year
+                          additionalProperties: false
+                      required:
+                        - state
+                        - kind
+                        - year
+                      additionalProperties: false
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 5000
+                newSurname:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                place:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        coordinates:
+                          oneOf:
+                            - type: 'null'
+                            -
+                              type: object
+                              properties:
+                                latitude:
+                                  type: number
+                                  minimum: -90
+                                  maximum: 90
+                                longitude:
+                                  type: number
+                                  minimum: -180
+                                  maximum: 180
+                              required:
+                                - latitude
+                                - longitude
+                              additionalProperties: false
+                      required:
+                        - name
+                        - coordinates
+                      additionalProperties: false
+              description: 'Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.'
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - eventId
+            - fields
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: delete_event
+            eventId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - eventId
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: set_event_place
+            eventId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            place:
+              oneOf:
+                - type: 'null'
+                -
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+                    coordinates:
+                      oneOf:
+                        - type: 'null'
+                        -
+                          type: object
+                          properties:
+                            latitude:
+                              type: number
+                              minimum: -90
+                              maximum: 90
+                            longitude:
+                              type: number
+                              minimum: -180
+                              maximum: 180
+                          required:
+                            - latitude
+                            - longitude
+                          additionalProperties: false
+                  required:
+                    - name
+                    - coordinates
+                  additionalProperties: false
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - eventId
+            - place
+            - evidence
+        -
+          type: object
+          additionalProperties: false
+          properties:
+            type:
+              const: reorder_events
+            personId:
+              type: string
+              minLength: 1
+              maxLength: 64
+            eventIds:
+              type: array
+              minItems: 2
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 64
+            evidence:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                type: object
+                properties:
+                  messageId:
+                    type: string
+                  quote:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                required:
+                  - messageId
+                  - quote
+                additionalProperties: false
+          required:
+            - type
+            - personId
+            - eventIds
+            - evidence
     TreeMergeProposal:
       type: object
       additionalProperties: false
@@ -2192,6 +3743,16 @@ components:
           type: array
           maxItems: 20
           items: { $ref: "#/components/schemas/TreeMergeMarriageProposal" }
+        operations:
+          type: array
+          description: Authoritative edits for a general packet. The people, parents, marriages and operationSubjects groups are server projections when operations is present.
+          items: { $ref: '#/components/schemas/TreeChangeOperation' }
+        operationSubjects:
+          type: array
+          readOnly: true
+          items:
+            type: array
+            items: { type: string }
         questions:
           type: array
           maxItems: 30
@@ -2251,6 +3812,9 @@ components:
           additionalProperties:
             type: string
             format: uuid
+        newPersonIds:
+          type: array
+          items: { type: string, format: uuid }
         affectedPersonIds:
           type: array
           items:
@@ -4192,6 +5756,114 @@ components:
           oneOf:
             - $ref: "#/components/schemas/EventPlace"
             - type: "null"
+    ManualEventPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+            - custom
+            - residence
+            - surname_change
+        date:
+          oneOf:
+            -
+              type: object
+              properties:
+                state:
+                  const: unknown
+              required:
+                - state
+              additionalProperties: false
+            -
+              type: object
+              properties:
+                state:
+                  const: known
+                kind:
+                  enum:
+                    - exact
+                    - approximate
+                    - before
+                    - after
+                    - between
+                year:
+                  type: integer
+                month:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+                day:
+                  type: integer
+                  minimum: 1
+                  maximum: 31
+                end:
+                  type: object
+                  properties:
+                    year:
+                      type: integer
+                    month:
+                      type: integer
+                      minimum: 1
+                      maximum: 12
+                    day:
+                      type: integer
+                      minimum: 1
+                      maximum: 31
+                  required:
+                    - year
+                  additionalProperties: false
+              required:
+                - state
+                - kind
+                - year
+              additionalProperties: false
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 5000
+        newSurname:
+          type: string
+          minLength: 1
+          maxLength: 100
+        place:
+          oneOf:
+            - type: 'null'
+            -
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                coordinates:
+                  oneOf:
+                    - type: 'null'
+                    -
+                      type: object
+                      properties:
+                        latitude:
+                          type: number
+                          minimum: -90
+                          maximum: 90
+                        longitude:
+                          type: number
+                          minimum: -180
+                          maximum: 180
+                      required:
+                        - latitude
+                        - longitude
+                      additionalProperties: false
+              required:
+                - name
+                - coordinates
+              additionalProperties: false
+      description: 'Create: type and date required; custom also title and description, residence description, surname_change newSurname. Patch: send only changed fields.'
     ManualEventRequest:
       oneOf:
         - $ref: "#/components/schemas/CustomEventRequest"

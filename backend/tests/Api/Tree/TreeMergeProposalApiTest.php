@@ -395,7 +395,7 @@ final class TreeMergeProposalApiTest extends ApiWebTestCase
         $projector = $container->get(TreeChangeSetProjector::class);
         $projection = $projector->project($tree, new TreeChangeSet([]), new \DateTimeImmutable());
         self::assertCount(4, $projection->people);
-        self::assertSame(3, $counter->count());
+        self::assertSame(4, $counter->count());
     }
 
     public function testLimitsMalformedProposalsAndClosedDrafts(): void

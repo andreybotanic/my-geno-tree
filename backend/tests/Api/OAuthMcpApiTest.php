@@ -91,6 +91,7 @@ final class OAuthMcpApiTest extends ApiWebTestCase
                 'find_people',
                 'get_person_context',
                 'merge',
+                'change_tree',
                 'list_people',
                 'list_relationships',
                 'list_events',
@@ -602,6 +603,50 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', [], $this->headers());
         self::assertCount(2, $this->responseArray('people'));
         self::assertCount(1, $this->responseArray('marriages'));
+    }
+
+    public function testGenericMcpChangeAppliesCreationAndEventsWithoutReviewAndRejectsReplays(): void
+    {
+        $this->authorize();
+        $evidence = [['messageId' => 'm', 'quote' => 'Create Anna and record her move.']];
+        $arguments = [
+            'treeId'     => $this->treeId,
+            'ifMatch'    => $this->etag,
+            'sources'    => [['id' => 'm', 'role' => 'user', 'content' => 'Create Anna and record her move.']],
+            'operations' => [
+                [
+                    'type'   => 'create_person',
+                    'id'     => 'anna',
+                    'fields' => [
+                        'givenName' => ['state' => 'known', 'value' => 'Anna'],
+                    ],
+                    'evidence' => $evidence,
+                ],
+                [
+                    'type'      => 'create_events',
+                    'personIds' => ['anna'],
+                    'event'     => [
+                        'type'        => 'residence',
+                        'date'        => ['state' => 'known', 'kind' => 'exact', 'year' => 2000],
+                        'description' => 'Moved',
+                        'place'       => ['name' => 'Old settlement', 'coordinates' => null],
+                    ],
+                    'evidence' => $evidence,
+                ],
+            ],
+        ];
+        $this->call('change_tree', $arguments);
+        self::assertFalse($this->responseArray('result')['isError']);
+        $id = $this->responseString('result', 'structuredContent', 'personIds', 'anna');
+        self::assertSame([$id], $this->responseArray('result', 'structuredContent', 'newPersonIds'));
+        $this->call('change_tree', $arguments);
+        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
+        $this->call('list_events', ['treeId' => $this->treeId, 'source' => 'manual']);
+        self::assertSame(1, $this->responseInt('result', 'structuredContent', 'total'));
+        self::assertSame(
+            'Old settlement',
+            $this->responseString('result', 'structuredContent', 'items', '0', 'place', 'name'),
+        );
     }
 
     public function testSiteChatBanDoesNotAffectExternalMcpAccess(): void
