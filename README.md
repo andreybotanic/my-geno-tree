@@ -217,6 +217,19 @@ The site chat has its own explicit tool registry: no tree discovery, no tree
 switching, and its existing preview plus Apply button remain the confirmation
 mechanism. REST OAuth endpoints and consent types are documented in OpenAPI.
 
+Both registries also expose list_people(treeId, personIds?, groups?, cursor?,
+limit?, expectedEtag?), list_relationships(treeId, kind, personIds?, cursor?,
+limit?, expectedEtag?), list_events(treeId, personIds?, types?, source?, cursor?,
+limit?, expectedEtag?) and find_places(query). Person field groups are identity,
+life, places and metadata; identity and life are selected by default. Event
+descriptions are returned in full. No tool returns photographs or media URLs.
+Lists return items, total, returned, nextCursor and etag. Follow nextCursor until
+null to cover the complete selection. Pages default to 100 rows, permit at most
+200 rows and stay within 128 KiB; large records reduce the page length. Signed
+cursors bind the selection and tree version. Reuse expectedEtag across different
+lists for a consistent analysis; a changed tree returns TREE_VERSION_CONFLICT.
+Place lookup reports unavailable without fabricating coordinates.
+
 Both registries reuse TreeReadTools and TreeMergeTool. ChatAgentHooks enforce the
 selected tree and record context reads for the site agent; the MCP registry adds
 TreeReadTools::findTrees and exposes direct application through the merge tool's separate
@@ -346,9 +359,10 @@ reference pair. An explicit person takes priority. Empty trees return no people.
 The resolved reference and its bounded immediate family include structured dates;
 this context is not a complete listing of every person in the tree.
 
-The tree profile permits eight context reads, sixteen tool calls and ten new
-people per proposal. Existing endpoints must have been observed through a current
-context read. User messages total at most 10,000 characters and 200 visible
+The tree profile permits ten new people per proposal. Reads and tool calls have
+no separate count limit; cancellation, model timeouts and the token budget remain
+active. Existing endpoints must have been observed through a current context or
+person-list read. User messages total at most 10,000 characters and 200 visible
 messages per conversation. Evidence quotes must be exact user-message substrings
 of at most 300 characters. The model receives no application credentials or
 user/session identity. Graph validation uses three bounded queries; the

@@ -3,7 +3,9 @@
 namespace App\Tool;
 
 use App\Api\ApiException;
+use App\Application\Map\GeoapifyGeocoder;
 use App\Application\Tree\TreeContextService;
+use App\Application\Tree\TreeReadService;
 use App\Entity\User;
 use App\Repository\FamilyTreeRepository;
 use Mcp\Capability\Attribute\McpTool;
@@ -36,16 +38,38 @@ use Symfony\Bundle\SecurityBundle\Security;
     DESCRIPTION,
     method: 'person'
 )]
+#[AsTool(
+    name: 'list_people',
+    description: 'Read all people using identity, life, places and metadata groups. Follow nextCursor until null.',
+    method: 'people',
+)]
+#[AsTool(
+    name: 'list_relationships',
+    description: 'Read parent links or marriage periods, optionally touching selected people. Follow all pages.',
+    method: 'relationships',
+)]
+#[AsTool(
+    name: 'list_events',
+    description: 'Read full events with descriptions and places for all or selected people. Follow all pages.',
+    method: 'events',
+)]
+#[AsTool(
+    name: 'find_places',
+    description: 'Find place candidates. If no reliable match exists, preserve the name without coordinates.',
+    method: 'places',
+)]
 final readonly class TreeReadTools
 {
     public function __construct(
         private TreeContextService $context,
         private FamilyTreeRepository $trees,
         private Security $security,
+        private TreeReadService $reads,
+        private GeoapifyGeocoder $geocoder,
     ) {
     }
 
-    /** MCP only: the site's Symfony AI registry exposes only the three AsTool methods.
+    /** MCP only: the site already selects its tree.
      * @return array{trees: list<array{id: string, name: string}>}
      */
     #[McpTool(
@@ -98,5 +122,126 @@ final readonly class TreeReadTools
     public function person(string $treeId, string $personId): array
     {
         return $this->context->context($treeId, $personId);
+    }
+
+    /** @param list<string>|null $personIds
+     * @param list<string> $groups
+     *
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'list_people',
+        description: 'Read all people using identity, life, places and metadata groups. Follow nextCursor until null.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
+    public function people(
+        string $treeId,
+        ?array $personIds = null,
+        array $groups = ['identity', 'life'],
+        ?string $cursor = null,
+        #[Schema(minimum: 1, maximum: 200)]
+        #[\Mcp\Capability\Attribute\Schema(minimum: 1, maximum: 200)]
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        return $this->reads->read(
+            $treeId,
+            'people',
+            $personIds,
+            $groups,
+            cursor: $cursor,
+            limit: $limit,
+            expectedEtag: $expectedEtag,
+        );
+    }
+
+    /** @param list<string>|null $personIds
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'list_relationships',
+        description: 'Read parent links or marriage periods. Optional personIds matches either participant.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
+    public function relationships(
+        string $treeId,
+        #[Schema(enum: ['parents', 'marriages'])]
+        #[\Mcp\Capability\Attribute\Schema(enum: ['parents', 'marriages'])]
+        string $kind,
+        ?array $personIds = null,
+        ?string $cursor = null,
+        #[Schema(minimum: 1, maximum: 200)]
+        #[\Mcp\Capability\Attribute\Schema(minimum: 1, maximum: 200)]
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        if (!in_array($kind, ['parents', 'marriages'], true)) {
+            throw new ApiException(422, 'TREE_READ_INVALID');
+        }
+
+        return $this->reads->read(
+            $treeId,
+            $kind,
+            $personIds,
+            cursor: $cursor,
+            limit: $limit,
+            expectedEtag: $expectedEtag,
+        );
+    }
+
+    /** @param list<string>|null $personIds
+     * @param list<string>|null $types
+     *
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'list_events',
+        description: 'Read full events with descriptions, dates, places, source and ordering. Filters are optional.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
+    public function events(
+        string $treeId,
+        ?array $personIds = null,
+        ?array $types = null,
+        ?string $source = null,
+        ?string $cursor = null,
+        #[Schema(minimum: 1, maximum: 200)]
+        #[\Mcp\Capability\Attribute\Schema(minimum: 1, maximum: 200)]
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        return $this->reads->read(
+            $treeId,
+            'events',
+            $personIds,
+            types: $types,
+            source: $source,
+            cursor: $cursor,
+            limit: $limit,
+            expectedEtag: $expectedEtag,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    #[McpTool(
+        name: 'find_places',
+        description: 'Find place candidates. If unavailable, save the original name with coordinates=null.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: true),
+    )]
+    public function places(string $query): array
+    {
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            throw new ApiException(401, 'INVALID_SESSION');
+        }
+        try {
+            return ['items' => $this->geocoder->autocomplete($query, $user->getPreferredLanguage())];
+        } catch (ApiException $error) {
+            if ($error->getStatus() < 500) {
+                throw $error;
+            }
+
+            return ['items' => [], 'unavailable' => true];
+        }
     }
 }

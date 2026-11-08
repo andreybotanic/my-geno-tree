@@ -91,12 +91,10 @@ final class ChatAgentHooks extends AbstractStreamListener implements InputProces
             $execution = $this->store->execution();
             $this->moderation->assertCanInteract($execution->conversation->userId);
             if (TreeReadTools::class === $event->getDefinition()->getReference()->getClass()) {
-                if (($event->getToolCall()->getArguments()['treeId'] ?? null)
+                if ('places' !== $event->getDefinition()->getReference()->getMethod()
+                    && ($event->getToolCall()->getArguments()['treeId'] ?? null)
                     !== ($execution->conversation->context['treeId'] ?? null)) {
                     throw new ApiException(404, 'TREE_NOT_FOUND');
-                }
-                if (count($execution->observations) >= 8) {
-                    throw new ApiException(429, 'TREE_CONTEXT_LIMIT');
                 }
             }
         } catch (ApiException $error) {
@@ -111,14 +109,38 @@ final class ChatAgentHooks extends AbstractStreamListener implements InputProces
             return;
         }
         $data = $event->getResult()->getResult();
-        if (!is_array($data)) {
+        if (!is_array($data) || !is_string($data['treeId'] ?? null) || !is_string($data['etag'] ?? null)) {
             return;
         }
         $execution = $this->store->execution();
-        $execution->observations[] = $data;
-        if (strlen(json_encode($execution->observations, JSON_THROW_ON_ERROR)) > 60000) {
-            throw new ApiException(429, 'TREE_CONTEXT_LIMIT');
+        $people = $data['people'] ?? [];
+        if (isset($data['items'], $data['groups'])) {
+            $people = $data['items'];
         }
+        $receipt = [
+            'treeId'        => $data['treeId'],
+            'etag'          => $data['etag'],
+            'groups'        => $data['groups'] ?? ['identity', 'life'],
+            'people'        => [],
+            'events'        => [],
+            'relationships' => [],
+        ];
+        foreach (is_array($people) ? $people : [] as $person) {
+            if (is_array($person) && is_string($person['id'] ?? null)) {
+                $receipt['people'][] = ['id' => $person['id']];
+            }
+        }
+        foreach (is_array($data['items'] ?? null) ? $data['items'] : [] as $item) {
+            if (!is_array($item) || !is_string($item['id'] ?? null)) {
+                continue;
+            }
+            if (isset($item['personId'], $item['source'])) {
+                $receipt['events'][] = ['id' => $item['id'], 'personId' => $item['personId']];
+            } elseif (isset($item['parentId']) || isset($item['malePersonId'])) {
+                $receipt['relationships'][] = ['id' => $item['id']];
+            }
+        }
+        $execution->observations[] = $receipt;
     }
 
     public function onDelta(DeltaEvent $event): void

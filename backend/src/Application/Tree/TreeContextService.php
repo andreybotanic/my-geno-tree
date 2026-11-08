@@ -13,6 +13,7 @@ use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
 use App\Repository\PersonRepository;
 use App\Security\FamilyTreeVoter;
+use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Uid\Uuid;
 
@@ -28,6 +29,7 @@ final readonly class TreeContextService
         private AuthorizationCheckerInterface $authorization,
         private KnownTextViewFactory $texts,
         private GenealogicalDateViewFactory $dates,
+        private ClockInterface $clock,
     ) {
     }
 
@@ -51,6 +53,10 @@ final readonly class TreeContextService
         $tree = $this->tree($treeId);
         $referencePersonId ??= $tree->getReferencePrimaryPerson()?->getId()->toRfc4122();
         $context = [
+            'name'              => $tree->getName(),
+            'createdAt'         => $tree->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updatedAt'         => $tree->getUpdatedAt()->format(\DateTimeInterface::ATOM),
+            'currentDate'       => $this->clock->now()->format('Y-m-d'),
             'treeId'            => $treeId,
             'etag'              => $this->versions->etag($tree),
             'personCount'       => $this->people->countForTree($tree),

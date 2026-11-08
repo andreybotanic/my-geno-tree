@@ -95,7 +95,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertArrayNotHasKey('userId', $input);
                 self::assertSame($this->treeId, $input['treeId']);
                 $schemas = array_column($body['tools'], 'parameters', 'name');
-                self::assertCount(4, $schemas);
+                self::assertCount(8, $schemas);
                 $searchProperties = $schemas['find_people']['properties'];
                 self::assertIsArray($searchProperties);
                 $querySchema = $searchProperties['query'];
@@ -429,8 +429,6 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                         $result = json_decode($last['content'], true, flags: JSON_THROW_ON_ERROR);
                         if ($calls <= 4) {
                             self::assertSame('TREE_NOT_FOUND', $result['error']['code'] ?? null);
-                        } elseif (13 === $calls) {
-                            self::assertSame('TREE_CONTEXT_LIMIT', $result['error']['code'] ?? null);
                         } else {
                             self::assertSame(0, $result['personCount'] ?? null);
                         }
@@ -443,7 +441,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                             'get_person_context',
                             ['treeId' => $other, 'personId' => Uuid::v7()->toRfc4122()],
                         ),
-                        13      => $this->textResponse('Read limit reached.'),
+                        13      => $this->textResponse('All reads completed.'),
                         default => $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]),
                     };
                 },
@@ -452,7 +450,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         FixtureTreeAgent::$useReal = true;
         $this->send();
         self::assertSame(13, $calls);
-        self::assertSame('Read limit reached.', $this->responseString('messages', '1', 'content'));
+        self::assertSame('All reads completed.', $this->responseString('messages', '1', 'content'));
     }
 
     public function testLogoutRevokesToolsEvenWhenTheRequestRetainsItsSecurityToken(): void

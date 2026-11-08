@@ -241,8 +241,8 @@ final class GeoapifyGeocoderTest extends TestCase
     /** @param list<int> $reservations */
     private function recordingFactory(array &$reservations, ?callable $accept = null): RateLimiterFactoryInterface
     {
-        $factory = $this->createMock(RateLimiterFactoryInterface::class);
-        $limiter = $this->createMock(LimiterInterface::class);
+        $factory = $this->createStub(RateLimiterFactoryInterface::class);
+        $limiter = $this->createStub(LimiterInterface::class);
         $limiter->method('reserve')->willReturnCallback(
             function (int $tokens, float $maxWaitDuration) use (&$reservations, $accept): Reservation {
                 $reservations[] = $tokens;

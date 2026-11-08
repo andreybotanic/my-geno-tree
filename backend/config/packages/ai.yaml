@@ -37,7 +37,7 @@ ai:
                     max_output_tokens: 16384
             prompt:
                 file: '%kernel.project_dir%/prompts/tree.txt'
-            max_tool_calls: 16
+            max_tool_calls: null
             tools:
                 - App\Tool\TreeReadTools
                 - App\Tool\TreeMergeTool

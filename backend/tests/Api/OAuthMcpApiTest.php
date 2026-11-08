@@ -3,12 +3,26 @@
 namespace App\Tests\Api;
 
 use App\Application\OAuth\OAuthMetadata;
+use App\Entity\EventPlace;
+use App\Entity\FamilyTree;
+use App\Entity\GenealogicalEvent;
+use App\Entity\MarriagePeriod;
+use App\Entity\ParentLink;
+use App\Entity\Person;
 use App\Entity\User;
+use App\Entity\Value\DateKind;
+use App\Entity\Value\EventType;
+use App\Entity\Value\Gender;
+use App\Entity\Value\GenealogicalDate;
+use App\Entity\Value\KnownText;
+use App\Entity\Value\ParentRole;
 use App\Repository\FamilyTreeRepository;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
 use Lcobucci\JWT\Encoding\JoseEncoder;
 use Lcobucci\JWT\Token\Parser;
 use Lcobucci\JWT\UnencryptedToken;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Uid\Uuid;
 
 final class OAuthMcpApiTest extends ApiWebTestCase
@@ -71,7 +85,17 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         $tools = $this->responseArray('result', 'tools');
         $tools = array_column($tools, null, 'name');
         self::assertEqualsCanonicalizing(
-            ['find_trees', 'get_tree_context', 'find_people', 'get_person_context', 'merge'],
+            [
+                'find_trees',
+                'get_tree_context',
+                'find_people',
+                'get_person_context',
+                'merge',
+                'list_people',
+                'list_relationships',
+                'list_events',
+                'find_places',
+            ],
             array_keys($tools),
         );
         self::assertTrue($tools['find_trees']['annotations']['readOnlyHint']);
@@ -597,6 +621,210 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         self::assertSame($this->treeId, $this->responseString('result', 'structuredContent', 'trees', '0', 'id'));
         $this->call('get_tree_context', ['treeId' => $this->treeId]);
         self::assertSame($this->etag, $this->responseString('result', 'structuredContent', 'etag'));
+    }
+
+    public function testWholeTreeListsAreCompleteFilteredAndVersionBound(): void
+    {
+        $ids = $this->seedReadPeople(48);
+        $this->authorize();
+        $seen = [];
+        $cursor = null;
+        do {
+            $this->call('list_people', ['treeId' => $this->treeId, 'limit' => 7, 'cursor' => $cursor]);
+            self::assertFalse($this->responseArray('result')['isError']);
+            self::assertSame(48, $this->responseInt('result', 'structuredContent', 'total'));
+            $items = $this->responseArray('result', 'structuredContent', 'items');
+            foreach ($items as $item) {
+                self::assertIsArray($item);
+                self::assertArrayNotHasKey('photoThumbnailUrl', $item);
+                self::assertArrayNotHasKey('createdAt', $item);
+                self::assertIsString($item['id']);
+                $seen[] = $item['id'];
+            }
+            $cursor = $this->responseArray('result', 'structuredContent')['nextCursor'];
+            self::assertTrue(null === $cursor || is_string($cursor));
+        } while (null !== $cursor);
+        self::assertSame($ids, $seen);
+        $this->call(
+            'list_people',
+            [
+                'treeId'    => $this->treeId,
+                'personIds' => [$ids[0]],
+                'groups'    => ['identity', 'life', 'places', 'metadata'],
+            ],
+        );
+        $person = $this->responseArray('result', 'structuredContent', 'items', '0');
+        self::assertSame(['state' => 'known', 'value' => 'Person 0'], $person['givenName']);
+        self::assertSame(['state' => 'unknown'], $person['patronymic']);
+        self::assertSame(
+            ['state' => 'known', 'kind' => 'between', 'year' => 1900, 'end' => ['year' => 1902]],
+            $person['birthDate'],
+        );
+        self::assertNull($person['deathDate']);
+        self::assertSame(['name' => 'Historical place', 'coordinates' => null], $person['birthPlace']);
+        self::assertArrayHasKey('createdAt', $person);
+        $etag = $this->responseString('result', 'structuredContent', 'etag');
+        $this->call(
+            'list_relationships',
+            ['treeId' => $this->treeId, 'kind' => 'parents', 'personIds' => [$ids[1]], 'expectedEtag' => $etag],
+        );
+        self::assertSame(1, $this->responseInt('result', 'structuredContent', 'total'));
+        self::assertSame($ids[0], $this->responseString('result', 'structuredContent', 'items', '0', 'parentId'));
+        $this->call('list_relationships', ['treeId' => $this->treeId, 'kind' => 'marriages']);
+        self::assertSame(1, $this->responseInt('result', 'structuredContent', 'total'));
+        self::assertNull($this->responseArray('result', 'structuredContent', 'items', '0')['dissolutionDate']);
+        $this->call('list_people', ['treeId' => $this->treeId, 'personIds' => []]);
+        self::assertSame(0, $this->responseInt('result', 'structuredContent', 'total'));
+        $this->call('list_people', ['treeId' => $this->treeId, 'limit' => 1]);
+        $cursor = $this->responseString('result', 'structuredContent', 'nextCursor');
+        $this->call('list_people', ['treeId' => $this->treeId, 'cursor' => $cursor, 'groups' => ['identity']]);
+        self::assertSame('TREE_CURSOR_INVALID', $this->responseString('result', 'structuredContent', 'code'));
+        $this->jsonRequest(
+            'PATCH',
+            '/api/v1/trees/' . $this->treeId,
+            ['name' => 'Changed'],
+            $this->headers() + ['If-Match' => $etag],
+        );
+        self::assertResponseIsSuccessful();
+        $this->call('list_people', ['treeId' => $this->treeId, 'cursor' => $cursor]);
+        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
+        $this->call('list_events', ['treeId' => $this->treeId, 'expectedEtag' => $etag]);
+        self::assertSame('TREE_VERSION_CONFLICT', $this->responseString('result', 'structuredContent', 'code'));
+    }
+
+    public function testEventPagesPreserveFullDescriptionsAndBoundBytesWithoutNPlusOne(): void
+    {
+        $ids = $this->seedReadPeople(48);
+        $this->authorize();
+        $this->client->disableReboot();
+        $counter = static::getContainer()->get(QueryCountingMiddleware::class . '.default');
+        self::assertInstanceOf(QueryCountingMiddleware::class, $counter);
+        $counter->reset();
+        $this->call(
+            'list_events',
+            ['treeId' => $this->treeId, 'personIds' => [$ids[0]], 'source' => 'manual', 'types' => ['custom']],
+        );
+        $small = $counter->count();
+        self::assertSame(
+            str_repeat('Ж', 5000),
+            $this->responseString('result', 'structuredContent', 'items', '0', 'description'),
+        );
+        self::assertSame([], $this->responseArray('result', 'structuredContent', 'items', '0', 'data'));
+        $counter->reset();
+        $this->call('list_events', ['treeId' => $this->treeId]);
+        self::assertLessThanOrEqual($small + 1, $counter->count());
+        self::assertSame(48, $this->responseInt('result', 'structuredContent', 'total'));
+        self::assertLessThan(48, $this->responseInt('result', 'structuredContent', 'returned'));
+        self::assertLessThanOrEqual(
+            128 * 1024,
+            strlen(json_encode($this->responseArray('result', 'structuredContent'), JSON_THROW_ON_ERROR)),
+        );
+        $this->responseString('result', 'structuredContent', 'nextCursor');
+        $invalidSelections = [
+            ['cursor' => 'invalid'],
+            ['groups'    => ['bad']],
+            ['source'    => 'bad'],
+            ['types'     => ['bad']],
+            ['personIds' => ['bad']],
+        ];
+        foreach ($invalidSelections as $invalid) {
+            $this->call(
+                isset($invalid['source']) || isset($invalid['types']) ? 'list_events' : 'list_people',
+                ['treeId' => $this->treeId, ...$invalid],
+            );
+            self::assertTrue($this->responseArray('result')['isError']);
+        }
+        $this->call('list_people', ['treeId' => Uuid::v7()->toRfc4122()]);
+        self::assertSame('TREE_NOT_FOUND', $this->responseString('result', 'structuredContent', 'code'));
+        $this->call('list_relationships', ['treeId' => $this->treeId, 'kind' => 'marriages', 'personIds' => [$ids[2]]]);
+        self::assertSame(0, $this->responseInt('result', 'structuredContent', 'total'));
+    }
+
+    public function testPlaceLookupUsesTheExistingGeocoderAndReportsUnavailableWithoutInventingCoordinates(): void
+    {
+        $this->authorize();
+        $this->client->disableReboot();
+        $cache = static::getContainer()->get('cache.map_geocoding');
+        self::assertInstanceOf(\Psr\Cache\CacheItemPoolInterface::class, $cache);
+        $cache->clear();
+        $body = [
+            'results' => [
+                ['formatted' => 'Test city', 'lat' => 54.0, 'lon' => 83.0],
+            ],
+        ];
+        $http = new MockHttpClient(
+            [
+                new MockResponse(json_encode($body, JSON_THROW_ON_ERROR)),
+                new MockResponse('', ['http_code' => 503]),
+            ],
+        );
+        static::getContainer()->set('geoapify.client', $http);
+        $this->call('find_places', ['query' => 'Unique QA city']);
+        self::assertSame('Test city', $this->responseString('result', 'structuredContent', 'items', '0', 'name'));
+        $this->call('find_places', ['query' => 'Another unique QA city']);
+        self::assertTrue($this->responseArray('result', 'structuredContent')['unavailable']);
+        self::assertSame([], $this->responseArray('result', 'structuredContent', 'items'));
+        $this->call('find_places', ['query' => '']);
+        self::assertTrue($this->responseArray('result')['isError']);
+    }
+
+    /** @return list<string> */
+    private function seedReadPeople(int $count): array
+    {
+        $em = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $tree = static::getContainer()->get(FamilyTreeRepository::class)->find($this->treeId);
+        self::assertInstanceOf(FamilyTree::class, $tree);
+        $people = $ids = [];
+        $now = new \DateTimeImmutable();
+        for ($index = 0; $index < $count; ++$index) {
+            $birthDate = 0 === $index
+                ? GenealogicalDate::known(DateKind::BETWEEN, 1900, null, null, 1902)
+                : GenealogicalDate::unknown();
+            $person = new Person(
+                $tree,
+                KnownText::unknown(),
+                KnownText::known('Person ' . $index),
+                KnownText::unknown(),
+                0 === $index ? Gender::FEMALE : Gender::MALE,
+                $birthDate,
+                null,
+                $now,
+            );
+            $em->persist($person);
+            $people[] = $person;
+            $ids[] = $person->getId()->toRfc4122();
+            if (0 === $index) {
+                $place = EventPlace::imported('Historical place', null, null);
+                $em->persist($place);
+                $person->changeBirthPlace($place, $now);
+                $tree->referencePerson($person);
+            } else {
+                $em->persist(new ParentLink($tree, $people[0], $person, ParentRole::MOTHER));
+            }
+            $event = GenealogicalEvent::manual(
+                $person,
+                EventType::CUSTOM,
+                GenealogicalDate::unknown(),
+                'A complete event',
+                str_repeat('Ж', 5000),
+                [],
+                $now,
+            );
+            $em->persist($event);
+        }
+        $marriage = new MarriagePeriod(
+            $tree,
+            $people[1],
+            $people[0],
+            GenealogicalDate::unknown(),
+            null,
+            $now,
+        );
+        $em->persist($marriage);
+        $tree->touch($now);
+        $em->flush();
+
+        return $ids;
     }
 
     /** @return array<string, string> */
