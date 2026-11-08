@@ -800,3 +800,19 @@ closing and reopening both panels, preserving the center after panning at 120%
 zoom, chat/workspace transition settings, and resetting the camera with both
 panels open. The selected card and workspace centers matched in both axes.
 Entering an invalid 201% zoom kept the previous 120% camera state.
+
+Sidebar first-frame validation (2026-11-08): person focus now starts in a layout
+effect before painting. The camera first compensates for the sidebar moving the
+canvas origin, then animates from the card's previous screen position to the new
+center. Tests check the first frame with animation frames held back, with chat
+both open and closed, and verify horizontal/vertical origin compensation.
+
+Manual Chrome HTTPS frame sampling reproduced the old horizontal path
+`960 -> 1350 -> 1155` and verified the corrected monotonic `960 -> 1155` path.
+With chat open, the path was monotonic from `720` to `915`. Switching to another
+person also centered correctly. Temporary frame diagnostics were removed.
+All 278 backend, 446 frontend and 27 gateway tests pass. Frontend line coverage
+is 91.00%, with 100% line coverage for the camera hook. Quality, OpenAPI,
+production builds, Composer/schema/container checks and all 26 migrations on a
+fresh disposable database pass. The database was removed. Existing PHPUnit
+notices and the Vite advisory remain; no PHP files changed.

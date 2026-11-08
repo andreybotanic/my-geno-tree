@@ -1375,7 +1375,7 @@ function TreeCanvas(
     [cameraReady, mergePreviewKey, mergeProjection]
   )
 
-  useEffect(
+  useLayoutEffect(
     () => {
       if (!selectedPersonId) {
         centeredPersonId.current = null
@@ -1395,20 +1395,15 @@ function TreeCanvas(
       if (!position || !flow) {
         return
       }
-      const frame = requestAnimationFrame(
-        () => {
-          centeredPersonId.current = selectedPersonId
-          void centerCamera(
-            position.x + PERSON_CARD_WIDTH / 2,
-            position.y + PERSON_CARD_HEIGHT / 2,
-            { duration: 150, zoom: flow.getViewport().zoom },
-          )
-            .then(
-              () => rememberCamera('tree', flow.getViewport())
-            )
-        }
+      centeredPersonId.current = selectedPersonId
+      void centerCamera(
+        position.x + PERSON_CARD_WIDTH / 2,
+        position.y + PERSON_CARD_HEIGHT / 2,
+        { duration: 150, zoom: flow.getViewport().zoom },
       )
-      return () => cancelAnimationFrame(frame)
+        .then(
+          () => rememberCamera('tree', flow.getViewport())
+        )
     },
     [cameraReady, centerCamera, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
   )

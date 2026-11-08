@@ -1,12 +1,12 @@
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react'
 import { useReactFlow } from '@xyflow/react'
 
-type CanvasSize = { width: number; height: number }
+type CanvasBounds = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
 
 /** Keeps the same graph point at the center when panels resize the canvas. */
 export function useCanvasCamera(canvasRef: RefObject<HTMLElement | null>, ready: boolean) {
   const flow = useReactFlow()
-  const size = useRef<CanvasSize | null>(null)
+  const bounds = useRef<CanvasBounds | null>(null)
 
   useLayoutEffect(
     () => {
@@ -16,8 +16,8 @@ export function useCanvasCamera(canvasRef: RefObject<HTMLElement | null>, ready:
       const resize = () => {
         const next = element.getBoundingClientRect()
         if (next.width <= 0 || next.height <= 0) return
-        const previous = size.current
-        size.current = { width: next.width, height: next.height }
+        const previous = bounds.current
+        bounds.current = next
         if (!previous || (previous.width === next.width && previous.height === next.height)) return
 
         const viewport = flow.getViewport()
@@ -41,9 +41,20 @@ export function useCanvasCamera(canvasRef: RefObject<HTMLElement | null>, ready:
       const next = canvasRef.current?.getBoundingClientRect()
       if (!next || next.width <= 0 || next.height <= 0) return flow.setCenter(x, y, options)
 
-      // React Flow's observer can still contain the width from before the panel opened.
-      // Consume this size here so its later resize notification cannot shift the camera twice.
-      size.current = { width: next.width, height: next.height }
+      const previous = bounds.current
+      bounds.current = next
+      // Opening the sidebar moves the canvas origin before the camera animation starts.
+      // Keep the old screen position for the animation's first frame.
+      if (previous && (previous.left !== next.left || previous.top !== next.top)) {
+        const viewport = flow.getViewport()
+        void flow.setViewport({
+          ...viewport,
+          x: viewport.x + previous.left - next.left,
+          y: viewport.y + previous.top - next.top,
+        })
+      }
+
+      // Consume the measured bounds before React Flow's resize observer can report them.
       return flow.setViewport({
         x: next.width / 2 - x * options.zoom,
         y: next.height / 2 - y * options.zoom,

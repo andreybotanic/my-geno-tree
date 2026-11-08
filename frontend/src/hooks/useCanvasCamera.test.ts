@@ -46,6 +46,10 @@ describe('canvas camera', () => {
       const { result } = renderHook(() => useCanvasCamera({ current: element }, true))
       bounds = new DOMRect(390, 0, width - 390, 900)
       await act(async () => { await result.current(300, 100, { zoom: 2, duration: 150 }) })
+      // The sidebar's 390px origin shift is cancelled before the animated movement.
+      expect(flow.setViewport.mock.calls[0]?.[0]).toEqual({ x: 410, y: 450, zoom: 2 })
+      expect(flow.setViewport.mock.calls[0]?.[1]).toBeUndefined()
+      expect(flow.setViewport.mock.calls[1]?.[1]).toEqual({ duration: 150 })
       expect(viewport).toEqual({ x: (width - 390) / 2 - 600, y: 250, zoom: 2 })
       expect(flow.setCenter).not.toHaveBeenCalled()
       const calls = flow.setViewport.mock.calls.length
@@ -53,6 +57,18 @@ describe('canvas camera', () => {
       expect(flow.setViewport).toHaveBeenCalledTimes(calls)
     },
   )
+
+  it('keeps the first animation frame at the original screen position on both axes', async () => {
+    bounds = new DOMRect(0, 50, 1600, 900)
+    const { result } = renderHook(() => useCanvasCamera({ current: element }, true))
+    bounds = new DOMRect(390, 90, 1210, 860)
+    await act(async () => { await result.current(0, 0, { zoom: 2, duration: 150 }) })
+    const firstFrame = flow.setViewport.mock.calls[0]![0] as Viewport
+    expect(firstFrame.x + bounds.left).toBe(800)
+    expect(firstFrame.y + bounds.top).toBe(500)
+    expect(viewport).toEqual({ x: 605, y: 430, zoom: 2 })
+    expect(flow.setViewport).toHaveBeenCalledTimes(2)
+  })
 
   it('preserves the graph center and zoom at every intermediate chat animation size and on closing', () => {
     renderHook(() => useCanvasCamera({ current: element }, true))

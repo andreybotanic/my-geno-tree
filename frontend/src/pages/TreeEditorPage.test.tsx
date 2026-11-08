@@ -354,6 +354,46 @@ describe(
         }
       )
 
+    it.each([false, true])(
+      'compensates the sidebar origin before the first animation frame (chat=%s)',
+      async (chatOpen) => {
+        const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        measure.mockImplementation(function (this: HTMLElement) {
+          if (!this.classList.contains('blood-network-canvas')) return new DOMRect()
+          const width = this.closest('.tree-chat-open') ? 1120 : 1600
+          const left = this.closest('.editor-workspace-panel-open') ? 390 : 0
+          return new DOMRect(left, 50, width - left, 900)
+        })
+        // The first paint must already be correct before any queued animation frame runs.
+        vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+        try {
+          const request = vi.fn(async (path: string) => {
+            if (path.endsWith('/chat')) return { conversation: null }
+            if (path.endsWith('/events')) return { items: [] }
+            return snapshot([person])
+          }) as unknown as AuthorizedJsonRequest
+          const { container } = renderEditor(request)
+          const card = await screen.findByRole('article', { name: 'Ivanova Anna' })
+          await waitFor(() => expect(container.querySelector('.blood-network-canvas')).toHaveAttribute('aria-busy', 'false'))
+          if (chatOpen) {
+            fireEvent.click(screen.getByRole('button', { name: 'Open AI chat' }))
+            await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled())
+          }
+          const viewport = container.querySelector('.react-flow__viewport') as HTMLElement
+          const before = Number(viewport.style.transform.match(/translate\(([-\d.]+)px/)![1])
+          fireEvent.click(card)
+          await screen.findByRole('complementary', { name: 'Person details' })
+          const first = Number(viewport.style.transform.match(/translate\(([-\d.]+)px/)![1])
+          const target = ((chatOpen ? 1120 : 1600) - 390) / 2
+          expect(first).toBeGreaterThanOrEqual(Math.min(before - 390, target))
+          expect(first).toBeLessThanOrEqual(Math.max(before - 390, target))
+        } finally {
+          measure.mockRestore()
+          vi.unstubAllGlobals()
+        }
+      },
+    )
+
     it(
       'shows the import warning once when places remain text-only',
       async () => {
