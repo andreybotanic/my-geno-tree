@@ -256,7 +256,7 @@ describe(
             access: { status: 'allowed', warnings: 0, warningLimit: 3, banCount: 0,
               bannedUntil: null, unavailableUntil: null, serverTime: person.createdAt },
             attemptId: null, attemptStartedAt: null,
-            messages: [], progress: [], tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
+            messages: [], commentary: null, progressSequence: 0, tokenUsage: { input: 100, output: 20, total: 120 }, tokenBudget: { remaining: 880, limit: 1000 },
             createdAt: person.createdAt, updatedAt: person.updatedAt,
             tools: { merge: { id: 'proposal', treeId, version: 1, treeEtag: original.etag, state: 'ready', proposal: { people: [
                     ...(empty ? [] : [{ id: 'a', existingPersonId: person.id, resolution: 'existing' as const, lifeStatus: 'alive' as const, fields: { deathDate: null }, evidence: [] }]),

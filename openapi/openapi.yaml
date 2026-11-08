@@ -2319,6 +2319,11 @@ components:
           enum:
             - empty_response
             - provider_unavailable
+            - provider_rate_limit
+            - context_limit
+            - output_limit
+            - tool_limit
+            - provider_refused
             - token_limit
             - stopped
             - policy_warning
@@ -2459,7 +2464,8 @@ components:
         - attemptStartedAt
         - messages
         - tools
-        - progress
+        - commentary
+        - progressSequence
         - tokenUsage
         - tokenBudget
         - access
@@ -2497,11 +2503,13 @@ components:
         tools:
           type: object
           additionalProperties: true
-        progress:
-          type: array
-          description: Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
-          items:
-            type: string
+        commentary:
+          type: [string, 'null']
+          description: Current user-facing model commentary, available while processing. Tool names and reasoning are excluded.
+        progressSequence:
+          type: integer
+          minimum: 0
+          description: Monotonic commentary revision within the current attempt, independent of text length.
         tokenUsage:
           $ref: '#/components/schemas/ChatTokenUsage'
         tokenBudget:
@@ -2549,7 +2557,8 @@ components:
             - version
             - attemptId
             - attemptStartedAt
-            - progress
+            - commentary
+            - progressSequence
             - tokenUsage
           properties:
             kind:
@@ -2566,11 +2575,12 @@ components:
             attemptStartedAt:
               type: string
               format: date-time
-            progress:
-              type: array
-              description: Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
-              items:
-                type: string
+            commentary:
+              type: [string, 'null']
+              description: Current accumulated commentary snapshot. Replaces the previous text.
+            progressSequence:
+              type: integer
+              minimum: 0
             tokenUsage:
               $ref: '#/components/schemas/ChatTokenUsage'
         -

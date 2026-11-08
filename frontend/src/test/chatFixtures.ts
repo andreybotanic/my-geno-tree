@@ -2,7 +2,7 @@ import type { ChatConversation, TreeMergePendingProposal, TreeSnapshot } from '.
 
 export const conversation: ChatConversation = {
   id: 'chat', profile: 'tree', version: 1, status: 'idle', tools: {},
-  attemptId: null, attemptStartedAt: null, messages: [], progress: [],
+  attemptId: null, attemptStartedAt: null, messages: [], commentary: null, progressSequence: 0,
   tokenUsage: { input: 0, output: 0, total: 0 }, tokenBudget: { remaining: 1000, limit: 1000 },
   access: { status: 'allowed', warnings: 0, warningLimit: 3, banCount: 0,
     bannedUntil: null, unavailableUntil: null, serverTime: '2026-11-05T10:00:00Z' },

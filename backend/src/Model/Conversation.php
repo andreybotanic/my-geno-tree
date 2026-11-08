@@ -22,8 +22,8 @@ final class Conversation
     public array $tools = [];
     /** @var array<string, int> */
     public array $toolVersions = [];
-    /** @var list<string> */
-    public array $progress = [];
+    public ?string $commentary = null;
+    public int $progressSequence = 0;
     /** @var array{input: int, output: int, total: int} */
     public array $usage = ['input' => 0, 'output' => 0, 'total' => 0];
 
@@ -52,19 +52,22 @@ final class Conversation
         $this->attemptRequestId = $requestId;
         $this->attemptStartedAt = $now;
         $this->status = 'processing';
-        $this->progress = [];
+        $this->commentary = null;
+        $this->progressSequence = 0;
         $this->usage = ['input' => 0, 'output' => 0, 'total' => 0];
         $this->changed($now);
     }
 
     public function finishAttempt(\DateTimeImmutable $now, bool $failed = false): void
     {
+        $this->commentary = null;
         $this->status = $failed ? 'error' : 'idle';
         $this->changed($now);
     }
 
     public function invalidateAttempt(\DateTimeImmutable $now): void
     {
+        $this->commentary = null;
         $this->attemptId = $this->attemptRequestId = null;
         $this->attemptStartedAt = null;
         $this->status = 'idle';

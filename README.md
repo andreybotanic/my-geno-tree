@@ -302,11 +302,24 @@ An ambiguous response triggers a tree/state refresh; a failed local refresh can
 reuse the transient result in the current tab. A tree version conflict refreshes
 the preview and requires another explicit confirmation.
 
-While the agent runs, the chat shows only its latest completed tool as
-`Completed: <tool name>` (`Выполнено: <tool name>` in Russian) on one line with
-elapsed time, falling back to Thinking before the first action.
-Symfony AI tool-success events record completions in order, including repeated
-calls. User, assistant and system messages show their local 24-hour time below
+The tree agent uses the official `symfony/ai-open-responses-platform` bridge
+and streams `/v1/responses` through CLIProxyAPI. Symfony AI commentary deltas
+update the current action while generation is running, before tools execute.
+The panel shows `Thinking...` (`Думаю...`) until commentary arrives, with elapsed
+time. Tool names and reasoning are excluded from progress. Final answers remain
+complete messages. Commentary snapshots are coalesced at 100 ms, flushed on block
+completion, and ordered by `attemptId` and `progressSequence`; shorter updates and
+cleared commentary therefore survive delayed or repeated SSE packets. New model
+rounds, Stop and completion clear the previous action.
+
+Per-response output limits in `backend/config/packages/ai.yaml` are 16384 tokens
+for the tree agent and 1024 for moderation. Streaming usage is debited as reported,
+including usage received before a later failure. Truncated answers are rejected;
+provider rate limits, context/output limits, tool-round exhaustion and refusals
+have distinct localized notices. Search-tool schemas expose the existing 2–255
+character query bounds; application normalization and validation remain in place.
+
+User, assistant and system messages show their local 24-hour time below
 the content on the right; the tooltip includes the full localized date and time.
 Assistant replies use
 [`react-markdown`](https://github.com/remarkjs/react-markdown) with

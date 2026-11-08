@@ -8,7 +8,7 @@ import { mergeChatEvent, useChatEvents } from './useChatEvents'
 import { conversation as draft } from '../test/chatFixtures'
 
 const progress: ChatEvent = { kind: 'progress', id: draft.id, version: 3, attemptId: 'attempt',
-  attemptStartedAt: '2026-11-04T08:00:00Z', progress: ['thinking', 'tree_loaded'], tokenUsage: { input: 10, output: 5, total: 15 } }
+  attemptStartedAt: '2026-11-04T08:00:00Z', commentary: 'Reading the family.', progressSequence: 2, tokenUsage: { input: 10, output: 5, total: 15 } }
 
 class Source {
   static instances: Source[] = []
@@ -57,7 +57,7 @@ describe(
         await act(async () => source.onopen?.())
         act(() => source.message(progress))
         expect(result.current.saved?.status).toBe('processing')
-        expect(result.current.saved?.progress).toEqual(['thinking', 'tree_loaded'])
+        expect(result.current.saved?.commentary).toBe('Reading the family.')
         await act(async () => vi.advanceTimersByTimeAsync(20000))
         expect(calls).toHaveBeenCalledTimes(2)
         act(() => source.message({ kind: 'conversation', conversation: { ...draft, version: 4, status: 'idle' } }))
@@ -210,11 +210,11 @@ describe(
         expect(mergeChatEvent(running, { ...progress, version: 2 })).toBe(running)
         expect(mergeChatEvent(running, { ...progress, attemptId: 'old' })).toBe(running)
         expect(mergeChatEvent(running, { ...progress, id: 'other' })).toBe(running)
-        const small = { ...progress, progress: ['thinking'] as const, tokenUsage: draft.tokenUsage }
-        const late = mergeChatEvent(running, { ...small, progress: [...small.progress] })!
-        expect(late.progress).toEqual(running.progress)
+        const small = { ...progress, commentary: 'Old longer commentary.', progressSequence: 1, tokenUsage: draft.tokenUsage }
+        const late = mergeChatEvent(running, small)!
+        expect(late.commentary).toBe(running.commentary)
         expect(late.tokenUsage).toEqual(running.tokenUsage)
-        const earlierSnapshot = { ...running, progress: [], tokenUsage: draft.tokenUsage }
+        const earlierSnapshot = { ...running, commentary: null, progressSequence: 0, tokenUsage: draft.tokenUsage }
         expect(mergeChatEvent(running, { kind: 'conversation', conversation: earlierSnapshot })).toEqual(running)
         for (const invalid of [{ ...draft, id: 'other' }, { ...draft, profile: 'other' }, draft]) {
           expect(mergeChatEvent(running, { kind: 'conversation', conversation: invalid })).toBe(running)
@@ -226,6 +226,10 @@ describe(
         const clockOnly = { ...draft, access: { ...draft.access, serverTime: '2026-11-06T12:00:00Z' } }
         expect(mergeChatEvent(draft, { kind: 'conversation', conversation: clockOnly })).toBe(draft)
         expect(mergeChatEvent(running, { ...progress })).toBe(running)
+        const shorter = mergeChatEvent(running, { ...progress, commentary: 'Done.', progressSequence: 3 })!
+        expect(shorter.commentary).toBe('Done.')
+        expect(mergeChatEvent(shorter, progress)).toBe(shorter)
+        expect(mergeChatEvent(shorter, { ...progress, commentary: null, progressSequence: 4 })?.commentary).toBeNull()
         const pending = { ...draft, tools: { example: { id: 'proposal', version: 1 } } }
         const ban = { ...pending, tools: { example: { ...pending.tools.example } }, messages: [...pending.messages],
           access: { ...draft.access, status: 'temporary_ban' as const } }

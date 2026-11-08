@@ -387,7 +387,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
               </article>
             )
           )}
-          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} progress={conversation?.progress ?? []} />}
+          {thinking && <ChatThinking startedAt={thinkingSince ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} commentary={conversation?.commentary ?? null} />}
           {conversation?.status === 'error' && !conversation.messages.at(-1)?.failureCode && <p role="alert">{t('chat.processingFailed')}</p>}
           <div ref={messagesEnd} />
         </div>

@@ -13,7 +13,8 @@ export function mergeChatEvent(current: ChatConversation | null, event: ChatEven
     const merged = { ...next,
       messages: JSON.stringify(next.messages) === JSON.stringify(current.messages) ? current.messages : next.messages,
       tools: JSON.stringify(next.tools) === JSON.stringify(current.tools) ? current.tools : next.tools,
-      progress: current.progress.length > next.progress.length ? current.progress : next.progress,
+      commentary: current.progressSequence > next.progressSequence ? current.commentary : next.commentary,
+      progressSequence: Math.max(current.progressSequence, next.progressSequence),
       tokenUsage: current.tokenUsage.total > next.tokenUsage.total ? current.tokenUsage : next.tokenUsage }
     // A fresh server clock alone must not reset previews, scrolling or draft input.
     const comparable = { ...current, access: { ...current.access, serverTime: next.access.serverTime } }
@@ -24,9 +25,10 @@ export function mergeChatEvent(current: ChatConversation | null, event: ChatEven
   const sameAttempt = event.attemptId === current.attemptId
   const next = { ...current, version: event.version, status: 'processing' as const, attemptId: event.attemptId,
     attemptStartedAt: event.attemptStartedAt,
-    progress: sameAttempt && current.progress.length > event.progress.length ? current.progress : event.progress,
+    commentary: sameAttempt && current.progressSequence > event.progressSequence ? current.commentary : event.commentary,
+    progressSequence: sameAttempt ? Math.max(current.progressSequence, event.progressSequence) : event.progressSequence,
     tokenUsage: sameAttempt && current.tokenUsage.total > event.tokenUsage.total ? current.tokenUsage : event.tokenUsage }
-  return JSON.stringify(next.progress) === JSON.stringify(current.progress)
+  return next.commentary === current.commentary && next.progressSequence === current.progressSequence
     && JSON.stringify(next.tokenUsage) === JSON.stringify(current.tokenUsage)
     && next.version === current.version && next.status === current.status && sameAttempt ? current : next
 }

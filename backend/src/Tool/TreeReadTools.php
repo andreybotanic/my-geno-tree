@@ -9,6 +9,7 @@ use App\Repository\FamilyTreeRepository;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Schema\ToolAnnotations;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
+use Symfony\AI\Platform\Contract\JsonSchema\Attribute\Schema;
 use Symfony\Bundle\SecurityBundle\Security;
 
 #[AsTool(
@@ -83,7 +84,7 @@ final readonly class TreeReadTools
         description: 'Search names in the specified tree. Read candidate context before choosing a person.',
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
-    public function find(string $treeId, string $query): array
+    public function find(string $treeId, #[Schema(minLength: 2, maxLength: 255)] string $query): array
     {
         return ['query' => $query, 'candidates' => $this->context->find($treeId, $query)];
     }

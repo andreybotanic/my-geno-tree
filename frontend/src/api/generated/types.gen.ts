@@ -119,7 +119,7 @@ export type ChatMessage = {
     /**
      * Localized system notice. Policy warnings are terminal decisions; other failures can be retried.
      */
-    failureCode?: 'empty_response' | 'provider_unavailable' | 'token_limit' | 'stopped' | 'policy_warning' | 'chat_banned' | 'chat_unavailable';
+    failureCode?: 'empty_response' | 'provider_unavailable' | 'provider_rate_limit' | 'context_limit' | 'output_limit' | 'tool_limit' | 'provider_refused' | 'token_limit' | 'stopped' | 'policy_warning' | 'chat_banned' | 'chat_unavailable';
     warningNumber?: number;
     /**
      * Excluded from inference and evidence sources.
@@ -212,9 +212,13 @@ export type ChatConversation = {
         [key: string]: unknown;
     };
     /**
-     * Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
+     * Current user-facing model commentary, available while processing. Tool names and reasoning are excluded.
      */
-    progress: Array<string>;
+    commentary: string | null;
+    /**
+     * Monotonic commentary revision within the current attempt, independent of text length.
+     */
+    progressSequence: number;
     tokenUsage: ChatTokenUsage;
     tokenBudget: ChatTokenBudget;
     access: ChatAccess;
@@ -235,9 +239,10 @@ export type ChatEvent = {
     attemptId: string;
     attemptStartedAt: string;
     /**
-     * Ordered completed tool actions for the current attempt, including repeated calls. May start with model_request.
+     * Current accumulated commentary snapshot. Replaces the previous text.
      */
-    progress: Array<string>;
+    commentary: string | null;
+    progressSequence: number;
     tokenUsage: ChatTokenUsage;
 } | {
     kind: 'tool';

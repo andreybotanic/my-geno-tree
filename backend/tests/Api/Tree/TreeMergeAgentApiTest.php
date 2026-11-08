@@ -6,6 +6,7 @@ use App\Entity\AuthSession;
 use App\Model\Conversation;
 use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
+use App\Tests\Infrastructure\Ai\ResponsesFixture;
 use App\Tests\Infrastructure\Ai\TestMergeEvents;
 use App\Tool\TreeMergeTool;
 use App\Tool\TreeMergeToolSchema;
@@ -52,27 +53,29 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
             function (string $method, string $url, array $options) use (&$calls): MockResponse {
                 ++$calls;
                 self::assertSame('POST', $method);
-                self::assertSame('http://cli-proxy-api:8317/v1/chat/completions', $url);
+                self::assertSame('http://cli-proxy-api:8317/v1/responses', $url);
                 $proxyKey = $_ENV['CLI_PROXY_API_KEY'];
                 self::assertIsString($proxyKey);
                 self::assertContains('Authorization: Bearer ' . $proxyKey, $options['headers']);
                 /**
                  * @var array{
-                 *     model: string,
+                 *     model: string, max_output_tokens: int, stream: bool,
                  *     messages: list<array{
                  *         role: string,
                  *         content: string
                  *     }>,
                  *     tools: list<array{
-                 *         function: array{
-                 *             name: string,
-                 *             parameters: array<string, mixed>
-                 *         }
+                 *         name: string,
+                 *         parameters: array<string, mixed>
                  *     }>
                  * } $body
                  */
                 $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                self::assertIsArray($body);
+                $body['messages'] = ResponsesFixture::messages($body);
                 self::assertSame('gpt-5.6-luna', $body['model']);
+                self::assertSame(16384, $body['max_output_tokens']);
+                self::assertTrue($body['stream']);
                 self::assertStringNotContainsString($proxyKey, $options['body']);
                 self::assertStringNotContainsString($this->headers['Authorization'], $options['body']);
                 self::assertSame('user', $body['messages'][1]['role']);
@@ -91,8 +94,14 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertArrayNotHasKey('attemptId', $input);
                 self::assertArrayNotHasKey('userId', $input);
                 self::assertSame($this->treeId, $input['treeId']);
-                $schemas = array_column(array_column($body['tools'], 'function'), 'parameters', 'name');
+                $schemas = array_column($body['tools'], 'parameters', 'name');
                 self::assertCount(4, $schemas);
+                $searchProperties = $schemas['find_people']['properties'];
+                self::assertIsArray($searchProperties);
+                $querySchema = $searchProperties['query'];
+                self::assertIsArray($querySchema);
+                self::assertSame(2, $querySchema['minLength']);
+                self::assertSame(255, $querySchema['maxLength']);
                 self::assertArrayNotHasKey('find_trees', $schemas);
                 self::assertArrayNotHasKey('reply_to_tree_merge', $schemas);
                 $prepareSchema = $schemas['merge'];
@@ -203,6 +212,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                         if (++$calls > 1) {
                             $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
                             self::assertIsArray($body);
+                            $body['messages'] = ResponsesFixture::messages($body);
                             self::assertIsArray($body['messages']);
                             self::assertSame(
                                 ['system', 'user', 'assistant', 'user'],
@@ -234,6 +244,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 }
                 $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
                 self::assertIsArray($body);
+                $body['messages'] = ResponsesFixture::messages($body);
                 self::assertIsArray($body['messages']);
                 $last = array_last($body['messages']);
                 self::assertIsArray($last);
@@ -258,7 +269,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         $this->send();
         self::assertSame(3, $calls);
         self::assertNull($this->responseArray('tools')['merge'] ?? null);
-        self::assertSame(['model_request'], $this->responseArray('progress'));
+        self::assertNull($this->responseData()['commentary']);
         self::assertSame(
             'Please describe the person you want to add.',
             $this->responseString('messages', '1', 'content'),
@@ -377,7 +388,10 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                     if ($calls > 1) {
                         /** @var array{messages: non-empty-list<array{content: string}>} $body */
                         $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
-                        $last = $body['messages'][array_key_last($body['messages'])];
+                        self::assertIsArray($body);
+                        $body['messages'] = ResponsesFixture::messages($body);
+                        $last = array_last($body['messages']);
+                        self::assertNotNull($last);
                         /** @var array{error?: array{code: string}, personCount?: int} $result */
                         $result = json_decode($last['content'], true, flags: JSON_THROW_ON_ERROR);
                         if ($calls <= 4) {
@@ -431,83 +445,173 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
         self::assertCount(1, $this->responseArray('messages'));
     }
 
-    public function testProgressTracksCompletedToolsInOrderIncludingRepeatedReads(): void
+    public function testCommentaryIsPublishedBeforeTheToolAndNeverBecomesTheFinalAnswer(): void
     {
         $calls = 0;
-        static::getContainer()->set(
-            'chat_ai.client',
-            new MockHttpClient(
-                function () use (&$calls): MockResponse {
-                    ++$calls;
+        $observed = false;
+        static::getContainer()
+            ->get('event_dispatcher')
+            ->addListener(
+                \Symfony\AI\Agent\Toolbox\Event\ToolCallRequested::class,
+                static function () use (&$observed): void {
+                    $packets = array_map(
+                        static function ($event): array {
+                            $packet = json_decode($event->getData(), true, flags: JSON_THROW_ON_ERROR);
+                            self::assertIsArray($packet);
 
-                    return match ($calls) {
-                        1, 3    => $this->toolResponse('get_tree_context', ['treeId' => $this->treeId]),
-                        2       => $this->toolResponse('find_people', ['treeId' => $this->treeId, 'query' => 'Vera']),
-                        default => $this->textResponse('No people have been added.'),
-                    };
+                            return $packet;
+                        },
+                        TestMergeEvents::updates(),
+                    );
+                    self::assertNotNull(
+                        array_find(
+                            $packets,
+                            static fn ($packet) => 'Проверяю семью.' === ($packet['commentary'] ?? null),
+                        ),
+                    );
+                    $observed = true;
                 },
-            ),
-        );
+            );
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(
+                    function () use (&$calls): MockResponse {
+                        if (++$calls > 1) {
+                            return $this->textResponse('The family is empty.');
+                        }
+
+                        return ResponsesFixture::stream(
+                            [
+                                [
+                                    'id'      => 'comment',
+                                    'type'    => 'message',
+                                    'role'    => 'assistant',
+                                    'phase'   => 'commentary',
+                                    'content' => [['type' => 'output_text', 'text' => 'Проверяю семью.']],
+                                ],
+                                [
+                                    'id'        => 'read',
+                                    'type'      => 'function_call',
+                                    'call_id'   => 'read',
+                                    'name'      => 'get_tree_context',
+                                    'arguments' => json_encode(['treeId' => $this->treeId], JSON_THROW_ON_ERROR),
+                                ],
+                            ],
+                        );
+                    },
+                ),
+            );
         FixtureTreeAgent::$useReal = true;
         $this->send();
-        self::assertResponseIsSuccessful();
-        self::assertSame(4, $calls);
-        $expected = ['model_request', 'get_tree_context', 'find_people', 'get_tree_context'];
-        self::assertSame($expected, $this->responseArray('progress'));
-        $progress = [];
+        self::assertTrue($observed);
+        self::assertSame(2, $calls);
+        self::assertSame('The family is empty.', $this->responseString('messages', '1', 'content'));
+        self::assertNull($this->responseData()['commentary']);
         foreach (TestMergeEvents::updates() as $event) {
             $packet = json_decode($event->getData(), true, flags: JSON_THROW_ON_ERROR);
             self::assertIsArray($packet);
             if ('progress' === $packet['kind']) {
-                $progress[] = $packet['progress'];
+                self::assertArrayNotHasKey('progress', $packet);
+                self::assertStringNotContainsString('get_tree_context', $event->getData());
             }
         }
-        self::assertContains(['model_request', 'get_tree_context'], $progress);
-        self::assertContains(['model_request', 'get_tree_context', 'find_people'], $progress);
-        self::assertSame($expected, array_last($progress));
+    }
+
+    public function testTruncatedStreamDoesNotSaveAPartialAnswer(): void
+    {
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(
+                    new MockResponse(
+                        'data: {"type":"response.output_text.delta","delta":"Partial answer"}' . "\n\n"
+                            . 'data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}'
+                            . "\n\n",
+                        ['response_headers' => ['content-type: text/event-stream']],
+                    ),
+                ),
+            );
+        FixtureTreeAgent::$useReal = true;
+        $this->send();
+        self::assertSame('output_limit', $this->responseString('messages', '1', 'failureCode'));
+        self::assertSame('', $this->responseString('messages', '1', 'content'));
+        self::assertSame('error', $this->responseString('status'));
+    }
+
+    public function testStreamUsageIsDebitedBeforeALaterFailure(): void
+    {
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(
+                    new MockResponse(
+                        'data: {"type":"response.in_progress","response":{"usage":{"input_tokens":10,"output_tokens":2,"total_tokens":12}}}'
+                            . "\n\n"
+                            . 'data: {"type":"error","error":{"code":"rate_limit_exceeded","message":"busy"}}' . "\n\n",
+                        ['response_headers' => ['content-type: text/event-stream']],
+                    ),
+                ),
+            );
+        FixtureTreeAgent::$useReal = true;
+        $this->send();
+        self::assertSame('provider_rate_limit', $this->responseString('messages', '1', 'failureCode'));
+        self::assertSame(12, $this->responseInt('tokenUsage', 'total'));
+    }
+
+    public function testModelExceptionsHaveActionableFailureCodes(): void
+    {
+        $errors = [
+            [new \Symfony\AI\Platform\Exception\RateLimitExceededException(), 'provider_rate_limit'],
+            [new \Symfony\AI\Platform\Exception\ExceedContextSizeException('large'), 'context_limit'],
+            [new \Symfony\AI\Platform\Exception\MaxOutputTokensException('large'), 'output_limit'],
+            [new \Symfony\AI\Agent\Exception\MaxIterationsExceededException(16), 'tool_limit'],
+            [new \Symfony\AI\Platform\Exception\ContentFilterException('blocked'), 'provider_refused'],
+        ];
+        foreach ($errors as $index => [$error, $code]) {
+            FixtureTreeAgent::$handler = static fn () => throw $error;
+            $this->send('failure-' . $index);
+            self::assertSame($code, $this->responseString('messages', (string)($index * 2 + 1), 'failureCode'));
+        }
+    }
+
+    public function testSearchSchemaRejectsAnInvalidQueryBeforeExecutingTheTool(): void
+    {
+        $calls = 0;
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(
+                    function ($method, $url, $options) use (&$calls): MockResponse {
+                        if (1 === ++$calls) {
+                            return $this->toolResponse('find_people', ['treeId' => $this->treeId, 'query' => 'a']);
+                        }
+                        $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                        self::assertIsArray($body);
+                        $messages = ResponsesFixture::messages($body);
+                        $last = array_last($messages);
+                        self::assertNotNull($last);
+                        self::assertStringContainsString('query', $last['content']);
+
+                        return $this->textResponse('Please provide at least two characters.');
+                    },
+                ),
+            );
+        FixtureTreeAgent::$useReal = true;
+        $this->send();
+        self::assertSame(2, $calls);
+        self::assertSame('Please provide at least two characters.', $this->responseString('messages', '1', 'content'));
     }
 
     /** @param array<string, mixed> $arguments */
     private function toolResponse(string $name, array $arguments): MockResponse
     {
-        return $this->response(
-            [
-                'role'       => 'assistant',
-                'content'    => null,
-                'tool_calls' => [
-                    [
-                        'id'       => 'call_' . $name,
-                        'type'     => 'function',
-                        'function' => ['name' => $name, 'arguments' => json_encode($arguments, JSON_THROW_ON_ERROR)],
-                    ],
-                ],
-            ],
-            'tool_calls'
-        );
+        return ResponsesFixture::tool($name, $arguments);
     }
 
     private function textResponse(string $text): MockResponse
     {
-        return $this->response(['role' => 'assistant', 'content' => $text], 'stop');
-    }
-
-    /** @param array<string, mixed> $message */
-    private function response(array $message, string $finish): MockResponse
-    {
-        return new MockResponse(
-            json_encode(
-                [
-                    'id'      => 'probe',
-                    'object'  => 'chat.completion',
-                    'created' => 1,
-                    'model'   => 'gpt-5.6-luna',
-                    'choices' => [['index' => 0, 'finish_reason' => $finish, 'message' => $message]],
-                    'usage'   => ['prompt_tokens' => 100, 'completion_tokens' => 10, 'total_tokens' => 110],
-                ],
-                JSON_THROW_ON_ERROR
-            ),
-            ['response_headers' => ['content-type: application/json']]
-        );
+        return ResponsesFixture::text($text);
     }
 
     private function send(string $requestId = 'family'): void

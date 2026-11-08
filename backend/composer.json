@@ -23,6 +23,7 @@
         "symfony/ai-bundle": "^1.0@beta",
         "symfony/ai-cache-message-store": "^1.0@beta",
         "symfony/ai-generic-platform": "^1.0@beta",
+        "symfony/ai-open-responses-platform": "^1.0@beta",
         "symfony/ai-platform": "^1.0@beta",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",

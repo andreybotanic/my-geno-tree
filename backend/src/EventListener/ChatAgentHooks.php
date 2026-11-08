@@ -20,7 +20,13 @@ use Symfony\AI\Agent\Toolbox\Event\ToolCallSucceeded;
 use Symfony\AI\Agent\Toolbox\ToolResult;
 use Symfony\AI\Platform\Event\InvocationEvent;
 use Symfony\AI\Platform\Event\ResultEvent;
+use Symfony\AI\Platform\Exception\MaxOutputTokensException;
+use Symfony\AI\Platform\FinishReason\FinishReason;
+use Symfony\AI\Platform\FinishReason\FinishReasonCase;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\AbstractStreamListener;
+use Symfony\AI\Platform\Result\Stream\DeltaEvent;
+use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\TokenUsage\TokenUsageInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -30,15 +36,15 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 /** Framework integration: bind metadata, authorize every round/tool, and meter every model response. */
 #[AsInputProcessor(priority: 1000)]
 #[AsOutputProcessor]
-final readonly class ChatAgentHooks implements InputProcessorInterface, OutputProcessorInterface
+final class ChatAgentHooks extends AbstractStreamListener implements InputProcessorInterface, OutputProcessorInterface
 {
     public function __construct(
-        private GuardedMessageStore $store,
-        private ChatEventPublisherInterface $events,
-        private RequestStack $requests,
+        private readonly GuardedMessageStore $store,
+        private readonly ChatEventPublisherInterface $events,
+        private readonly RequestStack $requests,
         #[Target('chat_tokens')]
-        private RateLimiterFactoryInterface $tokens,
-        private ChatModeration $moderation,
+        private readonly RateLimiterFactoryInterface $tokens,
+        private readonly ChatModeration $moderation,
     ) {
     }
 
@@ -56,6 +62,10 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
     {
         if ($this->executing()) {
             $this->store->execution();
+        }
+        $reason = $output->getResult()->getMetadata()->get('finish_reason');
+        if ($reason instanceof FinishReason && $reason->is(FinishReasonCase::LENGTH)) {
+            throw new MaxOutputTokensException('Model response was truncated.');
         }
     }
 
@@ -111,23 +121,14 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         }
     }
 
-    #[AsEventListener(priority: -10)]
-    public function recordToolProgress(ToolCallSucceeded $event): void
+    public function onDelta(DeltaEvent $event): void
     {
-        $result = $event->getResult()->getResult();
-        if (!$this->executing() || (is_array($result) && isset($result['error']))) {
-            return;
+        $state = $this->requests->getMainRequest()?->attributes->get(Conversation::class);
+        $usage = $event->getDelta();
+        if ($state instanceof Conversation && $usage instanceof TokenUsageInterface) {
+            // Debit usage as it arrives, including streams that later fail or are cancelled.
+            $this->record($state, $usage);
         }
-        $state = $this->store->execution()->conversation;
-        $this->store->synchronized(
-            $state->contextKey,
-            function () use ($state, $event): void {
-                $this->store->execution();
-                $state->progress[] = $event->getDefinition()->getName();
-                $this->store->persist($state);
-                $this->events->progress($state);
-            },
-        );
     }
 
     #[AsEventListener(priority: -100)]
@@ -140,13 +141,20 @@ final readonly class ChatAgentHooks implements InputProcessorInterface, OutputPr
         $deferred = $event->getDeferredResult();
         $deferred->onConvert(
             function (ResultInterface $result) use ($state): ResultInterface {
-                $this->record($state, $result->getMetadata()->get('token_usage'));
+                if ($result instanceof StreamResult) {
+                    $result->addListener($this);
+                } else {
+                    $this->record($state, $result->getMetadata()->get('token_usage'));
+                }
 
                 return $result;
             }
         );
         $deferred->onError(
             function () use ($state, $deferred, $event): void {
+                if ($event->getOptions()['stream'] ?? false) {
+                    return;
+                }
                 $this->record(
                     $state,
                     $deferred->getResultConverter()->getTokenUsageExtractor()?->extract(

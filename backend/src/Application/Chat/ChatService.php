@@ -10,9 +10,17 @@ use App\Model\Conversation;
 use App\Security\ChatExecution;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\AgentInterface;
+use Symfony\AI\Agent\Exception\MaxIterationsExceededException;
 use Symfony\AI\Agent\Execution\Update\Progress;
+use Symfony\AI\Platform\Exception\ContentFilterException;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
+use Symfony\AI\Platform\Exception\MaxOutputTokensException;
+use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Result\Stream\Delta\CommentaryComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\CommentaryDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\CommentaryStart;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\DependencyInjection\Attribute\Target;
@@ -149,11 +157,19 @@ final readonly class ChatService implements ChatInterface
                     && in_array($error->getErrorCode(), ['CHAT_UNAVAILABLE', 'CHAT_BANNED'], true)) {
                     $accessError = $error;
                 }
-                $failure = match ($error instanceof ApiException ? $error->getErrorCode() : null) {
-                    'CHAT_TOKEN_LIMIT' => 'token_limit',
-                    'CHAT_UNAVAILABLE' => 'chat_unavailable',
-                    'CHAT_BANNED'      => 'chat_banned',
-                    default            => 'provider_unavailable',
+                $failure = match (true) {
+                    $error instanceof ApiException => match ($error->getErrorCode()) {
+                        'CHAT_TOKEN_LIMIT' => 'token_limit',
+                        'CHAT_UNAVAILABLE' => 'chat_unavailable',
+                        'CHAT_BANNED'      => 'chat_banned',
+                        default            => 'provider_unavailable',
+                    },
+                    $error instanceof RateLimitExceededException     => 'provider_rate_limit',
+                    $error instanceof ExceedContextSizeException     => 'context_limit',
+                    $error instanceof MaxOutputTokensException       => 'output_limit',
+                    $error instanceof MaxIterationsExceededException => 'tool_limit',
+                    $error instanceof ContentFilterException         => 'provider_refused',
+                    default                                          => 'provider_unavailable',
                 };
             }
             $this->store->synchronized(
@@ -309,20 +325,32 @@ final readonly class ChatService implements ChatInterface
 
     private function progress(Progress $progress): void
     {
-        if (Progress::STAGE_MODEL_REQUEST !== $progress->getStage()) {
+        $payload = $progress->getPayload();
+        if (Progress::STAGE_MODEL_REQUEST !== $progress->getStage()
+            && !$payload instanceof CommentaryStart && !$payload instanceof CommentaryDelta
+            && !$payload instanceof CommentaryComplete) {
             return;
         }
-        $current = $this->execution()->conversation;
+        $execution = $this->execution();
+        $current = $execution->conversation;
+        if ($payload instanceof CommentaryDelta) {
+            $current->commentary = ($current->commentary ?? '') . $payload->getCommentary();
+            if (microtime(true) - $execution->lastCommentaryPublishedAt < 0.1) {
+                return;
+            }
+        } elseif ($payload instanceof CommentaryComplete) {
+            $current->commentary = $payload->getCommentary();
+        } else {
+            $current->commentary = null;
+        }
         $this->store->synchronized(
             $current->contextKey,
-            function () use ($current, $progress): void {
+            function () use ($current, $execution): void {
                 $this->execution();
-                $stage = $progress->getStage();
-                if (!in_array($stage, $current->progress, true)) {
-                    $current->progress[] = $stage;
-                    $this->store->persist($current);
-                    $this->events->progress($current);
-                }
+                ++$current->progressSequence;
+                $execution->lastCommentaryPublishedAt = microtime(true);
+                $this->store->persist($current);
+                $this->events->progress($current);
             }
         );
     }

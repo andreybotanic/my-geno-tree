@@ -21,11 +21,20 @@ ai:
                                 - !php/const Symfony\AI\Platform\Capability::OUTPUT_TEXT
                                 - !php/const Symfony\AI\Platform\Capability::OUTPUT_STRUCTURED
                                 - !php/const Symfony\AI\Platform\Capability::TOOL_CALLING
+        openresponses:
+            chatgpt:
+                base_url: 'http://cli-proxy-api:8317'
+                api_key: '%env(CLI_PROXY_API_KEY)%'
+                http_client: chat_ai.client
     agent:
         tree:
-            platform: ai.platform.generic.chatgpt
+            platform: ai.platform.openresponses.chatgpt
             message_store: ai.message_store.cache.chat
-            model: 'gpt-5.6-luna'
+            model:
+                name: 'gpt-5.6-luna'
+                options:
+                    stream: true
+                    max_output_tokens: 16384
             prompt:
                 file: '%kernel.project_dir%/prompts/tree.txt'
             max_tool_calls: 16
@@ -34,7 +43,10 @@ ai:
                 - App\Tool\TreeMergeTool
         chat_moderation:
             platform: ai.platform.generic.chatgpt
-            model: 'gpt-5.6-luna'
+            model:
+                name: 'gpt-5.6-luna'
+                options:
+                    max_output_tokens: 1024
             tools: []
             prompt:
                 file: '%kernel.project_dir%/prompts/chat_moderation.txt'

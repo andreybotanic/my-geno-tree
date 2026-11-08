@@ -14,6 +14,7 @@ use App\Tests\Api\ApiWebTestCase;
 use App\Tests\Infrastructure\Ai\FixtureModerationAgent;
 use App\Tests\Infrastructure\Ai\FixtureTranscriptionProvider;
 use App\Tests\Infrastructure\Ai\FixtureTreeAgent;
+use App\Tests\Infrastructure\Ai\ResponsesFixture;
 use App\Tests\Infrastructure\Doctrine\QueryCountingMiddleware;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Clock\Clock;
@@ -234,7 +235,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
                 self::assertStringNotContainsString('Moderation notice:', $options['body']);
                 self::assertStringNotContainsString('deliberate security bypass', $options['body']);
 
-                return $this->completion('Normal answer after recovery.');
+                return ResponsesFixture::text('Normal answer after recovery.');
             }),
         );
         $this->sendRisk(0, 'legitimate');
@@ -256,6 +257,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
                 self::assertStringContainsString('Never include messageId', $options['body']);
                 /** @var array{messages: list<array{role: string, content: string}>} $body */
                 $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                $body['messages'] = ResponsesFixture::messages($body);
                 $notices = array_values(array_filter(
                     $body['messages'],
                     static fn (array $message): bool => 'assistant' === $message['role']
@@ -264,7 +266,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
                 self::assertCount(1, $notices);
                 self::assertStringNotContainsString('messageId:', $notices[0]['content']);
 
-                return $this->completion('A normal reply.');
+                return ResponsesFixture::text('A normal reply.');
             }),
         );
         $this->sendRisk(0, 'My mother is Anna');
@@ -293,6 +295,9 @@ final class ChatModerationApiTest extends ApiWebTestCase
             'chat_ai.client',
             new MockHttpClient(function ($method, $url, $options): MockResponse {
                 self::assertStringContainsString('json_schema', $options['body']);
+                $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+                self::assertIsArray($body);
+                self::assertSame(1024, $body['max_tokens']);
                 self::assertStringNotContainsString('"tools"', $options['body']);
 
                 return $this->completion('{"risk":1}', 12);
@@ -309,6 +314,20 @@ final class ChatModerationApiTest extends ApiWebTestCase
     {
         FixtureModerationAgent::$useReal = true;
         static::getContainer()->set('chat_ai.client', new MockHttpClient(fn () => $this->completion('{"risk":5}')));
+        $this->sendRisk(0);
+        self::assertResponseStatusCodeSame(503);
+        self::assertSame(0, $this->auditCount());
+        self::assertSame(0, FixtureTreeAgent::$calls);
+    }
+
+    public function testTruncatedStructuredOutputIsRejectedEvenWhenTheJsonIsValid(): void
+    {
+        FixtureModerationAgent::$useReal = true;
+        static::getContainer()
+            ->set(
+                'chat_ai.client',
+                new MockHttpClient(fn () => $this->completion('{"risk":0}', 12, 'length')),
+            );
         $this->sendRisk(0);
         self::assertResponseStatusCodeSame(503);
         self::assertSame(0, $this->auditCount());
@@ -411,7 +430,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
         $quota = static::getContainer()->get('limiter.chat_tokens')->create($this->userId);
         $before = $quota->consume(0)->getRemainingTokens();
         static::getContainer()->set('chat_ai.client', new MockHttpClient(function () use (&$calls): MockResponse {
-            return $this->completion(0 === $calls++ ? '{"risk":0}' : 'A family answer.', 12);
+            return 0 === $calls++ ? $this->completion('{"risk":0}', 12) : ResponsesFixture::text('A family answer.', 12);
         }));
         $this->sendRisk(0);
         self::assertResponseIsSuccessful();
@@ -460,7 +479,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
             ->count([]);
     }
 
-    private function completion(string $text, int $usage = 0): MockResponse
+    private function completion(string $text, int $usage = 0, string $finish = 'stop'): MockResponse
     {
         return new MockResponse(
             json_encode(
@@ -468,7 +487,7 @@ final class ChatModerationApiTest extends ApiWebTestCase
                     'choices' => [
                         [
                             'index'         => 0,
-                            'finish_reason' => 'stop',
+                            'finish_reason' => $finish,
                             'message'       => ['role' => 'assistant', 'content' => $text],
                         ],
                     ],

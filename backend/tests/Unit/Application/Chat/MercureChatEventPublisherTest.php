@@ -30,7 +30,8 @@ final class MercureChatEventPublisherTest extends TestCase
         );
         $conversation = ConversationFixture::create();
         $conversation->beginAttempt(new \DateTimeImmutable(), 'turn');
-        $conversation->progress = ['model_request', 'get_tree_context'];
+        $conversation->commentary = 'Reading the family.';
+        $conversation->progressSequence = 2;
         $conversation->usage = ['input' => 10, 'output' => 5, 'total' => 15];
         $authorization = $this->createMock(AuthorizationCheckerInterface::class);
         $authorization

@@ -113,17 +113,17 @@ describe(
       expect(within(answer).getByText('Unsafe')).toHaveAttribute('href', '')
     })
 
-    it('shows only the last completed tool from restored and live progress', async () => {
-      const running: ChatConversation = { ...conversation, status: 'processing', progress: ['get_tree_context'] }
+    it('shows current commentary from restored and live progress', async () => {
+      const running: ChatConversation = { ...conversation, status: 'processing', commentary: 'Reading the family.' }
       setup(async () => ({ conversation: running }))
-      expect(await screen.findByRole('status')).toHaveTextContent('Completed: get_tree_context')
+      expect(await screen.findByRole('status')).toHaveTextContent('Reading the family.')
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
       act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({
-        ...running, version: 2, progress: ['get_tree_context', 'merge'],
+        ...running, version: 2, commentary: 'Preparing the changes.',
       }))
-      expect(screen.getByRole('status')).toHaveTextContent('Completed: merge')
+      expect(screen.getByRole('status')).toHaveTextContent('Preparing the changes.')
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
-      expect(screen.queryByText('Completed: get_tree_context')).not.toBeInTheDocument()
+      expect(screen.queryByText('Reading the family.')).not.toBeInTheDocument()
     })
 
     it('shows each message time below its text, with a full localized date in the tooltip', async () => {

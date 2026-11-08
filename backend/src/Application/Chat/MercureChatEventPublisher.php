@@ -34,7 +34,8 @@ final readonly class MercureChatEventPublisher implements ChatEventPublisherInte
                 'version'          => $conversation->version,
                 'attemptId'        => $conversation->attemptId,
                 'attemptStartedAt' => $conversation->attemptStartedAt?->format(\DateTimeInterface::ATOM),
-                'progress'         => $conversation->progress,
+                'commentary'       => $conversation->commentary,
+                'progressSequence' => $conversation->progressSequence,
                 'tokenUsage'       => $conversation->usage,
             ],
         );
