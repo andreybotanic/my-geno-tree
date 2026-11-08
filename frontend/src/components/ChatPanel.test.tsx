@@ -110,14 +110,18 @@ describe(
       setup(async () => ({ conversation: next }))
       const answer = await screen.findByRole('article', { name: 'Assistant' })
       const metrics = answer.querySelector('.chat-message-metrics')!
-      expect(metrics).toHaveTextContent('12.3 s')
+      expect(metrics).toHaveTextContent('12 s')
       expect(metrics).toHaveTextContent('Tokens: 1,050')
       expect(metrics.nextElementSibling?.tagName).toBe('TIME')
       expect(screen.getByRole('article', { name: 'You' }).querySelector('.chat-message-metrics')).toBeNull()
       await act(async () => i18n.changeLanguage('ru'))
-      expect(metrics).toHaveTextContent('12,3 с')
+      expect(metrics).toHaveTextContent('12 с')
       expect(metrics).toHaveTextContent('Токены: 1 050')
       expect(screen.getByRole('button', { name: 'Удалить чат' })).toBeEnabled()
+      act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({ ...next, messages: [
+        { ...completed.messages[1]!, responseMetrics: { ...responseMetrics, durationMs: 12500 } },
+      ] }))
+      expect(metrics).toHaveTextContent('13 с')
     })
 
     it('fades only scroll edges that have more content and removes fades when everything fits', async () => {

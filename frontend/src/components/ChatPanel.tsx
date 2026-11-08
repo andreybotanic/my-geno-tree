@@ -406,7 +406,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                   {message.role === 'assistant' && message.responseMetrics && <span className="chat-message-metrics">
                     <span title={t('chat.elapsed')}>{t('chat.responseDuration', {
                       seconds: (message.responseMetrics.durationMs / 1000).toLocaleString(i18n.resolvedLanguage,
-                        { maximumFractionDigits: 1 }),
+                        { maximumFractionDigits: 0 }),
                     })}</span>
                     <span aria-hidden="true">·</span>
                     <span>{t('chat.responseTokens', {

@@ -3661,7 +3661,7 @@ select:not([multiple]) {
   white-space: nowrap;
 }
 .chat-message-time { flex-shrink: 0; }
-.chat-message-metrics { display: inline-flex; gap: 6px; opacity: 0; pointer-events: none; }
+.chat-message-metrics { display: inline-flex; gap: 6px; margin-right: auto; text-align: left; opacity: 0; pointer-events: none; }
 .chat-message-assistant:hover .chat-message-metrics { opacity: 1; }
 
 .chat-panel .secondary-button, .chat-panel .primary-button { min-height: 36px; }
