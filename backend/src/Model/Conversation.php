@@ -11,7 +11,7 @@ use Symfony\Component\Uid\UuidV7;
 final class Conversation
 {
     public const string METADATA = 'conversation';
-    public const int TOOL_STATE_VERSION = 1;
+    public const int TOOL_STATE_VERSION = 2;
     public readonly UuidV7 $id;
     public int $version = 1;
     public string $status = 'idle';

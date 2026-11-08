@@ -13,7 +13,8 @@ export const resources = {
       },
       chat: {
         treePlaceholder: "Describe what you want to do with the tree…",
-        confirmation: {"title":"Action confirmation","allow":"Allow","reject":"Reject","allowAll":"Allow and auto-confirm in this chat","autoApprove":"Auto-confirm adding and deleting people in this chat","absent":"Not set","connection":{"parent":"New parent ({{role}}) of: {{name}}","child":"New child of: {{name}} ({{role}})","spouse":"New spouse of: {{name}}","relative":"Initial connection: {{name}}"},"deleteConsequences":"This deletes the person, their events, attachments and relationships. Other people are kept.","failed":"The action was not applied. The agent will receive the error.","status":{"pending":"Awaiting confirmation","executing":"Executing…","applied":"Applied","rejected":"Rejected","failed":"Failed","cancelled":"Cancelled"}},
+        confirmation: {"title":"Action confirmation","allow":"Allow","reject":"Reject","create":"Create “{{name}}”?","create_person":"Create “{{name}}”?","create_parent":"Create “{{name}}” as a parent of “{{relative}}”?","create_child":"Create “{{name}}” as a child of “{{relative}}”?","create_spouse":"Create “{{name}}” as a spouse of “{{relative}}”?","delete":"Delete “{{name}}”, their relationships and events?","unknownParent":"Also create an unnamed parent."},
+        permissions: {"title":"Person actions","ask":"Ask for permission","auto":"Approve for me"},
         access: {
           temporary: 'AI chat is blocked until {{until}}.',
           blocked: 'Your access to AI chat is blocked.',
@@ -78,7 +79,7 @@ export const resources = {
         "message": "Message",
         "send": "Send",
         "sendShortcut": "Send (Ctrl+Enter)",
-        "stop": "Stop response",
+        "stop": "Stop",
         "newConversation": "Delete chat",
         "placeholder": "Write a message…",
         "invalid": "Check the message and try again."
@@ -529,7 +530,8 @@ export const resources = {
       },
       chat: {
         treePlaceholder: "Опишите, что нужно сделать с деревом…",
-        confirmation: {"title":"Подтверждение действия","allow":"Разрешить","reject":"Отклонить","allowAll":"Разрешить и включить автоподтверждение","autoApprove":"Автоподтверждать добавление и удаление персон в этом чате","absent":"Не задано","connection":{"parent":"Новый родитель ({{role}}), ребёнок: {{name}}","child":"Новый ребёнок, родитель: {{name}} ({{role}})","spouse":"Новый супруг, другая персона: {{name}}","relative":"Начальная связь: {{name}}"},"deleteConsequences":"Будут удалены персона, её события, вложения и связи. Другие персоны сохранятся.","failed":"Действие не применено. Агент получит описание ошибки.","status":{"pending":"Ожидает подтверждения","executing":"Выполняется…","applied":"Применено","rejected":"Отклонено","failed":"Ошибка","cancelled":"Отменено"}},
+        confirmation: {"title":"Подтверждение действия","allow":"Разрешить","reject":"Отклонить","create":"Создать персону «{{name}}»?","create_person":"Создать персону «{{name}}»?","create_parent":"Создать родителя «{{name}}» для «{{relative}}»?","create_child":"Создать ребёнка «{{name}}» для «{{relative}}»?","create_spouse":"Создать супруга «{{name}}» для «{{relative}}»?","delete":"Удалить персону «{{name}}», её связи и события?","unknownParent":"Также будет создан безымянный родитель."},
+        permissions: {"title":"Действия с персонами","ask":"Запрашивать разрешение","auto":"Подтверждать за меня"},
         access: {
           temporary: 'ИИ-чат заблокирован до {{until}}.',
           blocked: 'Доступ к ИИ-чату заблокирован.',
@@ -594,7 +596,7 @@ export const resources = {
         "message": "Сообщение",
         "send": "Отправить",
         "sendShortcut": "Отправить (Ctrl+Enter)",
-        "stop": "Остановить ответ",
+        "stop": "Стоп",
         "newConversation": "Удалить чат",
         "placeholder": "Напишите сообщение…",
         "invalid": "Проверьте сообщение и попробуйте снова."

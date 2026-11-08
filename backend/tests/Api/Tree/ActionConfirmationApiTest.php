@@ -406,25 +406,58 @@ final class ActionConfirmationApiTest extends ApiWebTestCase
                     }
 
                     return ResponsesFixture::stream(
-                        [[
-                            'id'        => $id . $calls,
-                            'type'      => 'function_call',
-                            'call_id'   => $id . $calls,
-                            'name'      => 'create_person',
-                            'arguments' => json_encode(
-                                [
-                                    'treeId'     => $this->treeId,
-                                    'ifMatch'    => $this->etag,
-                                    'fields'     => ['givenName' => ['state' => 'known', 'value' => 'Vera']],
-                                    'connection' => null,
-                                ],
-                                JSON_THROW_ON_ERROR
-                            ),
-                        ]]
+                        [
+                            [
+                                'id'        => $id . $calls,
+                                'type'      => 'function_call',
+                                'call_id'   => $id . $calls,
+                                'name'      => 'create_person',
+                                'arguments' => json_encode(
+                                    [
+                                        'treeId'     => $this->treeId,
+                                        'ifMatch'    => $this->etag,
+                                        'fields'     => ['givenName' => ['state' => 'known', 'value' => 'Vera']],
+                                        'connection' => null,
+                                    ],
+                                    JSON_THROW_ON_ERROR
+                                ),
+                            ],
+                        ]
                     );
                 }
             )
         );
+    }
+
+    public function testApprovalCannotReplayACallSavedBeforeTheParentContractChanged(): void
+    {
+        $this->creationProvider('old-contract');
+        $this->send();
+        $id = $this->responseString('confirmations', '0', 'id');
+        $store = static::getContainer()->get(\App\Application\Chat\GuardedMessageStore::class);
+        $uuid = \Symfony\Component\Uid\Uuid::fromString(basename($this->path));
+        self::assertInstanceOf(\Symfony\Component\Uid\UuidV7::class, $uuid);
+        $state = $store->load($uuid)->getMetadata()->get(\App\Model\Conversation::METADATA);
+        self::assertInstanceOf(\App\Model\Conversation::class, $state);
+        $state->toolStateVersion = 1;
+        $store->persist($state);
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertSame('idle', $this->responseString('status'));
+        self::assertSame('cancelled', $this->responseString('confirmations', '0', 'status'));
+        self::assertSame('Add Vera.', $this->responseString('messages', '0', 'content'));
+        $this->jsonRequest(
+            'POST',
+            $this->path . '/confirmations/' . $id . '/decision',
+            [
+                'version'  => $this->responseInt('version'),
+                'decision' => 'approve',
+            ],
+            $this->headers
+        );
+        self::assertResponseIsSuccessful();
+        self::assertSame('cancelled', $this->responseString('confirmations', '0', 'status'));
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
+        self::assertSame([], $this->responseArray('people'));
     }
 
     private function send(string $requestId = 'first'): void

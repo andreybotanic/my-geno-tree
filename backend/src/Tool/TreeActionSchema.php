@@ -134,15 +134,18 @@ final class TreeActionSchema implements SchemaProviderInterface
         'description' => 'type describes the NEW person relative to existing personId: '
             . 'parent creates their parent (role is the NEW parent); '
             . 'child creates their child (role is the EXISTING parent). '
-            . 'For a daughter of an existing mother use type=child and role=mother.',
+            . 'For a daughter of an existing mother use type=child and role=mother. '
+            . 'Supply otherParentId when both parents exist. Otherwise an unnamed second parent is created '
+            . 'in the same transaction. Reuse their returned ID to fill in facts later.',
         'oneOf' => [
             ['type' => 'null'],
             [
                 'type'       => 'object',
                 'properties' => [
-                    'type'     => ['enum' => ['parent', 'child']],
-                    'personId' => self::ID,
-                    'role'     => ['enum' => ['mother', 'father']],
+                    'type'          => ['enum' => ['parent', 'child']],
+                    'personId'      => self::ID,
+                    'role'          => ['enum' => ['mother', 'father']],
+                    'otherParentId' => ['oneOf' => [['type' => 'null'], self::ID]],
                 ],
                 'required'             => ['type', 'personId', 'role'],
                 'additionalProperties' => false,

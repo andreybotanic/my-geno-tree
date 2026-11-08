@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -6,7 +6,8 @@ import remarkGfm from 'remark-gfm'
 import type { AuthorizedJsonRequest } from '../api/client'
 import { ApiRequestError } from '../api/client'
 import type { ChatAccess, ChatConversation, ChatTokenBudget, ChatEvent, TreeChatCurrent } from '../api/generated'
-import { ActionConfirmationCard } from './ActionConfirmationCard'
+import { ChatActionConfirmation } from './ChatActionConfirmation'
+import { ChatPermissions } from './ChatPermissions'
 import { ChatBudget } from './ChatBudget'
 import { ChatThinking } from './ChatThinking'
 import { ChatVoiceInput } from './ChatVoiceInput'
@@ -20,13 +21,14 @@ type Props = {
   open?: boolean
   disabled?: boolean
   placeholder?: string
+  personActions?: boolean
   onConversationChange?: (conversation: ChatConversation | null) => void
   onToolEvent?: (event: Extract<ChatEvent, { kind: 'tool' }>) => void
   onStreamOpen?: () => void
   renderTools?: (conversation: ChatConversation, busy: boolean, update: (next: ChatConversation) => void) => ReactNode
 }
 
-export function ChatPanel({ contextPath, createBody, request, onClose, open = true, disabled = false, placeholder, onConversationChange, onToolEvent, onStreamOpen, renderTools }: Props) {
+export function ChatPanel({ contextPath, createBody, request, onClose, open = true, disabled = false, placeholder, personActions = false, onConversationChange, onToolEvent, onStreamOpen, renderTools }: Props) {
   const { t, i18n } = useTranslation()
   const [conversation, setConversation] = useState<ChatConversation | null>(null)
   const [budget, setBudget] = useState<ChatTokenBudget | null>(null)
@@ -54,6 +56,9 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const thinking = conversation?.status === 'processing' || (thinkingTurn !== null && conversation?.status !== 'awaiting_confirmation'
     && !conversation?.messages.some((message) => message.role !== 'user' && message.requestId === thinkingTurn.requestId))
   const blocked = access !== null && access.status !== 'allowed'
+  const confirmation = conversation?.status === 'awaiting_confirmation'
+    ? conversation.confirmations.find((item) => item.status === 'pending') : undefined
+  const showStop = thinking || (confirmation !== undefined && !content.trim())
   const stream = useChatEvents(
     open && conversation ? `/chats/${conversation.id}` : null,
     request,
@@ -331,7 +336,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     finally { setStopping(false) }
   }
 
-  async function confirmationDecision(id: string, decision: 'approve' | 'reject', autoApprove?: boolean) {
+  async function confirmationDecision(id: string, decision: 'approve' | 'reject') {
     if (!conversation || busy) return
     const confirmation = conversation.confirmations.find((item) => item.id === id)
     if (!confirmation) return
@@ -344,8 +349,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       const next = await request<ChatConversation>(`/chats/${conversation.id}/confirmations/${id}/decision`, {
         method: 'POST',
         signal: controller.signal,
-        body: JSON.stringify({ version: conversation.version, decision,
-          ...(autoApprove === undefined ? {} : { autoApprovePersonActions: autoApprove }) }),
+        body: JSON.stringify({ version: conversation.version, decision }),
       })
       if (turn === generation.current) update(next)
     } catch (cause) {
@@ -362,11 +366,12 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   }
 
   async function setAutoApprove(value: boolean) {
-    if (!conversation || busy) return
+    if (busy || disabled || blocked || thinking || voiceBusy) return
     setBusy(true)
     try {
-      update(await request<ChatConversation>(`/chats/${conversation.id}/permissions`, {
-        method: 'PATCH', body: JSON.stringify({ version: conversation.version, autoApprovePersonActions: value }),
+      const current = await ensureConversation()
+      update(await request<ChatConversation>(`/chats/${current.id}/permissions`, {
+        method: 'PATCH', body: JSON.stringify({ version: current.version, autoApprovePersonActions: value }),
       }))
     } catch (cause) { showError(cause) }
     finally { setBusy(false) }
@@ -438,7 +443,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         <div aria-label={t('chat.messages')} className="chat-messages" role="log" aria-live="polite">
           {conversation?.messages.map(
             (message) => (
-              <Fragment key={message.id}><article className={`chat-message chat-message-${message.role}`}
+              <article key={message.id} className={`chat-message chat-message-${message.role}`}
                 aria-label={t(message.role === 'user' ? 'chat.you' : message.role === 'assistant' ? 'chat.assistant' : 'chat.notice')}>
                 <div className="chat-message-body">
                   {message.role === 'system'
@@ -465,11 +470,6 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                   </time>
                 </div>
               </article>
-              {message.role === 'user' && conversation.confirmations.filter((item) => item.requestId === message.requestId).map((item) =>
-                <ActionConfirmationCard key={item.id} confirmation={item} disabled={busy || disabled || blocked || thinking}
-                  onDecision={(decision, auto) => { void confirmationDecision(item.id, decision, auto) }} />
-              )}
-              </Fragment>
             )
           )}
           {thinking && <ChatThinking startedAt={thinkingTurn?.startedAt ?? (conversation ? Date.parse(conversation.attemptStartedAt ?? conversation.updatedAt) : 0)} commentary={conversation?.commentary ?? null} />}
@@ -478,12 +478,9 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>
         {open && conversation && renderTools?.(conversation, busy || disabled || voiceBusy || thinking, update)}
       </div>
-      {conversation?.profile === 'tree' && <label className="chat-permissions">
-        <input type="checkbox" checked={conversation.autoApprovePersonActions}
-          disabled={busy || disabled || blocked || thinking || voiceBusy}
-          onChange={(event) => { void setAutoApprove(event.target.checked) }} />
-        {t('chat.confirmation.autoApprove')}
-      </label>}
+      {confirmation && <ChatActionConfirmation confirmation={confirmation}
+        disabled={busy || disabled || blocked || thinking || voiceBusy}
+        onDecision={(decision) => { void confirmationDecision(confirmation.id, decision) }} />}
       <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
         <ChatVoiceInput request={request} active={open}
           blocked={blocked}
@@ -501,9 +498,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
               }
             }} />
           <ChatBudget budget={conversation?.tokenBudget ?? budget} />
-          {conversation?.status === 'awaiting_confirmation' && <button type="button" className="secondary-button"
-            disabled={stopping || busy} onClick={() => void stop()}>{t('chat.stop')}</button>}
-          {thinking ? <button className="chat-send" type="button" aria-label={t('chat.stop')}
+          {showStop ? <button className="chat-send" type="button" aria-label={t('chat.stop')}
             disabled={stopping} onClick={() => void stop()}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
           </button> : <button className="chat-send" type="submit" aria-label={t('chat.send')}
@@ -514,6 +509,10 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
             </svg>
           </button>}
         </ChatVoiceInput>
+        {(personActions || conversation?.profile === 'tree') && <ChatPermissions
+          automatic={conversation?.autoApprovePersonActions ?? false}
+          disabled={busy || disabled || blocked || thinking || voiceBusy}
+          onChange={(value) => { void setAutoApprove(value) }} />}
       </form>
     </aside>
   )

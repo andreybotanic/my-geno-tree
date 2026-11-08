@@ -77,10 +77,11 @@ final readonly class TreeWriteTools
 {
     private const string ETAG = ' Pass the result etag to the next ifMatch without rereading the tree.';
 
-    private const string CREATE_PERSON = 'Create one person. In a nonempty tree connection attaches them '
+    private const string CREATE_PERSON = 'Create a person. In a nonempty tree connection attaches them '
         . 'as parent, child or '
         . 'spouse of an existing person. Requires confirmation. '
-        . 'Pass connection separately from fields.';
+        . 'Pass connection separately from fields. Parent connections always create both parent links; '
+        . 'an unspecified second parent is created unnamed. The result identifies every created person.';
 
     private const string UPDATE_PERSON = 'Patch only requested fields of an existing person.';
 

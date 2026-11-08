@@ -274,8 +274,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
         ]);
 
         self::assertResponseStatusCodeSame(201);
-        self::assertCount(2, $snapshot['people']);
-        self::assertCount(1, $snapshot['parentLinks']);
+        self::assertCount(3, $snapshot['people']);
+        self::assertCount(2, $snapshot['parentLinks']);
         $father = $this->personById(
             $snapshot,
             $snapshot['parentLinks'][0]['parentId'],
@@ -345,8 +345,8 @@ final class GraphMutationApiTest extends ApiWebTestCase
         );
 
         $current = $this->snapshot($accessToken, $tree['id']);
-        self::assertCount(2, $current['people']);
-        self::assertCount(1, $current['parentLinks']);
+        self::assertCount(3, $current['people']);
+        self::assertCount(2, $current['parentLinks']);
         self::assertSame('unknown', $this->personById(
             $current,
             $child['id'],
@@ -380,14 +380,6 @@ final class GraphMutationApiTest extends ApiWebTestCase
             ))[0]['parentId'],
         );
 
-        $snapshot = $this->mutate($accessToken, $tree['id'], $snapshot['etag'], [
-            'type'     => 'add_parent',
-            'childId'  => $child['id'],
-            'role'     => 'mother',
-            'relative' => [
-                'person' => $this->person(),
-            ],
-        ]);
         $mother = $this->personById(
             $snapshot,
             array_values(array_filter(

@@ -4,10 +4,11 @@ namespace App\Application\Person;
 
 use App\Api\ApiException;
 use App\Application\Event\AutomaticEventSynchronizer;
+use App\Application\Event\EventPlaceDataPolicy;
 use App\Application\Event\ManualEventDataPolicy;
-use App\Application\Event\SourcePlaceService;
 use App\Application\Tree\GraphInvariantPolicy;
 use App\Application\Tree\TreeVersion;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
 use App\Entity\Value\EventSource;
@@ -26,7 +27,7 @@ final readonly class UpdatePersonService
         private AutomaticEventSynchronizer $events,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
-        private SourcePlaceService $places,
+        private EventPlaceDataPolicy $places,
         private ManualEventDataPolicy $manualEvents,
         private GenealogicalEventRepository $eventRepository,
         private ParentLinkRepository $parentLinks,
@@ -86,7 +87,21 @@ final readonly class UpdatePersonService
                         continue;
                     }
                     $current = 'birthPlace' === $field ? $person->getBirthPlace() : $person->getDeathPlace();
-                    $place = $this->places->update($current, $payload[$field], $field);
+                    $place = null;
+                    if (null === $payload[$field]) {
+                        if (null !== $current) {
+                            $this->entityManager->remove($current);
+                        }
+                    } else {
+                        $placeData = $this->places->resolved($payload[$field], $field);
+                        $place = $current ?? EventPlace::resolved(
+                            $placeData->name,
+                            $placeData->latitude,
+                            $placeData->longitude,
+                        );
+                        $place->resolve($placeData->name, $placeData->latitude, $placeData->longitude);
+                        $this->entityManager->persist($place);
+                    }
                     if ('birthPlace' === $field) {
                         $person->changeBirthPlace($place, $changedAt);
                     } else {

@@ -41,15 +41,20 @@ final class TreeActionsTest extends ApiWebTestCase
         );
         $child = $created['personId'];
         self::assertIsArray($created['parentLinkIds']);
-        self::assertCount(1, $created['parentLinkIds']);
-        $father = $this->action(
-            'create_person',
-            [
-                'fields'     => [],
-                'connection' => ['type' => 'parent', 'personId' => $child, 'role' => 'father'],
-            ]
+        self::assertCount(2, $created['parentLinkIds']);
+        self::assertIsArray($created['people']);
+        $unknownFather = array_find(
+            $created[
+            'people'
+        ],
+            static fn ($person) => is_array(
+                $person
+            ) && 'male' === $person[
+            'gender'
+        ]
         );
-        self::assertIsArray($father['parentLinkIds']);
+        self::assertIsArray($unknownFather);
+        $father = ['personId' => $unknownFather['id'], 'parentLinkIds' => [$created['parentLinkIds'][1]]];
         $marriage = $this->action(
             'create_marriage_period',
             [
@@ -147,6 +152,121 @@ final class TreeActionsTest extends ApiWebTestCase
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertNull($this->responseArray('tree')['reference']);
         self::assertSame([], $this->responseArray('people'));
+    }
+
+    public function testAChildAndItsUnknownParentAreOneAtomicActionWithUsableResultIds(): void
+    {
+        $mother = $this->action('create_person', ['fields' => ['gender' => 'female'], 'connection' => null]);
+        $arguments = [
+            'treeId'     => $this->treeId,
+            'ifMatch'    => $this->etag,
+            'fields'     => ['givenName' => ['state' => 'known', 'value' => 'Darya']],
+            'connection' => ['type' => 'child', 'personId' => $mother['personId'], 'role' => 'mother'],
+        ];
+        $service = static::getContainer()->get(TreeActionService::class);
+        $summary = $service->describe('create_person', $arguments);
+        self::assertTrue($summary['createsUnknownParent']);
+        $child = $this->action('create_person', $arguments);
+        self::assertIsArray($child['people']);
+        self::assertIsArray($child['parentLinkIds']);
+        self::assertCount(2, $child['parentLinkIds']);
+        self::assertCount(2, $child['people']);
+        $father = array_find(
+            $child[
+            'people'
+        ],
+            static fn ($person) => is_array(
+                $person
+            ) && 'male' === $person[
+            'gender'
+        ]
+        );
+        self::assertIsArray($father);
+        self::assertNotSame($child['personId'], $father['id']);
+        self::assertSame(['state' => 'unknown'], $father['givenName']);
+        $this->action(
+            'update_person',
+            [
+                'personId' => $father['id'],
+                'fields'   => ['givenName' => ['state' => 'known', 'value' => 'Ivan']],
+            ]
+        );
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
+        self::assertCount(3, $this->responseArray('people'));
+        self::assertCount(2, $this->responseArray('parentLinks'));
+        self::assertSame([], $this->responseArray('marriages'));
+        self::assertSame($this->etag, $this->responseString('etag'));
+    }
+
+    public function testTwoExistingParentsDoNotCreateAnUnnecessaryUnknownPerson(): void
+    {
+        $mother = $this->action('create_person', ['fields' => ['gender' => 'female'], 'connection' => null]);
+        $father = $this->action(
+            'create_person',
+            [
+                'fields'     => ['gender' => 'male'],
+                'connection' => [
+                    'type'     => 'spouse',
+                    'personId' => $mother['personId'],
+                    'marriage' => ['marriageDate' => ['state' => 'unknown']],
+                ],
+            ]
+        );
+        $arguments = [
+            'treeId'     => $this->treeId,
+            'ifMatch'    => $this->etag,
+            'fields'     => [],
+            'connection' => [
+                'type'          => 'child',
+                'personId'      => $mother['personId'],
+                'role'          => 'mother',
+                'otherParentId' => $father['personId'],
+            ],
+        ];
+        $service = static::getContainer()->get(TreeActionService::class);
+        $summary = $service->describe('create_person', $arguments);
+        self::assertFalse($summary['createsUnknownParent']);
+        self::assertIsArray($summary['otherRelative']);
+        self::assertSame($father['personId'], $summary['otherRelative']['id']);
+        $child = $this->action('create_person', $arguments);
+        self::assertIsArray($child['people']);
+        self::assertCount(1, $child['people']);
+        self::assertIsArray($child['parentLinkIds']);
+        self::assertCount(2, $child['parentLinkIds']);
+    }
+
+    public function testAnInvalidChildRollsBackTheUnknownParentAndBothLinks(): void
+    {
+        $mother = $this->action(
+            'create_person',
+            [
+                'fields' => [
+                    'gender'    => 'female',
+                    'birthDate' => [
+                        'state' => 'known',
+                        'kind'  => 'exact',
+                        'year'  => 2000,
+                    ],
+                ],
+                'connection' => null,
+            ]
+        );
+        $service = static::getContainer()->get(TreeActionService::class);
+        $result = $service->execute(
+            'create_person',
+            [
+                'treeId'     => $this->treeId,
+                'ifMatch'    => $this->etag,
+                'fields'     => ['birthDate' => ['state' => 'known', 'kind' => 'exact', 'year' => 1990]],
+                'connection' => ['type' => 'child', 'personId' => $mother['personId'], 'role' => 'mother'],
+            ]
+        );
+        self::assertArrayHasKey('error', $result);
+        self::assertArrayNotHasKey('etag', $result);
+        $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
+        self::assertCount(1, $this->responseArray('people'));
+        self::assertSame([], $this->responseArray('parentLinks'));
+        self::assertSame($this->etag, $this->responseString('etag'));
     }
 
     public function testManualEventsAndCanonicalPlacesHaveIndependentAtomicOperations(): void
@@ -294,6 +414,13 @@ final class TreeActionsTest extends ApiWebTestCase
             ]
         );
         self::assertArrayHasKey('error', $failed);
+        self::assertIsArray($child['people']);
+        $unknownParent = array_find(
+            $child['people'],
+            static fn ($person) => is_array($person) && $person['id'] !== $child['personId'],
+        );
+        self::assertIsArray($unknownParent);
+        $this->action('delete_person', ['personId' => $unknownParent['id']]);
         $this->action('delete_person', ['personId' => $child['personId']]);
         $this->jsonRequest('GET', '/api/v1/trees/' . $this->treeId . '/snapshot', headers: $this->headers);
         self::assertCount(1, $this->responseArray('people'));

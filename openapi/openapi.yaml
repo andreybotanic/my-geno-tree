@@ -2204,6 +2204,10 @@ components:
           properties:
             person: { $ref: '#/components/schemas/Person' }
             relative: { $ref: '#/components/schemas/Person' }
+            otherRelative: { $ref: '#/components/schemas/Person' }
+            createsUnknownParent:
+              type: boolean
+              description: The same action also creates the missing unnamed parent and both parent links.
             fields: { $ref: '#/components/schemas/PersonActionFields' }
             connection: { type: [object, 'null'], additionalProperties: true }
         status:
@@ -3706,6 +3710,7 @@ components:
           maxLength: 100
     AddParentMutation:
       type: object
+      description: Adds the parent and, when no other parent exists, creates an unnamed counterpart atomically.
       additionalProperties: false
       required:
         - type
@@ -3723,8 +3728,13 @@ components:
           $ref: "#/components/schemas/ParentRole"
         relative:
           $ref: "#/components/schemas/RelativePerson"
+        otherParentId:
+          type: [string, 'null']
+          format: uuid
+          description: Existing second parent; if omitted and needed, an unnamed parent is created.
     AddChildMutation:
       type: object
+      description: Creates the child with both parent links; a missing second parent is created unnamed in the same transaction.
       additionalProperties: false
       required:
         - type

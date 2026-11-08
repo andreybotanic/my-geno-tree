@@ -144,6 +144,11 @@ export type ToolConfirmation = {
     summary: {
         person?: Person;
         relative?: Person;
+        otherRelative?: Person;
+        /**
+         * The same action also creates the missing unnamed parent and both parent links.
+         */
+        createsUnknownParent?: boolean;
         fields?: PersonActionFields;
         connection?: {
             [key: string]: unknown;
@@ -733,13 +738,23 @@ export type ParentsMarriageInput = {
     femaleNewSurname: string | null;
 };
 
+/**
+ * Adds the parent and, when no other parent exists, creates an unnamed counterpart atomically.
+ */
 export type AddParentMutation = {
     type: 'add_parent';
     childId: string;
     role: ParentRole;
     relative: RelativePerson;
+    /**
+     * Existing second parent; if omitted and needed, an unnamed parent is created.
+     */
+    otherParentId?: string | null;
 };
 
+/**
+ * Creates the child with both parent links; a missing second parent is created unnamed in the same transaction.
+ */
 export type AddChildMutation = {
     type: 'add_child';
     parents: Array<ParentSpecification>;

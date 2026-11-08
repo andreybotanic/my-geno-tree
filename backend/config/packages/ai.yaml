@@ -40,8 +40,10 @@ ai:
                 file: '%kernel.project_dir%/prompts/tree.txt'
             max_tool_calls: null
             tools:
-                - App\Tool\TreeReadTools
-                - App\Tool\TreeWriteTools
+                execution_strategy: App\Application\Chat\ChatToolExecutor
+                services:
+                    - App\Tool\TreeReadTools
+                    - App\Tool\TreeWriteTools
         chat_moderation:
             platform: ai.platform.generic.chatgpt
             model:

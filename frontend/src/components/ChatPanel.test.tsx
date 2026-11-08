@@ -516,7 +516,7 @@ describe(
         act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](running))
         await act(async () => fail())
         expect(input).toHaveValue('')
-        expect(screen.getByRole('button', { name: 'Stop response' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
         const finished = {
           ...running,
           version: 4,
@@ -530,7 +530,7 @@ describe(
         expect(input).toHaveValue('')
         expect(input).toBeEnabled()
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Stop response' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
       }
     )
 
@@ -553,7 +553,7 @@ describe(
         await waitFor(() => expect(input).toBeEnabled())
         fireEvent.change(input, { target: { value: 'Hello' } })
         fireEvent.submit(input.closest('form')!)
-        fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Stop' }))
         await screen.findByText('Processing stopped.')
         expect(vi.mocked(request).mock.calls.find(([path]) => path.endsWith('/messages'))?.[1]?.signal?.aborted).toBe(true)
         await act(async () => finish(completed))
@@ -566,9 +566,9 @@ describe(
       async () => {
         const running = { ...sent, status: 'processing' as const, attemptStartedAt: '2026-11-05T10:00:00Z' }
         const { request } = setup(async (path) => path.endsWith('/stop') ? sent : { conversation: running })
-        fireEvent.click(await screen.findByRole('button', { name: 'Stop response' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Stop' }))
         await waitFor(() => expect(request).toHaveBeenCalledWith('/chats/chat/stop', expect.objectContaining({ body: JSON.stringify({ requestId: 'first' }) })))
-        await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop response' })).not.toBeInTheDocument())
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument())
       }
     )
 

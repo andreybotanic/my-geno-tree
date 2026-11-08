@@ -33,6 +33,8 @@ use Symfony\Component\Uid\Uuid;
 /** Keep application errors machine-readable while sharing tools with Symfony AI. */
 final readonly class McpToolExecutor implements ReferenceHandlerInterface
 {
+    private const int CONFIRMATION_VERSION = 2;
+
     public function __construct(
         #[AutowireLocator([TreeReadTools::class, TreeWriteTools::class])]
         private ContainerInterface $tools,
@@ -144,7 +146,13 @@ final readonly class McpToolExecutor implements ReferenceHandlerInterface
     ): ?InputRequiredResult {
         $identity = $this->requests->getMainRequest()?->attributes->get('mcp_identity');
         $public = array_filter($arguments, static fn ($key) => !str_starts_with($key, '_'), ARRAY_FILTER_USE_KEY);
-        $digest = hash('sha256', json_encode([$name, $this->canonical($public)], JSON_THROW_ON_ERROR));
+        $digest = hash(
+            'sha256',
+            json_encode(
+                [self::CONFIRMATION_VERSION, $name, $this->canonical($public)],
+                JSON_THROW_ON_ERROR,
+            )
+        );
         $input = $context->getInputContext();
         if (null === $input) {
             $id = Uuid::v7()->toRfc4122();

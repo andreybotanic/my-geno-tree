@@ -222,6 +222,12 @@ final class GuardedMessageStore implements MessageStoreInterface
                     $messages = $messages->withoutToolMessages();
                     $state->tools = [];
                     $state->toolVersions = [];
+                    foreach ($state->confirmations as $confirmation) {
+                        if ('pending' === $confirmation->status) {
+                            $confirmation->status = 'cancelled';
+                            $confirmation->result = ['error' => ['code' => 'TOOL_CANCELLED']];
+                        }
+                    }
                     $state->toolStateVersion = Conversation::TOOL_STATE_VERSION;
                     $state->invalidateAttempt($this->clock->now());
                     $messages->getMetadata()->add(Conversation::METADATA, $state);

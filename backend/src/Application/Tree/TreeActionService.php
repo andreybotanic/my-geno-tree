@@ -10,6 +10,7 @@ use App\Application\Person\CreateFirstPersonService;
 use App\Application\Person\PersonDataPolicy;
 use App\Application\Person\PersonLookup;
 use App\Application\Person\UpdatePersonService;
+use App\Repository\ParentLinkRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -53,6 +54,7 @@ final readonly class TreeActionService
         private EventPlaceService $places,
         private ManagerRegistry $doctrine,
         private PersonDataPolicy $personData,
+        private ParentLinkRepository $parentLinks,
     ) {
     }
 
@@ -69,9 +71,11 @@ final readonly class TreeActionService
         $tree = $this->trees->tree($this->string($arguments, 'treeId'), true);
         $this->versions->assertMatches($tree, $this->string($arguments, 'ifMatch'));
         if ('delete_person' === $name) {
-            return ['person' => $this->personViews->create(
-                $this->lookup->require($tree, $this->string($arguments, 'personId')),
-            )];
+            return [
+                'person' => $this->personViews->create(
+                    $this->lookup->require($tree, $this->string($arguments, 'personId')),
+                ),
+            ];
         }
 
         $fields = $this->object($arguments, 'fields');
@@ -81,9 +85,23 @@ final readonly class TreeActionService
         }
         $summary = ['fields' => (object)$fields, 'connection' => $arguments['connection'] ?? null];
         if (is_array($summary['connection'])) {
+            $connection = $this->object($arguments, 'connection');
+            $relative = $this->lookup->require($tree, $this->string($connection, 'personId'));
             $summary['relative'] = $this->personViews->create(
-                $this->lookup->require($tree, $this->string($this->object($arguments, 'connection'), 'personId')),
+                $relative,
             );
+            if (isset($connection['otherParentId'])) {
+                $summary['otherRelative'] = $this->personViews->create(
+                    $this->lookup->require($tree, $this->string($connection, 'otherParentId')),
+                );
+            }
+            $summary['createsUnknownParent'] = !isset($connection['otherParentId'])
+                && ('child' === ($connection['type'] ?? null)
+                    || ('parent' === ($connection[
+                        'type'
+                    ] ?? null) && [] === $this->parentLinks->findForChild(
+                        $relative
+                    )));
         }
 
         return $summary;
@@ -103,12 +121,14 @@ final readonly class TreeActionService
                 $this->doctrine->resetManager();
             }
 
-            return ['error' => [
-                'code'    => $error->getErrorCode(),
-                'status'  => $error->getStatus(),
-                'fields'  => $error->getFields(),
-                'details' => $error->getDetails(),
-            ]];
+            return [
+                'error' => [
+                    'code'    => $error->getErrorCode(),
+                    'status'  => $error->getStatus(),
+                    'fields'  => $error->getFields(),
+                    'details' => $error->getDetails(),
+                ],
+            ];
         }
     }
 
@@ -140,6 +160,13 @@ final readonly class TreeActionService
                             'childId'  => $other,
                             'role'     => $this->string($connection, 'role'),
                             'relative' => $relative,
+                            ...isset($connection[
+                                'otherParentId'
+                            ]) ? [
+                                'otherParentId' => $connection[
+                                'otherParentId'
+                            ],
+                            ] : [],
                         ],
                         'child' => [
                             'type'    => 'add_child',
@@ -148,6 +175,12 @@ final readonly class TreeActionService
                                     'personId' => $other,
                                     'role'     => $this->string($connection, 'role'),
                                 ],
+                                ...isset($connection['otherParentId']) ? [
+                                    [
+                                        'personId' => $connection['otherParentId'],
+                                        'role'     => 'father' === ($connection['role'] ?? null) ? 'mother' : 'father',
+                                    ],
+                                ] : [],
                             ],
                             'relative' => $relative,
                         ],
@@ -156,7 +189,11 @@ final readonly class TreeActionService
                     };
                     $result = $this->graph->mutate($tree, $payload, $etag);
                 }
-                $result['personId'] = $result['newPersonIds'][0];
+                $result['personId'] ??= $result['newPersonIds'][0];
+                $result['people'] = array_map(
+                    fn (string $id) => $this->personViews->create($this->lookup->require($tree, $id)),
+                    $result['newPersonIds'],
+                );
                 break;
             case 'update_person':
                 $person = $this->lookup->require($tree, $this->string($a, 'personId'));

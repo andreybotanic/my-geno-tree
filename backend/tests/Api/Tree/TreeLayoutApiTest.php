@@ -160,7 +160,7 @@ final class TreeLayoutApiTest extends ApiWebTestCase
             'role'     => 'father',
             'relative' => ['person' => $this->person('male')],
         ]);
-        self::assertCount(4, $snapshot['people']);
+        self::assertCount(6, $snapshot['people']);
         self::assertSame($wifeRevision, $snapshot['layoutRevision']);
         self::assertSame($positions, $snapshot['layout']['positions'] ?? null);
 
@@ -185,7 +185,7 @@ final class TreeLayoutApiTest extends ApiWebTestCase
         $personIds = [$snapshot['people'][0]['id']];
         $childId = $personIds[0];
         for ($index = 1; $index <= 10; ++$index) {
-            $knownIds = array_fill_keys($personIds, true);
+            $knownIds = array_fill_keys(array_column($snapshot['people'], 'id'), true);
             $snapshot = $this->mutate($token, $tree['id'], $snapshot['etag'], [
                 'type'     => 'add_parent',
                 'childId'  => $childId,

@@ -250,6 +250,20 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         $state = $this->responseString('result', 'requestState');
         $secret = (string)static::getContainer()->getParameter('kernel.secret');
         $codec = new RequestStateCodec(hash('sha256', 'mcp-confirmations:' . $secret, true), 120);
+        $legacyPayload = $codec->verify($state);
+        $canonical = $arguments;
+        ksort($canonical);
+        $legacyPayload['digest'] = hash('sha256', json_encode(['create_person', $canonical], JSON_THROW_ON_ERROR));
+        $this->mcp(
+            'tools/call',
+            [
+                'name'           => 'create_person',
+                'arguments'      => $arguments,
+                'requestState'   => $codec->mint($legacyPayload),
+                'inputResponses' => ['approval' => ['action' => 'accept', 'content' => ['approved' => true]]],
+            ]
+        );
+        self::assertSame('CONFIRMATION_INVALID', $this->responseString('result', 'structuredContent', 'code'));
         $expired = $codec->mint($codec->verify($state), time() - 121);
         $this->mcp(
             'tools/call',

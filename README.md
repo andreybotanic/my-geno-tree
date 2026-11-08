@@ -272,7 +272,12 @@ real resource IDs directly in the tool result; pass that etag as the next ifMatc
 There is no intermediate snapshot/read requirement after an agent's own writes.
 All normal ownership, connectivity, date and deletion rules still apply.
 A nonempty tree requires create_person to attach the new person through an
-initial parent, child or spouse connection. Read again when facts are missing,
+initial parent, child or spouse connection. Parent connections create both parent
+links atomically. If only one parent is specified, the operation creates an unnamed
+second parent in the same transaction. Supply otherParentId to reuse an existing
+second parent. The result identifies the requested person separately and returns
+all created people with their IDs; update the unnamed person's fields when more
+facts become available. Read again when facts are missing,
 a version conflict occurs or a mutation response is lost; never replay blindly.
 
 Creating and deleting a person require a separate confirmation for each call.
@@ -280,9 +285,11 @@ The website stores the immutable call and its decision with native MessageBag
 history in the existing one-hour tmpfs cache. ToolCallRequested intercepts the
 call, ToolCallsExecuted finishes the native round, and the chat enters
 awaiting_confirmation without holding a database transaction or HTTP request.
-The panel displays an inline action card with Allow, Reject and Allow with
-auto-confirmation for this chat. A visible checkbox can disable automatic
-confirmation; new chats always start with it disabled.
+The panel displays a short permission request immediately above the composer,
+with Allow and Reject. It disappears after the decision and is not added to chat
+messages. A button below the input opens an icon menu with Ask for permission and
+Approve for me; new chats always start in the first mode. The circular Stop
+button also cancels pending actions. Typing a clarification restores Send.
 
 POST /api/v1/chats/{chatId}/confirmations/{confirmationId}/decision accepts
 the conversation version, decision and optional autoApprovePersonActions.
@@ -291,7 +298,8 @@ Approval executes exactly the stored arguments and feeds the real tool result
 back to the configured Symfony AI agent, continuing the same user request.
 An external tree change invalidates the saved ifMatch. Repeated decisions
 cannot repeat the mutation. Stop or a new message cancels a pending call.
-Cards and decisions survive reloads and synchronize through private Mercure events.
+Pending requests survive reloads and synchronize through private Mercure events.
+Decisions remain in server-side conversation metadata without visual history cards.
 
 MCP clients must support form elicitation for person creation/deletion.
 Legacy clients receive elicitation/create; modern clients receive input_required
@@ -360,7 +368,8 @@ reference pair. An explicit person takes priority. Empty trees return no people.
 The resolved reference and its bounded immediate family include structured dates;
 this context is not a complete listing of every person in the tree.
 
-Each creation tool adds one person. Reads and tool calls have no separate count
+Each creation tool adds the requested person and any required unnamed parent.
+Reads and tool calls have no separate count
 limit; cancellation, model timeouts and the token budget remain active. Tool
 results supply IDs and ETags for subsequent actions. User messages total at most
 10,000 characters and 200 visible messages per conversation. The model receives
@@ -560,7 +569,48 @@ docker compose exec backend php bin/console doctrine:fixtures:load --append --no
 Do not run `doctrine:fixtures:load` without `--append` against a database that
 contains data you need to keep: Doctrine purges it by default.
 
-## Single-action validation (2026-11-08)
+## Compact permissions and atomic parents (2026-11-08)
+
+Permission requests occupy one or two text lines above the composer and disappear
+after approval, rejection or Stop. Resolved confirmations are absent from the
+message log. Below the input, the permission button opens a menu with icons for
+Ask for permission and Approve for me. The normal circular Stop button handles
+both inference and an outstanding permission request; entering a clarification
+restores Send.
+
+Parent/child creation persists both parent links together. A missing second parent
+is created unnamed, with its own returned UUID. When both parents exist, the call
+uses otherParentId and creates only the requested person. Failed validation rolls
+back all new people and links. The same behavior applies to website and MCP tools
+and structural REST creation.
+
+Symfony AI's supported tools.execution_strategy option configures ChatToolExecutor
+in ai.yaml; Kernel contains no custom compiler pass. Canonical place changes now
+stay within the existing person and marriage application services; the extra
+SourcePlaceService has been removed.
+
+Calls saved before the parent contract changed are cancelled during chat-state
+migration. Visible messages are preserved. MCP approval state also binds the
+contract version, so an older permission cannot authorize the new behavior.
+
+All 286 backend, 442 frontend and 27 gateway tests pass. Line coverage is 93.49%,
+90.96% and 98.43%. Both new UI components have 100% line coverage. Backend,
+frontend and gateway quality checks, OpenAPI verification, production builds,
+Composer validation and dev/prod container checks pass. All 26 migrations were
+replayed and schema-validated on a disposable database. PhpStorm WARNING
+inspections are clean for all sixteen affected PHP files. The existing constructor-only
+repository coverage exceptions, two PHPUnit notices and Vite size advisory remain.
+
+Manual local HTTPS checks used the synthetic tree `Проверка компактных разрешений ИИ`.
+English and Russian permission menus and compact requests were checked. A child
+with one known parent added exactly two people and both links; a child with two
+existing parents added exactly one person. Automatic mode was enabled and then
+disabled through the menu. A second-tab rename invalidated pending approval and
+required another request; rejection kept all seven people. Resolved requests no
+longer appear in the restored message history. The circular Stop button cancelled
+a fresh pending request, removed its prompt and left all seven people unchanged.
+
+## Prior single-action validation (2026-11-08)
 
 The complete suites pass: 282 backend tests, 437 frontend tests and 27 gateway
 tests. Line coverage is 93.50%, 90.83% and 98.43%, respectively. The frontend

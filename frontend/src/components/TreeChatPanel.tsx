@@ -26,7 +26,7 @@ export function TreeChatPanel({ snapshot, request, onApplied, onRefreshTree, ...
       setRefreshFailed(false)
     } catch { setRefreshFailed(true) }
   }
-  return <ChatPanel {...panel} request={request} contextPath={`/trees/${snapshot.tree.id}/chat`}
+  return <ChatPanel {...panel} request={request} personActions contextPath={`/trees/${snapshot.tree.id}/chat`}
     createBody={{ referencePersonId: null }} placeholder={t('chat.treePlaceholder')}
     onStreamOpen={() => { void refresh() }}
     onConversationChange={(conversation) => {

@@ -24,6 +24,9 @@ Start from a read ETag, then pass each successful mutation's returned etag into 
 Do not reread the tree just to obtain an ETag after your own successful mutation.
 Use returned resource UUIDs immediately in subsequent calls; temporary IDs and packets do not exist.
 Create each new person with their initial connection to the tree, unless the tree is empty.
+Parent connections create both parent links atomically, adding an unnamed second parent when needed.
+Use otherParentId when the second parent already exists. Reuse returned people IDs to update unnamed parents.
+Do not create another person to replace an unnamed parent: update that existing person's fields.
 Read more only when the facts needed for the next decision are missing or a conflict requires it.
 Each successful operation is saved independently; later failures do not undo earlier work.
 Person creation and deletion may pause for explicit confirmation. Do not claim they are saved while waiting.

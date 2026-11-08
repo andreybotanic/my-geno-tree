@@ -4,8 +4,9 @@ namespace App\Application\Tree;
 
 use App\Api\ApiException;
 use App\Application\Event\AutomaticEventSynchronizer;
-use App\Application\Event\SourcePlaceService;
+use App\Application\Event\EventPlaceDataPolicy;
 use App\Application\Person\PersonDataPolicy;
+use App\Entity\EventPlace;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Repository\MarriagePeriodRepository;
@@ -25,7 +26,7 @@ final readonly class UpdateMarriagePeriodService
         private AutomaticEventSynchronizer $events,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
-        private SourcePlaceService $places,
+        private EventPlaceDataPolicy $places,
     ) {
     }
 
@@ -105,7 +106,21 @@ final readonly class UpdateMarriagePeriodService
                     }
                     $current = 'marriagePlace' === $field
                         ? $marriage->getMarriagePlace() : $marriage->getDissolutionPlace();
-                    $place = $this->places->update($current, $payload[$field], $field);
+                    $place = null;
+                    if (null === $payload[$field]) {
+                        if (null !== $current) {
+                            $this->entityManager->remove($current);
+                        }
+                    } else {
+                        $placeData = $this->places->resolved($payload[$field], $field);
+                        $place = $current ?? EventPlace::resolved(
+                            $placeData->name,
+                            $placeData->latitude,
+                            $placeData->longitude,
+                        );
+                        $place->resolve($placeData->name, $placeData->latitude, $placeData->longitude);
+                        $this->entityManager->persist($place);
+                    }
                     if ('marriagePlace' === $field) {
                         $marriage->changeMarriagePlace($place, $changedAt);
                     } else {
