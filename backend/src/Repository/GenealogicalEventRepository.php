@@ -7,6 +7,7 @@ use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
 use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
+use App\Infrastructure\Doctrine\ReadsGenealogyPages;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
@@ -16,9 +17,53 @@ use Symfony\Component\Uid\Uuid;
  */
 final class GenealogicalEventRepository extends ServiceEntityRepository
 {
+    use ReadsGenealogyPages;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, GenealogicalEvent::class);
+    }
+
+    /** @param list<string>|null $personIds
+     * @param list<string>|null $types
+     *
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    public function readPage(
+        FamilyTree $tree,
+        ?array $personIds,
+        ?array $types,
+        ?string $source,
+        ?string $after,
+        int $limit,
+    ): array {
+        if ([] === $personIds || [] === $types) {
+            return ['total' => 0, 'items' => []];
+        }
+        $query = $this
+            ->createQueryBuilder('item')
+            ->join('item.person', 'owner')
+            ->addSelect('IDENTITY(item.person) AS personId', 'place')
+            ->leftJoin('item.place', 'place')
+            ->andWhere('owner.tree = :tree')
+            ->setParameter('tree', $tree);
+        if (null !== $personIds) {
+            $query
+                ->andWhere('item.person IN (:people)')
+                ->setParameter('people', $personIds);
+        }
+        if (null !== $types) {
+            $query
+                ->andWhere('item.type IN (:types)')
+                ->setParameter('types', $types);
+        }
+        if (null !== $source) {
+            $query
+                ->andWhere('item.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        return $this->genealogyPage($query, $after, $limit);
     }
 
     public function findAutomaticPersonLifecycle(

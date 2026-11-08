@@ -100,6 +100,11 @@ final class OAuthMcpApiTest extends ApiWebTestCase
             array_keys($tools),
         );
         self::assertTrue($tools['find_trees']['annotations']['readOnlyHint']);
+        foreach (['list_people', 'list_relationships', 'list_events'] as $name) {
+            self::assertStringContainsString('nextCursor', $tools[$name]['description']);
+            self::assertStringContainsString('expectedEtag', $tools[$name]['description']);
+            self::assertStringContainsString('128 KiB', $tools[$name]['description']);
+        }
         self::assertFalse($tools['merge']['annotations']['readOnlyHint']);
         self::assertArrayHasKey('idempotentHint', $tools['merge']['annotations']);
         self::assertSame(false, $tools['merge']['annotations']['idempotentHint'] ?? null);
@@ -666,6 +671,29 @@ final class OAuthMcpApiTest extends ApiWebTestCase
         self::assertSame($this->treeId, $this->responseString('result', 'structuredContent', 'trees', '0', 'id'));
         $this->call('get_tree_context', ['treeId' => $this->treeId]);
         self::assertSame($this->etag, $this->responseString('result', 'structuredContent', 'etag'));
+    }
+
+    public function testPagedReadsRejectEveryTreeDeniedByTheVoter(): void
+    {
+        $em = static::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $now = new \DateTimeImmutable();
+        $other = new User('private_reader', 'private-reader@example.test', 'hash', 'en', $now);
+        $tree = new FamilyTree($other, 'Private tree', $now);
+        $em->persist($other);
+        $em->persist($tree);
+        $em->flush();
+        $treeId = $tree->getId()->toRfc4122();
+        $this->authorize();
+        foreach ([
+            ['list_people', []],
+            ['list_relationships', ['kind' => 'parents']],
+            ['list_relationships', ['kind' => 'marriages']],
+            ['list_events', []],
+        ] as [$name, $arguments]) {
+            $this->call($name, ['treeId' => $treeId, ...$arguments]);
+            self::assertTrue($this->responseArray('result')['isError']);
+            self::assertSame('TREE_NOT_FOUND', $this->responseString('result', 'structuredContent', 'code'));
+        }
     }
 
     public function testWholeTreeListsAreCompleteFilteredAndVersionBound(): void

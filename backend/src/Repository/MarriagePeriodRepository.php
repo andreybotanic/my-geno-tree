@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\Person;
+use App\Infrastructure\Doctrine\ReadsGenealogyPages;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -13,9 +14,40 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class MarriagePeriodRepository extends ServiceEntityRepository
 {
+    use ReadsGenealogyPages;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, MarriagePeriod::class);
+    }
+
+    /** @param list<string>|null $personIds
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    public function readPage(FamilyTree $tree, ?array $personIds, ?string $after, int $limit): array
+    {
+        if ([] === $personIds) {
+            return ['total' => 0, 'items' => []];
+        }
+        $query = $this
+            ->createQueryBuilder('item')
+            ->addSelect(
+                'IDENTITY(item.malePerson) AS malePersonId',
+                'IDENTITY(item.femalePerson) AS femalePersonId',
+                'marriagePlace',
+                'dissolutionPlace',
+            )
+            ->leftJoin('item.marriagePlace', 'marriagePlace')
+            ->leftJoin('item.dissolutionPlace', 'dissolutionPlace')
+            ->andWhere('item.tree = :tree')
+            ->setParameter('tree', $tree);
+        if (null !== $personIds) {
+            $query
+                ->andWhere('item.malePerson IN (:people) OR item.femalePerson IN (:people)')
+                ->setParameter('people', $personIds);
+        }
+
+        return $this->genealogyPage($query, $after, $limit);
     }
 
     /**

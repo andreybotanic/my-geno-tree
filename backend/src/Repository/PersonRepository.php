@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\FamilyTree;
 use App\Entity\Person;
+use App\Infrastructure\Doctrine\ReadsGenealogyPages;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -12,11 +13,64 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class PersonRepository extends ServiceEntityRepository
 {
+    use ReadsGenealogyPages;
+
+    public const array READ_GROUPS = ['identity', 'life', 'places', 'metadata'];
+    private const array READ_FIELDS = [
+        'identity' => ['givenName', 'birthSurname', 'patronymic', 'gender'],
+        'life'     => ['birthDate', 'deathDate'],
+        'places'   => ['birthPlace', 'deathPlace'],
+        'metadata' => ['createdAt', 'updatedAt'],
+    ];
     public const float MINIMUM_STRICT_WORD_SIMILARITY = 0.2;
 
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Person::class);
+    }
+
+    /** @param list<string>|null $personIds
+     * @param list<'identity'|'life'|'places'|'metadata'> $groups
+     *
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    public function readPage(
+        FamilyTree $tree,
+        ?array $personIds,
+        array $groups,
+        ?string $after,
+        int $limit,
+    ): array {
+        if ([] === $personIds) {
+            return ['total' => 0, 'items' => []];
+        }
+        $query = $this
+            ->createQueryBuilder('item')
+            ->andWhere('item.tree = :tree')
+            ->setParameter('tree', $tree);
+        if (null !== $personIds) {
+            $query
+                ->andWhere('item.id IN (:people)')
+                ->setParameter('people', $personIds);
+        }
+        if (in_array('places', $groups, true)) {
+            $query
+                ->addSelect('birthPlace', 'deathPlace')
+                ->leftJoin('item.birthPlace', 'birthPlace')
+                ->leftJoin('item.deathPlace', 'deathPlace');
+        }
+        $page = $this->genealogyPage($query, $after, $limit);
+        $fields = ['id'];
+        foreach ($groups as $group) {
+            $fields = [...$fields, ...self::READ_FIELDS[$group]];
+        }
+        $selection = array_fill_keys($fields, true);
+        $page['items'] = array_map(
+            static fn (array $record): array => array_intersect_key($record, $selection),
+            $page['items'],
+        );
+
+        return $page;
     }
 
     /** @return list<Person> */

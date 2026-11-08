@@ -5,6 +5,8 @@ doctrine:
         profiling_collect_backtrace: '%kernel.debug%'
     orm:
         validate_xml_mapping: true
+        hydrators:
+            genealogy_record: App\Infrastructure\Doctrine\Hydration\GenealogyRecordHydrator
         dql:
             string_functions:
                 CONCAT_WS: App\Infrastructure\Doctrine\Dql\ConcatWithSeparatorFunction

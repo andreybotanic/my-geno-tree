@@ -38,6 +38,8 @@ final class TreeChangeToolSchema implements SchemaProviderInterface
     private const array OBJECT = ['type' => ['object', 'array'], 'maxItems' => 0, 'additionalProperties' => false];
     public const array PERSON = [
         ...self::OBJECT,
+        'description' => 'Create: omitted names/dates are unknown; omitted deathDate means alive. '
+            . 'Patch: provide only requested changes and preserve existing death information.',
         'properties' => [
             'birthSurname' => TreeMergeToolSchema::TEXT,
             'givenName'    => TreeMergeToolSchema::TEXT,
@@ -167,6 +169,8 @@ final class TreeChangeToolSchema implements SchemaProviderInterface
                 ],
                 [
                     ...self::COMMON,
+                    'description' => 'Create a separate manual event record for every participant with shared data. '
+                        . 'Subsequent edits are independent. Participants can be existing IDs or new temporary IDs.',
                     'properties' => [
                         'type'      => ['const' => 'create_events'],
                         'personIds' => ['type' => 'array', 'minItems' => 1, 'uniqueItems' => true, 'items' => self::ID],

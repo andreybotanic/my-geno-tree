@@ -68,6 +68,7 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                  *     }>,
                  *     tools: list<array{
                  *         name: string,
+                 *         description: string,
                  *         parameters: array<string, mixed>
                  *     }>
                  * } $body
@@ -98,6 +99,11 @@ final class TreeMergeAgentApiTest extends ApiWebTestCase
                 self::assertSame($this->treeId, $input['treeId']);
                 $schemas = array_column($body['tools'], 'parameters', 'name');
                 self::assertCount(9, $schemas);
+                $descriptions = array_column($body['tools'], 'description', 'name');
+                foreach (['list_people', 'list_relationships', 'list_events'] as $name) {
+                    self::assertStringContainsString('nextCursor', $descriptions[$name]);
+                    self::assertStringContainsString('expectedEtag', $descriptions[$name]);
+                }
                 $searchProperties = $schemas['find_people']['properties'];
                 self::assertIsArray($searchProperties);
                 $querySchema = $searchProperties['query'];

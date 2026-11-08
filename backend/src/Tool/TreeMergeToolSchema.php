@@ -55,6 +55,8 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
     ];
     public const array OPTIONAL_DATE = ['oneOf' => [['type' => 'null'], self::DATE]];
     public const array EVIDENCE = [
+        'description' => 'Exact supporting quotes from user messages. messageId identifies the source user message; '
+            . 'in site chat it is supplied in that message header. Never paraphrase or invent evidence.',
         'type'     => 'array',
         'minItems' => 1,
         'maxItems' => 10,
@@ -93,9 +95,16 @@ final class TreeMergeToolSchema implements SchemaProviderInterface
                         'id'               => self::REFERENCE,
                         'existingPersonId' => ['type' => ['string', 'null']],
                         'resolution'       => ['enum' => ['new', 'existing', 'undecided']],
-                        'lifeStatus'       => ['enum' => ['alive', 'deceased', 'uncertain']],
+                        'lifeStatus'       => [
+                            'enum'        => ['alive', 'deceased', 'uncertain'],
+                            'description' => 'New people default to alive unless death is stated. '
+                                . 'Alive means deathDate=null; deceased allows a known or unknown death date. '
+                                . 'Preserve existing death information.',
+                        ],
                         // Tool payloads decode an empty JSON object as an empty PHP array.
                         'fields' => [
+                            'description' => 'Only fields requested to change for existing people; '
+                                . 'use an empty object for an unchanged relationship endpoint.',
                             'type'                 => ['object', 'array'],
                             'maxItems'             => 0,
                             'additionalProperties' => false,

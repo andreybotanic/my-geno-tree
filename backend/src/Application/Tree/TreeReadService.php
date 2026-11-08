@@ -3,22 +3,27 @@
 namespace App\Application\Tree;
 
 use App\Api\ApiException;
+use App\Entity\FamilyTree;
 use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
-use App\Repository\TreeReadRepository;
+use App\Repository\GenealogicalEventRepository;
+use App\Repository\MarriagePeriodRepository;
+use App\Repository\ParentLinkRepository;
+use App\Repository\PersonRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Uid\Uuid;
 
+/** Coordinates version-consistent, size-bounded pages for a tree already authorized by the calling adapter. */
 final readonly class TreeReadService
 {
-    public const array GROUPS = ['identity', 'life', 'places', 'metadata'];
     private const int MAX_BYTES = 128 * 1024;
 
     public function __construct(
-        private TreeContextService $context,
-        private TreeReadRepository $repository,
-        private TreeReadViewFactory $views,
+        private PersonRepository $people,
+        private ParentLinkRepository $parents,
+        private MarriagePeriodRepository $marriages,
+        private GenealogicalEventRepository $events,
         private TreeVersion $versions,
         private EntityManagerInterface $entityManager,
         #[Autowire('%kernel.secret%')]
@@ -27,27 +32,105 @@ final readonly class TreeReadService
     }
 
     /** @param list<string>|null $personIds
-     * @param list<string>      $groups
+     * @param list<string> $groups
+     *
+     * @return array<string, mixed>
+     */
+    public function people(
+        FamilyTree $tree,
+        ?array $personIds = null,
+        array $groups = ['identity', 'life'],
+        ?string $cursor = null,
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        $invalidGroups = array_any(
+            $groups,
+            static fn (mixed $group): bool => !in_array($group, PersonRepository::READ_GROUPS, true),
+        );
+        if ([] === $groups || !array_is_list($groups) || $invalidGroups) {
+            throw new ApiException(422, 'TREE_READ_INVALID');
+        }
+        sort($groups);
+        /** @var list<'identity'|'life'|'places'|'metadata'> $groups */
+        $personIds = $this->personIds($personIds);
+
+        return $this->page(
+            $tree,
+            ['people', $personIds, $groups, null, null],
+            $cursor,
+            $limit,
+            $expectedEtag,
+            fn (?string $after, int $count): array => $this->people->readPage(
+                $tree,
+                $personIds,
+                $groups,
+                $after,
+                $count,
+            ),
+            $groups,
+        );
+    }
+
+    /** @param list<string>|null $personIds
+     * @return array<string, mixed>
+     */
+    public function parents(
+        FamilyTree $tree,
+        ?array $personIds = null,
+        ?string $cursor = null,
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        $personIds = $this->personIds($personIds);
+
+        return $this->page(
+            $tree,
+            ['parents', $personIds, ['identity', 'life'], null, null],
+            $cursor,
+            $limit,
+            $expectedEtag,
+            fn (?string $after, int $count): array => $this->parents->readPage($tree, $personIds, $after, $count),
+        );
+    }
+
+    /** @param list<string>|null $personIds
+     * @return array<string, mixed>
+     */
+    public function marriages(
+        FamilyTree $tree,
+        ?array $personIds = null,
+        ?string $cursor = null,
+        int $limit = 100,
+        ?string $expectedEtag = null,
+    ): array {
+        $personIds = $this->personIds($personIds);
+
+        return $this->page(
+            $tree,
+            ['marriages', $personIds, ['identity', 'life'], null, null],
+            $cursor,
+            $limit,
+            $expectedEtag,
+            fn (?string $after, int $count): array => $this->marriages->readPage($tree, $personIds, $after, $count),
+        );
+    }
+
+    /** @param list<string>|null $personIds
      * @param list<string>|null $types
      *
      * @return array<string, mixed>
      */
-    public function read(
-        string $treeId,
-        string $kind,
+    public function events(
+        FamilyTree $tree,
         ?array $personIds = null,
-        array $groups = ['identity', 'life'],
         ?array $types = null,
         ?string $source = null,
         ?string $cursor = null,
         int $limit = 100,
         ?string $expectedEtag = null,
     ): array {
-        if (!in_array($kind, ['people', 'parents', 'marriages', 'events'], true)
-            || $limit < 1 || $limit > 200 || [] === $groups
-            || !array_is_list($groups)
-            || array_any($groups, static fn (mixed $group): bool => !in_array($group, self::GROUPS, true))
-            || (null !== $source && null === EventSource::tryFrom($source))) {
+        if (null !== $source && null === EventSource::tryFrom($source)) {
             throw new ApiException(422, 'TREE_READ_INVALID');
         }
         if (null !== $types) {
@@ -61,58 +144,82 @@ final readonly class TreeReadService
             }
             sort($types);
         }
-        if (null !== $personIds) {
-            if (!array_is_list($personIds)) {
-                throw new ApiException(422, 'TREE_READ_INVALID');
-            }
-            foreach ($personIds as $id) {
-                if (!is_string($id) || !Uuid::isValid($id)) {
-                    throw new ApiException(422, 'TREE_READ_INVALID');
-                }
-            }
-            sort($personIds);
+        $personIds = $this->personIds($personIds);
+
+        return $this->page(
+            $tree,
+            ['events', $personIds, ['identity', 'life'], $types, $source],
+            $cursor,
+            $limit,
+            $expectedEtag,
+            fn (?string $after, int $count): array => $this->events->readPage(
+                $tree,
+                $personIds,
+                $types,
+                $source,
+                $after,
+                $count,
+            ),
+        );
+    }
+
+    /** @param list<string>|null $personIds
+     * @return list<string>|null
+     */
+    private function personIds(?array $personIds): ?array
+    {
+        if (null === $personIds) {
+            return null;
         }
-        sort($groups);
-        /** @var list<'identity'|'life'|'places'|'metadata'> $groups */
-        $tree = $this->context->tree($treeId);
+        if (!array_is_list($personIds)
+            || array_any($personIds, static fn (mixed $id): bool => !is_string($id) || !Uuid::isValid($id))) {
+            throw new ApiException(422, 'TREE_READ_INVALID');
+        }
+        sort($personIds);
+
+        return $personIds;
+    }
+
+    /** @param list<mixed> $selection
+     * @param \Closure(?string, int): array{total: int, items: list<array<string, mixed>>} $read
+     * @param list<string>|null                                                            $groups
+     *
+     * @return array<string, mixed>
+     */
+    private function page(
+        FamilyTree $tree,
+        array $selection,
+        ?string $cursor,
+        int $limit,
+        ?string $expectedEtag,
+        \Closure $read,
+        ?array $groups = null,
+    ): array {
+        if ($limit < 1 || $limit > 200) {
+            throw new ApiException(422, 'TREE_READ_INVALID');
+        }
         $this->entityManager->refresh($tree);
         $etag = $this->versions->etag($tree);
         if (null !== $expectedEtag) {
             $this->versions->assertMatches($tree, $expectedEtag);
         }
-        $selection = hash(
-            'sha256',
-            json_encode([$treeId, $kind, $personIds, $groups, $types, $source], JSON_THROW_ON_ERROR),
-        );
-        $after = null === $cursor ? null : $this->decode($cursor, $selection, $etag);
-        $query = $this->repository->query(
-            $tree,
-            $kind,
-            $personIds,
-            $types,
-            $source,
-            in_array('places', $groups, true) || 'people' !== $kind,
-        );
-        $total = $this->repository->total($query);
-        $rows = $this->repository->page($query, $after, $limit + 1);
+        $treeId = $tree->getId()->toRfc4122();
+        $selectionHash = hash('sha256', json_encode([$treeId, ...$selection], JSON_THROW_ON_ERROR));
+        $after = null === $cursor ? null : $this->decode($cursor, $selectionHash, $etag);
+        $page = $read($after, $limit + 1);
         $result = [
             'treeId'     => $treeId,
             'etag'       => $etag,
-            'total'      => $total,
+            'total'      => $page['total'],
             'returned'   => 0,
             'nextCursor' => null,
             'items'      => [],
         ];
-        if ('people' === $kind) {
+        if (null !== $groups) {
             $result['groups'] = $groups;
         }
         $last = null;
-        foreach ($rows as $row) {
-            $item = match ($kind) {
-                'people'               => $this->views->person($row, $groups),
-                'parents', 'marriages' => $this->views->relationship($row, $kind),
-                'events'               => $this->views->event($row),
-            };
+        foreach ($page['items'] as $item) {
             $candidate = $result;
             $candidate['items'][] = $item;
             if ($result['returned'] >= $limit
@@ -120,7 +227,7 @@ final readonly class TreeReadService
                 if (null === $last) {
                     throw new ApiException(413, 'TREE_READ_RECORD_TOO_LARGE');
                 }
-                $result['nextCursor'] = $this->encode($last, $selection, $etag);
+                $result['nextCursor'] = $this->encode($last, $selectionHash, $etag);
                 break;
             }
             $result['items'][] = $item;

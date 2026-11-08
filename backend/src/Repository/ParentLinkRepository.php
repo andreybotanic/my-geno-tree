@@ -6,6 +6,7 @@ use App\Entity\FamilyTree;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Entity\Value\ParentRole;
+use App\Infrastructure\Doctrine\ReadsGenealogyPages;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,9 +15,33 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 final class ParentLinkRepository extends ServiceEntityRepository
 {
+    use ReadsGenealogyPages;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, ParentLink::class);
+    }
+
+    /** @param list<string>|null $personIds
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    public function readPage(FamilyTree $tree, ?array $personIds, ?string $after, int $limit): array
+    {
+        if ([] === $personIds) {
+            return ['total' => 0, 'items' => []];
+        }
+        $query = $this
+            ->createQueryBuilder('item')
+            ->addSelect('IDENTITY(item.parent) AS parentId', 'IDENTITY(item.child) AS childId')
+            ->andWhere('item.tree = :tree')
+            ->setParameter('tree', $tree);
+        if (null !== $personIds) {
+            $query
+                ->andWhere('item.parent IN (:people) OR item.child IN (:people)')
+                ->setParameter('people', $personIds);
+        }
+
+        return $this->genealogyPage($query, $after, $limit);
     }
 
     /**

@@ -17,8 +17,9 @@ use Symfony\Bundle\SecurityBundle\Security;
 #[AsTool(
     name: 'get_tree_context',
     description: <<<'DESCRIPTION'
-    Read the selected tree around a person, their bounded immediate family and ETag.
-    Omitted or null referencePersonId uses the tree's current primary reference.
+    Start tree work here to read its name, metadata, server currentDate, total personCount and ETag.
+    Read a person and bounded immediate family; follow links for more distant relatives.
+    Omitted or null referencePersonId uses the tree's current primary reference, not the user's identity.
     An empty tree has no reference and returns no people.
     DESCRIPTION,
     method: 'tree'
@@ -40,17 +41,17 @@ use Symfony\Bundle\SecurityBundle\Security;
 )]
 #[AsTool(
     name: 'list_people',
-    description: 'Read all people using identity, life, places and metadata groups. Follow nextCursor until null.',
+    description: self::PEOPLE_DESCRIPTION,
     method: 'people',
 )]
 #[AsTool(
     name: 'list_relationships',
-    description: 'Read parent links or marriage periods, optionally touching selected people. Follow all pages.',
+    description: self::RELATIONSHIPS_DESCRIPTION,
     method: 'relationships',
 )]
 #[AsTool(
     name: 'list_events',
-    description: 'Read full events with descriptions and places for all or selected people. Follow all pages.',
+    description: self::EVENTS_DESCRIPTION,
     method: 'events',
 )]
 #[AsTool(
@@ -60,6 +61,24 @@ use Symfony\Bundle\SecurityBundle\Security;
 )]
 final readonly class TreeReadTools
 {
+    private const string PAGINATION_DESCRIPTION = ' Returns items, total, returned, nextCursor and etag. '
+        . 'Pass nextCursor back as cursor until it is null to read the complete selection. '
+        . 'Pages default to 100 records, at most 200 and 128 KiB; large records shorten a page. '
+        . 'Reuse expectedEtag across lists for one tree version. A version conflict requires a fresh read.';
+    private const string PEOPLE_DESCRIPTION = 'List every person, or only personIds when supplied (empty means none). '
+        . 'ID is always returned. Groups: identity (names and gender), life (birth/death dates), '
+        . 'places (birth/death places and available coordinates), metadata (creation/update dates). '
+        . 'Default groups are identity and life. All four groups return every direct person field except photos.'
+        . self::PAGINATION_DESCRIPTION;
+    private const string RELATIONSHIPS_DESCRIPTION = 'List parent links or marriage periods. '
+        . 'Optional personIds matches either participant (empty means none). '
+        . 'Returns participant IDs, parent roles, and complete marriage dates, places and metadata.'
+        . self::PAGINATION_DESCRIPTION;
+    private const string EVENTS_DESCRIPTION = 'List complete events for every person or selected personIds. '
+        . 'Optional types and source (manual or automatic) filter the selection. '
+        . 'Returns full descriptions, dates, places, typed data, source references, manual order and metadata. '
+        . 'Descriptions are never truncated. Photos are excluded.' . self::PAGINATION_DESCRIPTION;
+
     public function __construct(
         private TreeContextService $context,
         private FamilyTreeRepository $trees,
@@ -92,8 +111,10 @@ final readonly class TreeReadTools
     #[McpTool(
         name: 'get_tree_context',
         description: <<<'DESCRIPTION'
-        Read the tree around an explicit person or its current primary reference when omitted or null.
-        Includes bounded immediate family and ETag. An empty tree has no reference and returns no people.
+        Start tree work here to read its name, metadata, server currentDate, total personCount and ETag.
+        Read a person and bounded immediate family; follow links for more distant relatives.
+        Omitted or null referencePersonId uses the tree's current primary reference, not the user's identity.
+        An empty tree has no reference and returns no people.
         DESCRIPTION,
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
@@ -131,7 +152,7 @@ final readonly class TreeReadTools
      */
     #[McpTool(
         name: 'list_people',
-        description: 'Read all people using identity, life, places and metadata groups. Follow nextCursor until null.',
+        description: self::PEOPLE_DESCRIPTION,
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function people(
@@ -144,9 +165,8 @@ final readonly class TreeReadTools
         int $limit = 100,
         ?string $expectedEtag = null,
     ): array {
-        return $this->reads->read(
-            $treeId,
-            'people',
+        return $this->reads->people(
+            $this->context->tree($treeId),
             $personIds,
             $groups,
             cursor: $cursor,
@@ -160,7 +180,7 @@ final readonly class TreeReadTools
      */
     #[McpTool(
         name: 'list_relationships',
-        description: 'Read parent links or marriage periods. Optional personIds matches either participant.',
+        description: self::RELATIONSHIPS_DESCRIPTION,
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function relationships(
@@ -179,9 +199,11 @@ final readonly class TreeReadTools
             throw new ApiException(422, 'TREE_READ_INVALID');
         }
 
-        return $this->reads->read(
-            $treeId,
-            $kind,
+        $tree = $this->context->tree($treeId);
+        $read = 'parents' === $kind ? $this->reads->parents(...) : $this->reads->marriages(...);
+
+        return $read(
+            $tree,
             $personIds,
             cursor: $cursor,
             limit: $limit,
@@ -196,7 +218,7 @@ final readonly class TreeReadTools
      */
     #[McpTool(
         name: 'list_events',
-        description: 'Read full events with descriptions, dates, places, source and ordering. Filters are optional.',
+        description: self::EVENTS_DESCRIPTION,
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function events(
@@ -210,9 +232,8 @@ final readonly class TreeReadTools
         int $limit = 100,
         ?string $expectedEtag = null,
     ): array {
-        return $this->reads->read(
-            $treeId,
-            'events',
+        return $this->reads->events(
+            $this->context->tree($treeId),
             $personIds,
             types: $types,
             source: $source,

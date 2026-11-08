@@ -230,6 +230,15 @@ cursors bind the selection and tree version. Reuse expectedEtag across different
 lists for a consistent analysis; a changed tree returns TREE_VERSION_CONFLICT.
 Place lookup reports unavailable without fabricating coordinates.
 
+List adapters resolve the tree through `TreeContextService`, whose access decision
+is delegated to `FamilyTreeVoter`. `TreeReadService` receives the resolved tree
+and only coordinates input validation, signed cursors, version consistency and
+response size. Its explicit people, parents, marriages and events methods use
+their corresponding entity repositories. Query builders stay inside repositories;
+the registered `GenealogyRecordHydrator` assembles read records without managed
+entities or media. Tool metadata describes arguments, paging and mutation
+semantics; the system prompt contains general conversational and reasoning rules.
+
 Both registries reuse TreeReadTools, TreeMergeTool and TreeChangeTool. ChatAgentHooks enforce the
 selected tree and record context reads for the site agent; the MCP registry adds
 TreeReadTools::findTrees and exposes direct application through the merge tool's separate

@@ -21,6 +21,8 @@ use Symfony\Component\Uid\Uuid;
 #[AsTool(
     name: 'merge',
     description: <<<'DESCRIPTION'
+    Compatibility adapter for people, parent links and marriages. Use change_tree for a mixed packet with events
+    or removals, preserving all related changes in that packet.
     Validate the complete tree proposal. Without new people apply immediately; otherwise review the entire packet.
     Returns exact new/existing person counts and the proposal version.
     Correct rejected arguments using the returned field diagnostics.
@@ -37,7 +39,7 @@ final readonly class TreeMergeTool
     ) {
     }
 
-    /** Apply directly for external clients; the chat's merge tool only prepares a preview.
+    /** Apply directly for external clients, including packets that create people.
      * @param array<string, mixed>                                   $proposal
      * @param list<array{id: string, role: string, content: string}> $sources
      *
