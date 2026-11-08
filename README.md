@@ -780,3 +780,23 @@ opening and closing person details alongside chat, reset and fit with both
 panels, long chat-history scrolling, force settings alongside chat, refreshing
 the page, and a two-tab edit conflict followed by reloading the tree. The
 fictional tree `QA панели чата 2026-11-08` is retained for inspection.
+
+Camera resize validation (2026-11-08): the first person selection centers using
+the canvas's measured bounds, even before React Flow processes the sidebar
+resize. Canvas resize notifications preserve the current graph center and zoom
+throughout the chat animation. The workspace and chat share the same transition
+duration and easing, so camera and tree tools follow the moving workspace edge.
+Both transitions respect reduced-motion preferences.
+
+All 278 backend, 443 frontend and 27 gateway tests pass, including six new camera
+regressions. Frontend line coverage is 91.00%; the new camera hook has 100%
+coverage. Quality, OpenAPI, production builds, Composer validation, schema and
+production container checks pass. All 26 migrations passed on a fresh disposable
+database, which was removed. Existing PHPUnit notices and bundle-size advisories
+remain; no PHP files changed.
+
+Manual Chrome HTTPS checks covered the first selection with chat open and closed,
+closing and reopening both panels, preserving the center after panning at 120%
+zoom, chat/workspace transition settings, and resetting the camera with both
+panels open. The selected card and workspace centers matched in both axes.
+Entering an invalid 201% zoom kept the previous 120% camera state.

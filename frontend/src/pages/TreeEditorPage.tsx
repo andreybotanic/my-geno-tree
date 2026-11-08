@@ -57,6 +57,7 @@ import {
   type AuthorizedJsonRequest,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { useCanvasCamera } from '../hooks/useCanvasCamera'
 import AddIcon from '../assets/icons/add.svg?react'
 import CloseIcon from '../assets/icons/close.svg?react'
 import ExportIcon from '../assets/icons/export.svg?react'
@@ -889,6 +890,7 @@ function TreeCanvas(
     }
   )
   const [cameraReady, setCameraReady] = useState(false)
+  const centerCamera = useCanvasCamera(canvas, cameraReady)
   const activeCameraView = useRef<TreeEditorView>(view)
   const centeredPersonId = useRef<string | null>(null)
   const [simulatedBloodNodes, setSimulatedBloodNodes] = useState<
@@ -1396,12 +1398,11 @@ function TreeCanvas(
       const frame = requestAnimationFrame(
         () => {
           centeredPersonId.current = selectedPersonId
-          void flow
-            .setCenter(
-              position.x + PERSON_CARD_WIDTH / 2,
-              position.y + PERSON_CARD_HEIGHT / 2,
-              { duration: 150, zoom: flow.getViewport().zoom },
-            )
+          void centerCamera(
+            position.x + PERSON_CARD_WIDTH / 2,
+            position.y + PERSON_CARD_HEIGHT / 2,
+            { duration: 150, zoom: flow.getViewport().zoom },
+          )
             .then(
               () => rememberCamera('tree', flow.getViewport())
             )
@@ -1409,7 +1410,7 @@ function TreeCanvas(
       )
       return () => cancelAnimationFrame(frame)
     },
-    [cameraReady, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
+    [cameraReady, centerCamera, mergeProjection, pathProjection?.positions, rememberCamera, selectedPersonId, treePositions, view]
   )
 
   const lastMergeFocus = useRef('')
@@ -1451,7 +1452,7 @@ function TreeCanvas(
         return
       }
       if (cameraView === 'tree') {
-        await flow.setCenter(0, 0, { duration, zoom: 1 })
+        await centerCamera(0, 0, { duration, zoom: 1 })
       } else if (snapshot.bloodNetworkState) {
         await flow.setViewport(snapshot.bloodNetworkState.viewport, { duration })
       } else if (bloodNetwork.nodes.length > 0) {
@@ -1467,7 +1468,7 @@ function TreeCanvas(
       }
       rememberCamera(cameraView, flow.getViewport())
     },
-    [bloodNetwork.nodes, rememberCamera, snapshot.bloodNetworkState, view]
+    [bloodNetwork.nodes, centerCamera, rememberCamera, snapshot.bloodNetworkState, view]
   )
   const fitCamera = useCallback(
     async () => {
@@ -1500,7 +1501,7 @@ function TreeCanvas(
           await flow.fitBounds(bounds, { duration: 0, padding: FIT_VIEW_PADDING })
         }
         if (flow.getViewport().zoom > 1) {
-          await flow.setCenter(
+          await centerCamera(
             bounds.x + bounds.width / 2,
             bounds.y + bounds.height / 2,
             { duration: 0, zoom: 1 },
@@ -1518,7 +1519,7 @@ function TreeCanvas(
       }
       rememberCamera(view, flow.getViewport())
     },
-    [bloodNetwork.nodes, nodes.length, rememberCamera, view]
+    [bloodNetwork.nodes, centerCamera, nodes.length, rememberCamera, view]
   )
   const referenceKey = JSON.stringify(snapshot.tree.reference)
   const previousReferenceKey = useRef(referenceKey)
@@ -1772,17 +1773,16 @@ function TreeCanvas(
       }
 
       centeredPersonId.current = targetId
-      void flow
-        .setCenter(
-          position.x + PERSON_CARD_WIDTH / 2,
-          position.y + PERSON_CARD_HEIGHT / 2,
-          { duration: 150, zoom: flow.getViewport().zoom },
-        )
+      void centerCamera(
+        position.x + PERSON_CARD_WIDTH / 2,
+        position.y + PERSON_CARD_HEIGHT / 2,
+        { duration: 150, zoom: flow.getViewport().zoom },
+      )
         .then(
           () => rememberCamera('tree', flow.getViewport())
         )
     },
-    [onSelectPerson, pathDisplay, pathProjection?.positions, rememberCamera, treePositions]
+    [centerCamera, onSelectPerson, pathDisplay, pathProjection?.positions, rememberCamera, treePositions]
   )
 
   return (
