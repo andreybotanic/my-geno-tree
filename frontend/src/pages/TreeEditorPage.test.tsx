@@ -1649,7 +1649,9 @@ describe(
         fireEvent.click(card)
         expect(await screen.findByRole('complementary', { name: 'Person details' }))
           .toBeInTheDocument()
-        expect(request).toHaveBeenCalledTimes(3)
+        expect((request as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([path]) => !String(path).includes('/documents')
+        )).toHaveLength(3)
         expect(request).toHaveBeenCalledWith(`/trees/${treeId}/people/${person.id}/details`)
         expect(request).not.toHaveBeenCalledWith(`/trees/${treeId}/people/${person.id}`)
       }
@@ -1791,7 +1793,7 @@ describe(
         await userEvent.click(screen.getByRole('button', { name: 'Search people' }))
         await userEvent.type(screen.getByRole('combobox', { name: 'Search by full name' }), 'Hidden')
         expect(await screen.findByLabelText('Already shown in the tree')).toBeInTheDocument()
-        await userEvent.click(screen.getByRole('option', { name: /Hidden Ancestor/ }))
+        await userEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Hidden Ancestor/ }))
         expect(
           (request as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
             ([path]) => (

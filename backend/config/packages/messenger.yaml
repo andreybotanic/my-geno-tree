@@ -1,3 +1,31 @@
 framework:
     messenger:
         default_bus: messenger.bus.default
+        failure_transport: document_failures
+        transports:
+            documents:
+                dsn: 'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/documents'
+                options:
+                    confirm_timeout: 5
+                    exchange:
+                        name: documents
+                    queues:
+                        documents: ~
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+            document_failures:
+                dsn: 'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/document_failures'
+                options:
+                    confirm_timeout: 5
+        routing:
+            App\Application\Document\IndexDocument: documents
+            App\Application\Document\RemoveDocument: documents
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                documents: 'in-memory://'
+                document_failures: 'in-memory://'

@@ -238,6 +238,28 @@ final readonly class ChatService implements ChatInterface
                         $messages = $this->store->load($running->id);
                         $answer = array_last($messages->getMessages());
                         if ($answer instanceof AssistantMessage && null !== $answer->asText()) {
+                            $sources = $execution->native?->getMetadata()->get('sources');
+                            $documents = [];
+                            if ($sources instanceof \Symfony\AI\Agent\Toolbox\Source\SourceCollection) {
+                                foreach ($sources as $source) {
+                                    if ($source instanceof \Symfony\AI\Agent\Bridge\SimilaritySearch\DocumentSource) {
+                                        $entry = [
+                                            'name'        => $source->getName(),
+                                            'downloadUrl' => $source->getReference(),
+                                            'excerpt'     => $source->getContent(),
+                                        ];
+                                        $metadata = $source->getDocument()->getMetadata();
+                                        if (is_int($metadata['chunkIndex'] ?? null)) {
+                                            $entry['chunkIndex'] = $metadata['chunkIndex'];
+                                        }
+                                        if (is_int($metadata['originalSizeBytes'] ?? null)) {
+                                            $entry['originalSizeBytes'] = $metadata['originalSizeBytes'];
+                                        }
+                                        $documents[] = $entry;
+                                    }
+                                }
+                            }
+                            $answer->getMetadata()->add('documentSources', $documents);
                             $startedAt = $running->attemptStartedAt ?? $finishedAt;
                             $duration = (float)$finishedAt->format('U.u') - (float)$startedAt->format('U.u');
                             $answer

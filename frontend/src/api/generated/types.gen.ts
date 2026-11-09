@@ -4,6 +4,41 @@ export type ClientOptions = {
     baseUrl: 'https://localhost/api/v1' | 'https://localhost' | 'https://localhost' | 'http://proxy:8082/api/v1' | (string & {});
 };
 
+export type TreeDocument = {
+    id: string;
+    treeId: string;
+    personId: string | null;
+    originalName: string;
+    mimeType: 'text/plain' | 'text/markdown';
+    /**
+     * Server-measured original byte count before BOM removal or other processing.
+     */
+    originalSizeBytes: number;
+    status: 'queued' | 'processing' | 'ready' | 'failed';
+    errorCode: string | null;
+    createdAt: string;
+    updatedAt: string;
+    downloadUrl: string;
+};
+
+export type DocumentPage = {
+    total: number;
+    items: Array<TreeDocument>;
+    nextCursor: string | null;
+    etag: string;
+};
+
+export type DocumentSource = {
+    name: string;
+    downloadUrl: string;
+    excerpt: string;
+    /**
+     * Zero-based fragment index in this document.
+     */
+    chunkIndex?: number;
+    originalSizeBytes?: number;
+};
+
 export type OAuthAuthorizationParameters = {
     response_type: 'code';
     client_id: string;
@@ -54,6 +89,7 @@ export type ChatMessage = {
      */
     blocked?: boolean;
     responseMetrics?: ChatResponseMetrics;
+    documentSources?: Array<DocumentSource>;
     createdAt: string;
 };
 
@@ -926,6 +962,224 @@ export type EventId = string;
  * ETag returned by the latest tree representation
  */
 export type IfMatch = string;
+
+export type ListTreeDocumentsData = {
+    body?: never;
+    path: {
+        treeId: string;
+    };
+    query?: {
+        /**
+         * Includes this person's documents and shared tree documents unless scope=person selects only personal documents.
+         */
+        personId?: string;
+        /**
+         * The person scope requires personId; the tree scope selects only shared documents.
+         */
+        scope?: 'all' | 'tree' | 'person';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/trees/{treeId}/documents';
+};
+
+export type ListTreeDocumentsErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ListTreeDocumentsError = ListTreeDocumentsErrors[keyof ListTreeDocumentsErrors];
+
+export type ListTreeDocumentsResponses = {
+    /**
+     * Document page
+     */
+    200: DocumentPage;
+};
+
+export type ListTreeDocumentsResponse = ListTreeDocumentsResponses[keyof ListTreeDocumentsResponses];
+
+export type UploadTreeDocumentData = {
+    body: {
+        /**
+         * UTF-8 TXT or Markdown up to 10 MiB.
+         */
+        file: Blob | File;
+        personId?: string;
+    };
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents';
+};
+
+export type UploadTreeDocumentErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * Original exceeds 10 MiB.
+     */
+    413: unknown;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type UploadTreeDocumentError = UploadTreeDocumentErrors[keyof UploadTreeDocumentErrors];
+
+export type UploadTreeDocumentResponses = {
+    /**
+     * Original saved; indexing queued or queue error reported in document status.
+     */
+    202: {
+        document: TreeDocument;
+        etag: string;
+    };
+};
+
+export type UploadTreeDocumentResponse = UploadTreeDocumentResponses[keyof UploadTreeDocumentResponses];
+
+export type DeleteTreeDocumentData = {
+    body?: never;
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        documentId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents/{documentId}';
+};
+
+export type DeleteTreeDocumentErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+};
+
+export type DeleteTreeDocumentError = DeleteTreeDocumentErrors[keyof DeleteTreeDocumentErrors];
+
+export type DeleteTreeDocumentResponses = {
+    /**
+     * Hidden immediately; original and vectors scheduled for cleanup.
+     */
+    200: {
+        etag: string;
+    };
+};
+
+export type DeleteTreeDocumentResponse = DeleteTreeDocumentResponses[keyof DeleteTreeDocumentResponses];
+
+export type DownloadTreeDocumentData = {
+    body?: never;
+    path: {
+        treeId: string;
+        documentId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents/{documentId}/download';
+};
+
+export type DownloadTreeDocumentErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type DownloadTreeDocumentError = DownloadTreeDocumentErrors[keyof DownloadTreeDocumentErrors];
+
+export type DownloadTreeDocumentResponses = {
+    /**
+     * Exact original bytes, including BOM and line endings. Private attachment download.
+     */
+    200: Blob | File;
+};
+
+export type DownloadTreeDocumentResponse = DownloadTreeDocumentResponses[keyof DownloadTreeDocumentResponses];
+
+export type RetryTreeDocumentData = {
+    body?: never;
+    path: {
+        treeId: string;
+        documentId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents/{documentId}/retry';
+};
+
+export type RetryTreeDocumentErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * A unique value or domain invariant conflicts
+     */
+    409: ApiError;
+};
+
+export type RetryTreeDocumentError = RetryTreeDocumentErrors[keyof RetryTreeDocumentErrors];
+
+export type RetryTreeDocumentResponses = {
+    /**
+     * A new indexing generation requested, without changing the tree ETag.
+     */
+    202: {
+        document: TreeDocument;
+    };
+};
+
+export type RetryTreeDocumentResponse = RetryTreeDocumentResponses[keyof RetryTreeDocumentResponses];
 
 export type ExternalMcpCallData = {
     body: {

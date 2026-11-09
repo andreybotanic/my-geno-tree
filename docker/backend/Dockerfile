@@ -9,13 +9,14 @@ RUN apt-get update \
         libjpeg62-turbo-dev \
         libpng-dev \
         libpq-dev \
+        librabbitmq-dev \
         libwebp-dev \
         libzip-dev \
         unzip \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" gd exif intl pdo_pgsql zip \
-    && pecl install pcov-1.0.12 \
-    && docker-php-ext-enable pcov \
+    && pecl install pcov-1.0.12 amqp-2.2.0 \
+    && docker-php-ext-enable pcov amqp \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer

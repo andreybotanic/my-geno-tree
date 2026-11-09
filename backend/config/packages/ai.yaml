@@ -6,6 +6,9 @@ ai:
                 service: cache.chat
                 ttl: '%app.chat_ttl%'
     platform:
+        ollama:
+            endpoint: 'http://ollama:11434'
+            http_client: document_embeddings.client
         generic:
             chatgpt:
                 base_url: 'http://cli-proxy-api:8317'
@@ -28,6 +31,7 @@ ai:
                 http_client: chat_ai.client
     agent:
         tree:
+            include_sources: true
             platform: ai.platform.openresponses.chatgpt
             message_store: ai.message_store.cache.chat
             model:
@@ -44,6 +48,7 @@ ai:
                 services:
                     - App\Tool\TreeReadTools
                     - App\Tool\TreeWriteTools
+                    - Symfony\AI\Agent\Bridge\SimilaritySearch\SimilaritySearch
         chat_moderation:
             platform: ai.platform.generic.chatgpt
             model:
@@ -53,3 +58,23 @@ ai:
             tools: []
             prompt:
                 file: '%kernel.project_dir%/prompts/chat_moderation.txt'
+    store:
+        qdrant:
+            documents:
+                endpoint: 'http://qdrant:6333'
+                collection_name: '%app.document_collection%'
+                dimensions: 1024
+                metric: Cosine
+                async: false
+    vectorizer:
+        documents:
+            platform: ai.platform.ollama
+            model: 'qwen3-embedding:0.6b'
+    indexer:
+        documents:
+            vectorizer: ai.vectorizer.documents
+            store: ai.store.qdrant.documents
+    retriever:
+        documents:
+            vectorizer: ai.vectorizer.documents
+            store: ai.store.qdrant.documents

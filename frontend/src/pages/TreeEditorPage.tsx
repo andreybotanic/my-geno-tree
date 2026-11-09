@@ -77,6 +77,8 @@ import {
   BloodNetworkPersonNode,
 } from '../components/BloodNetworkNodes'
 import { PersonDetailsPanel } from '../components/PersonDetailsPanel'
+import { DocumentsButton } from '../components/DocumentsButton'
+import { DocumentsDialog } from '../components/DocumentsDialog'
 import { TreeChatDrawer } from '../components/TreeChatDrawer'
 import { ActionIcon } from '../components/ActionIcon'
 import { PersonSearchPanel } from '../components/PersonSearchPanel'
@@ -2476,6 +2478,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
   const [creating, setCreating] = useState(false)
   const [chatOpen, setChatOpen] = useState(() => new URLSearchParams(window.location.search).has('chat'))
   const [exporting, setExporting] = useState(false)
+  const [documentsTarget, setDocumentsTarget] = useState<string | null | undefined>(undefined)
+  const closeDocuments = useCallback(() => setDocumentsTarget(undefined), [])
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const selectedPersonIdRef = useRef<string | null>(null)
   const chatRefreshSequence = useRef(0)
@@ -3458,6 +3462,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
   return (
     <main className={`tree-editor-page${chatOpen ? ' tree-chat-open' : ''}`}>
+      {documentsTarget !== undefined && snapshot && <DocumentsDialog key={documentsTarget ?? 'tree'}
+        snapshot={snapshot} {...(documentsTarget ? { personId: documentsTarget } : {})}
+        request={request} requestBlob={requestBlob} onChanged={refreshTreeFromChat} onClose={closeDocuments} />}
       {snapshot && (
         <TreeChatDrawer key={treeId} snapshot={snapshot} request={request} open={chatOpen} onOpenChange={setChatOpen}
           onRefreshTree={refreshTreeFromChat}
@@ -3531,6 +3538,8 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
                 >
                   {t('person.create')}
                 </button>
+                <DocumentsButton treeId={snapshot.tree.id} etag={snapshot.etag} request={request}
+                  onClick={() => setDocumentsTarget(null)} />
               </div>
             ) : (
               <ReactFlowProvider>
@@ -3562,6 +3571,9 @@ export function TreeEditorPage({ importWarningCount = null, treeId }: TreeEditor
 
         {view === 'tree' && selectedPerson && selectedDetails && (
           <PersonDetailsPanel
+            documents={snapshot && <div className="person-documents-action"><DocumentsButton
+              treeId={snapshot.tree.id} etag={snapshot.etag} personId={selectedPerson.id}
+              request={request} onClick={() => setDocumentsTarget(selectedPerson.id)} /></div>}
             conflict={conflict}
             events={events}
             onAddRelative={(action, secondParentId) => {

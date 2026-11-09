@@ -1,6 +1,14 @@
 framework:
     http_client:
         scoped_clients:
+            document_embeddings.client:
+                base_uri: 'http://ollama:11434/'
+                timeout: 120
+                max_duration: 180
+            document_vectors.client:
+                base_uri: 'http://qdrant:6333/'
+                timeout: 10
+                max_duration: 30
             mercure.client:
                 base_uri: '%env(MERCURE_URL)%'
                 timeout: 1

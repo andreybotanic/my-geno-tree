@@ -36,6 +36,56 @@ services:
       - ./frontend:/srv/frontend
       - ./openapi:/srv/openapi:ro
 
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
+    volumes:
+      - document_vectors:/qdrant/storage
+
+  rabbitmq:
+    image: rabbitmq:4.4.0-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: mygenotree
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - document_queue:/var/lib/rabbitmq
+
+  ollama:
+    image: ollama/ollama:0.40.15
+    restart: unless-stopped
+    volumes:
+      - document_models:/root/.ollama
+
+  ollama-init:
+    image: ollama/ollama:0.40.15
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ['/bin/sh', '-c']
+    command: ['until ollama list >/dev/null 2>&1; do sleep 2; done; ollama pull qwen3-embedding:0.6b']
+    depends_on:
+      - ollama
+
+  document-worker:
+    extends:
+      service: backend
+    command: ['php', 'bin/console', 'messenger:consume', 'documents', '--time-limit=3600', '--memory-limit=512M']
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_started
+
   cli-proxy-api:
     image: eceasy/cli-proxy-api:v8.0.56
     entrypoint: [/bin/sh, /CLIProxyAPI/entrypoint.sh]
@@ -123,6 +173,9 @@ services:
       - mercure
 
 volumes:
+  document_vectors:
+  document_queue:
+  document_models:
   whisper_models:
   cli_proxy_auth:
   postgres_data:

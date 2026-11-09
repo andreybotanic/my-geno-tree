@@ -41,6 +41,7 @@ final readonly class StructuralGraphMutationService
         private AutomaticEventSynchronizer $events,
         private GenealogicalEventRepository $eventRepository,
         private MediaService $media,
+        private \App\Repository\TreeDocumentRepository $documents,
         private TreeLayoutInvalidator $layoutInvalidator,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
@@ -474,6 +475,7 @@ final readonly class StructuralGraphMutationService
             $removedMedia[] = $photo;
         }
         $this->entityManager->remove($person);
+        $this->documents->detachPerson($person);
     }
 
     private function replaceReferenceAfterMarriageRemoval(

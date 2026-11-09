@@ -6,6 +6,119 @@ info:
 servers:
   - url: https://localhost/api/v1
 paths:
+  /trees/{treeId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      operationId: listTreeDocuments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: personId, in: query, schema: { type: string, format: uuid }, description: Includes this person's documents and shared tree documents unless scope=person selects only personal documents. }
+        - { name: scope, in: query, schema: { type: string, enum: [all, tree, person], default: all }, description: The person scope requires personId; the tree scope selects only shared documents. }
+        - { name: cursor, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        200:
+          description: Document page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentPage' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+        422: { $ref: '#/components/responses/ValidationError' }
+    post:
+      operationId: uploadTreeDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary, description: UTF-8 TXT or Markdown up to 10 MiB. }
+                personId: { type: string, format: uuid }
+      responses:
+        202:
+          description: Original saved; indexing queued or queue error reported in document status.
+          headers:
+            ETag: { $ref: '#/components/headers/TreeEtag' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document, etag]
+                properties:
+                  document: { $ref: '#/components/schemas/TreeDocument' }
+                  etag: { type: string }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+        412: { $ref: '#/components/responses/TreeVersionConflict' }
+        413: { description: Original exceeds 10 MiB. }
+        422: { $ref: '#/components/responses/ValidationError' }
+  /trees/{treeId}/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      operationId: deleteTreeDocument
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        200:
+          description: Hidden immediately; original and vectors scheduled for cleanup.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [etag]
+                properties:
+                  etag: { type: string }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+        412: { $ref: '#/components/responses/TreeVersionConflict' }
+  /trees/{treeId}/documents/{documentId}/download:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: downloadTreeDocument
+      security: [{ bearerAuth: [] }]
+      responses:
+        200:
+          description: Exact original bytes, including BOM and line endings. Private attachment download.
+          headers:
+            Content-Disposition: { schema: { type: string } }
+            Content-Length: { schema: { type: integer } }
+          content:
+            text/plain: { schema: { type: string, format: binary } }
+            text/markdown: { schema: { type: string, format: binary } }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+  /trees/{treeId}/documents/{documentId}/retry:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: retryTreeDocument
+      security: [{ bearerAuth: [] }]
+      responses:
+        202:
+          description: A new indexing generation requested, without changing the tree ETag.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document: { $ref: '#/components/schemas/TreeDocument' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+        409: { $ref: '#/components/responses/Conflict' }
   /mcp:
     post:
       operationId: externalMcpCall
@@ -1967,6 +2080,43 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
   schemas:
+    TreeDocument:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, personId, originalName, mimeType, originalSizeBytes, status, errorCode, createdAt, updatedAt, downloadUrl]
+      properties:
+        id: { type: string, format: uuid }
+        treeId: { type: string, format: uuid }
+        personId: { type: [string, 'null'], format: uuid }
+        originalName: { type: string, maxLength: 255 }
+        mimeType: { type: string, enum: [text/plain, text/markdown] }
+        originalSizeBytes: { type: integer, minimum: 1, maximum: 10485760, description: Server-measured original byte count before BOM removal or other processing. }
+        status: { type: string, enum: [queued, processing, ready, failed] }
+        errorCode: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        downloadUrl: { type: string }
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, nextCursor, etag]
+      properties:
+        total: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TreeDocument' }
+        nextCursor: { type: [string, 'null'], format: uuid }
+        etag: { type: string }
+    DocumentSource:
+      type: object
+      additionalProperties: false
+      required: [name, downloadUrl, excerpt]
+      properties:
+        name: { type: string }
+        downloadUrl: { type: string }
+        excerpt: { type: string }
+        chunkIndex: { type: integer, minimum: 0, description: Zero-based fragment index in this document. }
+        originalSizeBytes: { type: integer, minimum: 1 }
     OAuthAuthorizationParameters:
       type: object
       required: [response_type, client_id, redirect_uri, code_challenge, code_challenge_method]
@@ -2057,6 +2207,9 @@ components:
         blocked: { type: boolean, description: 'Excluded from inference and evidence sources.' }
         responseMetrics:
           $ref: '#/components/schemas/ChatResponseMetrics'
+        documentSources:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentSource' }
         createdAt:
           type: string
           format: date-time

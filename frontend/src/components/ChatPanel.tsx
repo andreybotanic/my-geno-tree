@@ -10,6 +10,7 @@ import { ChatActionConfirmation } from './ChatActionConfirmation'
 import { ChatPermissions } from './ChatPermissions'
 import { ChatBudget } from './ChatBudget'
 import { ChatThinking } from './ChatThinking'
+import { DocumentSourceLinks } from './DocumentSourceLinks'
 import { ChatVoiceInput } from './ChatVoiceInput'
 import { mergeChatEvent, useChatEvents } from '../hooks/useChatEvents'
 
@@ -459,6 +460,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                       ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                       : <p>{message.content}</p>}
                 </div>
+                {message.documentSources && message.documentSources.length > 0 && <DocumentSourceLinks sources={message.documentSources} />}
                 <div className="chat-message-footer">
                   {message.role === 'assistant' && message.responseMetrics && <span className="chat-message-metrics">
                     <span title={t('chat.elapsed')}>{t('chat.responseDuration', {

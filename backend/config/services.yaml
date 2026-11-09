@@ -1,4 +1,5 @@
 parameters:
+    app.document_collection: tree_documents_v1
     app.chat_topic_prefix: '%env(MERCURE_JWT_ISSUER)%/api/v1/chat-events/sessions/{sessionId}/conversations/'
     app.chat_ttl: 3600
     app.chat_token_limit: 10000000
@@ -16,6 +17,18 @@ services:
 
     App\:
         resource: '../src/'
+
+    Symfony\AI\Agent\Bridge\SimilaritySearch\SimilaritySearch:
+        arguments:
+            $retriever: '@App\Application\Document\TreeDocumentRetriever'
+
+    app.document_lock_store:
+        class: Symfony\Component\Lock\Store\FlockStore
+        arguments: ['%kernel.project_dir%/var/storage/document-locks']
+
+    app.document_locks:
+        class: Symfony\Component\Lock\LockFactory
+        arguments: ['@app.document_lock_store']
 
     mcp.server.default.builder.configured:
         decorates: mcp.server.default.builder

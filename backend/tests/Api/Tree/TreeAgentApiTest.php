@@ -40,6 +40,72 @@ final class TreeAgentApiTest extends ApiWebTestCase
         parent::tearDown();
     }
 
+    public function testDocumentSimilaritySearchSourcesPersistWithTheAnswer(): void
+    {
+        $container = static::getContainer();
+        $em = $container->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $tree = $em->find(\App\Entity\FamilyTree::class, $this->treeId);
+        self::assertInstanceOf(\App\Entity\FamilyTree::class, $tree);
+        $document = $container
+            ->get(\App\Application\Document\DocumentService::class)
+            ->upload(
+                $tree,
+                null,
+                new \Symfony\Component\HttpFoundation\File\UploadedFile(
+                    __DIR__ . '/../../Fixtures/Documents/railway-letter.txt',
+                    'railway-letter.txt',
+                    test: true,
+                ),
+                $container->get(\App\Application\Tree\TreeVersion::class)->etag($tree),
+            );
+        $document->transition('ready', new \DateTimeImmutable());
+        $em->flush();
+        $vectorizer = $container->get(\App\Tests\Infrastructure\Document\DeterministicVectorizer::class);
+        self::assertInstanceOf(\App\Tests\Infrastructure\Document\DeterministicVectorizer::class, $vectorizer);
+        $candidate = new \Symfony\AI\Store\Document\VectorDocument(
+            'chunk',
+            $vectorizer->vectorize('railway'),
+            new \Symfony\AI\Store\Document\Metadata(
+                [
+                    'documentId' => $document->getId()->toRfc4122(),
+                    'treeId'     => $this->treeId,
+                    'generation' => 1,
+                    'chunkIndex' => 0,
+                    '_text'      => 'Ivan inspected railway tracks at Taiga.',
+                    '_source'    => '/tmp/private-loader-file',
+                ],
+            ),
+        );
+        $retriever = $this->createStub(\Symfony\AI\Store\RetrieverInterface::class);
+        $retriever->method('retrieve')->willReturn([$candidate]);
+        $container->set('ai.retriever.documents', $retriever);
+        $round = 0;
+        $container->set(
+            'chat_ai.client',
+            new MockHttpClient(
+                static function () use (&$round): MockResponse {
+                    return 1 === ++$round
+                        ? ResponsesFixture::tool('similarity_search', ['searchTerm' => 'railway occupation'])
+                        : ResponsesFixture::text('railway-letter.txt: Ivan inspected railway tracks at Taiga.');
+                },
+            ),
+        );
+        FixtureTreeAgent::$useReal = true;
+        $this->send('search-documents');
+        self::assertSame(2, $round);
+        self::assertSame('railway-letter.txt', $this->responseString('messages', '1', 'documentSources', '0', 'name'));
+        self::assertSame(
+            '/trees/' . $this->treeId . '/documents/' . $document->getId() . '/download',
+            $this->responseString('messages', '1', 'documentSources', '0', 'downloadUrl'),
+        );
+        self::assertStringNotContainsString('/tmp/', json_encode($this->responseData(), JSON_THROW_ON_ERROR));
+        $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertSame(
+            'Ivan inspected railway tracks at Taiga.',
+            $this->responseString('messages', '1', 'documentSources', '0', 'excerpt'),
+        );
+    }
+
     public function testOrdinaryMessagesRemainTextAndAreIncludedInTheNextTurn(): void
     {
         $text = "Here is my answer.\n\n" . str_repeat('Plain text is displayed directly. ', 12);

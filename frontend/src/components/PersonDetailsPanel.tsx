@@ -53,6 +53,7 @@ type PersonField = keyof Pick<
 >
 
 type PersonDetailsPanelProps = {
+  documents?: ReactNode
   conflict: boolean
   events: GenealogicalEvent[]
   onAddRelative: (action: RelativeAction, secondParentId?: string) => void
@@ -209,6 +210,7 @@ function dateDraft(value: GenealogicalDate): DateInputState {
 }
 
 export function PersonDetailsPanel({
+  documents,
   conflict,
   events,
   onAddRelative,
@@ -535,6 +537,7 @@ export function PersonDetailsPanel({
         onReorder={onReorderEvents}
       />
 
+      {documents}
       {(details?.permissions.canDelete ?? (snapshot && canDeletePerson(snapshot, person.id))) && (
         <section className="person-details-section danger-zone">
           <button

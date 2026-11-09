@@ -6,18 +6,23 @@ use App\Entity\AuthSession;
 use App\Model\Conversation;
 use Symfony\AI\Agent\Attribute\AsInputProcessor;
 use Symfony\AI\Agent\Input;
+use Symfony\AI\Agent\InputProcessor\SystemPromptInputProcessor;
 use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 #[AsInputProcessor(agent: 'ai.agent.tree', priority: -100)]
 final readonly class TreeChatContextInputProcessor implements InputProcessorInterface
 {
-    public const string VERSION = 'tree-v20-atomic-parents';
+    public const string VERSION = 'tree-v21-document-rag';
 
-    public function __construct(private RequestStack $requests)
-    {
+    public function __construct(
+        private RequestStack $requests,
+        #[Autowire(service: 'ai.agent.tree.system_prompt_processor')]
+        private SystemPromptInputProcessor $prompt,
+    ) {
     }
 
     public function processInput(Input $input): void
@@ -39,7 +44,6 @@ final readonly class TreeChatContextInputProcessor implements InputProcessorInte
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE,
         );
         $messages = $input->getMessageBag();
-        $system = $messages->getSystemMessage()?->getContent() ?? '';
         $prepared = MessageBag::forId($messages->getId());
         foreach ($messages->withoutSystemMessage() as $message) {
             if ($message instanceof \Symfony\AI\Platform\Message\AssistantMessage
@@ -48,8 +52,11 @@ final readonly class TreeChatContextInputProcessor implements InputProcessorInte
             }
             $prepared = $prepared->with($message);
         }
+        $input->setMessageBag($prepared);
+        $this->prompt->processInput($input);
+        $system = $input->getMessageBag()->getSystemMessage()?->getContent() ?? '';
         $input->setMessageBag(
-            $prepared->withSystemMessage(Message::forSystem($system . "\n\nTree context:\n" . $context)),
+            $input->getMessageBag()->withSystemMessage(Message::forSystem($system . "\n\nTree context:\n" . $context)),
         );
     }
 }

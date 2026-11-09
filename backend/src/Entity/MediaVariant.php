@@ -30,11 +30,11 @@ class MediaVariant
     #[ORM\Column(length: 50)]
     private string $mimeType;
 
-    #[ORM\Column]
-    private int $width;
+    #[ORM\Column(nullable: true)]
+    private ?int $width;
 
-    #[ORM\Column]
-    private int $height;
+    #[ORM\Column(nullable: true)]
+    private ?int $height;
 
     #[ORM\Column]
     private int $byteSize;
@@ -44,8 +44,8 @@ class MediaVariant
         MediaVariantType $type,
         string $storagePath,
         string $mimeType,
-        int $width,
-        int $height,
+        ?int $width,
+        ?int $height,
         int $byteSize,
     ) {
         $this->id = Uuid::v7();
@@ -84,12 +84,12 @@ class MediaVariant
         return $this->mimeType;
     }
 
-    public function getWidth(): int
+    public function getWidth(): ?int
     {
         return $this->width;
     }
 
-    public function getHeight(): int
+    public function getHeight(): ?int
     {
         return $this->height;
     }

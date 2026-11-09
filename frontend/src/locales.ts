@@ -1,6 +1,7 @@
 export const resources = {
   en: {
     translation: {
+      documents: {"title":"Documents","hint":"TXT and Markdown · UTF-8 · up to 10 MiB per file","filter":"Show documents","all":"All","personal":"Personal","shared":"Whole tree","attachTo":"Attach uploads to","upload":"Choose files","saving":"Uploading…","results":"Upload results","saved":"Saved","loading":"Loading documents…","empty":"No documents yet.","download":"Download","delete":"Delete","retry":"Retry indexing","reload":"Refresh","more":"Show more","confirmTitle":"Delete document","confirmDelete":"Delete “{{name}}” and its search index? This cannot be undone.","sources":"Sources ({{count}})","status":{"queued":"Queued","processing":"Indexing","ready":"Searchable","failed":"Processing failed"},"errors":{"failed":"Could not complete the operation. Refresh the list before trying again.","conflict":"The tree changed. Refresh it before continuing.","access":"These documents are unavailable. Check your sign-in and access.","size":"The file exceeds 10 MiB.","invalid":"Use a nonempty UTF-8 TXT or Markdown file.","queue":"The file is saved, but indexing could not be queued. Try again.","index":"The file is saved, but indexing failed. You can retry.","notRetryable":"This document is already being processed or is ready."}},
       oauth: {
         title: 'Connect an external agent',
         request: '“{{name}}” wants to connect to MyGenoTree.',
@@ -514,6 +515,7 @@ export const resources = {
   },
   ru: {
     translation: {
+      documents: {"title":"Документы","hint":"TXT и Markdown · UTF-8 · до 10 МиБ на файл","filter":"Показать документы","all":"Все","personal":"Личные","shared":"Всё дерево","attachTo":"Прикрепить загружаемые файлы","upload":"Выбрать файлы","saving":"Загрузка…","results":"Результаты загрузки","saved":"Сохранён","loading":"Загрузка документов…","empty":"Документов пока нет.","download":"Скачать","delete":"Удалить","retry":"Повторить индексацию","reload":"Обновить","more":"Показать ещё","confirmTitle":"Удалить документ","confirmDelete":"Удалить «{{name}}» и его поисковый индекс? Отменить это действие нельзя.","sources":"Источники ({{count}})","status":{"queued":"В очереди","processing":"Индексация","ready":"Доступен для поиска","failed":"Ошибка обработки"},"errors":{"failed":"Не удалось выполнить действие. Обновите список перед повторной попыткой.","conflict":"Дерево изменилось. Обновите его перед продолжением.","access":"Документы недоступны. Проверьте вход и права доступа.","size":"Размер файла превышает 10 МиБ.","invalid":"Выберите непустой файл TXT или Markdown в UTF-8.","queue":"Файл сохранён, но индексация не поставлена в очередь. Повторите попытку.","index":"Файл сохранён, но индексация завершилась ошибкой. Её можно повторить.","notRetryable":"Документ уже обрабатывается или доступен для поиска."}},
       oauth: {
         title: 'Подключение внешнего агента',
         request: '«{{name}}» хочет подключиться к MyGenoTree.',

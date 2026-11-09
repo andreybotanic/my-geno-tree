@@ -1,5 +1,124 @@
 # MyGenoTree
 
+## Tree documents and semantic search
+
+Open **Documents** in the person's card (or the empty-tree screen). The card contains
+only its launcher and a total counter (personal plus shared documents); the
+files, upload controls, attachment labels and processing actions live in a
+separate dialog, whose filter also opens all documents of the tree. Multiple TXT/MD files upload sequentially with individual
+results. A version conflict stops the remaining requests. Both languages use
+the site's design tokens and existing dialog/file-picker controls.
+
+Original UTF-8 bytes, including a possible BOM and original line endings, stay
+unchanged in private Flysystem storage. PostgreSQL holds the typed attachment,
+checksum, original filename/MIME and server-measured `originalSizeBytes`.
+Files are limited to 10 MiB each. Downloads remain available if indexing fails.
+Deleting a person makes their documents shared; deleting a tree queues cleanup
+of all its documents. Soft deletion immediately excludes a document from search.
+
+Start the document infrastructure after installing the locked dependencies and
+rebuilding the PHP image (the image includes AMQP):
+
+```sh
+docker compose build backend document-worker
+docker compose up -d database qdrant rabbitmq ollama
+docker compose run --rm ollama-init
+docker compose exec -T backend php bin/console doctrine:migrations:migrate --no-interaction
+docker compose exec -T backend php bin/console ai:store:setup documents
+docker compose up -d document-worker
+```
+
+The separate model-init step pulls `qwen3-embedding:0.6b` into `document_models`.
+The configured collection uses 1024-dimensional Cosine vectors. The initial pull
+needs network access; indexing/query embeddings then run locally. Persistent
+volumes also retain Qdrant data and RabbitMQ messages. These services expose no
+public host ports. Back up PostgreSQL and the media volume together; vectors
+can be rebuilt from originals. Changing the embedding model or dimensions
+requires a new collection and reindexing every document.
+
+The native Symfony AI pipeline uses TXT/Markdown loaders, a
+`TextSplitTransformer` (1000 characters, overlap 200), vectorizer and Qdrant
+store. Only search queries receive the model's retrieval instruction; document
+chunks do not. Stable UUIDv5 chunk IDs include the document generation.
+`SimilaritySearch` uses a server-scoped `RetrieverInterface`: PostgreSQL selects
+live document generations, Qdrant filters them before nearest-neighbour search,
+and a batched ORM check validates results again. Each search returns at most six
+fragments, with current names/attachments and protected download links. Native
+Symfony AI sources persist with chat replies. Text in documents cannot authorize
+tree mutations. The implementation follows the
+[Symfony RAG cookbook](https://symfony.com/doc/current/ai/cookbook/rag-implementation.html).
+
+RabbitMQ receives jobs directly after the document transaction commits. Publisher
+confirms, durable messages, three exponential retries and the
+`document_failures` transport are configured. There is deliberately no custom
+outbox or jobs table: a crash between commit and publish remains an accepted
+gap until the framework's outbox is adopted. Failed publishing records an error;
+the original remains downloadable. The UI retries failed or five-minute-stale
+jobs. Workers serialize processing per document and tolerate redelivery,
+generation changes and deletion during indexing. Cleanup is repeatable.
+
+```sh
+docker compose exec -T backend php bin/console messenger:stats documents document_failures
+docker compose exec -T backend php bin/console messenger:failed:show --transport=document_failures
+docker compose exec -T backend php bin/console messenger:failed:retry --transport=document_failures
+docker compose exec -T backend php bin/console app:documents:retry DOCUMENT_UUID
+docker compose logs --tail=100 document-worker
+```
+
+The last command that accepts a document UUID also republishes cleanup for a
+deleted document's tombstone. After an interrupted publication, use this command
+with the document ID; automatic delivery cannot repair an unpublished message.
+
+### Store choice
+
+The following compares every store in the current
+[Symfony AI catalogue](https://symfony.com/doc/current/ai/components/store.html#supported-stores)
+for this deployment. These are deployment tradeoffs, not benchmarks; only the
+Qdrant bridge is installed.
+
+| Store | Assessment for this project |
+| --- | --- |
+| Azure AI Search | Adds a cloud account and external index lifecycle. |
+| ChromaDB | Alternative local vector service; another client dependency. |
+| ClickHouse | Would add a second SQL/analytics system. |
+| Cloudflare Vectorize | Adds a managed cloud dependency. |
+| Doctrine | Reuses ORM; would need a separate evaluation of filtered vector search. |
+| Elasticsearch | Adds a search cluster beyond present needs. |
+| InMemory | Test/development option; data must fit PHP memory. |
+| Symfony Cache | Test/development option; also loads vectors into PHP memory. |
+| ManticoreSearch | Another search server to operate. |
+| MariaDB | Replaces/adds SQL infrastructure; needs 11.7+. |
+| Meilisearch | Another search engine to operate. |
+| Milvus | Alternative dedicated vector service; more infrastructure choices. |
+| MongoDB Atlas | Adds document-database infrastructure. |
+| Neo4j | Adds graph-database infrastructure. |
+| OpenSearch | Adds a search cluster. |
+| Pinecone | Adds a managed vector service. |
+| PostgreSQL/pgvector | Strong alternative: shared server, but requires installing pgvector in the DB image. |
+| Qdrant | Selected: local service, native bridge, filtered queries and stable point IDs. |
+| Redis Stack | Adds Redis plus vector-search operations. |
+| S3 Vectors | Adds AWS account/bucket lifecycle. |
+| SQLite | Adds a second persistence engine/file lifecycle. |
+| Supabase | Adds another platform around Postgres. |
+| SurrealDB | Adds a separate database. |
+| Typesense | Adds a separate search engine. |
+| Vektor | Embedded PHP/file storage; would need concurrency/filter evaluation here. |
+| Weaviate | Alternative dedicated vector service. |
+
+Postgres remains authoritative for ownership, attachment, status and generation;
+Qdrant stores only searchable chunks. Filtered deletion and payload-index setup
+use Qdrant's HTTP API because the installed bridge removes points by ID. No
+application repository accesses DBAL directly. See also the
+[Vektor project](https://github.com/centamiv/vektor) for its embedded-storage model.
+
+PDF/OCR are deferred. A future PDF loader should implement `LoaderInterface`
+around `pdftotext` text-layer extraction, validate the extracted text, then reuse
+this pipeline. Scanned PDFs will need a separately scoped OCR decision. No PDF
+classes, binaries or unused dependencies are installed now.
+
+The reproducible large-corpus acceptance record and actual native tool results
+are in [the manual RAG report](docs/qa/document-rag-2026-11-09.md).
+
 Local HTTPS MVP for creating and editing private genealogy trees.
 
 ## AI chat moderation
