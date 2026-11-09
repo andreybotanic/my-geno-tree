@@ -2,7 +2,6 @@
 
 namespace App\Api\View;
 
-use App\Api\Mapping\MapObject;
 use App\Entity\MediaAttachment;
 use App\Entity\Person;
 use App\Entity\Value\Gender;
@@ -14,14 +13,15 @@ final readonly class PersonView
 {
     public function __construct(
         public Uuid $id,
-        #[Map(transform: new MapObject(KnownTextView::class))] public KnownTextView $birthSurname,
-        #[Map(transform: new MapObject(KnownTextView::class))] public KnownTextView $givenName,
-        #[Map(transform: new MapObject(KnownTextView::class))] public KnownTextView $patronymic,
+        public KnownTextView $birthSurname,
+        public KnownTextView $givenName,
+        public KnownTextView $patronymic,
         public Gender $gender,
-        #[Map(transform: new MapObject(GenealogicalDateView::class))] public GenealogicalDateView $birthDate,
-        #[Map(transform: new MapObject(GenealogicalDateView::class))] public ?GenealogicalDateView $deathDate,
-        #[Map(transform: new MapObject(EventPlaceView::class))] public ?EventPlaceView $birthPlace,
-        #[Map(transform: new MapObject(EventPlaceView::class))] public ?EventPlaceView $deathPlace,
+        public GenealogicalDateView $birthDate,
+        #[Map(source: 'id', transform: [GenealogicalDateView::class, 'ended'])]
+        public ?GenealogicalDateView $deathDate,
+        public ?EventPlaceView $birthPlace,
+        public ?EventPlaceView $deathPlace,
         #[Map(source: 'photoAttachment', transform: [self::class, 'photoThumbnailUrl'])]
         public ?string $photoThumbnailUrl,
         public \DateTimeImmutable $createdAt,

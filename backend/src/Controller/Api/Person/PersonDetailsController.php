@@ -10,10 +10,12 @@ use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class PersonDetailsController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private PersonLookup $people,
         private TreeViewReader $details,
     ) {
@@ -34,12 +36,8 @@ final readonly class PersonDetailsController
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
         $details = $this->details->personDetails($tree, $this->people->require($tree, $personId));
-        $response = new JsonResponse($details);
-        $etag = $details['etag'];
-        if (!is_string($etag)) {
-            throw new \LogicException('Person details ETag must be a string.');
-        }
-        $response->headers->set('ETag', $etag);
+        $response = JsonResponse::fromJsonString($this->serializer->serialize($details, 'json'));
+        $response->headers->set('ETag', $details->etag);
 
         return $response;
     }

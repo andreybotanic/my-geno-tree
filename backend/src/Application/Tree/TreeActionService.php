@@ -4,7 +4,6 @@ namespace App\Application\Tree;
 
 use App\Api\ApiException;
 use App\Api\View\PersonView;
-use App\Api\ViewMapper;
 use App\Application\Event\EventPlaceService;
 use App\Application\Event\ManualEventService;
 use App\Application\Person\CreateFirstPersonService;
@@ -14,6 +13,8 @@ use App\Application\Person\UpdatePersonService;
 use App\Repository\ParentLinkRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /** One independently committed domain operation, shared by every tool transport. */
 final readonly class TreeActionService
@@ -49,7 +50,8 @@ final readonly class TreeActionService
         private StructuralGraphMutationService $graph,
         private UpdatePersonService $people,
         private PersonLookup $lookup,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
+        private NormalizerInterface $normalizer,
         private UpdateMarriagePeriodService $marriages,
         private ManualEventService $events,
         private EventPlaceService $places,
@@ -72,40 +74,42 @@ final readonly class TreeActionService
         $tree = $this->trees->tree($this->string($arguments, 'treeId'), true);
         $this->versions->assertMatches($tree, $this->string($arguments, 'ifMatch'));
         if ('delete_person' === $name) {
-            return [
-                'person' => $this->views->one(
+            $summary = [
+                'person' => $this->mapper->map(
                     $this->lookup->require($tree, $this->string($arguments, 'personId')),
                     PersonView::class,
                 ),
             ];
-        }
-
-        $fields = $this->object($arguments, 'fields');
-        $this->personData->create($fields + self::PERSON_DEFAULTS);
-        if (null === ($arguments['connection'] ?? null) && null !== $tree->getReferencePrimaryPerson()) {
-            throw new ApiException(422, 'TREE_ACTION_CONNECTION_REQUIRED', fields: ['connection' => ['initial_connection_required']]);
-        }
-        $summary = ['fields' => (object)$fields, 'connection' => $arguments['connection'] ?? null];
-        if (is_array($summary['connection'])) {
-            $connection = $this->object($arguments, 'connection');
-            $relative = $this->lookup->require($tree, $this->string($connection, 'personId'));
-            $summary['relative'] = $this->views->one($relative, PersonView::class);
-            if (isset($connection['otherParentId'])) {
-                $summary['otherRelative'] = $this->views->one(
-                    $this->lookup->require($tree, $this->string($connection, 'otherParentId')),
-                    PersonView::class,
-                );
+        } else {
+            $fields = $this->object($arguments, 'fields');
+            $this->personData->create($fields + self::PERSON_DEFAULTS);
+            if (null === ($arguments['connection'] ?? null) && null !== $tree->getReferencePrimaryPerson()) {
+                throw new ApiException(422, 'TREE_ACTION_CONNECTION_REQUIRED', fields: ['connection' => ['initial_connection_required']]);
             }
-            $summary['createsUnknownParent'] = !isset($connection['otherParentId'])
-                && ('child' === ($connection['type'] ?? null)
-                    || ('parent' === ($connection[
-                        'type'
-                    ] ?? null) && [] === $this->parentLinks->findForChild(
-                        $relative
-                    )));
+            $summary = ['fields' => (object)$fields, 'connection' => $arguments['connection'] ?? null];
+            if (is_array($summary['connection'])) {
+                $connection = $this->object($arguments, 'connection');
+                $relative = $this->lookup->require($tree, $this->string($connection, 'personId'));
+                $summary['relative'] = $this->mapper->map($relative, PersonView::class);
+                if (isset($connection['otherParentId'])) {
+                    $summary['otherRelative'] = $this->mapper->map(
+                        $this->lookup->require($tree, $this->string($connection, 'otherParentId')),
+                        PersonView::class,
+                    );
+                }
+                $summary['createsUnknownParent'] = !isset($connection['otherParentId'])
+                    && ('child' === ($connection['type'] ?? null)
+                        || ('parent' === ($connection[
+                            'type'
+                        ] ?? null) && [] === $this->parentLinks->findForChild(
+                            $relative
+                        )));
+            }
         }
+        /** @var array<string, mixed> $normalized */
+        $normalized = $this->normalizer->normalize($summary, 'json');
 
-        return $summary;
+        return $normalized;
     }
 
     /** @param array<string, mixed> $arguments
@@ -192,14 +196,14 @@ final readonly class TreeActionService
                 }
                 $result['personId'] ??= $result['newPersonIds'][0];
                 $result['people'] = array_map(
-                    fn (string $id) => $this->views->one($this->lookup->require($tree, $id), PersonView::class),
+                    fn (string $id) => $this->mapper->map($this->lookup->require($tree, $id), PersonView::class),
                     $result['newPersonIds'],
                 );
                 break;
             case 'update_person':
                 $person = $this->lookup->require($tree, $this->string($a, 'personId'));
                 $this->people->update($tree, $person, $this->object($a, 'fields'), $etag);
-                $result['person'] = $this->views->one($person, PersonView::class);
+                $result['person'] = $this->mapper->map($person, PersonView::class);
                 break;
             case 'delete_person':
             case 'remove_parent_link':
@@ -282,11 +286,17 @@ final readonly class TreeActionService
                 throw new ApiException(422, 'TREE_ACTION_INVALID');
         }
 
-        return [
-            ...$result,
-            'treeId' => $tree->getId()->toRfc4122(),
-            'etag'   => $result['etag'] ?? $this->versions->etag($tree),
-        ];
+        /** @var array<string, mixed> $normalized */
+        $normalized = $this->normalizer->normalize(
+            [
+                ...$result,
+                'treeId' => $tree->getId()->toRfc4122(),
+                'etag'   => $result['etag'] ?? $this->versions->etag($tree),
+            ],
+            'json',
+        );
+
+        return $normalized;
     }
 
     /** @param array<string, mixed> $relative

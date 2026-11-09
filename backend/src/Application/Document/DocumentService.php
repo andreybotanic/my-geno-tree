@@ -4,7 +4,6 @@ namespace App\Application\Document;
 
 use App\Api\ApiException;
 use App\Api\View\DocumentView;
-use App\Api\ViewMapper;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -18,6 +17,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Uid\Uuid;
 
 final readonly class DocumentService
@@ -30,7 +30,7 @@ final readonly class DocumentService
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
         private MessageBusInterface $bus,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private LoggerInterface $logger,
     ) {
     }
@@ -53,7 +53,10 @@ final readonly class DocumentService
         $rows = array_slice($rows, 0, $limit);
 
         return [
-            'items'      => $this->views->many($rows, DocumentView::class),
+            'items' => array_map(
+                fn (TreeDocument $item): DocumentView => $this->mapper->map($item, DocumentView::class),
+                $rows,
+            ),
             'total'      => $this->documents->countVisible($tree, $person, $scope),
             'nextCursor' => $more ? array_last($rows)?->getId()->toRfc4122() : null,
             'etag'       => $this->versions->etag($tree),

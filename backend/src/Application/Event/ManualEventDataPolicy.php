@@ -3,8 +3,6 @@
 namespace App\Application\Event;
 
 use App\Api\ApiException;
-use App\Api\View\GenealogicalDateView;
-use App\Api\ViewMapper;
 use App\Application\Person\PersonDataPolicy;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
@@ -18,7 +16,6 @@ final readonly class ManualEventDataPolicy
     public function __construct(
         private PersonDataPolicy $personData,
         private EventPlaceDataPolicy $places,
-        private ViewMapper $views,
     ) {
     }
 
@@ -68,7 +65,9 @@ final readonly class ManualEventDataPolicy
             $this->invalid('type', 'manual_event_type_invalid');
         }
 
-        $date = $this->personData->dateValue($payload['date'], 'date');
+        $date = $payload['date'] instanceof GenealogicalDate
+            ? $payload['date']
+            : $this->personData->dateValue($payload['date'], 'date');
         $this->assertWithinLife($person, $date);
 
         return new ManualEventData(
@@ -93,7 +92,7 @@ final readonly class ManualEventDataPolicy
         $type = $fields['type'] ?? $event->getType()->value;
         $payload = [
             'type' => $type,
-            'date' => $this->views->one($event->getDate(), GenealogicalDateView::class),
+            'date' => $event->getDate(),
             ...match ($type) {
                 'custom'         => ['title' => $event->getTitle(), 'description' => $event->getDescription()],
                 'residence'      => ['description' => $event->getDescription()],

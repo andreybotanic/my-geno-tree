@@ -4,7 +4,6 @@ namespace App\Controller\Api\Person;
 
 use App\Api\MediaResponseFactory;
 use App\Api\View\PersonView;
-use App\Api\ViewMapper;
 use App\Application\Media\CropAreaPolicy;
 use App\Application\Media\MediaService;
 use App\Application\Person\PersonLookup;
@@ -16,17 +15,20 @@ use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class PersonPhotoController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private PersonLookup $people,
         private CropAreaPolicy $input,
         private MediaService $media,
         private MediaResponseFactory $responses,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -147,10 +149,15 @@ final readonly class PersonPhotoController
         \App\Entity\Person $person,
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse([
-            'person' => $this->views->one($person, PersonView::class),
-            'etag'   => $etag,
-        ]);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'person' => $this->mapper->map($person, PersonView::class),
+                    'etag'   => $etag,
+                ],
+                'json',
+            ),
+        );
         $response->headers->set('ETag', $etag);
 
         return $response;

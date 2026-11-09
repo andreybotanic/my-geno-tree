@@ -13,10 +13,12 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class GraphMutationController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private RequestBodyMapper $requestBody,
         private GraphMutationService $mutations,
         private TreeViewReader $snapshots,
@@ -43,8 +45,8 @@ final readonly class GraphMutationController
             $this->requestBody->decodeObject($request),
             $request->headers->get('If-Match'),
         );
-        $response = new JsonResponse(
-            $this->snapshots->snapshot($tree),
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize($this->snapshots->snapshot($tree), 'json'),
             $status,
         );
         $response->headers->set('ETag', $this->versions->etag($tree));

@@ -9,10 +9,11 @@ use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class SearchRoutePlanController
 {
-    public function __construct(private SearchRoutePlanService $routes)
+    public function __construct(private SearchRoutePlanService $routes, private SerializerInterface $serializer)
     {
     }
 
@@ -31,7 +32,7 @@ final readonly class SearchRoutePlanController
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
         $plan = $this->routes->create($tree, $personId);
-        $response = new JsonResponse($plan);
+        $response = JsonResponse::fromJsonString($this->serializer->serialize($plan, 'json'));
         $etag = $plan['etag'];
         if (!is_string($etag)) {
             throw new \LogicException('Search route ETag must be a string.');

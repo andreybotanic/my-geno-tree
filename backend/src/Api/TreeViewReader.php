@@ -2,24 +2,32 @@
 
 namespace App\Api;
 
+use App\Api\View\EventView;
+use App\Api\View\MarriagePeriodView;
+use App\Api\View\ParentLinkView;
 use App\Api\View\PersonDetailsView;
-use App\Api\View\TreeReferenceView;
+use App\Api\View\PersonView;
+use App\Api\View\RelationshipPersonView;
+use App\Api\View\RelationshipsView;
 use App\Api\View\TreeSnapshotView;
 use App\Api\View\TreeSummaryView;
+use App\Api\View\TreeView;
 use App\Application\Event\EventTimelineService;
 use App\Application\Tree\GraphInvariantPolicy;
 use App\Application\Tree\Layout\TreeLayoutSnapshotService;
 use App\Application\Tree\Layout\TreeStructure;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
+use App\Entity\GenealogicalEvent;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
 use App\Entity\Person;
 use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
 use App\Repository\PersonRepository;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 
-/** Loads bounded aggregates; output shape and normalization belong to the DTO mappings. */
+/** Loads bounded aggregates and maps their entities to typed response DTOs. */
 final readonly class TreeViewReader
 {
     public function __construct(
@@ -30,49 +38,54 @@ final readonly class TreeViewReader
         private GraphInvariantPolicy $invariants,
         private TreeVersion $versions,
         private TreeLayoutSnapshotService $layouts,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
     ) {
     }
 
-    /** @return array<string, mixed> */
-    public function summary(FamilyTree $tree, ?int $personCount = null): array
+    public function summary(FamilyTree $tree, ?int $personCount = null): TreeSummaryView
     {
-        return $this->views->one(
-            (object)[
-                'tree'        => $tree,
-                'personCount' => $personCount ?? $this->people->countForTree($tree),
-                'etag'        => $this->versions->etag($tree),
-                'reference'   => TreeReferenceView::reference($tree->getReferencePrimaryPerson(), $tree),
-            ],
-            TreeSummaryView::class,
+        $view = $this->mapper->map($tree, TreeView::class);
+
+        return new TreeSummaryView(
+            $view->id,
+            $view->name,
+            $personCount ?? $this->people->countForTree($tree),
+            $view->createdAt,
+            $view->updatedAt,
+            $this->versions->etag($tree),
+            $view->reference,
         );
     }
 
-    /** @return array<string, mixed> */
-    public function snapshot(FamilyTree $tree): array
+    public function snapshot(FamilyTree $tree): TreeSnapshotView
     {
         $people = $this->people->findAllForTree($tree);
         $parentLinks = $this->parentLinks->findAllForTree($tree);
         $marriages = $this->marriages->findAllForTree($tree);
         $layout = $this->layouts->create($tree, new TreeStructure($people, $parentLinks, $marriages));
 
-        return $this->views->one(
-            (object)[
-                'tree'              => $tree,
-                'etag'              => $this->versions->etag($tree),
-                'layoutRevision'    => $layout['layoutRevision'],
-                'layout'            => $layout['layout'],
-                'bloodNetworkState' => $tree->getBloodNetworkState(),
-                'people'            => $people,
-                'parentLinks'       => $parentLinks,
-                'marriages'         => $marriages,
-            ],
-            TreeSnapshotView::class,
+        return new TreeSnapshotView(
+            $this->mapper->map($tree, TreeView::class),
+            $this->versions->etag($tree),
+            $layout['layoutRevision'],
+            $layout['layout'],
+            $tree->getBloodNetworkState(),
+            array_map(fn (Person $person): PersonView => $this->mapper->map($person, PersonView::class), $people),
+            array_map(
+                fn (ParentLink $link): ParentLinkView => $this->mapper->map($link, ParentLinkView::class),
+                $parentLinks,
+            ),
+            array_map(
+                fn (MarriagePeriod $marriage): MarriagePeriodView => $this->mapper->map(
+                    $marriage,
+                    MarriagePeriodView::class,
+                ),
+                $marriages,
+            ),
         );
     }
 
-    /** @return array<string, mixed> */
-    public function personDetails(FamilyTree $tree, Person $person): array
+    public function personDetails(FamilyTree $tree, Person $person): PersonDetailsView
     {
         $links = $this->parentLinks->findRelationshipContext($tree, $person);
         $personId = $person->getId()->toRfc4122();
@@ -119,19 +132,34 @@ final readonly class TreeViewReader
             static fn (string $id): bool => isset($marriageIds[$id]),
         ));
 
-        return $this->views->one(
-            (object)[
-                'etag'          => $this->versions->etag($tree),
-                'person'        => $person,
-                'relationships' => (object)[
-                    'people'      => array_values($relatedPeople),
-                    'parentLinks' => $links,
-                    'marriages'   => $marriages,
-                ],
-                'events'      => $this->timeline->forPerson($person),
-                'permissions' => ['canEdit' => true, ...$permissions],
-            ],
-            PersonDetailsView::class,
+        return new PersonDetailsView(
+            $this->versions->etag($tree),
+            $this->mapper->map($person, PersonView::class),
+            new RelationshipsView(
+                array_map(
+                    fn (Person $related): RelationshipPersonView => $this->mapper->map(
+                        $related,
+                        RelationshipPersonView::class,
+                    ),
+                    array_values($relatedPeople),
+                ),
+                array_map(
+                    fn (ParentLink $link): ParentLinkView => $this->mapper->map($link, ParentLinkView::class),
+                    $links,
+                ),
+                array_map(
+                    fn (MarriagePeriod $marriage): MarriagePeriodView => $this->mapper->map(
+                        $marriage,
+                        MarriagePeriodView::class,
+                    ),
+                    $marriages,
+                ),
+            ),
+            array_map(
+                fn (GenealogicalEvent $event): EventView => $this->mapper->map($event, EventView::class),
+                $this->timeline->forPerson($person),
+            ),
+            ['canEdit' => true, ...$permissions],
         );
     }
 }

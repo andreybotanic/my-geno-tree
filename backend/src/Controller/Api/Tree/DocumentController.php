@@ -4,7 +4,6 @@ namespace App\Controller\Api\Tree;
 
 use App\Api\ApiException;
 use App\Api\View\DocumentView;
-use App\Api\ViewMapper;
 use App\Application\Document\DocumentService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -15,15 +14,18 @@ use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/v1/trees/{treeId}/documents')]
 final readonly class DocumentController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private DocumentService $documents,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -38,14 +40,17 @@ final readonly class DocumentController
             throw new ApiException(422, 'DOCUMENT_QUERY_INVALID');
         }
 
-        return new JsonResponse(
-            $this->documents->listing(
-                $tree,
-                $request->query->get('personId'),
-                $scope,
-                $request->query->get('cursor'),
-                (int)$limit,
-            )
+        return JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                $this->documents->listing(
+                    $tree,
+                    $request->query->get('personId'),
+                    $scope,
+                    $request->query->get('cursor'),
+                    (int)$limit,
+                ),
+                'json',
+            ),
         );
     }
 
@@ -66,8 +71,11 @@ final readonly class DocumentController
         );
         $etag = $this->versions->etag($tree);
 
-        return new JsonResponse(
-            ['document' => $this->views->one($document, DocumentView::class), 'etag' => $etag],
+        return JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
+                'json',
+            ),
             202,
             ['ETag' => $etag],
         );

@@ -79,6 +79,10 @@ No suppression or production-code workaround was added for these notices.
 
 ## DTO mapping follow-up
 
+The adapter-based mapping described in this historical section was subsequently
+replaced with native nested mapping; see the
+[native mapping verification](native-view-mapping-2026-11-09.md).
+
 All twelve remaining `*ViewFactory` classes were replaced with typed output DTOs
 and Symfony ObjectMapper/Serializer. Aggregate queries moved to `TreeViewReader`;
 their existing joins, batched relationship loading and query-count tests remain.

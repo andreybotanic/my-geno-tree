@@ -4,7 +4,6 @@ namespace App\Controller\Api\Tree;
 
 use App\Api\RequestBodyMapper;
 use App\Api\View\MarriagePeriodView;
-use App\Api\ViewMapper;
 use App\Application\Tree\TreeVersion;
 use App\Application\Tree\UpdateMarriagePeriodService;
 use App\Entity\FamilyTree;
@@ -12,15 +11,18 @@ use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class MarriagePeriodController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private RequestBodyMapper $requestBody,
         private UpdateMarriagePeriodService $marriages,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -47,10 +49,15 @@ final readonly class MarriagePeriodController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse([
-            'marriage' => $this->views->one($marriage, MarriagePeriodView::class),
-            'etag'     => $etag,
-        ]);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'marriage' => $this->mapper->map($marriage, MarriagePeriodView::class),
+                    'etag'     => $etag,
+                ],
+                'json',
+            ),
+        );
         $response->headers->set('ETag', $etag);
 
         return $response;

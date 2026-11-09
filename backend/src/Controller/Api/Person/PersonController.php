@@ -4,7 +4,6 @@ namespace App\Controller\Api\Person;
 
 use App\Api\RequestBodyMapper;
 use App\Api\View\PersonView;
-use App\Api\ViewMapper;
 use App\Application\Person\PersonLookup;
 use App\Application\Person\UpdatePersonService;
 use App\Application\Tree\TreeVersion;
@@ -13,14 +12,17 @@ use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class PersonController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private PersonLookup $people,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private RequestBodyMapper $requestBody,
         private UpdatePersonService $updatePerson,
         private TreeVersion $versions,
@@ -41,8 +43,11 @@ final readonly class PersonController
         string $personId,
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $response = new JsonResponse(
-            $this->views->one($this->people->require($tree, $personId), PersonView::class),
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                $this->mapper->map($this->people->require($tree, $personId), PersonView::class),
+                'json',
+            ),
         );
         $response->headers->set('ETag', $this->versions->etag($tree));
 
@@ -72,10 +77,15 @@ final readonly class PersonController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse([
-            'person' => $this->views->one($person, PersonView::class),
-            'etag'   => $etag,
-        ]);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'person' => $this->mapper->map($person, PersonView::class),
+                    'etag'   => $etag,
+                ],
+                'json',
+            ),
+        );
         $response->headers->set('ETag', $etag);
 
         return $response;

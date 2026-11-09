@@ -19,10 +19,12 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class TreeItemController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private RequestBodyMapper $requestBody,
         private RenameTreeService $renameTree,
         private DeleteTreeService $deleteTree,
@@ -52,7 +54,7 @@ final readonly class TreeItemController
             $input->name,
             $request->headers->get('If-Match'),
         );
-        $response = new JsonResponse($this->views->summary($tree));
+        $response = JsonResponse::fromJsonString($this->serializer->serialize($this->views->summary($tree), 'json'));
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;
@@ -87,13 +89,11 @@ final readonly class TreeItemController
     {
         $conversation = $chat->current('tree:' . $tree->getId()->toRfc4122());
 
-        return new JsonResponse(
-            [
-                'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
-                'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
-                'access'       => $chat->access($tree->getOwner()->getId()),
-            ]
-        );
+        return new JsonResponse([
+            'conversation' => null === $conversation ? null : $chat->snapshot($conversation),
+            'tokenBudget'  => $chat->budget($tree->getOwner()->getId()),
+            'access'       => $chat->access($tree->getOwner()->getId()),
+        ]);
     }
 
     #[Route('/api/v1/trees/{treeId}/chat', name: 'api_tree_chat_create', methods: ['POST'])]

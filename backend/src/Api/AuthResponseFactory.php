@@ -6,11 +6,14 @@ use App\Api\View\UserView;
 use App\Application\Auth\TokenBundle;
 use App\Http\RefreshCookieFactory;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class AuthResponseFactory
 {
     public function __construct(
-        private ViewMapper $views,
+        private SerializerInterface $serializer,
+        private ObjectMapperInterface $mapper,
         private RefreshCookieFactory $cookies,
     ) {
     }
@@ -19,11 +22,17 @@ final readonly class AuthResponseFactory
         TokenBundle $bundle,
         int $status = JsonResponse::HTTP_OK,
     ): JsonResponse {
-        $response = new JsonResponse([
-            'accessToken'          => $bundle->accessToken,
-            'accessTokenExpiresAt' => $bundle->accessExpiresAt->format(DATE_ATOM),
-            'user'                 => $this->views->one($bundle->session->getUser(), UserView::class),
-        ], $status);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'accessToken'          => $bundle->accessToken,
+                    'accessTokenExpiresAt' => $bundle->accessExpiresAt->format(DATE_ATOM),
+                    'user'                 => $this->mapper->map($bundle->session->getUser(), UserView::class),
+                ],
+                'json',
+            ),
+            $status,
+        );
         $response->headers->setCookie($this->cookies->create($bundle));
 
         return $response;

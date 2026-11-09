@@ -2,7 +2,6 @@
 
 namespace App\Api\View;
 
-use App\Api\Mapping\MapObject;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Value\EventSource;
 use App\Entity\Value\EventType;
@@ -18,8 +17,8 @@ final readonly class EventView
         #[Map(source: 'person.id')] public Uuid $personId,
         public EventType $type,
         public EventSource $source,
-        #[Map(transform: new MapObject(GenealogicalDateView::class))] public GenealogicalDateView $date,
-        #[Map(transform: new MapObject(EventPlaceView::class))] public ?EventPlaceView $place,
+        public GenealogicalDateView $date,
+        public ?EventPlaceView $place,
         public ?string $title,
         public ?string $description,
         #[Map(transform: [self::class, 'data'])] public array|\stdClass $data,

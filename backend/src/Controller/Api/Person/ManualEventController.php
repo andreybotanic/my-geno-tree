@@ -4,7 +4,6 @@ namespace App\Controller\Api\Person;
 
 use App\Api\RequestBodyMapper;
 use App\Api\View\EventView;
-use App\Api\ViewMapper;
 use App\Application\Event\ManualEventService;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
@@ -14,8 +13,10 @@ use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 #[IsGranted(
     FamilyTreeVoter::EDIT,
@@ -25,10 +26,11 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final readonly class ManualEventController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private RequestBodyMapper $requestBody,
         private PersonLookup $people,
         private ManualEventService $events,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -123,10 +125,18 @@ final readonly class ManualEventController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse([
-            'items' => $this->views->many($events, EventView::class),
-            'etag'  => $etag,
-        ]);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'items' => array_map(
+                        fn (GenealogicalEvent $item): EventView => $this->mapper->map($item, EventView::class),
+                        $events,
+                    ),
+                    'etag' => $etag,
+                ],
+                'json',
+            ),
+        );
         $response->headers->set('ETag', $etag);
 
         return $response;
@@ -138,10 +148,16 @@ final readonly class ManualEventController
         int $status = JsonResponse::HTTP_OK,
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse([
-            'event' => $this->views->one($event, EventView::class),
-            'etag'  => $etag,
-        ], $status);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'event' => $this->mapper->map($event, EventView::class),
+                    'etag'  => $etag,
+                ],
+                'json',
+            ),
+            $status,
+        );
         $response->headers->set('ETag', $etag);
 
         return $response;

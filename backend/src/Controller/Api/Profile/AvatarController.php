@@ -4,13 +4,13 @@ namespace App\Controller\Api\Profile;
 
 use App\Api\MediaResponseFactory;
 use App\Api\View\UserView;
-use App\Api\ViewMapper;
 use App\Application\Media\CropAreaPolicy;
 use App\Application\Media\MediaService;
 use App\Entity\User;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\Serialize;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -22,7 +22,7 @@ final readonly class AvatarController
         private CropAreaPolicy $input,
         private MediaService $media,
         private MediaResponseFactory $responses,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
     ) {
     }
 
@@ -38,24 +38,26 @@ final readonly class AvatarController
     }
 
     #[Route('/api/v1/me/avatar', name: 'api_avatar_upload', methods: ['POST'])]
+    #[Serialize]
     public function upload(
         Request $request,
         #[CurrentUser] User $user,
-    ): JsonResponse {
+    ): UserView {
         $this->media->uploadAvatar(
             $user,
             $this->input->uploadedFile($request),
             $this->input->fromRequest($request),
         );
 
-        return new JsonResponse($this->views->one($user, UserView::class));
+        return $this->mapper->map($user, UserView::class);
     }
 
     #[Route('/api/v1/me/avatar', name: 'api_avatar_delete', methods: ['DELETE'])]
-    public function delete(#[CurrentUser] User $user): JsonResponse
+    #[Serialize]
+    public function delete(#[CurrentUser] User $user): UserView
     {
         $this->media->deleteAvatar($user);
 
-        return new JsonResponse($this->views->one($user, UserView::class));
+        return $this->mapper->map($user, UserView::class);
     }
 }

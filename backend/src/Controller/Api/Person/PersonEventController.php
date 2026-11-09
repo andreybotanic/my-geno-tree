@@ -3,23 +3,26 @@
 namespace App\Controller\Api\Person;
 
 use App\Api\View\EventView;
-use App\Api\ViewMapper;
 use App\Application\Event\EventTimelineService;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
+use App\Entity\GenealogicalEvent;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class PersonEventController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private PersonLookup $people,
         private EventTimelineService $timeline,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -39,9 +42,17 @@ final readonly class PersonEventController
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
         $person = $this->people->require($tree, $personId);
-        $response = new JsonResponse([
-            'items' => $this->views->many($this->timeline->forPerson($person), EventView::class),
-        ]);
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'items' => array_map(
+                        fn (GenealogicalEvent $event): EventView => $this->mapper->map($event, EventView::class),
+                        $this->timeline->forPerson($person),
+                    ),
+                ],
+                'json',
+            ),
+        );
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;

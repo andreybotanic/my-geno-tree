@@ -3,7 +3,6 @@
 namespace App\Tests\Api\Tree;
 
 use App\Api\View\DocumentView;
-use App\Api\ViewMapper;
 use App\Entity\FamilyTree;
 use App\Entity\TreeDocument;
 use App\Repository\TreeDocumentRepository;
@@ -13,6 +12,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /** @phpstan-type Context array{token: string, tree: string, etag: string, person: string} */
 final class DocumentApiTest extends ApiWebTestCase
@@ -130,7 +131,8 @@ final class DocumentApiTest extends ApiWebTestCase
         $counter->reset();
         $rows = static::getContainer()->get(TreeDocumentRepository::class)->page($tree, null, 'all', null, 100);
         foreach ($rows as $row) {
-            static::getContainer()->get(ViewMapper::class)->one($row, DocumentView::class);
+            $view = static::getContainer()->get(ObjectMapperInterface::class)->map($row, DocumentView::class);
+            static::getContainer()->get(NormalizerInterface::class)->normalize($view, 'json');
         }
         self::assertLessThanOrEqual(2, $counter->selectCount());
     }

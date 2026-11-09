@@ -2,6 +2,7 @@
 
 namespace App\Api\View;
 
+use App\Entity\Value\GenealogicalDate;
 use App\Entity\Value\KnownText;
 use Symfony\Component\ObjectMapper\Attribute\Map;
 use Symfony\Component\Serializer\Attribute\Context;
@@ -12,13 +13,13 @@ use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 final readonly class KnownTextView
 {
     public function __construct(
-        #[Map(source: 'known', transform: [self::class, 'state'])] public string $state,
+        #[Map(source: 'value', transform: [self::class, 'state'])] public string $state,
         public ?string $value,
     ) {
     }
 
-    public static function state(bool $known): string
+    public static function state(mixed $value, KnownText|GenealogicalDate $source): string
     {
-        return $known ? 'known' : 'unknown';
+        return $source->isKnown() ? 'known' : 'unknown';
     }
 }

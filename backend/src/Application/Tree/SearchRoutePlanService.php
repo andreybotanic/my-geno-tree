@@ -6,7 +6,6 @@ use App\Api\ApiException;
 use App\Api\View\MarriagePeriodView;
 use App\Api\View\ParentLinkView;
 use App\Api\View\PersonView;
-use App\Api\ViewMapper;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
@@ -15,6 +14,7 @@ use App\Repository\MarriagePeriodRepository;
 use App\Repository\ParentLinkRepository;
 use App\Repository\PersonRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Uid\Uuid;
 
 final readonly class SearchRoutePlanService
@@ -23,7 +23,7 @@ final readonly class SearchRoutePlanService
         private PersonRepository $people,
         private ParentLinkRepository $parentLinks,
         private MarriagePeriodRepository $marriages,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
         private TreeVersion $versions,
     ) {
     }
@@ -104,7 +104,7 @@ final readonly class SearchRoutePlanService
             $peopleById[$this->id($person)] = $person;
         }
         $includedPeople = array_map(
-            fn (string $id): array => $this->views->one($peopleById[$id], PersonView::class),
+            fn (string $id): PersonView => $this->mapper->map($peopleById[$id], PersonView::class),
             array_keys($nodes),
         );
 
@@ -112,13 +112,23 @@ final readonly class SearchRoutePlanService
             'etag'           => $this->versions->etag($tree),
             'targetPersonId' => $personId,
             'people'         => $includedPeople,
-            'nodes'          => array_map(static fn (string $id, array $node): array => [
-                'personId'   => $id,
-                'generation' => $node['generation'],
-                'kind'       => $node['kind'],
-            ], array_keys($nodes), array_values($nodes)),
-            'parentLinks'  => $this->views->many(array_values($includedParents), ParentLinkView::class),
-            'marriages'    => $this->views->many(array_values($includedMarriages), MarriagePeriodView::class),
+            'nodes'          => array_map(
+                static fn (string $id, array $node): array => [
+                    'personId'   => $id,
+                    'generation' => $node['generation'],
+                    'kind'       => $node['kind'],
+                ],
+                array_keys($nodes),
+                array_values($nodes),
+            ),
+            'parentLinks' => array_map(
+                fn (ParentLink $item): ParentLinkView => $this->mapper->map($item, ParentLinkView::class),
+                array_values($includedParents),
+            ),
+            'marriages' => array_map(
+                fn (MarriagePeriod $item): MarriagePeriodView => $this->mapper->map($item, MarriagePeriodView::class),
+                array_values($includedMarriages),
+            ),
             'familyBlocks' => $this->familyBlocks(
                 array_values($includedParents),
                 array_values($includedMarriages),

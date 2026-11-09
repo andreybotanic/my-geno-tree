@@ -2,7 +2,6 @@
 
 namespace App\Api\View;
 
-use App\Api\Mapping\MapObject;
 use App\Entity\EventPlace;
 use Symfony\Component\ObjectMapper\Attribute\Map;
 
@@ -11,7 +10,7 @@ final readonly class EventPlaceView
 {
     public function __construct(
         public string $name,
-        #[Map(source: 'latitude', transform: [[self::class, 'coordinates'], new MapObject(CoordinatesView::class)])]
+        #[Map(source: 'latitude', transform: [self::class, 'coordinates'])]
         public ?CoordinatesView $coordinates,
     ) {
     }

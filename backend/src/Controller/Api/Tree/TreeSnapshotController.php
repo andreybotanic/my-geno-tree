@@ -10,10 +10,12 @@ use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class TreeSnapshotController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private TreeViewReader $snapshots,
         private TreeVersion $versions,
     ) {
@@ -32,7 +34,9 @@ final readonly class TreeSnapshotController
     public function __invoke(
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $response = new JsonResponse($this->snapshots->snapshot($tree));
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize($this->snapshots->snapshot($tree), 'json'),
+        );
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;

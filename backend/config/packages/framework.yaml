@@ -4,6 +4,9 @@ framework:
 
     # Note that the session will be started ONLY if you read or write from it.
     session: true
+    serializer:
+        default_context:
+            preserve_empty_objects: true
 
     #esi: true
     #fragments: true

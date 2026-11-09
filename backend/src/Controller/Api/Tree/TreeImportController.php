@@ -12,10 +12,12 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Serializer\SerializerInterface;
 
 final readonly class TreeImportController
 {
     public function __construct(
+        private SerializerInterface $serializer,
         private TreeImportService $imports,
         private TreeViewReader $views,
         private TreeVersion $versions,
@@ -41,11 +43,14 @@ final readonly class TreeImportController
             $this->file($request),
             $this->recognizePlaces($request),
         );
-        $response = new JsonResponse(
-            [
-                'tree'     => $this->views->summary($result->tree, $result->personCount),
-                'warnings' => $result->warnings,
-            ],
+        $response = JsonResponse::fromJsonString(
+            $this->serializer->serialize(
+                [
+                    'tree'     => $this->views->summary($result->tree, $result->personCount),
+                    'warnings' => $result->warnings,
+                ],
+                'json',
+            ),
             JsonResponse::HTTP_CREATED,
         );
         $response->headers->set('ETag', $this->versions->etag($result->tree));

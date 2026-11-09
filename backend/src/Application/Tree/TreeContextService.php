@@ -5,7 +5,6 @@ namespace App\Application\Tree;
 use App\Api\ApiException;
 use App\Api\View\GenealogicalDateView;
 use App\Api\View\KnownTextView;
-use App\Api\ViewMapper;
 use App\Application\Person\PersonSearchService;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
@@ -15,7 +14,9 @@ use App\Repository\ParentLinkRepository;
 use App\Repository\PersonRepository;
 use App\Security\FamilyTreeVoter;
 use Symfony\Component\Clock\ClockInterface;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
+use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Component\Uid\Uuid;
 
 final readonly class TreeContextService
@@ -28,7 +29,8 @@ final readonly class TreeContextService
         private PersonSearchService $search,
         private TreeVersion $versions,
         private AuthorizationCheckerInterface $authorization,
-        private ViewMapper $views,
+        private ObjectMapperInterface $mapper,
+        private NormalizerInterface $normalizer,
         private ClockInterface $clock,
     ) {
     }
@@ -92,7 +94,10 @@ final readonly class TreeContextService
             $this->people->findRelationshipPeopleByTreeAndIds($tree, array_values(array_unique($ids))),
         );
 
-        return $context;
+        /** @var array<string, mixed> $result */
+        $result = $this->normalizer->normalize($context, 'json');
+
+        return $result;
     }
 
     /** @return list<array{id: string, fullName: string, birthYear: ?int, deathYear: ?int}> */
@@ -106,14 +111,14 @@ final readonly class TreeContextService
     {
         return [
             'id'           => $person->getId()->toRfc4122(),
-            'givenName'    => $this->views->one($person->getGivenName(), KnownTextView::class),
-            'birthSurname' => $this->views->one($person->getBirthSurname(), KnownTextView::class),
-            'patronymic'   => $this->views->one($person->getPatronymic(), KnownTextView::class),
+            'givenName'    => $this->mapper->map($person->getGivenName(), KnownTextView::class),
+            'birthSurname' => $this->mapper->map($person->getBirthSurname(), KnownTextView::class),
+            'patronymic'   => $this->mapper->map($person->getPatronymic(), KnownTextView::class),
             'gender'       => $person->getGender()->value,
-            'birthDate'    => $this->views->one($person->getBirthDate(), GenealogicalDateView::class),
+            'birthDate'    => $this->mapper->map($person->getBirthDate(), GenealogicalDateView::class),
             'deathDate'    => null === $person->getDeathDate()
                 ? null
-                : $this->views->one($person->getDeathDate(), GenealogicalDateView::class),
+                : $this->mapper->map($person->getDeathDate(), GenealogicalDateView::class),
         ];
     }
 }
