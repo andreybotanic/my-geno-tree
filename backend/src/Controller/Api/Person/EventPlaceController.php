@@ -9,22 +9,21 @@ use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
 #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: JsonResponse::HTTP_NOT_FOUND)]
-final readonly class EventPlaceController
+final class EventPlaceController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private RequestBodyMapper $requestBody,
-        private EventPlaceService $places,
-        private ObjectMapperInterface $mapper,
-        private TreeVersion $versions,
+        private readonly RequestBodyMapper $requestBody,
+        private readonly EventPlaceService $places,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly TreeVersion $versions,
     ) {
     }
 
@@ -41,15 +40,11 @@ final readonly class EventPlaceController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                ['event' => $this->mapper->map($event, EventView::class), 'etag' => $etag],
-                'json',
-            ),
-        );
-        $response->headers->set('ETag', $etag);
 
-        return $response;
+        return $this->json(
+            ['event' => $this->mapper->map($event, EventView::class), 'etag' => $etag],
+            headers: ['ETag' => $etag],
+        );
     }
 
     #[Route('/api/v1/trees/{treeId}/events/{eventId}/place', name: 'api_event_place_delete', methods: ['DELETE'])]

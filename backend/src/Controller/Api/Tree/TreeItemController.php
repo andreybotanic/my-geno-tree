@@ -14,22 +14,21 @@ use App\Entity\FamilyTree;
 use App\Request\Tree\TreeNameRequest;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class TreeItemController
+final class TreeItemController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private RequestBodyMapper $requestBody,
-        private RenameTreeService $renameTree,
-        private DeleteTreeService $deleteTree,
-        private TreeViewReader $views,
-        private TreeVersion $versions,
+        private readonly RequestBodyMapper $requestBody,
+        private readonly RenameTreeService $renameTree,
+        private readonly DeleteTreeService $deleteTree,
+        private readonly TreeViewReader $views,
+        private readonly TreeVersion $versions,
     ) {
     }
 
@@ -54,10 +53,8 @@ final readonly class TreeItemController
             $input->name,
             $request->headers->get('If-Match'),
         );
-        $response = JsonResponse::fromJsonString($this->serializer->serialize($this->views->summary($tree), 'json'));
-        $response->headers->set('ETag', $this->versions->etag($tree));
 
-        return $response;
+        return $this->json($this->views->summary($tree), headers: ['ETag' => $this->versions->etag($tree)]);
     }
 
     #[Route(

@@ -8,6 +8,33 @@ use Symfony\Component\BrowserKit\Cookie;
 
 final class SessionApiTest extends ApiWebTestCase
 {
+    public function testTokenResponsesExposeOnlyPublicSessionData(): void
+    {
+        $requests = [
+            ['/api/v1/auth/register', $this->validRegistration(), 201],
+            [
+                '/api/v1/auth/login',
+                ['identifier' => 'family_admin', 'password' => 'StrongPass1!'],
+                200,
+            ],
+            ['/api/v1/auth/refresh', [], 200],
+        ];
+        foreach ($requests as [$path, $payload, $status]) {
+            $this->jsonRequest('POST', $path, $payload);
+            self::assertResponseStatusCodeSame($status);
+            $data = $this->responseData();
+            self::assertEqualsCanonicalizing(
+                ['accessToken', 'accessTokenExpiresAt', 'user'],
+                array_keys($data),
+            );
+            self::assertIsArray($data['user']);
+            self::assertArrayNotHasKey('passwordHash', $data['user']);
+            $expires = $this->responseString('accessTokenExpiresAt');
+            self::assertSame($expires, new \DateTimeImmutable($expires)->format(DATE_ATOM));
+            self::assertResponseHasCookie(RefreshCookieFactory::NAME, '/api/v1/auth');
+        }
+    }
+
     public function testLoginUsesCaseSensitiveUsernameAndCaseInsensitiveEmail(): void
     {
         $this->jsonRequest(

@@ -7,17 +7,16 @@ use App\Application\Person\PersonLookup;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class PersonDetailsController
+final class PersonDetailsController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private PersonLookup $people,
-        private TreeViewReader $details,
+        private readonly PersonLookup $people,
+        private readonly TreeViewReader $details,
     ) {
     }
 
@@ -36,9 +35,7 @@ final readonly class PersonDetailsController
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
         $details = $this->details->personDetails($tree, $this->people->require($tree, $personId));
-        $response = JsonResponse::fromJsonString($this->serializer->serialize($details, 'json'));
-        $response->headers->set('ETag', $details->etag);
 
-        return $response;
+        return $this->json($details, headers: ['ETag' => $details->etag]);
     }
 }

@@ -7,27 +7,26 @@ use App\Api\TreeViewReader;
 use App\Application\Tree\TreeVersion;
 use App\Application\TreeExchange\TreeImportService;
 use App\Entity\User;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class TreeImportController
+final class TreeImportController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private TreeImportService $imports,
-        private TreeViewReader $views,
-        private TreeVersion $versions,
+        private readonly TreeImportService $imports,
+        private readonly TreeViewReader $views,
+        private readonly TreeVersion $versions,
     ) {
     }
 
     #[Route('/api/v1/tree-imports/inspect', name: 'api_tree_imports_inspect', methods: ['POST'])]
     public function inspect(Request $request): JsonResponse
     {
-        return new JsonResponse($this->imports->inspect($this->file($request)));
+        return new JsonResponse($this->imports->inspect($this->uploadedFile($request)));
     }
 
     #[Route('/api/v1/tree-imports', name: 'api_tree_imports_create', methods: ['POST'])]
@@ -40,29 +39,24 @@ final readonly class TreeImportController
         $result = $this->imports->import(
             $user,
             $name,
-            $this->file($request),
+            $this->uploadedFile($request),
             $this->recognizePlaces($request),
         );
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                [
-                    'tree'     => $this->views->summary($result->tree, $result->personCount),
-                    'warnings' => $result->warnings,
-                ],
-                'json',
-            ),
-            JsonResponse::HTTP_CREATED,
-        );
-        $response->headers->set('ETag', $this->versions->etag($result->tree));
-        $response->headers->set('Location', sprintf(
-            '/api/v1/trees/%s/snapshot',
-            $result->tree->getId()->toRfc4122(),
-        ));
 
-        return $response;
+        return $this->json(
+            [
+                'tree'     => $this->views->summary($result->tree, $result->personCount),
+                'warnings' => $result->warnings,
+            ],
+            JsonResponse::HTTP_CREATED,
+            [
+                'ETag'     => $this->versions->etag($result->tree),
+                'Location' => sprintf('/api/v1/trees/%s/snapshot', $result->tree->getId()->toRfc4122()),
+            ],
+        );
     }
 
-    private function file(Request $request): UploadedFile
+    private function uploadedFile(Request $request): UploadedFile
     {
         $file = $request->files->get('file');
         if (!$file instanceof UploadedFile) {

@@ -3,18 +3,21 @@
 namespace App\Controller\Api\Auth;
 
 use App\Api\ApiException;
-use App\Api\AuthResponseFactory;
+use App\Api\View\AuthView;
 use App\Application\Auth\RefreshSessionService;
 use App\Http\RefreshCookieFactory;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-final readonly class RefreshController
+final class RefreshController extends AbstractController
 {
     public function __construct(
-        private RefreshSessionService $refresh,
-        private AuthResponseFactory $responseFactory,
+        private readonly RefreshSessionService $refresh,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly RefreshCookieFactory $cookies,
     ) {
     }
 
@@ -26,8 +29,10 @@ final readonly class RefreshController
             throw new ApiException(JsonResponse::HTTP_UNAUTHORIZED, 'INVALID_REFRESH_TOKEN', 'invalid_refresh_token');
         }
 
-        return $this->responseFactory->create(
-            $this->refresh->refresh($refreshToken),
-        );
+        $bundle = $this->refresh->refresh($refreshToken);
+        $response = $this->json($this->mapper->map($bundle, AuthView::class));
+        $response->headers->setCookie($this->cookies->create($bundle));
+
+        return $response;
     }
 }

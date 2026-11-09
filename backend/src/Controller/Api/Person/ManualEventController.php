@@ -11,27 +11,26 @@ use App\Entity\FamilyTree;
 use App\Entity\GenealogicalEvent;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
 #[IsGranted(
     FamilyTreeVoter::EDIT,
     subject: 'tree',
     statusCode: JsonResponse::HTTP_NOT_FOUND,
 )]
-final readonly class ManualEventController
+final class ManualEventController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private RequestBodyMapper $requestBody,
-        private PersonLookup $people,
-        private ManualEventService $events,
-        private ObjectMapperInterface $mapper,
-        private TreeVersion $versions,
+        private readonly RequestBodyMapper $requestBody,
+        private readonly PersonLookup $people,
+        private readonly ManualEventService $events,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly TreeVersion $versions,
     ) {
     }
 
@@ -125,21 +124,17 @@ final readonly class ManualEventController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                [
-                    'items' => array_map(
-                        fn (GenealogicalEvent $item): EventView => $this->mapper->map($item, EventView::class),
-                        $events,
-                    ),
-                    'etag' => $etag,
-                ],
-                'json',
-            ),
-        );
-        $response->headers->set('ETag', $etag);
 
-        return $response;
+        return $this->json(
+            [
+                'items' => array_map(
+                    fn (GenealogicalEvent $item): EventView => $this->mapper->map($item, EventView::class),
+                    $events,
+                ),
+                'etag' => $etag,
+            ],
+            headers: ['ETag' => $etag],
+        );
     }
 
     private function eventResponse(
@@ -148,18 +143,14 @@ final readonly class ManualEventController
         int $status = JsonResponse::HTTP_OK,
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                [
-                    'event' => $this->mapper->map($event, EventView::class),
-                    'etag'  => $etag,
-                ],
-                'json',
-            ),
-            $status,
-        );
-        $response->headers->set('ETag', $etag);
 
-        return $response;
+        return $this->json(
+            [
+                'event' => $this->mapper->map($event, EventView::class),
+                'etag'  => $etag,
+            ],
+            $status,
+            headers: ['ETag' => $etag],
+        );
     }
 }

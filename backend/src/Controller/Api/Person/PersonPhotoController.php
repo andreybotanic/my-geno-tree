@@ -12,24 +12,23 @@ use App\Entity\FamilyTree;
 use App\Entity\MediaVariantType;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class PersonPhotoController
+final class PersonPhotoController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private PersonLookup $people,
-        private CropAreaPolicy $input,
-        private MediaService $media,
-        private MediaResponseFactory $responses,
-        private ObjectMapperInterface $mapper,
-        private TreeVersion $versions,
+        private readonly PersonLookup $people,
+        private readonly CropAreaPolicy $input,
+        private readonly MediaService $media,
+        private readonly MediaResponseFactory $responses,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly TreeVersion $versions,
     ) {
     }
 
@@ -149,17 +148,13 @@ final readonly class PersonPhotoController
         \App\Entity\Person $person,
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                [
-                    'person' => $this->mapper->map($person, PersonView::class),
-                    'etag'   => $etag,
-                ],
-                'json',
-            ),
-        );
-        $response->headers->set('ETag', $etag);
 
-        return $response;
+        return $this->json(
+            [
+                'person' => $this->mapper->map($person, PersonView::class),
+                'etag'   => $etag,
+            ],
+            headers: ['ETag' => $etag],
+        );
     }
 }

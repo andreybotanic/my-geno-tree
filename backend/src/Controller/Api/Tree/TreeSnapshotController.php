@@ -7,17 +7,16 @@ use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class TreeSnapshotController
+final class TreeSnapshotController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private TreeViewReader $snapshots,
-        private TreeVersion $versions,
+        private readonly TreeViewReader $snapshots,
+        private readonly TreeVersion $versions,
     ) {
     }
 
@@ -34,11 +33,6 @@ final readonly class TreeSnapshotController
     public function __invoke(
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize($this->snapshots->snapshot($tree), 'json'),
-        );
-        $response->headers->set('ETag', $this->versions->etag($tree));
-
-        return $response;
+        return $this->json($this->snapshots->snapshot($tree), headers: ['ETag' => $this->versions->etag($tree)]);
     }
 }

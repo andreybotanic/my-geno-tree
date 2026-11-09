@@ -9,30 +9,32 @@ use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\Serialize;
 use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/v1/trees/{treeId}/documents')]
-final readonly class DocumentController
+final class DocumentController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private DocumentService $documents,
-        private ObjectMapperInterface $mapper,
-        private TreeVersion $versions,
+        private readonly DocumentService $documents,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly TreeVersion $versions,
     ) {
     }
 
+    /** @return array<string, mixed> */
     #[Route('', name: 'api_documents_list', methods: ['GET'])]
+    #[Serialize]
     #[IsGranted(FamilyTreeVoter::VIEW, subject: 'tree', statusCode: 404)]
-    public function listing(Request $request, #[MapEntity(id: 'treeId')] FamilyTree $tree): JsonResponse
+    public function listing(Request $request, #[MapEntity(id: 'treeId')] FamilyTree $tree): array
     {
         $scope = $request->query->getString('scope', 'all');
         $limit = $request->query->getString('limit', '50');
@@ -40,17 +42,12 @@ final readonly class DocumentController
             throw new ApiException(422, 'DOCUMENT_QUERY_INVALID');
         }
 
-        return JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                $this->documents->listing(
-                    $tree,
-                    $request->query->get('personId'),
-                    $scope,
-                    $request->query->get('cursor'),
-                    (int)$limit,
-                ),
-                'json',
-            ),
+        return $this->documents->listing(
+            $tree,
+            $request->query->get('personId'),
+            $scope,
+            $request->query->get('cursor'),
+            (int)$limit,
         );
     }
 
@@ -71,11 +68,8 @@ final readonly class DocumentController
         );
         $etag = $this->versions->etag($tree);
 
-        return JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
-                'json',
-            ),
+        return $this->json(
+            ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
             202,
             ['ETag' => $etag],
         );

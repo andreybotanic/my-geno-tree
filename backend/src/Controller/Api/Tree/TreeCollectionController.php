@@ -10,41 +10,38 @@ use App\Application\Tree\TreeVersion;
 use App\Entity\User;
 use App\Repository\FamilyTreeRepository;
 use App\Request\Tree\TreeNameRequest;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\Serialize;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
-use Symfony\Component\Serializer\SerializerInterface;
 
-final readonly class TreeCollectionController
+final class TreeCollectionController extends AbstractController
 {
     public function __construct(
-        private SerializerInterface $serializer,
-        private FamilyTreeRepository $trees,
-        private TreeViewReader $views,
-        private RequestBodyMapper $requestBody,
-        private CreateTreeService $createTree,
-        private TreeVersion $versions,
+        private readonly FamilyTreeRepository $trees,
+        private readonly TreeViewReader $views,
+        private readonly RequestBodyMapper $requestBody,
+        private readonly CreateTreeService $createTree,
+        private readonly TreeVersion $versions,
     ) {
     }
 
+    /** @return array{items: list<TreeSummaryView>} */
     #[Route('/api/v1/trees', name: 'api_trees_list', methods: ['GET'])]
-    public function list(#[CurrentUser] User $user): JsonResponse
+    #[Serialize]
+    public function list(#[CurrentUser] User $user): array
     {
-        return JsonResponse::fromJsonString(
-            $this->serializer->serialize(
-                [
-                    'items' => array_map(
-                        fn (array $result): TreeSummaryView => $this->views->summary(
-                            $result[0],
-                            (int)$result['personCount'],
-                        ),
-                        $this->trees->findAllWithPersonCountsForOwner($user),
-                    ),
-                ],
-                'json',
+        return [
+            'items' => array_map(
+                fn (array $result): TreeSummaryView => $this->views->summary(
+                    $result[0],
+                    (int)$result['personCount'],
+                ),
+                $this->trees->findAllWithPersonCountsForOwner($user),
             ),
-        );
+        ];
     }
 
     #[Route('/api/v1/trees', name: 'api_trees_create', methods: ['POST'])]
@@ -54,19 +51,14 @@ final readonly class TreeCollectionController
     ): JsonResponse {
         $input = $this->requestBody->map($request, TreeNameRequest::class);
         $tree = $this->createTree->create($user, $input->name);
-        $response = JsonResponse::fromJsonString(
-            $this->serializer->serialize($this->views->summary($tree, 0), 'json'),
-            JsonResponse::HTTP_CREATED,
-        );
-        $response->headers->set('ETag', $this->versions->etag($tree));
-        $response->headers->set(
-            'Location',
-            sprintf(
-                '/api/v1/trees/%s/snapshot',
-                $tree->getId()->toRfc4122(),
-            ),
-        );
 
-        return $response;
+        return $this->json(
+            $this->views->summary($tree, 0),
+            JsonResponse::HTTP_CREATED,
+            [
+                'ETag'     => $this->versions->etag($tree),
+                'Location' => sprintf('/api/v1/trees/%s/snapshot', $tree->getId()->toRfc4122()),
+            ],
+        );
     }
 }

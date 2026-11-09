@@ -137,6 +137,10 @@ and returns typed DTOs. Serialization happens at HTTP and tool output boundaries
 HTTP responses retain their headers, cookies and status codes. There is no custom
 mapper adapter or nested-object transform. See the
 [native mapping verification](docs/qa/native-view-mapping-2026-11-09.md).
+Controllers use Symfony's `#[Serialize]` for plain DTO/array results and the native
+`AbstractController::json()` helper for responses with dynamic headers or cookies.
+Authentication uses an explicit public `AuthView`; refresh tokens remain solely
+in cookies. See the [response simplification checks](docs/qa/json-responses-2026-11-09.md).
 
 Local HTTPS MVP for creating and editing private genealogy trees.
 

@@ -2,20 +2,24 @@
 
 namespace App\Controller\Api\Auth;
 
-use App\Api\AuthResponseFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\View\AuthView;
 use App\Application\Auth\LoginService;
+use App\Http\RefreshCookieFactory;
 use App\Request\Auth\LoginRequest;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\ObjectMapper\ObjectMapperInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-final readonly class LoginController
+final class LoginController extends AbstractController
 {
     public function __construct(
-        private RequestBodyMapper $requestBody,
-        private LoginService $login,
-        private AuthResponseFactory $responseFactory,
+        private readonly RequestBodyMapper $requestBody,
+        private readonly LoginService $login,
+        private readonly ObjectMapperInterface $mapper,
+        private readonly RefreshCookieFactory $cookies,
     ) {
     }
 
@@ -24,6 +28,10 @@ final readonly class LoginController
     {
         $input = $this->requestBody->map($request, LoginRequest::class);
 
-        return $this->responseFactory->create($this->login->login($input));
+        $bundle = $this->login->login($input);
+        $response = $this->json($this->mapper->map($bundle, AuthView::class));
+        $response->headers->setCookie($this->cookies->create($bundle));
+
+        return $response;
     }
 }
