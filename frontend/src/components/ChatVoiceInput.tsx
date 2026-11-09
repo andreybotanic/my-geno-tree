@@ -182,8 +182,6 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       </button>
       {recording && <span className="chat-recording-time" role="status">{t('chat.voice.elapsed', { seconds })}</span>}
     </div>
-    {phase === 'preparing' && <p role="status">{t('chat.voice.preparing')}</p>}
-    {phase === 'finishing' && <p role="status">{t('chat.voice.finishing')}</p>}
     {error && <p role="alert">{t(error)}</p>}
   </div>
 }

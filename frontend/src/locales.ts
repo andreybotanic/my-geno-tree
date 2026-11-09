@@ -24,8 +24,6 @@ export const resources = {
         "voice": {
           "record": "Record voice",
           "visualization": "Microphone volume over the last 10 seconds",
-          "preparing": "Connecting the microphone…",
-          "finishing": "Finishing the last phrase…",
           "interrupted": "Voice recognition stopped. Completed phrases are kept; you can edit them or start another recording.",
           "stop": "Stop recording",
           "elapsed": "{{seconds}} s",
@@ -541,8 +539,6 @@ export const resources = {
         "voice": {
           "record": "Записать голос",
           "visualization": "Громкость микрофона за последние 10 секунд",
-          "preparing": "Подключаем микрофон…",
-          "finishing": "Распознаём последнюю фразу…",
           "interrupted": "Распознавание остановлено. Готовые фразы сохранены: их можно исправить или продолжить новой записью.",
           "stop": "Остановить запись",
           "elapsed": "{{seconds}} с",

@@ -46,6 +46,7 @@ function setup(handler: () => Promise<unknown> = async () => grant) {
 async function begin() {
   fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
   await waitFor(() => expect(Socket.instance?.readyState).toBe(0))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
   await act(async () => { Socket.instance.open(); Socket.instance.event({ type: 'ready' }) })
   return Socket.instance
 }
@@ -94,7 +95,7 @@ describe('streaming voice input', () => {
     expect(socket.sent.at(-2)).toBeInstanceOf(ArrayBuffer)
     expect(stopTrack).toHaveBeenCalled()
     expect(view.props.onBusy).toHaveBeenLastCalledWith(true)
-    expect(screen.getByRole('status')).toHaveTextContent('last phrase')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     await act(async () => {
       socket.event({ type: 'phrase', phraseId: 'two', sequence: 1, text: 'Папа — Иван.' })
       socket.event({ type: 'done', durationSeconds: 1 })
