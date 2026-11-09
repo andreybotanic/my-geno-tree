@@ -1,5 +1,8 @@
 # Documents revision — manual acceptance, 9 November 2026
 
+The answer-dependent source selection recorded below is historical and superseded
+by [source metadata without answer processing](document-source-metadata-2026-11-09.md).
+
 The local HTTPS application was checked using the demo account and its synthetic
 `RAG proof — 1.6 MB / 1128 chunks` tree. Original corpus files and prior results
 remain in [the first acceptance report](document-rag-2026-11-09.md).

@@ -88,45 +88,50 @@ final class TreeAgentApiTest extends ApiWebTestCase
             ),
         );
         $retriever = $this->createStub(\Symfony\AI\Store\RetrieverInterface::class);
-        $unused = new \Symfony\AI\Store\Document\VectorDocument(
-            'unused-chunk',
-            $vectorizer->vectorize('unrelated'),
+        $second = new \Symfony\AI\Store\Document\VectorDocument(
+            'second-chunk',
+            $vectorizer->vectorize('railway repairs'),
             new \Symfony\AI\Store\Document\Metadata(
                 [
                     'documentId' => $other->getId()->toRfc4122(),
                     'treeId'     => $this->treeId,
                     'generation' => 1,
-                    '_text'      => 'This is an unrelated passage from a different file with the same name.',
+                    '_text'      => 'Ivan later supervised railway repairs at Taiga.',
                 ],
             ),
         );
-        $retriever->method('retrieve')->willReturn([$candidate, $unused]);
+        $retriever->method('retrieve')->willReturn([$candidate, $second]);
         $container->set('ai.retriever.documents', $retriever);
         $round = 0;
-        $reference = '/trees/' . $this->treeId . '/documents/' . $document->getId() . '/download';
+        $text = "  Ivan inspected railway tracks at Taiga.\n\n**Dates:** uncertain.  \n";
         $container->set(
             'chat_ai.client',
             new MockHttpClient(
-                static function () use (&$round, $reference): MockResponse {
+                static function () use (&$round, $text): MockResponse {
                     return 1 === ++$round
                         ? ResponsesFixture::tool('similarity_search', ['searchTerm' => 'railway occupation'])
-                        : ResponsesFixture::text(
-                            'Ivan inspected railway tracks at Taiga. [railway-letter.txt](' . $reference . ')',
-                        );
+                        : ResponsesFixture::text($text);
                 },
             ),
         );
         FixtureTreeAgent::$useReal = true;
         $this->send('search-documents');
         self::assertSame(2, $round);
-        self::assertCount(1, $this->responseArray('messages', '1', 'documentSources'));
+        self::assertSame($text, $this->responseString('messages', '1', 'content'));
+        self::assertCount(2, $this->responseArray('messages', '1', 'documentSources'));
         self::assertSame('railway-letter.txt', $this->responseString('messages', '1', 'documentSources', '0', 'name'));
         self::assertSame(
             '/trees/' . $this->treeId . '/documents/' . $document->getId() . '/download',
             $this->responseString('messages', '1', 'documentSources', '0', 'downloadUrl'),
         );
         self::assertStringNotContainsString('/tmp/', json_encode($this->responseData(), JSON_THROW_ON_ERROR));
+        self::assertSame(
+            '/trees/' . $this->treeId . '/documents/' . $other->getId() . '/download',
+            $this->responseString('messages', '1', 'documentSources', '1', 'downloadUrl'),
+        );
         $this->jsonRequest('GET', $this->path, headers: $this->headers);
+        self::assertSame($text, $this->responseString('messages', '1', 'content'));
+        self::assertCount(2, $this->responseArray('messages', '1', 'documentSources'));
         self::assertSame(
             'Ivan inspected railway tracks at Taiga.',
             $this->responseString('messages', '1', 'documentSources', '0', 'excerpt'),

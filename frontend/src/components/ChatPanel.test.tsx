@@ -102,12 +102,13 @@ describe(
       expect(ownMessage.querySelector('strong, b')).toBeNull()
     })
 
-    it('downloads cited originals with authentication and hides unused retrieved sources', async () => {
+    it('renders source metadata independently of answer text and keeps ordinary Markdown links', async () => {
       const url = '/trees/019861c4-6a93-7a2e-8ca8-51813740d4a5/documents/019861c4-6a93-7a2e-8ca8-51813740d4a7/download'
+      const otherUrl = url.replace('d4a7', 'd4a9')
       const source = { name: 'letter.txt', excerpt: 'Private passage.', originalSizeBytes: 1234, downloadUrl: url }
       const next: ChatConversation = { ...completed, messages: [{
-        ...completed.messages[1]!, content: `The repair was in 1907. [letter.txt](${url})`,
-        documentSources: [source, { ...source, name: 'unused.txt', downloadUrl: url.replace('d4a7', 'd4a8') }],
+        ...completed.messages[1]!, content: `The repair was in 1907. [letter.txt](${url}) [Free link](${otherUrl})`,
+        documentSources: [source, { ...source, name: 'other.txt', downloadUrl: url.replace('d4a7', 'd4a8') }],
       }] }
       const requestBlob = vi.fn().mockResolvedValue(new Blob(['original']))
       const auth: AuthContextValue = {
@@ -119,10 +120,12 @@ describe(
       render(<AuthContext.Provider value={auth}><ChatPanel contextPath="/example/chat" createBody={{}}
         request={vi.fn().mockResolvedValue({ conversation: next })} onClose={vi.fn()} /></AuthContext.Provider>)
       const answer = within(await screen.findByRole('article', { name: 'Assistant' }))
-      expect(answer.getByText('Sources (1)')).toBeInTheDocument()
-      expect(answer.queryByText('unused.txt')).not.toBeInTheDocument()
+      expect(answer.getByRole('link', { name: 'letter.txt' })).toHaveAttribute('href', url)
+      expect(answer.getByRole('link', { name: 'Free link' })).toHaveAttribute('href', otherUrl)
+      fireEvent.click(answer.getByText('Sources (2)'))
+      expect(answer.getByRole('button', { name: 'other.txt' })).toBeInTheDocument()
       expect(answer.queryByText('Private passage.')).not.toBeInTheDocument()
-      fireEvent.click(answer.getAllByRole('button', { name: 'letter.txt' })[0]!)
+      fireEvent.click(answer.getByRole('button', { name: 'letter.txt' }))
       await waitFor(() => expect(requestBlob).toHaveBeenCalledWith(url))
       await waitFor(() => expect(click).toHaveBeenCalledOnce())
       expect(click.mock.instances[0]).toHaveAttribute('download', 'letter.txt')

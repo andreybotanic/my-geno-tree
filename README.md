@@ -46,8 +46,9 @@ chunks do not. Stable UUIDv5 chunk IDs include the document generation.
 live document generations, Qdrant filters them before nearest-neighbour search,
 and a batched ORM check validates results again. Each search returns at most six
 fragments, with current names/attachments and protected download links. Native
-Symfony AI sources persist with chat replies only for documents explicitly cited
-by their protected URL in the answer. Other retrieved candidates are omitted.
+Symfony AI sources persist from the native `SourceCollection` independently of
+the answer text. They describe the documents returned by `SimilaritySearch`.
+Answer text is neither parsed for citations nor rewritten to connect sources.
 The chat shows filenames and authenticated download links, without passage previews.
 Text in documents cannot authorize
 tree mutations. The implementation follows the
@@ -123,7 +124,9 @@ classes, binaries or unused dependencies are installed now.
 The reproducible large-corpus acceptance record and actual native tool results
 are in [the manual RAG report](docs/qa/document-rag-2026-11-09.md).
 The [revision acceptance report](docs/qa/document-revision-2026-11-09.md) records
-the fixed dialog, view switches, independent storage and cited-source filtering.
+the fixed dialog, view switches and independent storage. The
+[source metadata follow-up](docs/qa/document-source-metadata-2026-11-09.md) records
+the removal of answer-dependent source selection.
 
 API output uses typed readonly DTOs in `backend/src/Api/View` with Symfony
 ObjectMapper mappings and Serializer normalization. `ViewMapper` handles single
