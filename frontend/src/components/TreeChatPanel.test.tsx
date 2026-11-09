@@ -35,7 +35,9 @@ describe('tree action confirmations', () => {
     expect(await screen.findByText('Create “Vera”?')).toBeVisible()
     const prompt = screen.getByRole('group', { name: 'Action confirmation' })
     expect(screen.getByRole('log')).not.toContainElement(prompt)
-    expect(prompt.nextElementSibling).toHaveClass('chat-composer')
+    expect(prompt.closest('form')).toHaveClass('chat-composer')
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record voice' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: decision === 'approve' ? 'Allow' : 'Reject' }))
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Action confirmation' })).not.toBeInTheDocument())
     expect(request).toHaveBeenCalledWith('/chats/chat/confirmations/confirmation/decision', {
@@ -47,8 +49,8 @@ describe('tree action confirmations', () => {
 
   it('keeps the permissions and quota inside the input alongside the controls', async () => {
     const { request } = setup(async (path, init) => path.endsWith('/permissions')
-      ? { ...readyConversation, version: 2, autoApprovePersonActions: JSON.parse(String(init?.body)).autoApprovePersonActions }
-      : { conversation: readyConversation })
+      ? { ...conversation, version: 2, autoApprovePersonActions: JSON.parse(String(init?.body)).autoApprovePersonActions }
+      : { conversation })
     const trigger = await screen.findByRole('button', { name: 'Ask' })
     const input = trigger.closest('.chat-input')
     expect(input).toContainElement(trigger)
@@ -119,7 +121,8 @@ describe('tree action confirmations', () => {
     const { request } = setup(async (path) => path.endsWith('/messages')
       ? { ...conversation, confirmations: [{ ...readyConversation.confirmations[0]!, status: 'cancelled' }] }
       : { conversation: readyConversation })
-    const input = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Clarify' }))
+    const input = screen.getByRole('textbox', { name: 'Message' })
     await waitFor(() => expect(input).toBeEnabled())
     fireEvent.change(input, { target: { value: 'Use the original spelling.' } })
     expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
@@ -127,6 +130,33 @@ describe('tree action confirmations', () => {
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Action confirmation' })).not.toBeInTheDocument())
     const call = vi.mocked(request).mock.calls.find(([path]) => String(path).endsWith('/messages'))
     expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ content: 'Use the original spelling.', version: 1 })
+  })
+
+  it('keeps a clarification draft when returning to approval and replaces it for a new call', async () => {
+    const { request } = setup(async () => ({ conversation: readyConversation }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Clarify' }))
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    expect(input).toHaveFocus()
+    fireEvent.change(input, { target: { value: 'Keep my draft.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Back to approval' }))
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Action confirmation' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Clarify' }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Keep my draft.')
+    act(() => vi.mocked(useChatEvents).mock.lastCall?.[2]({ ...readyConversation, version: 2,
+      confirmations: [{ ...readyConversation.confirmations[0]!, id: 'next-confirmation' }] }))
+    expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeVisible()
+    expect(request).toHaveBeenCalledOnce()
+  })
+
+  it('names the automatic mode explicitly in Russian', async () => {
+    await i18n.changeLanguage('ru')
+    setup(async () => ({ conversation: { ...conversation, autoApprovePersonActions: true } }))
+    const trigger = await screen.findByRole('button', { name: 'Автоподтверждение' })
+    expect(trigger).toHaveAttribute('title', 'Создавать и удалять персон без запроса разрешения в этом чате')
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitemradio', { name: 'Автоподтверждение' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('describes the unnamed parent and hides resolved confirmations from the conversation', async () => {
@@ -183,7 +213,7 @@ describe('tree action confirmations', () => {
     await i18n.changeLanguage('ru')
     setup(async () => ({ conversation: readyConversation }))
     expect(await screen.findByText('Создать персону «Vera»?')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Спрашивать' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Спрашивать' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Разрешить' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Отклонить' })).toBeVisible()
   })

@@ -571,12 +571,16 @@ contains data you need to keep: Doctrine purges it by default.
 
 ## Compact permissions and atomic parents (2026-11-08)
 
-Permission requests occupy one or two text lines above the composer and disappear
-after approval, rejection or Stop. Resolved confirmations are absent from the
-message log. In the input's bottom control row, the permission menu sits on the
+Permission requests replace the composer with the action text, Allow, Reject,
+Clarify and the circular Stop button. A decision or Stop restores the composer;
+resolved requests are absent from the message log. Clarify opens the input without
+deciding the action; returning to approval preserves the draft, and sending the
+clarification cancels the old call. In the input's bottom control row, the permission menu sits on the
 left; the token allowance, microphone and Send/Stop buttons sit on the right.
 The menu uses icons and short labels: Ask / Auto-approve in English and
-Спрашивать / Подтверждать in Russian. Tooltips explain each mode. The normal circular Stop button handles
+Спрашивать / Автоподтверждение in Russian. Tooltips explain each mode. While
+recording, the elapsed-time indicator replaces the permission menu in the same
+row. The normal circular Stop button handles
 both inference and an outstanding permission request; entering a clarification
 restores Send.
 
@@ -619,6 +623,24 @@ dev/prod container checks and all 26 migrations on a fresh disposable database
 pass. No PHP files changed. Manual local HTTPS checks covered both languages,
 permission-mode switching, restoration after navigation and the 360 px viewport.
 The menu, quota tooltip and controls stay within the input without overlapping.
+
+The replacement behavior was checked against Codex's open-source
+[BottomPane](https://github.com/openai/codex/blob/main/codex-rs/tui/src/bottom_pane/mod.rs)
+and approval snapshots. The official
+[desktop screenshot](https://developers.openai.com/images/codex/app/computer-use-approval-light.webp)
+also illustrates action and decision controls, although its request stays in the
+message area. This application uses the requested composer replacement.
+
+Composer replacement validation (2026-11-09): all 286 backend, 444 frontend and
+27 gateway tests pass; line coverage is 93.49%, 90.97% and 98.43%.
+Quality, OpenAPI, production builds, Composer/container validation and all 26
+migrations on a clean database pass. No PHP files changed. Manual HTTPS checks
+covered Russian/English controls, the 360 px viewport, pending-state restoration
+after reload, clarification draft preservation, rejection without tree changes,
+and approval followed by the restored composer and an updated tree. The synthetic
+tree now contains eight people. Live microphone capture remained at the in-app
+browser's connecting stage; component tests cover hiding permissions during
+recording, showing the timer and restoring permissions afterward.
 
 ## Prior single-action validation (2026-11-08)
 

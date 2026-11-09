@@ -185,10 +185,13 @@ describe(
       act(() => vi.mocked(useChatEvents).mock.lastCall?.[2](waiting))
       await waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
       expect(screen.queryByText('Thinking...')).not.toBeInTheDocument()
-      expect(input).toBeEnabled()
-      fireEvent.change(input, { target: { value: 'Keep this new clarification.' } })
+      expect(input).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Clarify' }))
+      const clarification = screen.getByRole('textbox', { name: 'Message' })
+      expect(clarification).toBeEnabled()
+      fireEvent.change(clarification, { target: { value: 'Keep this new clarification.' } })
       await act(async () => finish(waiting))
-      expect(input).toHaveValue('Keep this new clarification.')
+      expect(clarification).toHaveValue('Keep this new clarification.')
     })
 
     it('shows current commentary from restored and live progress', async () => {

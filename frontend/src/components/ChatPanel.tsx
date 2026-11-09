@@ -40,6 +40,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
       ? saved : { value: next, receivedAt: Date.now() })
   }, [])
   const [content, setContent] = useState('')
+  const [clarifyingConfirmationId, setClarifyingConfirmationId] = useState<string | null>(null)
   const [voiceBusy, setVoiceBusy] = useState(false)
   const [busy, setBusy] = useState(true)
   const [thinkingTurn, setThinkingTurn] = useState<{ startedAt: number; requestId: string } | null>(null)
@@ -59,6 +60,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
   const confirmation = conversation?.status === 'awaiting_confirmation'
     ? conversation.confirmations.find((item) => item.status === 'pending') : undefined
   const showStop = thinking || (confirmation !== undefined && !content.trim())
+  const showConfirmation = confirmation && clarifyingConfirmationId !== confirmation.id
   const stream = useChatEvents(
     open && conversation ? `/chats/${conversation.id}` : null,
     request,
@@ -234,7 +236,7 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     () => {
       if (open && !busy) textarea.current?.focus()
     },
-    [busy, conversation?.id, open]
+    [busy, conversation?.id, open, showConfirmation]
   )
 
   function showError(cause: unknown) {
@@ -415,6 +417,11 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
     finally { setBusy(false) }
   }
 
+  const stopControl = <button className="chat-send" type="button" aria-label={t('chat.stop')}
+    disabled={stopping} onClick={() => void stop()}>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+  </button>
+
   return (
     <aside aria-label={t('chat.title')} aria-busy={busy || disabled} className="chat-panel"
       onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
@@ -478,16 +485,19 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
         </div>
         {open && conversation && renderTools?.(conversation, busy || disabled || voiceBusy || thinking, update)}
       </div>
-      {confirmation && <ChatActionConfirmation confirmation={confirmation}
-        disabled={busy || disabled || blocked || thinking || voiceBusy}
-        onDecision={(decision) => { void confirmationDecision(confirmation.id, decision) }} />}
       <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
-        <ChatVoiceInput request={request} active={open}
+        {showConfirmation ? <ChatActionConfirmation confirmation={confirmation}
+          disabled={busy || disabled || blocked || thinking || voiceBusy}
+          onClarify={() => setClarifyingConfirmationId(confirmation.id)}
+          onDecision={(decision) => { void confirmationDecision(confirmation.id, decision) }}>
+          {stopControl}
+        </ChatActionConfirmation> : <ChatVoiceInput request={request} active={open}
           blocked={blocked}
           disabled={busy || disabled || blocked || conversation?.status === 'processing'}
           onAccessError={() => { void refreshAccess() }}
           onBusy={setVoiceBusy}
           onTranscript={(text) => setContent((saved) => [saved.trimEnd(), text.trim()].filter(Boolean).join(' '))}>
+          {(recording) => <>
           <textarea id="chat-message" aria-label={t('chat.message')} placeholder={placeholder ?? t('chat.placeholder')}
             ref={textarea} value={content} maxLength={10000} disabled={busy || disabled || blocked || voiceBusy}
             onChange={(event) => setContent(event.target.value)} rows={2}
@@ -497,22 +507,22 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                 void send()
               }
             }} />
-          {(personActions || conversation?.profile === 'tree') && <ChatPermissions
+          {!recording && (confirmation ? <button type="button" className="chat-confirmation-back"
+            onClick={() => setClarifyingConfirmationId(null)}>{t('chat.confirmation.back')}</button>
+            : (personActions || conversation?.profile === 'tree') && <ChatPermissions
             automatic={conversation?.autoApprovePersonActions ?? false}
             disabled={busy || disabled || blocked || thinking || voiceBusy}
-            onChange={(value) => { void setAutoApprove(value) }} />}
+            onChange={(value) => { void setAutoApprove(value) }} />)}
           <ChatBudget budget={conversation?.tokenBudget ?? budget} />
-          {showStop ? <button className="chat-send" type="button" aria-label={t('chat.stop')}
-            disabled={stopping} onClick={() => void stop()}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-          </button> : <button className="chat-send" type="submit" aria-label={t('chat.send')}
+          {showStop ? stopControl : <button className="chat-send" type="submit" aria-label={t('chat.send')}
             title={t('chat.sendShortcut')} aria-keyshortcuts="Control+Enter"
             disabled={busy || disabled || blocked || voiceBusy || !content.trim()}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
               <path d="m5 12 7-7 7 7m-7-7v15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>}
-        </ChatVoiceInput>
+          </>}
+        </ChatVoiceInput>}
       </form>
     </aside>
   )

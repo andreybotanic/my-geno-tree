@@ -4,6 +4,7 @@ import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import { captureMicrophone } from '../voice/capture'
 import i18n from '../i18n'
 import { ChatVoiceInput } from './ChatVoiceInput'
+import { ChatPermissions } from './ChatPermissions'
 
 vi.mock('../voice/capture', () => ({ captureMicrophone: vi.fn() }))
 
@@ -36,7 +37,8 @@ let audio!: (value: ArrayBuffer) => void
 
 function setup(handler: () => Promise<unknown> = async () => grant) {
   const request = vi.fn(handler) as unknown as AuthorizedJsonRequest
-  const props = { active: true, children: <textarea aria-label="Message" />, request,
+  const props = { active: true, children: (recording: boolean) => <><textarea aria-label="Message" />
+    {!recording && <ChatPermissions automatic disabled={false} onChange={vi.fn()} />}</>, request,
     disabled: false, onBusy: vi.fn(), onTranscript: vi.fn(), onAccessError: vi.fn() }
   return { ...render(<ChatVoiceInput {...props} />), props, request }
 }
@@ -69,7 +71,10 @@ describe('streaming voice input', () => {
 
   it('streams audio and phrases, deduplicates results and flushes the final audio before Stop', async () => {
     const view = setup()
+    expect(screen.getByRole('button', { name: 'Auto-approve' })).toBeVisible()
     const socket = await begin()
+    expect(screen.queryByRole('button', { name: 'Auto-approve' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('0')
     expect(view.request).toHaveBeenCalledWith('/chat-transcription-sessions', expect.objectContaining({ body: '{}', method: 'POST' }))
     expect(socket.url).not.toContain('secret')
     expect(socket.sent[0]).toEqual({ type: 'start', sessionId: grant.id, credential: 'secret' })
@@ -85,6 +90,7 @@ describe('streaming voice input', () => {
     stop.mockImplementationOnce(async () => { audio(new ArrayBuffer(200)) })
     fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
     await waitFor(() => expect(socket.sent.at(-1)).toEqual({ type: 'stop' }))
+    expect(screen.getByRole('button', { name: 'Auto-approve' })).toBeVisible()
     expect(socket.sent.at(-2)).toBeInstanceOf(ArrayBuffer)
     expect(stopTrack).toHaveBeenCalled()
     expect(view.props.onBusy).toHaveBeenLastCalledWith(true)

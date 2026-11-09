@@ -8,7 +8,7 @@ import { ChatAudioHistogram } from './ChatAudioHistogram'
 
 type Props = {
   active: boolean
-  children: ReactNode
+  children: (recording: boolean) => ReactNode
   request: AuthorizedJsonRequest
   disabled: boolean
   blocked?: boolean
@@ -169,7 +169,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
   return <div className="chat-voice">
     {recording && <ChatAudioHistogram history={history} />}
     <div className="chat-input">
-      {children}
+      {children(recording)}
       <button type="button" className={`chat-microphone${recording ? ' is-recording' : ''}`}
         disabled={!recording && unavailable} aria-label={t(recording ? 'chat.voice.stop' : 'chat.voice.record')}
         onClick={() => recording ? current.current?.stop() : void start()}>

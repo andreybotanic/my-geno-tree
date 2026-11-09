@@ -3600,7 +3600,7 @@ select:not([multiple]) {
 .chat-microphone:hover, .chat-microphone.is-recording { color: var(--color-accent); background: var(--color-background); }
 .chat-send { grid-column: 4; background: var(--color-accent); color: var(--color-accent-contrast); }
 .chat-send:disabled, .chat-microphone:disabled { opacity: 0.45; cursor: default; }
-.chat-recording-time { grid-column: 1 / -1; grid-row: 3; padding-top: 4px; color: var(--color-text-muted); font-size: 0.8rem; }
+.chat-recording-time { grid-column: 1; grid-row: 2; color: var(--color-text-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 
 .chat-panel form, .chat-panel label {
   display: flex;
@@ -3732,12 +3732,13 @@ select:not([multiple]) {
   flex-wrap: wrap;
   gap: 12px;
 }
-.chat-confirmation { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin: 0 4px 8px; font-size: 0.8rem; line-height: 18px; }
-.chat-confirmation-text { min-width: 0; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.chat-confirmation-actions { display: flex; flex-shrink: 0; gap: 8px; }
-.chat-confirmation-actions button { border: 0; background: transparent; color: var(--color-accent); padding: 4px 0; font-size: inherit; cursor: pointer; }
-.chat-confirmation-actions button + button { color: var(--color-text-muted); }
+.chat-confirmation { font-size: 0.8rem; line-height: 20px; }
+.chat-confirmation-text { grid-column: 1 / -1; grid-row: 1; padding: 12px 4px; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
+.chat-confirmation-actions { grid-column: 1 / 4; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.chat-confirmation-actions button { border: 0; background: transparent; color: var(--color-text-muted); padding: 4px 0; font: inherit; cursor: pointer; }
+.chat-confirmation-actions button:first-child { border-radius: 16px; padding: 4px 10px; background: var(--color-accent); color: var(--color-accent-contrast); }
 .chat-confirmation-actions button:disabled { opacity: 0.45; cursor: default; }
+.chat-confirmation-back { grid-column: 1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; border: 0; padding: 4px 0; background: transparent; color: var(--color-text-muted); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .chat-permissions { position: relative; grid-column: 1; grid-row: 2; min-width: 0; font-size: 0.75rem; color: var(--color-text-muted); }
 .chat-permissions svg { width: 16px; height: 16px; flex-shrink: 0; }
 .chat-permissions-trigger { display: flex; align-items: center; gap: 4px; max-width: 100%; border: 0; background: transparent; color: inherit; padding: 4px 0; font: inherit; cursor: pointer; }
