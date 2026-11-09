@@ -3,7 +3,8 @@
 namespace App\Controller\Api\Profile;
 
 use App\Api\RequestBodyMapper;
-use App\Api\UserViewFactory;
+use App\Api\View\UserView;
+use App\Api\ViewMapper;
 use App\Application\Profile\ProfileService;
 use App\Entity\User;
 use App\Request\Profile\ChangeLanguageRequest;
@@ -18,7 +19,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final readonly class MeController
 {
     public function __construct(
-        private UserViewFactory $userView,
+        private ViewMapper $views,
         private RequestBodyMapper $requestBody,
         private ProfileService $profile,
     ) {
@@ -27,7 +28,7 @@ final readonly class MeController
     #[Route('/api/v1/me', name: 'api_me_get', methods: ['GET'])]
     public function get(#[CurrentUser] User $user): JsonResponse
     {
-        return new JsonResponse($this->userView->create($user));
+        return new JsonResponse($this->views->one($user, UserView::class));
     }
 
     #[Route('/api/v1/me', name: 'api_me_patch', methods: ['PATCH'])]
@@ -41,7 +42,7 @@ final readonly class MeController
         );
         $this->profile->changeLanguage($user, $input->language);
 
-        return new JsonResponse($this->userView->create($user));
+        return new JsonResponse($this->views->one($user, UserView::class));
     }
 
     #[Route('/api/v1/me/blood-network-presets', name: 'api_me_blood_network_presets_patch', methods: ['PATCH'])]
@@ -55,6 +56,6 @@ final readonly class MeController
         );
         $this->profile->changeBloodNetworkPresets($user, $input->presets);
 
-        return new JsonResponse($this->userView->create($user));
+        return new JsonResponse($this->views->one($user, UserView::class));
     }
 }

@@ -17,6 +17,7 @@ services:
 
     App\:
         resource: '../src/'
+        exclude: '../src/Api/View/'
 
     Symfony\AI\Agent\Bridge\SimilaritySearch\SimilaritySearch:
         arguments:

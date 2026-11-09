@@ -2,7 +2,8 @@
 
 namespace App\Controller\Api\Person;
 
-use App\Api\EventViewFactory;
+use App\Api\View\EventView;
+use App\Api\ViewMapper;
 use App\Application\Event\EventTimelineService;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
@@ -18,7 +19,7 @@ final readonly class PersonEventController
     public function __construct(
         private PersonLookup $people,
         private EventTimelineService $timeline,
-        private EventViewFactory $views,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -39,10 +40,7 @@ final readonly class PersonEventController
     ): JsonResponse {
         $person = $this->people->require($tree, $personId);
         $response = new JsonResponse([
-            'items' => array_map(
-                $this->views->create(...),
-                $this->timeline->forPerson($person),
-            ),
+            'items' => $this->views->many($this->timeline->forPerson($person), EventView::class),
         ]);
         $response->headers->set('ETag', $this->versions->etag($tree));
 

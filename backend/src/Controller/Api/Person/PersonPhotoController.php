@@ -3,7 +3,8 @@
 namespace App\Controller\Api\Person;
 
 use App\Api\MediaResponseFactory;
-use App\Api\PersonViewFactory;
+use App\Api\View\PersonView;
+use App\Api\ViewMapper;
 use App\Application\Media\CropAreaPolicy;
 use App\Application\Media\MediaService;
 use App\Application\Person\PersonLookup;
@@ -25,7 +26,7 @@ final readonly class PersonPhotoController
         private CropAreaPolicy $input,
         private MediaService $media,
         private MediaResponseFactory $responses,
-        private PersonViewFactory $personViews,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -147,7 +148,7 @@ final readonly class PersonPhotoController
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
-            'person' => $this->personViews->create($person),
+            'person' => $this->views->one($person, PersonView::class),
             'etag'   => $etag,
         ]);
         $response->headers->set('ETag', $etag);

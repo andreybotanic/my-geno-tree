@@ -3,7 +3,8 @@
 namespace App\Application\Event;
 
 use App\Api\ApiException;
-use App\Api\GenealogicalDateViewFactory;
+use App\Api\View\GenealogicalDateView;
+use App\Api\ViewMapper;
 use App\Application\Person\PersonDataPolicy;
 use App\Entity\GenealogicalEvent;
 use App\Entity\Person;
@@ -17,7 +18,7 @@ final readonly class ManualEventDataPolicy
     public function __construct(
         private PersonDataPolicy $personData,
         private EventPlaceDataPolicy $places,
-        private GenealogicalDateViewFactory $dates,
+        private ViewMapper $views,
     ) {
     }
 
@@ -92,7 +93,7 @@ final readonly class ManualEventDataPolicy
         $type = $fields['type'] ?? $event->getType()->value;
         $payload = [
             'type' => $type,
-            'date' => $this->dates->create($event->getDate()),
+            'date' => $this->views->one($event->getDate(), GenealogicalDateView::class),
             ...match ($type) {
                 'custom'         => ['title' => $event->getTitle(), 'description' => $event->getDescription()],
                 'residence'      => ['description' => $event->getDescription()],

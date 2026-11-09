@@ -3,7 +3,7 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\RequestBodyMapper;
-use App\Api\TreeSnapshotViewFactory;
+use App\Api\TreeViewReader;
 use App\Application\Tree\GraphMutationService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -19,7 +19,7 @@ final readonly class GraphMutationController
     public function __construct(
         private RequestBodyMapper $requestBody,
         private GraphMutationService $mutations,
-        private TreeSnapshotViewFactory $snapshots,
+        private TreeViewReader $snapshots,
         private TreeVersion $versions,
     ) {
     }
@@ -44,7 +44,7 @@ final readonly class GraphMutationController
             $request->headers->get('If-Match'),
         );
         $response = new JsonResponse(
-            $this->snapshots->create($tree),
+            $this->snapshots->snapshot($tree),
             $status,
         );
         $response->headers->set('ETag', $this->versions->etag($tree));

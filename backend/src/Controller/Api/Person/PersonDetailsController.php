@@ -2,7 +2,7 @@
 
 namespace App\Controller\Api\Person;
 
-use App\Api\PersonDetailsViewFactory;
+use App\Api\TreeViewReader;
 use App\Application\Person\PersonLookup;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
@@ -15,7 +15,7 @@ final readonly class PersonDetailsController
 {
     public function __construct(
         private PersonLookup $people,
-        private PersonDetailsViewFactory $details,
+        private TreeViewReader $details,
     ) {
     }
 
@@ -33,7 +33,7 @@ final readonly class PersonDetailsController
         string $personId,
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $details = $this->details->create($tree, $this->people->require($tree, $personId));
+        $details = $this->details->personDetails($tree, $this->people->require($tree, $personId));
         $response = new JsonResponse($details);
         $etag = $details['etag'];
         if (!is_string($etag)) {

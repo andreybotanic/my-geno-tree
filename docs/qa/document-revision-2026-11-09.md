@@ -73,3 +73,32 @@ configuration-only: SQL dialect is not assigned to migrations, and Symfony's
 plugin treats Doctrine entity constructor arguments as service injections.
 `debug:container --show-hidden` confirms those entities are excluded from DI.
 No suppression or production-code workaround was added for these notices.
+
+## DTO mapping follow-up
+
+All twelve remaining `*ViewFactory` classes were replaced with typed output DTOs
+and Symfony ObjectMapper/Serializer. Aggregate queries moved to `TreeViewReader`;
+their existing joins, batched relationship loading and query-count tests remain.
+Nested mappings use an explicit reusable `MapObject` transform, while collections
+use native `MapCollection`. DTOs are excluded from service registration. HTTP
+response construction retains its headers/cookie responsibilities.
+
+Two tests now compare JSON object contents independently of member enumeration
+order. Optional date/text fields still omit nulls, explicit nullable fields remain,
+and empty event data is still an object rather than a list.
+
+Manual HTTPS checks after this refactor: tree summaries and person counters,
+refresh, a seven-person snapshot, related people/marriage/events/place/photo data,
+and saving then restoring the synthetic person's name. The document dialog still
+opens correctly. The two temporary uploads were removed through the normal API;
+native cleanup messages completed, both queues are empty, and the eight original
+corpus hashes/sizes were checked again.
+
+Final checks: **299 backend tests / 10876 assertions**, **459 frontend tests**,
+**28 gateway tests**. Line coverage: **93.69% / 91.12% / 98.45%**. All meaningful
+measured production files exceed 75%; the existing empty EventPlaceRepository
+constructor has no meaningful behavior to cover. Quality, OpenAPI, production
+builds, dev/prod container validation and schema validation pass. All 28 migrations
+passed again on a clean disposable database. **43 affected PHP files passed
+PhpStorm WARNING with zero findings** for the DTO refactor. Existing PHPUnit
+notices and the Vite bundle-size advisory remain unchanged.

@@ -3,7 +3,8 @@
 namespace App\Application\Tree;
 
 use App\Api\ApiException;
-use App\Api\PersonViewFactory;
+use App\Api\View\PersonView;
+use App\Api\ViewMapper;
 use App\Application\Event\EventPlaceService;
 use App\Application\Event\ManualEventService;
 use App\Application\Person\CreateFirstPersonService;
@@ -48,7 +49,7 @@ final readonly class TreeActionService
         private StructuralGraphMutationService $graph,
         private UpdatePersonService $people,
         private PersonLookup $lookup,
-        private PersonViewFactory $personViews,
+        private ViewMapper $views,
         private UpdateMarriagePeriodService $marriages,
         private ManualEventService $events,
         private EventPlaceService $places,
@@ -72,8 +73,9 @@ final readonly class TreeActionService
         $this->versions->assertMatches($tree, $this->string($arguments, 'ifMatch'));
         if ('delete_person' === $name) {
             return [
-                'person' => $this->personViews->create(
+                'person' => $this->views->one(
                     $this->lookup->require($tree, $this->string($arguments, 'personId')),
+                    PersonView::class,
                 ),
             ];
         }
@@ -87,12 +89,11 @@ final readonly class TreeActionService
         if (is_array($summary['connection'])) {
             $connection = $this->object($arguments, 'connection');
             $relative = $this->lookup->require($tree, $this->string($connection, 'personId'));
-            $summary['relative'] = $this->personViews->create(
-                $relative,
-            );
+            $summary['relative'] = $this->views->one($relative, PersonView::class);
             if (isset($connection['otherParentId'])) {
-                $summary['otherRelative'] = $this->personViews->create(
+                $summary['otherRelative'] = $this->views->one(
                     $this->lookup->require($tree, $this->string($connection, 'otherParentId')),
+                    PersonView::class,
                 );
             }
             $summary['createsUnknownParent'] = !isset($connection['otherParentId'])
@@ -191,14 +192,14 @@ final readonly class TreeActionService
                 }
                 $result['personId'] ??= $result['newPersonIds'][0];
                 $result['people'] = array_map(
-                    fn (string $id) => $this->personViews->create($this->lookup->require($tree, $id)),
+                    fn (string $id) => $this->views->one($this->lookup->require($tree, $id), PersonView::class),
                     $result['newPersonIds'],
                 );
                 break;
             case 'update_person':
                 $person = $this->lookup->require($tree, $this->string($a, 'personId'));
                 $this->people->update($tree, $person, $this->object($a, 'fields'), $etag);
-                $result['person'] = $this->personViews->create($person);
+                $result['person'] = $this->views->one($person, PersonView::class);
                 break;
             case 'delete_person':
             case 'remove_parent_link':

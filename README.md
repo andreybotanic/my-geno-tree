@@ -125,6 +125,14 @@ are in [the manual RAG report](docs/qa/document-rag-2026-11-09.md).
 The [revision acceptance report](docs/qa/document-revision-2026-11-09.md) records
 the fixed dialog, view switches, independent storage and cited-source filtering.
 
+API output uses typed readonly DTOs in `backend/src/Api/View` with Symfony
+ObjectMapper mappings and Serializer normalization. `ViewMapper` handles single
+objects and collections. `MapObject` supplies explicit nested DTO targets without
+adding API attributes to domain entities; collections use native `MapCollection`.
+`TreeViewReader` loads summaries, snapshots and person details in bounded queries.
+The former `*ViewFactory` classes have been removed. HTTP response factories still
+own response headers, cookies and status codes.
+
 Local HTTPS MVP for creating and editing private genealogy trees.
 
 ## AI chat moderation

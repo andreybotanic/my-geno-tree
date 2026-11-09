@@ -2,8 +2,9 @@
 
 namespace App\Controller\Api\Person;
 
-use App\Api\PersonViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\View\PersonView;
+use App\Api\ViewMapper;
 use App\Application\Person\PersonLookup;
 use App\Application\Person\UpdatePersonService;
 use App\Application\Tree\TreeVersion;
@@ -19,7 +20,7 @@ final readonly class PersonController
 {
     public function __construct(
         private PersonLookup $people,
-        private PersonViewFactory $views,
+        private ViewMapper $views,
         private RequestBodyMapper $requestBody,
         private UpdatePersonService $updatePerson,
         private TreeVersion $versions,
@@ -41,7 +42,7 @@ final readonly class PersonController
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
         $response = new JsonResponse(
-            $this->views->create($this->people->require($tree, $personId)),
+            $this->views->one($this->people->require($tree, $personId), PersonView::class),
         );
         $response->headers->set('ETag', $this->versions->etag($tree));
 
@@ -72,7 +73,7 @@ final readonly class PersonController
         );
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
-            'person' => $this->views->create($person),
+            'person' => $this->views->one($person, PersonView::class),
             'etag'   => $etag,
         ]);
         $response->headers->set('ETag', $etag);

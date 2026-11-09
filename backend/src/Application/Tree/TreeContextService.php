@@ -3,8 +3,9 @@
 namespace App\Application\Tree;
 
 use App\Api\ApiException;
-use App\Api\GenealogicalDateViewFactory;
-use App\Api\KnownTextViewFactory;
+use App\Api\View\GenealogicalDateView;
+use App\Api\View\KnownTextView;
+use App\Api\ViewMapper;
 use App\Application\Person\PersonSearchService;
 use App\Entity\FamilyTree;
 use App\Entity\Person;
@@ -27,8 +28,7 @@ final readonly class TreeContextService
         private PersonSearchService $search,
         private TreeVersion $versions,
         private AuthorizationCheckerInterface $authorization,
-        private KnownTextViewFactory $texts,
-        private GenealogicalDateViewFactory $dates,
+        private ViewMapper $views,
         private ClockInterface $clock,
     ) {
     }
@@ -106,12 +106,14 @@ final readonly class TreeContextService
     {
         return [
             'id'           => $person->getId()->toRfc4122(),
-            'givenName'    => $this->texts->create($person->getGivenName()),
-            'birthSurname' => $this->texts->create($person->getBirthSurname()),
-            'patronymic'   => $this->texts->create($person->getPatronymic()),
+            'givenName'    => $this->views->one($person->getGivenName(), KnownTextView::class),
+            'birthSurname' => $this->views->one($person->getBirthSurname(), KnownTextView::class),
+            'patronymic'   => $this->views->one($person->getPatronymic(), KnownTextView::class),
             'gender'       => $person->getGender()->value,
-            'birthDate'    => $this->dates->create($person->getBirthDate()),
-            'deathDate'    => null === $person->getDeathDate() ? null : $this->dates->create($person->getDeathDate()),
+            'birthDate'    => $this->views->one($person->getBirthDate(), GenealogicalDateView::class),
+            'deathDate'    => null === $person->getDeathDate()
+                ? null
+                : $this->views->one($person->getDeathDate(), GenealogicalDateView::class),
         ];
     }
 }

@@ -103,7 +103,8 @@ final class EventPlaceApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         /** @var PlaceMutation $saved */
         $saved = $this->responseData();
-        self::assertSame(['name' => 'Historical settlement', 'coordinates' => null], $saved['event']['place']);
+        // JSON object member order is not part of the response contract.
+        self::assertEquals(['name' => 'Historical settlement', 'coordinates' => null], $saved['event']['place']);
         foreach ($snapshot['parentLinks'] as $link) {
             $projection = $this->event($token, $treeId, $link['parentId'], 'child_birth');
             self::assertSame($saved['event']['place'], $projection['place']);

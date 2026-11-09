@@ -3,7 +3,8 @@
 namespace App\Controller\Api\Profile;
 
 use App\Api\MediaResponseFactory;
-use App\Api\UserViewFactory;
+use App\Api\View\UserView;
+use App\Api\ViewMapper;
 use App\Application\Media\CropAreaPolicy;
 use App\Application\Media\MediaService;
 use App\Entity\User;
@@ -21,7 +22,7 @@ final readonly class AvatarController
         private CropAreaPolicy $input,
         private MediaService $media,
         private MediaResponseFactory $responses,
-        private UserViewFactory $users,
+        private ViewMapper $views,
     ) {
     }
 
@@ -47,7 +48,7 @@ final readonly class AvatarController
             $this->input->fromRequest($request),
         );
 
-        return new JsonResponse($this->users->create($user));
+        return new JsonResponse($this->views->one($user, UserView::class));
     }
 
     #[Route('/api/v1/me/avatar', name: 'api_avatar_delete', methods: ['DELETE'])]
@@ -55,6 +56,6 @@ final readonly class AvatarController
     {
         $this->media->deleteAvatar($user);
 
-        return new JsonResponse($this->users->create($user));
+        return new JsonResponse($this->views->one($user, UserView::class));
     }
 }

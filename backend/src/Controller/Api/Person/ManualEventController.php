@@ -2,8 +2,9 @@
 
 namespace App\Controller\Api\Person;
 
-use App\Api\EventViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\View\EventView;
+use App\Api\ViewMapper;
 use App\Application\Event\ManualEventService;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
@@ -27,7 +28,7 @@ final readonly class ManualEventController
         private RequestBodyMapper $requestBody,
         private PersonLookup $people,
         private ManualEventService $events,
-        private EventViewFactory $views,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -123,11 +124,8 @@ final readonly class ManualEventController
         );
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
-            'items' => array_map(
-                $this->views->create(...),
-                $events,
-            ),
-            'etag' => $etag,
+            'items' => $this->views->many($events, EventView::class),
+            'etag'  => $etag,
         ]);
         $response->headers->set('ETag', $etag);
 
@@ -141,7 +139,7 @@ final readonly class ManualEventController
     ): JsonResponse {
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
-            'event' => $this->views->create($event),
+            'event' => $this->views->one($event, EventView::class),
             'etag'  => $etag,
         ], $status);
         $response->headers->set('ETag', $etag);

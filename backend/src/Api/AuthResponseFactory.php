@@ -2,6 +2,7 @@
 
 namespace App\Api;
 
+use App\Api\View\UserView;
 use App\Application\Auth\TokenBundle;
 use App\Http\RefreshCookieFactory;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -9,7 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 final readonly class AuthResponseFactory
 {
     public function __construct(
-        private UserViewFactory $userView,
+        private ViewMapper $views,
         private RefreshCookieFactory $cookies,
     ) {
     }
@@ -21,7 +22,7 @@ final readonly class AuthResponseFactory
         $response = new JsonResponse([
             'accessToken'          => $bundle->accessToken,
             'accessTokenExpiresAt' => $bundle->accessExpiresAt->format(DATE_ATOM),
-            'user'                 => $this->userView->create($bundle->session->getUser()),
+            'user'                 => $this->views->one($bundle->session->getUser(), UserView::class),
         ], $status);
         $response->headers->setCookie($this->cookies->create($bundle));
 

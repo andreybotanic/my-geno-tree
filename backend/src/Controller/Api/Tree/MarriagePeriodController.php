@@ -2,8 +2,9 @@
 
 namespace App\Controller\Api\Tree;
 
-use App\Api\MarriagePeriodViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\View\MarriagePeriodView;
+use App\Api\ViewMapper;
 use App\Application\Tree\TreeVersion;
 use App\Application\Tree\UpdateMarriagePeriodService;
 use App\Entity\FamilyTree;
@@ -19,7 +20,7 @@ final readonly class MarriagePeriodController
     public function __construct(
         private RequestBodyMapper $requestBody,
         private UpdateMarriagePeriodService $marriages,
-        private MarriagePeriodViewFactory $views,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -47,7 +48,7 @@ final readonly class MarriagePeriodController
         );
         $etag = $this->versions->etag($tree);
         $response = new JsonResponse([
-            'marriage' => $this->views->create($marriage),
+            'marriage' => $this->views->one($marriage, MarriagePeriodView::class),
             'etag'     => $etag,
         ]);
         $response->headers->set('ETag', $etag);

@@ -2,7 +2,7 @@
 
 namespace App\Controller\Api\Tree;
 
-use App\Api\TreeSnapshotViewFactory;
+use App\Api\TreeViewReader;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Security\FamilyTreeVoter;
@@ -14,7 +14,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final readonly class TreeSnapshotController
 {
     public function __construct(
-        private TreeSnapshotViewFactory $snapshots,
+        private TreeViewReader $snapshots,
         private TreeVersion $versions,
     ) {
     }
@@ -32,7 +32,7 @@ final readonly class TreeSnapshotController
     public function __invoke(
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
     ): JsonResponse {
-        $response = new JsonResponse($this->snapshots->create($tree));
+        $response = new JsonResponse($this->snapshots->snapshot($tree));
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;

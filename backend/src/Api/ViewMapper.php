@@ -3,6 +3,7 @@
 namespace App\Api;
 
 use Symfony\Component\ObjectMapper\ObjectMapperInterface;
+use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /** Maps declared output DTOs and preserves the API's normalized array contracts. */
@@ -21,7 +22,11 @@ final readonly class ViewMapper
      */
     public function one(object $source, string|object $target): array
     {
-        $data = $this->normalizer->normalize($this->mapper->map($source, $target), 'json');
+        $data = $this->normalizer->normalize(
+            $this->mapper->map($source, $target),
+            'json',
+            [AbstractObjectNormalizer::PRESERVE_EMPTY_OBJECTS => true],
+        );
         if (!is_array($data)) {
             throw new \LogicException('An output DTO must normalize to an object.');
         }

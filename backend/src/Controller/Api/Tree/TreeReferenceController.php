@@ -3,7 +3,7 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\RequestBodyMapper;
-use App\Api\TreeSnapshotViewFactory;
+use App\Api\TreeViewReader;
 use App\Application\Tree\ChangeTreeReferenceService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -19,7 +19,7 @@ final readonly class TreeReferenceController
     public function __construct(
         private RequestBodyMapper $requestBody,
         private ChangeTreeReferenceService $references,
-        private TreeSnapshotViewFactory $snapshots,
+        private TreeViewReader $snapshots,
         private TreeVersion $versions,
     ) {
     }
@@ -43,7 +43,7 @@ final readonly class TreeReferenceController
             $this->requestBody->decodeObject($request),
             $request->headers->get('If-Match'),
         );
-        $response = new JsonResponse($this->snapshots->create($tree));
+        $response = new JsonResponse($this->snapshots->snapshot($tree));
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;

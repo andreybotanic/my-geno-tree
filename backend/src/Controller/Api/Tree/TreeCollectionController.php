@@ -2,8 +2,8 @@
 
 namespace App\Controller\Api\Tree;
 
-use App\Api\FamilyTreeViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\TreeViewReader;
 use App\Application\Tree\CreateTreeService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\User;
@@ -18,7 +18,7 @@ final readonly class TreeCollectionController
 {
     public function __construct(
         private FamilyTreeRepository $trees,
-        private FamilyTreeViewFactory $views,
+        private TreeViewReader $views,
         private RequestBodyMapper $requestBody,
         private CreateTreeService $createTree,
         private TreeVersion $versions,
@@ -30,7 +30,7 @@ final readonly class TreeCollectionController
     {
         return new JsonResponse([
             'items' => array_map(
-                fn (array $result): array => $this->views->create(
+                fn (array $result): array => $this->views->summary(
                     $result[0],
                     (int)$result['personCount'],
                 ),
@@ -47,7 +47,7 @@ final readonly class TreeCollectionController
         $input = $this->requestBody->map($request, TreeNameRequest::class);
         $tree = $this->createTree->create($user, $input->name);
         $response = new JsonResponse(
-            $this->views->create($tree, 0),
+            $this->views->summary($tree, 0),
             JsonResponse::HTTP_CREATED,
         );
         $response->headers->set('ETag', $this->versions->etag($tree));

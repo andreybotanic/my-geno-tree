@@ -96,7 +96,8 @@ final class TreeContextApiTest extends ApiWebTestCase
             array_filter($data['people'], static fn ($person) => is_array($person) && $person['id'] === $id),
         );
         self::assertIsArray($referenceViews[0]);
-        self::assertSame(
+        // ObjectMapper/Serializer may enumerate JSON object members in a different order.
+        self::assertEquals(
             [
                 'state' => 'known',
                 'kind'  => 'between',

@@ -3,9 +3,10 @@
 namespace App\Application\Tree;
 
 use App\Api\ApiException;
-use App\Api\MarriagePeriodViewFactory;
-use App\Api\ParentLinkViewFactory;
-use App\Api\PersonViewFactory;
+use App\Api\View\MarriagePeriodView;
+use App\Api\View\ParentLinkView;
+use App\Api\View\PersonView;
+use App\Api\ViewMapper;
 use App\Entity\FamilyTree;
 use App\Entity\MarriagePeriod;
 use App\Entity\ParentLink;
@@ -22,9 +23,7 @@ final readonly class SearchRoutePlanService
         private PersonRepository $people,
         private ParentLinkRepository $parentLinks,
         private MarriagePeriodRepository $marriages,
-        private PersonViewFactory $personViews,
-        private ParentLinkViewFactory $parentLinkViews,
-        private MarriagePeriodViewFactory $marriageViews,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -105,7 +104,7 @@ final readonly class SearchRoutePlanService
             $peopleById[$this->id($person)] = $person;
         }
         $includedPeople = array_map(
-            fn (string $id): array => $this->personViews->create($peopleById[$id]),
+            fn (string $id): array => $this->views->one($peopleById[$id], PersonView::class),
             array_keys($nodes),
         );
 
@@ -118,14 +117,8 @@ final readonly class SearchRoutePlanService
                 'generation' => $node['generation'],
                 'kind'       => $node['kind'],
             ], array_keys($nodes), array_values($nodes)),
-            'parentLinks' => array_map(
-                $this->parentLinkViews->create(...),
-                array_values($includedParents),
-            ),
-            'marriages' => array_map(
-                $this->marriageViews->create(...),
-                array_values($includedMarriages),
-            ),
+            'parentLinks'  => $this->views->many(array_values($includedParents), ParentLinkView::class),
+            'marriages'    => $this->views->many(array_values($includedMarriages), MarriagePeriodView::class),
             'familyBlocks' => $this->familyBlocks(
                 array_values($includedParents),
                 array_values($includedMarriages),

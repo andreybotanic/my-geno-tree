@@ -3,7 +3,7 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\ApiException;
-use App\Api\FamilyTreeViewFactory;
+use App\Api\TreeViewReader;
 use App\Application\Tree\TreeVersion;
 use App\Application\TreeExchange\TreeImportService;
 use App\Entity\User;
@@ -17,7 +17,7 @@ final readonly class TreeImportController
 {
     public function __construct(
         private TreeImportService $imports,
-        private FamilyTreeViewFactory $views,
+        private TreeViewReader $views,
         private TreeVersion $versions,
     ) {
     }
@@ -43,7 +43,7 @@ final readonly class TreeImportController
         );
         $response = new JsonResponse(
             [
-                'tree'     => $this->views->create($result->tree, $result->personCount),
+                'tree'     => $this->views->summary($result->tree, $result->personCount),
                 'warnings' => $result->warnings,
             ],
             JsonResponse::HTTP_CREATED,

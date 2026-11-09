@@ -3,8 +3,8 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\ApiException;
-use App\Api\FamilyTreeViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\TreeViewReader;
 use App\Application\Chat\ChatInterface;
 use App\Application\Tree\DeleteTreeService;
 use App\Application\Tree\RenameTreeService;
@@ -26,7 +26,7 @@ final readonly class TreeItemController
         private RequestBodyMapper $requestBody,
         private RenameTreeService $renameTree,
         private DeleteTreeService $deleteTree,
-        private FamilyTreeViewFactory $views,
+        private TreeViewReader $views,
         private TreeVersion $versions,
     ) {
     }
@@ -52,7 +52,7 @@ final readonly class TreeItemController
             $input->name,
             $request->headers->get('If-Match'),
         );
-        $response = new JsonResponse($this->views->create($tree));
+        $response = new JsonResponse($this->views->summary($tree));
         $response->headers->set('ETag', $this->versions->etag($tree));
 
         return $response;

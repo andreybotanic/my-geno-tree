@@ -2,8 +2,9 @@
 
 namespace App\Controller\Api\Person;
 
-use App\Api\EventViewFactory;
 use App\Api\RequestBodyMapper;
+use App\Api\View\EventView;
+use App\Api\ViewMapper;
 use App\Application\Event\EventPlaceService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -20,7 +21,7 @@ final readonly class EventPlaceController
     public function __construct(
         private RequestBodyMapper $requestBody,
         private EventPlaceService $places,
-        private EventViewFactory $eventViews,
+        private ViewMapper $views,
         private TreeVersion $versions,
     ) {
     }
@@ -38,7 +39,7 @@ final readonly class EventPlaceController
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);
-        $response = new JsonResponse(['event' => $this->eventViews->create($event), 'etag' => $etag]);
+        $response = new JsonResponse(['event' => $this->views->one($event, EventView::class), 'etag' => $etag]);
         $response->headers->set('ETag', $etag);
 
         return $response;
