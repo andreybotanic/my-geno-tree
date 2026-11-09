@@ -239,10 +239,17 @@ final readonly class ChatService implements ChatInterface
                         $answer = array_last($messages->getMessages());
                         if ($answer instanceof AssistantMessage && null !== $answer->asText()) {
                             $sources = $execution->native?->getMetadata()->get('sources');
+                            preg_match_all(
+                                '~]\(<?(/trees/[0-9a-f-]+/documents/[0-9a-f-]+/download)>?\)~i',
+                                $answer->asText(),
+                                $citations,
+                            );
+                            $citedReferences = array_fill_keys($citations[1], true);
                             $documents = [];
                             if ($sources instanceof \Symfony\AI\Agent\Toolbox\Source\SourceCollection) {
                                 foreach ($sources as $source) {
-                                    if ($source instanceof \Symfony\AI\Agent\Bridge\SimilaritySearch\DocumentSource) {
+                                    if ($source instanceof \Symfony\AI\Agent\Bridge\SimilaritySearch\DocumentSource
+                                        && isset($citedReferences[$source->getReference()])) {
                                         $entry = [
                                             'name'        => $source->getName(),
                                             'downloadUrl' => $source->getReference(),

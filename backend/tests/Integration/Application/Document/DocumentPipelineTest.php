@@ -3,18 +3,18 @@
 namespace App\Tests\Integration\Application\Document;
 
 use App\Api\ApiException;
-use App\Application\Document\DocumentChunks;
+use App\Application\Document\DocumentFiles;
 use App\Application\Document\DocumentService;
 use App\Application\Document\DocumentVectors;
-use App\Application\Document\DocumentWorker;
-use App\Application\Document\IndexDocument;
-use App\Application\Document\RemoveDocument;
 use App\Application\Document\TreeDocumentRetriever;
-use App\Application\Media\MediaStorage;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
 use App\Entity\TreeDocument;
 use App\Entity\User;
+use App\Message\Document\IndexDocumentMessage;
+use App\Message\Document\RemoveDocumentMessage;
+use App\MessageHandler\Document\IndexDocumentMessageHandler;
+use App\MessageHandler\Document\RemoveDocumentMessageHandler;
 use App\Model\Conversation;
 use App\Repository\TreeDocumentRepository;
 use App\Tests\Api\ApiWebTestCase;
@@ -66,16 +66,19 @@ final class DocumentPipelineTest extends ApiWebTestCase
 
     public function testRealQdrantIndexingRedeliveryGenerationsSourcesAndCleanup(): void
     {
-        $document = $this->document("\xEF\xBB\xBF# Family\r\n" . str_repeat('An archival railway letter. ', 100), 'story.md');
-        $worker = static::getContainer()->get(DocumentWorker::class);
-        $message = new IndexDocument($document->getId()->toRfc4122(), 1);
+        $document = $this->document(
+            "\xEF\xBB\xBF# Family\r\n" . str_repeat('An archival railway letter. ', 100),
+            'story.md',
+        );
+        $worker = static::getContainer()->get(IndexDocumentMessageHandler::class);
+        $message = new IndexDocumentMessage($document->getId()->toRfc4122(), 1);
         $etag = static::getContainer()->get(TreeVersion::class)->etag($this->tree);
-        $worker->index($message);
+        $worker->__invoke($message);
         self::assertSame('ready', $document->getStatus());
         self::assertSame($etag, static::getContainer()->get(TreeVersion::class)->etag($this->tree));
         $first = $this->points($document);
         self::assertGreaterThan(1, count($first));
-        $worker->index($message);
+        $worker->__invoke($message);
         self::assertCount(count($first), $this->points($document));
         self::assertSame([], $first[0]->getMetadata()->getSource() ? ['leaked_path'] : []);
 
@@ -100,14 +103,17 @@ final class DocumentPipelineTest extends ApiWebTestCase
             self::assertLessThanOrEqual(6, count($found));
             self::assertSame('story.md', $found[0]->getMetadata()->getTitle());
             self::assertStringStartsWith('/trees/', $found[0]->getMetadata()->getSource() ?? '');
-            self::assertStringNotContainsString(sys_get_temp_dir(), json_encode($found[0]->getMetadata(), JSON_THROW_ON_ERROR));
+            self::assertStringNotContainsString(
+                sys_get_temp_dir(),
+                json_encode($found[0]->getMetadata(), JSON_THROW_ON_ERROR),
+            );
 
             $document->queued(new \DateTimeImmutable());
             $this->em->flush();
             self::assertSame([], iterator_to_array($retriever->retrieve('railway'), false));
-            $worker->index($message);
+            $worker->__invoke($message);
             self::assertSame('queued', $document->getStatus());
-            $worker->index(new IndexDocument($document->getId()->toRfc4122(), 2));
+            $worker->__invoke(new IndexDocumentMessage($document->getId()->toRfc4122(), 2));
             self::assertSame('ready', $document->getStatus());
             $second = $this->points($document);
             self::assertCount(count($first), $second);
@@ -117,9 +123,9 @@ final class DocumentPipelineTest extends ApiWebTestCase
             $this->em->flush();
             self::assertSame([], iterator_to_array($retriever->retrieve('railway'), false));
             $id = $document->getId()->toRfc4122();
-            $worker->remove(new RemoveDocument($id));
-            $worker->remove(new RemoveDocument($id));
-            $worker->index(new IndexDocument($id, 2));
+            static::getContainer()->get(RemoveDocumentMessageHandler::class)->__invoke(new RemoveDocumentMessage($id));
+            static::getContainer()->get(RemoveDocumentMessageHandler::class)->__invoke(new RemoveDocumentMessage($id));
+            $worker->__invoke(new IndexDocumentMessage($id, 2));
             self::assertNull($this->em->find(TreeDocument::class, $id));
             self::assertSame([], $this->points($document));
         } finally {
@@ -144,16 +150,16 @@ final class DocumentPipelineTest extends ApiWebTestCase
             },
         );
         $worker = $this->worker($indexer);
-        $message = new IndexDocument($document->getId()->toRfc4122(), 1);
+        $message = new IndexDocumentMessage($document->getId()->toRfc4122(), 1);
         try {
-            $worker->index($message);
+            $worker->__invoke($message);
             self::fail('Expected indexing failure.');
         } catch (\RuntimeException $error) {
             self::assertSame('Temporary embedding failure', $error->getMessage());
         }
         self::assertSame('failed', $document->getStatus());
         self::assertSame('DOCUMENT_INDEX_FAILED', $document->getErrorCode());
-        $worker->index($message);
+        $worker->__invoke($message);
         self::assertSame('ready', $document->getStatus());
 
         $document->queued(new \DateTimeImmutable());
@@ -165,11 +171,13 @@ final class DocumentPipelineTest extends ApiWebTestCase
                 $this->em->flush();
             }
         );
-        $this->worker($indexer)->index(new IndexDocument($document->getId()->toRfc4122(), 2));
+        $this->worker($indexer)->__invoke(new IndexDocumentMessage($document->getId()->toRfc4122(), 2));
         self::assertTrue($document->isDeleted());
         self::assertNotSame('ready', $document->getStatus());
         self::assertSame([], $this->points($document));
-        $worker->remove(new RemoveDocument($document->getId()->toRfc4122()));
+        static::getContainer()->get(RemoveDocumentMessageHandler::class)->__invoke(
+            new RemoveDocumentMessage($document->getId()->toRfc4122()),
+        );
     }
 
     public function testEmptySearchAndMissingConversationFailClosed(): void
@@ -177,23 +185,6 @@ final class DocumentPipelineTest extends ApiWebTestCase
         $retriever = static::getContainer()->get(TreeDocumentRetriever::class);
         $this->expectException(ApiException::class);
         iterator_to_array($retriever->retrieve('railway'), false);
-    }
-
-    public function testRetryCommandRepublishesIndexingAndDetachedCleanup(): void
-    {
-        self::assertNotNull(self::$kernel);
-        $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(self::$kernel);
-        $tester = new \Symfony\Component\Console\Tester\CommandTester($application->find('app:documents:retry'));
-        self::assertSame(1, $tester->execute(['document-id' => 'missing']));
-        self::assertStringContainsString('Document not found.', $tester->getDisplay());
-        $document = $this->document('Original kept for retry.');
-        self::assertSame(0, $tester->execute(['document-id' => $document->getId()->toRfc4122()]));
-        self::assertSame(2, $document->getGeneration());
-        $document->delete(new \DateTimeImmutable(), true);
-        $this->em->flush();
-        self::assertSame(0, $tester->execute(['document-id' => $document->getId()->toRfc4122()]));
-        self::assertSame(2, $document->getGeneration());
-        static::getContainer()->get(DocumentWorker::class)->remove(new RemoveDocument($document->getId()->toRfc4122()));
     }
 
     public function testRealRabbitMqRoundTripUsesPersistentMessages(): void
@@ -209,13 +200,13 @@ final class DocumentPipelineTest extends ApiWebTestCase
             new PhpSerializer(),
         );
         $id = Uuid::v7()->toRfc4122();
-        $transport->send(new Envelope(new IndexDocument($id, 3)));
+        $transport->send(new Envelope(new IndexDocumentMessage($id, 3)));
         $received = iterator_to_array($transport->get(), false);
         self::assertNotEmpty($received);
         $found = false;
         foreach ($received as $envelope) {
             $message = $envelope->getMessage();
-            if ($message instanceof IndexDocument && $message->documentId === $id) {
+            if ($message instanceof IndexDocumentMessage && $message->documentId === $id) {
                 self::assertSame(3, $message->generation);
                 $found = true;
             }
@@ -256,24 +247,26 @@ final class DocumentPipelineTest extends ApiWebTestCase
             $store->query(
                 new VectorQuery(new Vector($data)),
                 [
-                    'filter' => ['must' => [['key' => 'documentId', 'match' => ['value' => $document->getId()->toRfc4122()]]]],
-                    'limit'  => 100,
+                    'filter' => [
+                        'must' => [
+                            ['key' => 'documentId', 'match' => ['value' => $document->getId()->toRfc4122()]],
+                        ],
+                    ],
+                    'limit' => 100,
                 ]
             ),
             false
         );
     }
 
-    private function worker(IndexerInterface $indexer): DocumentWorker
+    private function worker(IndexerInterface $indexer): IndexDocumentMessageHandler
     {
         $container = static::getContainer();
 
-        return new DocumentWorker(
+        return new IndexDocumentMessageHandler(
             $container->get(TreeDocumentRepository::class),
             $this->em,
-            $container->get(DocumentService::class),
-            $container->get(MediaStorage::class),
-            $container->get(DocumentChunks::class),
+            $container->get(DocumentFiles::class),
             $container->get(DocumentVectors::class),
             $indexer,
             $container->get('app.document_locks'),

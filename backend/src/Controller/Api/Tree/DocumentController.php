@@ -3,8 +3,8 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\ApiException;
-use App\Api\DocumentViewFactory;
-use App\Api\MediaResponseFactory;
+use App\Api\View\DocumentView;
+use App\Api\ViewMapper;
 use App\Application\Document\DocumentService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
@@ -23,9 +23,8 @@ final readonly class DocumentController
 {
     public function __construct(
         private DocumentService $documents,
-        private DocumentViewFactory $views,
+        private ViewMapper $views,
         private TreeVersion $versions,
-        private MediaResponseFactory $responses,
     ) {
     }
 
@@ -68,7 +67,7 @@ final readonly class DocumentController
         $etag = $this->versions->etag($tree);
 
         return new JsonResponse(
-            ['document' => $this->views->create($document), 'etag' => $etag],
+            ['document' => $this->views->one($document, DocumentView::class), 'etag' => $etag],
             202,
             ['ETag' => $etag],
         );
@@ -79,9 +78,14 @@ final readonly class DocumentController
     public function download(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $documentId): Response
     {
         $document = $this->documents->require($tree, $documentId);
-        $response = $this->responses->create(
-            $this->documents->original($document),
+        $response = new Response(
             $this->documents->contents($document),
+            headers: [
+                'Content-Type'           => $document->getMimeType(),
+                'Content-Length'         => (string)$document->getOriginalSizeBytes(),
+                'Cache-Control'          => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
         );
         $response->headers->set(
             'Content-Disposition',
@@ -106,12 +110,5 @@ final readonly class DocumentController
         $etag = $this->versions->etag($tree);
 
         return new JsonResponse(['etag' => $etag], headers: ['ETag' => $etag]);
-    }
-
-    #[Route('/{documentId}/retry', name: 'api_documents_retry', methods: ['POST'])]
-    #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
-    public function retry(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $documentId): JsonResponse
-    {
-        return new JsonResponse(['document' => $this->views->create($this->documents->retry($tree, $documentId))], 202);
     }
 }

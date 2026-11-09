@@ -99,26 +99,6 @@ paths:
             text/markdown: { schema: { type: string, format: binary } }
         401: { $ref: '#/components/responses/Unauthorized' }
         404: { $ref: '#/components/responses/NotFound' }
-  /trees/{treeId}/documents/{documentId}/retry:
-    parameters:
-      - $ref: '#/components/parameters/TreeId'
-      - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
-    post:
-      operationId: retryTreeDocument
-      security: [{ bearerAuth: [] }]
-      responses:
-        202:
-          description: A new indexing generation requested, without changing the tree ETag.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [document]
-                properties:
-                  document: { $ref: '#/components/schemas/TreeDocument' }
-        401: { $ref: '#/components/responses/Unauthorized' }
-        404: { $ref: '#/components/responses/NotFound' }
-        409: { $ref: '#/components/responses/Conflict' }
   /mcp:
     post:
       operationId: externalMcpCall

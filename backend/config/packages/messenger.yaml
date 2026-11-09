@@ -19,9 +19,6 @@ framework:
                 dsn: 'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/document_failures'
                 options:
                     confirm_timeout: 5
-        routing:
-            App\Application\Document\IndexDocument: documents
-            App\Application\Document\RemoveDocument: documents
 
 when@test:
     framework:

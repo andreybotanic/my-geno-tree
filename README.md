@@ -5,12 +5,14 @@
 Open **Documents** in the person's card (or the empty-tree screen). The card contains
 only its launcher and a total counter (personal plus shared documents); the
 files, upload controls, attachment labels and processing actions live in a
-separate dialog, whose filter also opens all documents of the tree. Multiple TXT/MD files upload sequentially with individual
+separate fixed-size dialog. Switches select all/personal documents and tiles/a compact list.
+Multiple TXT/MD files upload sequentially with individual
 results. A version conflict stops the remaining requests. Both languages use
 the site's design tokens and existing dialog/file-picker controls.
 
 Original UTF-8 bytes, including a possible BOM and original line endings, stay
-unchanged in private Flysystem storage. PostgreSQL holds the typed attachment,
+unchanged in private Flysystem document storage. Documents have their own paths
+and lifecycle, without media objects or image variants. PostgreSQL holds the attachment,
 checksum, original filename/MIME and server-measured `originalSizeBytes`.
 Files are limited to 10 MiB each. Downloads remain available if indexing fails.
 Deleting a person makes their documents shared; deleting a tree queues cleanup
@@ -44,7 +46,10 @@ chunks do not. Stable UUIDv5 chunk IDs include the document generation.
 live document generations, Qdrant filters them before nearest-neighbour search,
 and a batched ORM check validates results again. Each search returns at most six
 fragments, with current names/attachments and protected download links. Native
-Symfony AI sources persist with chat replies. Text in documents cannot authorize
+Symfony AI sources persist with chat replies only for documents explicitly cited
+by their protected URL in the answer. Other retrieved candidates are omitted.
+The chat shows filenames and authenticated download links, without passage previews.
+Text in documents cannot authorize
 tree mutations. The implementation follows the
 [Symfony RAG cookbook](https://symfony.com/doc/current/ai/cookbook/rag-implementation.html).
 
@@ -53,21 +58,20 @@ confirms, durable messages, three exponential retries and the
 `document_failures` transport are configured. There is deliberately no custom
 outbox or jobs table: a crash between commit and publish remains an accepted
 gap until the framework's outbox is adopted. Failed publishing records an error;
-the original remains downloadable. The UI retries failed or five-minute-stale
-jobs. Workers serialize processing per document and tolerate redelivery,
+the original remains downloadable. There is no document retry endpoint, UI action
+or custom command. Published failed messages use Messenger's native failure queue.
+Workers serialize processing per document and tolerate redelivery,
 generation changes and deletion during indexing. Cleanup is repeatable.
 
 ```sh
 docker compose exec -T backend php bin/console messenger:stats documents document_failures
 docker compose exec -T backend php bin/console messenger:failed:show --transport=document_failures
 docker compose exec -T backend php bin/console messenger:failed:retry --transport=document_failures
-docker compose exec -T backend php bin/console app:documents:retry DOCUMENT_UUID
 docker compose logs --tail=100 document-worker
 ```
 
-The last command that accepts a document UUID also republishes cleanup for a
-deleted document's tombstone. After an interrupted publication, use this command
-with the document ID; automatic delivery cannot repair an unpublished message.
+An interrupted publication cannot be recovered through the failure queue because
+RabbitMQ never accepted that message. This gap is accepted until native outbox support.
 
 ### Store choice
 
@@ -118,6 +122,8 @@ classes, binaries or unused dependencies are installed now.
 
 The reproducible large-corpus acceptance record and actual native tool results
 are in [the manual RAG report](docs/qa/document-rag-2026-11-09.md).
+The [revision acceptance report](docs/qa/document-revision-2026-11-09.md) records
+the fixed dialog, view switches, independent storage and cited-source filtering.
 
 Local HTTPS MVP for creating and editing private genealogy trees.
 

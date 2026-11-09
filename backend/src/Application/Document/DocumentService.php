@@ -3,14 +3,14 @@
 namespace App\Application\Document;
 
 use App\Api\ApiException;
-use App\Api\DocumentViewFactory;
-use App\Application\Media\MediaStorage;
+use App\Api\View\DocumentView;
+use App\Api\ViewMapper;
 use App\Application\Person\PersonLookup;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
-use App\Entity\MediaVariant;
-use App\Entity\MediaVariantType;
 use App\Entity\TreeDocument;
+use App\Message\Document\IndexDocumentMessage;
+use App\Message\Document\RemoveDocumentMessage;
 use App\Repository\TreeDocumentRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,14 +24,13 @@ final readonly class DocumentService
 {
     public function __construct(
         private DocumentFiles $files,
-        private MediaStorage $storage,
         private TreeDocumentRepository $documents,
         private PersonLookup $people,
         private TreeVersion $versions,
         private EntityManagerInterface $entityManager,
         private ClockInterface $clock,
         private MessageBusInterface $bus,
-        private DocumentViewFactory $views,
+        private ViewMapper $views,
         private LoggerInterface $logger,
     ) {
     }
@@ -54,7 +53,7 @@ final readonly class DocumentService
         $rows = array_slice($rows, 0, $limit);
 
         return [
-            'items'      => array_map($this->views->create(...), $rows),
+            'items'      => $this->views->many($rows, DocumentView::class),
             'total'      => $this->documents->countVisible($tree, $person, $scope),
             'nextCursor' => $more ? array_last($rows)?->getId()->toRfc4122() : null,
             'etag'       => $this->versions->etag($tree),
@@ -69,14 +68,14 @@ final readonly class DocumentService
     ): TreeDocument {
         $input = $this->files->validate($file);
         $now = $this->clock->now();
-        $media = $this->files->store($tree, $input['contents'], $input['mime'], $now);
+        $path = $this->files->store($tree, $input['contents']);
         try {
             $document = $this->entityManager->wrapInTransaction(
                 function () use (
                     $tree,
                     $personId,
                     $input,
-                    $media,
+                    $path,
                     $now,
                     $ifMatch,
                 ): TreeDocument {
@@ -85,7 +84,7 @@ final readonly class DocumentService
                     $document = new TreeDocument(
                         $tree,
                         $person,
-                        $media,
+                        $path,
                         $input['name'],
                         $input['mime'],
                         $input['bytes'],
@@ -99,7 +98,7 @@ final readonly class DocumentService
                 }
             );
         } catch (\Throwable $error) {
-            $this->storage->remove($media);
+            $this->files->remove($path);
             throw $error;
         }
         $this->publish($document);
@@ -114,38 +113,9 @@ final readonly class DocumentService
         return $document ?? throw new ApiException(404, 'DOCUMENT_NOT_FOUND');
     }
 
-    public function original(TreeDocument $document): MediaVariant
-    {
-        return $document->getMedia()->variant(MediaVariantType::ORIGINAL)
-            ?? throw new \LogicException('Document original is missing.');
-    }
-
     public function contents(TreeDocument $document): string
     {
-        return $this->storage->contents($this->original($document));
-    }
-
-    public function retry(FamilyTree $tree, string $id): TreeDocument
-    {
-        $document = $this->entityManager->wrapInTransaction(
-            function () use ($tree, $id): TreeDocument {
-                $this->entityManager->lock($tree, LockMode::PESSIMISTIC_WRITE);
-                $document = $this->require($tree, $id);
-                $this->entityManager->lock($document, LockMode::PESSIMISTIC_WRITE);
-                $this->entityManager->refresh($document);
-                $stale = in_array($document->getStatus(), ['queued', 'processing'], true)
-                    && $document->getUpdatedAt() <= $this->clock->now()->modify('-5 minutes');
-                if ('failed' !== $document->getStatus() && !$stale) {
-                    throw new ApiException(409, 'DOCUMENT_NOT_RETRYABLE');
-                }
-                $document->queued($this->clock->now());
-
-                return $document;
-            }
-        );
-        $this->publish($document);
-
-        return $document;
+        return $this->files->contents($document->getStoragePath());
     }
 
     public function delete(FamilyTree $tree, string $id, ?string $ifMatch): void
@@ -184,22 +154,18 @@ final readonly class DocumentService
         }
     }
 
-    public function publish(TreeDocument $document): bool
+    private function publish(TreeDocument $document): void
     {
         try {
             $this->bus->dispatch(
                 $document->isDeleted()
-                                                ? new RemoveDocument($document->getId()->toRfc4122())
-                                                : new IndexDocument($document->getId()->toRfc4122(), $document->getGeneration())
+                    ? new RemoveDocumentMessage($document->getId()->toRfc4122())
+                    : new IndexDocumentMessage($document->getId()->toRfc4122(), $document->getGeneration())
             );
-
-            return true;
         } catch (\Throwable $error) {
             $document->transition('failed', $this->clock->now(), 'DOCUMENT_QUEUE_UNAVAILABLE');
             $this->entityManager->flush();
             $this->logger->error('Document queue unavailable.', ['exception' => $error]);
-
-            return false;
         }
     }
 

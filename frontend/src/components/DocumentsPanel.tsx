@@ -5,6 +5,9 @@ import type { DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
 import { downloadDocument, formatDocumentSize } from '../documents'
 import { formatPersonName } from '../personFormatting'
 import DownloadIcon from '../assets/icons/export.svg?react'
+import GridIcon from '../assets/icons/view-grid.svg?react'
+import ListIcon from '../assets/icons/view-list.svg?react'
+import { ActionIcon } from './ActionIcon'
 
 type Props = {
   snapshot: TreeSnapshot
@@ -22,7 +25,6 @@ function errorKey(error: unknown) {
     if (['DOCUMENT_CONTENT_INVALID', 'DOCUMENT_UPLOAD_INVALID', 'DOCUMENT_NAME_INVALID'].includes(error.body.code)) {
       return 'documents.errors.invalid'
     }
-    if (error.body.code === 'DOCUMENT_NOT_RETRYABLE') return 'documents.errors.notRetryable'
   }
   return 'documents.errors.failed'
 }
@@ -32,6 +34,7 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
   const inputId = useId()
   const base = `/trees/${snapshot.tree.id}/documents`
   const [filter, setFilter] = useState<'all' | 'person'>('all')
+  const [view, setView] = useState<'tiles' | 'list'>('tiles')
   const [target, setTarget] = useState(personId ?? '')
   const [items, setItems] = useState<TreeDocument[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
@@ -140,16 +143,6 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
     finally { working.current = false; setBusy(false) }
   }
 
-  const retry = async (item: TreeDocument) => {
-    working.current = true
-    setBusy(true)
-    try {
-      await request(base + '/' + item.id + '/retry', { method: 'POST' })
-      await load()
-    } catch (caught) { setError(errorKey(caught)) }
-    finally { working.current = false; setBusy(false) }
-  }
-
   return <section className="documents-panel" aria-label={t('documents.title')}>
     <div className="documents-upload-box">
     <p className="documents-hint">{t('documents.hint')}</p>
@@ -186,37 +179,52 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
       </button>
     </div>}
     {loading && <p role="status">{t('documents.loading')}</p>}
-    <fieldset className="documents-scope" disabled={busy}>
-      <legend className="sr-only">{t('documents.filter')}</legend>
-      <label><input type="radio" name={`${inputId}-scope`} checked={filter === 'all'}
-        onChange={() => setFilter('all')} />{t('documents.all')}</label>
-      <label><input type="radio" name={`${inputId}-scope`} checked={filter === 'person'} disabled={!personId}
-        onChange={() => setFilter('person')} />{t('documents.personal')}</label>
-    </fieldset>
+    <div className="documents-toolbar">
+      <div className="document-toggle">
+        <span className={filter === 'all' ? 'is-active' : ''}>{t('documents.all')}</span>
+        <button type="button" role="switch" className="document-switch" aria-label={t('documents.filter')}
+          aria-checked={filter === 'person'} disabled={busy || !personId}
+          onClick={() => setFilter((current) => current === 'all' ? 'person' : 'all')}>
+          <span className="document-switch-thumb" />
+        </button>
+        <span className={filter === 'person' ? 'is-active' : ''}>{t('documents.personal')}</span>
+      </div>
+      <div className="document-toggle document-view-toggle">
+        <span title={t('documents.tiles')} className={view === 'tiles' ? 'is-active' : ''}><GridIcon aria-hidden="true" /></span>
+        <button type="button" role="switch" className="document-switch" aria-label={t('documents.view')}
+          aria-checked={view === 'list'} onClick={() => setView((current) => current === 'tiles' ? 'list' : 'tiles')}>
+          <span className="document-switch-thumb" />
+        </button>
+        <span title={t('documents.list')} className={view === 'list' ? 'is-active' : ''}><ListIcon aria-hidden="true" /></span>
+      </div>
+    </div>
     {!loading && !error && !loadError && items.length === 0 && <p className="documents-empty">{t('documents.empty')}</p>}
-    <ul className="document-list" aria-label={t('documents.title')}>
+    <ul className={`document-list document-list-${view}`} aria-label={t('documents.title')}>
       {items.map((item) => {
         const person = snapshot.people.find((candidate) => candidate.id === item.personId)
-        const stale = ['queued', 'processing'].includes(item.status) && Date.now() - Date.parse(item.updatedAt) > 300_000
         return <li key={item.id}>
-          <div className="document-row-heading"><strong>{item.originalName}</strong>
-            <span role="status" className={`document-status document-status-${item.status}`}>{t(`documents.status.${item.status}`)}</span>
-          </div>
+          <div className="document-file-info">
+          <strong className="document-title"><span className="document-name" title={item.originalName}>{item.originalName}</span>
+            <span className="document-size">({formatDocumentSize(item.originalSizeBytes, i18n.resolvedLanguage ?? 'en')})</span>
+          </strong>
           <div className="document-metadata">
-            <span>{formatDocumentSize(item.originalSizeBytes, i18n.resolvedLanguage ?? 'en')}</span>
-            <span>{person ? formatPersonName(person, t) : t('documents.shared')}</span>
+            <span className="document-binding">{person ? formatPersonName(person, t) : t('documents.shared')}</span>
+            {item.status !== 'ready' && <span role="status" className={`document-status document-status-${item.status}`}
+              aria-label={t(`documents.status.${item.status}`)} title={[
+                t(`documents.status.${item.status}`),
+                item.errorCode ? t(item.errorCode === 'DOCUMENT_QUEUE_UNAVAILABLE' ? 'documents.errors.queue' : 'documents.errors.index') : '',
+              ].filter(Boolean).join(' · ')}>{t('documents.notIndexed')}</span>}
           </div>
-          {item.errorCode && <p className="document-error">{t(item.errorCode === 'DOCUMENT_QUEUE_UNAVAILABLE' ? 'documents.errors.queue' : 'documents.errors.index')}</p>}
+          </div>
           <div className="document-actions">
             <button type="button" className="secondary-button compact-button"
               onClick={() => { void downloadDocument(requestBlob, item.downloadUrl, item.originalName).catch((caught: unknown) => setError(errorKey(caught))) }}>
               <DownloadIcon className="document-download-icon" aria-hidden="true" />
-              {t('documents.download')}
+              <span className="document-action-label">{t('documents.download')}</span>
             </button>
-            {(item.status === 'failed' || stale) && <button type="button" className="secondary-button compact-button" disabled={busy}
-              onClick={() => { void retry(item) }}>{t('documents.retry')}</button>}
-            <button type="button" className="danger-link" disabled={busy} onClick={() => setPendingDelete(item)}>
-              {t('documents.delete')}
+            <button type="button" className="danger-link document-delete-button" aria-label={t('documents.delete')}
+              title={t('documents.delete')} disabled={busy} onClick={() => setPendingDelete(item)}>
+              <ActionIcon name="delete" />
             </button>
           </div>
         </li>

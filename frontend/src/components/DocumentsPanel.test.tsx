@@ -95,6 +95,23 @@ describe('document modal and counters', () => {
 })
 
 describe('document lists and upload lifecycle', () => {
+  it('switches tiles and compact rows independently of the scope and disables personal scope without a person', async () => {
+    mount(async () => ({ items: [document], total: 1, nextCursor: null, etag: 'etag' }))
+    await screen.findByText('letter.txt')
+    expect(screen.getByRole('switch', { name: 'Show documents' })).toBeDisabled()
+    const list = screen.getByRole('list', { name: 'Documents' })
+    expect(list).toHaveClass('document-list-tiles')
+    const view = screen.getByRole('switch', { name: 'Document view' })
+    fireEvent.click(view)
+    expect(view).toBeChecked()
+    expect(list).toHaveClass('document-list-list')
+    expect(screen.getByTitle('Tiles')).toContainHTML('<svg')
+    expect(screen.getByTitle('List')).toContainHTML('<svg')
+    expect(screen.getByText('(1.2 kB)')).toBeInTheDocument()
+    fireEvent.click(view)
+    expect(list).toHaveClass('document-list-tiles')
+  })
+
   it('shows original size, attachment, statuses, filters, pagination and download', async () => {
     const setup = mount(async (path) => ({
       items: path.includes('cursor=') ? [{ ...document, id: 'second', originalName: 'second.md', personId: person.id }] : [document],
@@ -102,15 +119,15 @@ describe('document lists and upload lifecycle', () => {
       etag: 'etag',
     }), person.id)
     expect(await screen.findByText('letter.txt')).toBeInTheDocument()
-    expect(screen.getByText('1.2 kB')).toBeInTheDocument()
-    expect(screen.getByText('Searchable')).toBeInTheDocument()
+    expect(screen.getByText('(1.2 kB)')).toBeInTheDocument()
+    expect(screen.queryByText('Searchable')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Download' }))
     await waitFor(() => expect(setup.requestBlob).toHaveBeenCalledWith(document.downloadUrl))
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByText('second.md')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: 'Personal' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
     await waitFor(() => expect(setup.request).toHaveBeenCalledWith(expect.stringContaining('scope=person&personId=' + person.id)))
-    fireEvent.click(screen.getByRole('radio', { name: 'All' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
     await waitFor(() => expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?`))
   })
 
@@ -135,8 +152,8 @@ describe('document lists and upload lifecycle', () => {
     const uploads = setup.request.mock.calls.filter(([, init]) => init?.method === 'POST')
     expect(uploads.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['etag', 'second-etag', 'second-etag'])
     expect((uploads[0]![1]!.body as FormData).get('personId')).toBe(person.id)
-    expect(screen.getByRole('radio', { name: 'All' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Personal' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Show documents' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Show documents' })).toBeEnabled()
   })
 
   it('stops the remaining uploads after a version conflict and offers refresh', async () => {
@@ -160,17 +177,15 @@ describe('document lists and upload lifecycle', () => {
     expect(setup.onChanged).toHaveBeenCalledTimes(2)
   })
 
-  it('confirms deletion, supports cancellation, and retries failed indexing', async () => {
+  it('marks unindexed documents and confirms icon deletion without a custom retry', async () => {
     let deleted = false
-    let status: TreeDocument['status'] = 'failed'
-    const setup = mount(async (path, init) => {
+    const setup = mount(async (_path, init) => {
       if (init?.method === 'DELETE') { deleted = true; return { etag: 'deleted-etag' } }
-      if (path.endsWith('/retry')) { status = 'queued'; return { document } }
-      return { items: deleted ? [] : [{ ...document, status, errorCode: 'DOCUMENT_INDEX_FAILED' }], nextCursor: null, etag: 'etag' }
+      return { items: deleted ? [] : [{ ...document, status: 'failed', errorCode: 'DOCUMENT_INDEX_FAILED' }], nextCursor: null, etag: 'etag' }
     })
-    await screen.findByText('Processing failed')
-    fireEvent.click(screen.getByRole('button', { name: 'Retry indexing' }))
-    expect(await screen.findByText('Queued')).toBeInTheDocument()
+    expect(await screen.findByText('Not indexed')).toHaveAccessibleName('Processing failed')
+    expect(screen.queryByRole('button', { name: 'Retry indexing' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' }).querySelector('svg')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -184,7 +199,6 @@ describe('document lists and upload lifecycle', () => {
   it.each([
     [401, 'INVALID_SESSION', 'These documents are unavailable'],
     [413, 'DOCUMENT_TOO_LARGE', 'The file exceeds 10 MiB.'],
-    [409, 'DOCUMENT_NOT_RETRYABLE', 'already being processed'],
     [503, 'UNKNOWN', 'Could not complete the operation'],
   ])('shows localized failures (%s)', async (status, code, text) => {
     const setup = mount(async (_path, init) => {
@@ -206,7 +220,7 @@ describe('document lists and upload lifecycle', () => {
     })
     expect(await screen.findByRole('alert')).toHaveTextContent('These documents are unavailable')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await screen.findByText('Indexing')
+    await screen.findByRole('status', { name: 'Indexing' })
     fireEvent.change(screen.getByLabelText('Choose files'), { target: { files: [new File(['a'], 'one.txt')] } })
     expect(await screen.findByText(/one.txt: The file is saved, but indexing could not be queued/)).toBeInTheDocument()
     vi.useFakeTimers()

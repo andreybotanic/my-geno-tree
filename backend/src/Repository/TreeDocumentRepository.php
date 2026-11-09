@@ -51,10 +51,8 @@ final class TreeDocumentRepository extends ServiceEntityRepository
     {
         /** @var TreeDocument|null $document */
         $document = $this->createQueryBuilder('d')
-            ->addSelect('p', 'm', 'v')
+            ->addSelect('p')
             ->leftJoin('d.person', 'p')
-            ->innerJoin('d.media', 'm')
-            ->leftJoin('m.variants', 'v')
             ->where('d.tree = :tree')
             ->andWhere('d.id = :id')
             ->andWhere('d.deleted = false')

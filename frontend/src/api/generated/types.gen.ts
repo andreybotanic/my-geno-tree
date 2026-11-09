@@ -1143,44 +1143,6 @@ export type DownloadTreeDocumentResponses = {
 
 export type DownloadTreeDocumentResponse = DownloadTreeDocumentResponses[keyof DownloadTreeDocumentResponses];
 
-export type RetryTreeDocumentData = {
-    body?: never;
-    path: {
-        treeId: string;
-        documentId: string;
-    };
-    query?: never;
-    url: '/trees/{treeId}/documents/{documentId}/retry';
-};
-
-export type RetryTreeDocumentErrors = {
-    /**
-     * Missing, invalid, expired, or revoked session
-     */
-    401: ApiError;
-    /**
-     * The private resource is missing or unavailable to this owner
-     */
-    404: ApiError;
-    /**
-     * A unique value or domain invariant conflicts
-     */
-    409: ApiError;
-};
-
-export type RetryTreeDocumentError = RetryTreeDocumentErrors[keyof RetryTreeDocumentErrors];
-
-export type RetryTreeDocumentResponses = {
-    /**
-     * A new indexing generation requested, without changing the tree ETag.
-     */
-    202: {
-        document: TreeDocument;
-    };
-};
-
-export type RetryTreeDocumentResponse = RetryTreeDocumentResponses[keyof RetryTreeDocumentResponses];
-
 export type ExternalMcpCallData = {
     body: {
         [key: string]: unknown;

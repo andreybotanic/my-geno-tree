@@ -59,6 +59,17 @@ final class TreeAgentApiTest extends ApiWebTestCase
                 $container->get(\App\Application\Tree\TreeVersion::class)->etag($tree),
             );
         $document->transition('ready', new \DateTimeImmutable());
+        $other = $container->get(\App\Application\Document\DocumentService::class)->upload(
+            $tree,
+            null,
+            new \Symfony\Component\HttpFoundation\File\UploadedFile(
+                __DIR__ . '/../../Fixtures/Documents/railway-letter.txt',
+                'railway-letter.txt',
+                test: true,
+            ),
+            $container->get(\App\Application\Tree\TreeVersion::class)->etag($tree),
+        );
+        $other->transition('ready', new \DateTimeImmutable());
         $em->flush();
         $vectorizer = $container->get(\App\Tests\Infrastructure\Document\DeterministicVectorizer::class);
         self::assertInstanceOf(\App\Tests\Infrastructure\Document\DeterministicVectorizer::class, $vectorizer);
@@ -77,22 +88,38 @@ final class TreeAgentApiTest extends ApiWebTestCase
             ),
         );
         $retriever = $this->createStub(\Symfony\AI\Store\RetrieverInterface::class);
-        $retriever->method('retrieve')->willReturn([$candidate]);
+        $unused = new \Symfony\AI\Store\Document\VectorDocument(
+            'unused-chunk',
+            $vectorizer->vectorize('unrelated'),
+            new \Symfony\AI\Store\Document\Metadata(
+                [
+                    'documentId' => $other->getId()->toRfc4122(),
+                    'treeId'     => $this->treeId,
+                    'generation' => 1,
+                    '_text'      => 'This is an unrelated passage from a different file with the same name.',
+                ],
+            ),
+        );
+        $retriever->method('retrieve')->willReturn([$candidate, $unused]);
         $container->set('ai.retriever.documents', $retriever);
         $round = 0;
+        $reference = '/trees/' . $this->treeId . '/documents/' . $document->getId() . '/download';
         $container->set(
             'chat_ai.client',
             new MockHttpClient(
-                static function () use (&$round): MockResponse {
+                static function () use (&$round, $reference): MockResponse {
                     return 1 === ++$round
                         ? ResponsesFixture::tool('similarity_search', ['searchTerm' => 'railway occupation'])
-                        : ResponsesFixture::text('railway-letter.txt: Ivan inspected railway tracks at Taiga.');
+                        : ResponsesFixture::text(
+                            'Ivan inspected railway tracks at Taiga. [railway-letter.txt](' . $reference . ')',
+                        );
                 },
             ),
         );
         FixtureTreeAgent::$useReal = true;
         $this->send('search-documents');
         self::assertSame(2, $round);
+        self::assertCount(1, $this->responseArray('messages', '1', 'documentSources'));
         self::assertSame('railway-letter.txt', $this->responseString('messages', '1', 'documentSources', '0', 'name'));
         self::assertSame(
             '/trees/' . $this->treeId . '/documents/' . $document->getId() . '/download',

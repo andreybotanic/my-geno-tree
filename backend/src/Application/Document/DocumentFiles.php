@@ -4,16 +4,14 @@ namespace App\Application\Document;
 
 use App\Api\ApiException;
 use App\Entity\FamilyTree;
-use App\Entity\MediaObject;
-use App\Entity\MediaVariant;
-use App\Entity\MediaVariantType;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\Uid\Uuid;
 
 final readonly class DocumentFiles
 {
-    public function __construct(#[Target('media.storage')] private FilesystemOperator $storage)
+    public function __construct(#[Target('documents.storage')] private FilesystemOperator $storage)
     {
     }
 
@@ -53,17 +51,21 @@ final readonly class DocumentFiles
         ];
     }
 
-    public function store(
-        FamilyTree $tree,
-        string $contents,
-        string $mime,
-        \DateTimeImmutable $now,
-    ): MediaObject {
-        $media = new MediaObject($tree->getOwner(), $now);
-        $path = $tree->getOwner()->getId() . '/' . $media->getId() . '/original';
+    public function store(FamilyTree $tree, string $contents): string
+    {
+        $path = 'documents/' . $tree->getOwner()->getId() . '/' . Uuid::v7() . '/original';
         $this->storage->write($path, $contents);
-        new MediaVariant($media, MediaVariantType::ORIGINAL, $path, $mime, null, null, strlen($contents));
 
-        return $media;
+        return $path;
+    }
+
+    public function contents(string $path): string
+    {
+        return $this->storage->read($path);
+    }
+
+    public function remove(string $path): void
+    {
+        $this->storage->delete($path);
     }
 }

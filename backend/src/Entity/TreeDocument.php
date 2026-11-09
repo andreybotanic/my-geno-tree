@@ -22,9 +22,8 @@ class TreeDocument
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Person $person;
 
-    #[ORM\OneToOne(cascade: ['persist'])]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private MediaObject $media;
+    #[ORM\Column(length: 255, unique: true)]
+    private string $storagePath;
 
     #[ORM\Column(length: 255)]
     private string $originalName;
@@ -59,7 +58,7 @@ class TreeDocument
     public function __construct(
         FamilyTree $tree,
         ?Person $person,
-        MediaObject $media,
+        string $storagePath,
         string $originalName,
         string $mimeType,
         int $originalSizeBytes,
@@ -72,7 +71,7 @@ class TreeDocument
         $this->id = Uuid::v7();
         $this->tree = $tree;
         $this->person = $person;
-        $this->media = $media;
+        $this->storagePath = $storagePath;
         $this->originalName = $originalName;
         $this->mimeType = $mimeType;
         $this->originalSizeBytes = $originalSizeBytes;
@@ -95,9 +94,9 @@ class TreeDocument
         return $this->person;
     }
 
-    public function getMedia(): MediaObject
+    public function getStoragePath(): string
     {
-        return $this->media;
+        return $this->storagePath;
     }
 
     public function getOriginalName(): string

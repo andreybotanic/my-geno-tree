@@ -7,6 +7,7 @@ import i18n from '../i18n'
 import { ChatPanel } from './ChatPanel'
 import { useChatEvents } from '../hooks/useChatEvents'
 import { ChatVoiceInput } from './ChatVoiceInput'
+import { AuthContext, type AuthContextValue } from '../auth/AuthContext'
 
 vi.mock('./ChatVoiceInput', async (original) => {
   const actual = await original<typeof import('./ChatVoiceInput')>()
@@ -99,6 +100,35 @@ describe(
       const ownMessage = screen.getByRole('article', { name: 'You' })
       expect(ownMessage).toHaveTextContent('**Keep my text literal** <b>Vera</b>')
       expect(ownMessage.querySelector('strong, b')).toBeNull()
+    })
+
+    it('downloads cited originals with authentication and hides unused retrieved sources', async () => {
+      const url = '/trees/019861c4-6a93-7a2e-8ca8-51813740d4a5/documents/019861c4-6a93-7a2e-8ca8-51813740d4a7/download'
+      const source = { name: 'letter.txt', excerpt: 'Private passage.', originalSizeBytes: 1234, downloadUrl: url }
+      const next: ChatConversation = { ...completed, messages: [{
+        ...completed.messages[1]!, content: `The repair was in 1907. [letter.txt](${url})`,
+        documentSources: [source, { ...source, name: 'unused.txt', downloadUrl: url.replace('d4a7', 'd4a8') }],
+      }] }
+      const requestBlob = vi.fn().mockResolvedValue(new Blob(['original']))
+      const auth: AuthContextValue = {
+        accessToken: null, isBooting: false, user: null, requestBlob, request: vi.fn(),
+        login: vi.fn(), logout: vi.fn(), register: vi.fn(), updateLanguage: vi.fn(), updateUser: vi.fn(),
+      }
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+      const revoke = vi.spyOn(URL, 'revokeObjectURL')
+      render(<AuthContext.Provider value={auth}><ChatPanel contextPath="/example/chat" createBody={{}}
+        request={vi.fn().mockResolvedValue({ conversation: next })} onClose={vi.fn()} /></AuthContext.Provider>)
+      const answer = within(await screen.findByRole('article', { name: 'Assistant' }))
+      expect(answer.getByText('Sources (1)')).toBeInTheDocument()
+      expect(answer.queryByText('unused.txt')).not.toBeInTheDocument()
+      expect(answer.queryByText('Private passage.')).not.toBeInTheDocument()
+      fireEvent.click(answer.getAllByRole('button', { name: 'letter.txt' })[0]!)
+      await waitFor(() => expect(requestBlob).toHaveBeenCalledWith(url))
+      await waitFor(() => expect(click).toHaveBeenCalledOnce())
+      expect(click.mock.instances[0]).toHaveAttribute('download', 'letter.txt')
+      expect(revoke).toHaveBeenCalledWith('blob:test-image')
+      click.mockRestore()
+      revoke.mockRestore()
     })
 
     it('shows response duration and token use before assistant timestamps in both languages', async () => {

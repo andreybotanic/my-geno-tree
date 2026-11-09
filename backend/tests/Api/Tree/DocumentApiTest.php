@@ -2,7 +2,8 @@
 
 namespace App\Tests\Api\Tree;
 
-use App\Api\DocumentViewFactory;
+use App\Api\View\DocumentView;
+use App\Api\ViewMapper;
 use App\Entity\FamilyTree;
 use App\Entity\TreeDocument;
 use App\Repository\TreeDocumentRepository;
@@ -48,7 +49,10 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame($bytes, $this->client->getResponse()->getContent());
         self::assertSame((string)strlen($bytes), $this->client->getResponse()->headers->get('Content-Length'));
-        self::assertStringContainsString('attachment;', $this->client->getResponse()->headers->get('Content-Disposition') ?? '');
+        self::assertStringContainsString(
+            'attachment;',
+            $this->client->getResponse()->headers->get('Content-Disposition') ?? '',
+        );
         self::assertTrue($this->client->getResponse()->headers->hasCacheControlDirective('no-store'));
         self::assertTrue($this->client->getResponse()->headers->hasCacheControlDirective('private'));
         $document = static::getContainer()->get(TreeDocumentRepository::class)->find($id);
@@ -56,12 +60,13 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertSame(hash('sha256', $bytes), $document->getChecksum());
         self::assertSame(strlen($bytes), $document->getOriginalSizeBytes());
         self::assertSame(1, $document->getGeneration());
-
-        $document->transition('ready', new \DateTimeImmutable('-1 hour'));
-        static::getContainer()->get(EntityManagerInterface::class)->flush();
+        self::assertStringStartsWith('documents/', $document->getStoragePath());
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertSame(0, $entityManager->getRepository(\App\Entity\MediaObject::class)->count([]));
+        self::assertSame(0, $entityManager->getRepository(\App\Entity\MediaVariant::class)->count([]));
 
         $this->jsonRequest('POST', $path . '/retry', headers: $this->headers($context));
-        self::assertResponseStatusCodeSame(409);
+        self::assertResponseStatusCodeSame(404);
         $this->jsonRequest('DELETE', $path, headers: $this->headers($context));
         self::assertResponseStatusCodeSame(412);
         $context['etag'] = $etag;
@@ -69,7 +74,11 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertResponseIsSuccessful();
         $this->jsonRequest('GET', $path . '/download', headers: $this->headers($context));
         self::assertResponseStatusCodeSame(404);
-        $this->jsonRequest('GET', '/api/v1/trees/' . $context['tree'] . '/documents', headers: $this->headers($context));
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $context['tree'] . '/documents',
+            headers: $this->headers($context),
+        );
         self::assertSame([], $this->responseArray('items'));
 
         $this->jsonRequest('GET', $path . '/download');
@@ -121,7 +130,7 @@ final class DocumentApiTest extends ApiWebTestCase
         $counter->reset();
         $rows = static::getContainer()->get(TreeDocumentRepository::class)->page($tree, null, 'all', null, 100);
         foreach ($rows as $row) {
-            (new DocumentViewFactory())->create($row);
+            static::getContainer()->get(ViewMapper::class)->one($row, DocumentView::class);
         }
         self::assertLessThanOrEqual(2, $counter->selectCount());
     }
@@ -144,7 +153,11 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(413);
         $this->upload($context, 'Valid document', person: 'not-a-person');
         self::assertResponseStatusCodeSame(404);
-        $this->jsonRequest('GET', '/api/v1/trees/' . $context['tree'] . '/documents', headers: $this->headers($context));
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $context['tree'] . '/documents',
+            headers: $this->headers($context),
+        );
         self::assertSame([], $this->responseArray('items'));
     }
 
@@ -162,7 +175,11 @@ final class DocumentApiTest extends ApiWebTestCase
         );
         self::assertResponseIsSuccessful();
         $context['etag'] = $this->responseString('etag');
-        $this->jsonRequest('GET', '/api/v1/trees/' . $context['tree'] . '/documents?scope=tree', headers: $this->headers($context));
+        $this->jsonRequest(
+            'GET',
+            '/api/v1/trees/' . $context['tree'] . '/documents?scope=tree',
+            headers: $this->headers($context),
+        );
         self::assertCount(1, $this->responseArray('items'));
         $first = $this->responseArray('items')[0];
         self::assertIsArray($first);
@@ -229,7 +246,7 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertSame(1, $refreshed[0]->getGeneration());
     }
 
-    public function testQueueFailureKeepsOriginalAndCanBeRetriedWithoutChangingTreeVersion(): void
+    public function testQueueFailureKeepsOriginalWithoutACustomRetryEndpoint(): void
     {
         $context = $this->context();
         $this->client->disableReboot();
@@ -255,8 +272,10 @@ final class DocumentApiTest extends ApiWebTestCase
         $bus->fail = false;
         $base = '/api/v1/trees/' . $context['tree'];
         $this->jsonRequest('POST', $base . '/documents/' . $id . '/retry', headers: $this->headers($context));
-        self::assertResponseStatusCodeSame(202);
-        self::assertSame('queued', $this->responseString('document', 'status'));
+        self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('GET', $base . '/documents/' . $id . '/download', headers: $this->headers($context));
+        self::assertResponseIsSuccessful();
+        self::assertSame('Saved while broker offline', $this->client->getResponse()->getContent());
         $this->jsonRequest('GET', $base . '/snapshot', headers: $this->headers($context));
         self::assertSame($etag, $this->responseString('etag'));
     }
@@ -315,8 +334,12 @@ final class DocumentApiTest extends ApiWebTestCase
             'POST',
             'https://localhost/api/v1/trees/' . $context['tree'] . '/documents',
             null === $person ? [] : ['personId' => $person],
-            ['file'  => new UploadedFile($path, $name, test: true)],
-            ['HTTPS' => 'on', 'HTTP_AUTHORIZATION' => 'Bearer ' . $context['token'], 'HTTP_IF_MATCH' => $context['etag']],
+            ['file' => new UploadedFile($path, $name, test: true)],
+            [
+                'HTTPS'              => 'on',
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $context['token'],
+                'HTTP_IF_MATCH'      => $context['etag'],
+            ],
         );
     }
 }

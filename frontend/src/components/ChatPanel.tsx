@@ -11,6 +11,7 @@ import { ChatPermissions } from './ChatPermissions'
 import { ChatBudget } from './ChatBudget'
 import { ChatThinking } from './ChatThinking'
 import { DocumentSourceLinks } from './DocumentSourceLinks'
+import { DocumentDownloadLink } from './DocumentDownloadLink'
 import { ChatVoiceInput } from './ChatVoiceInput'
 import { mergeChatEvent, useChatEvents } from '../hooks/useChatEvents'
 
@@ -457,10 +458,19 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                   {message.role === 'system'
                     ? <p role="status">{message.failureCode ? t(`chat.failure.${message.failureCode}`, { number: message.warningNumber }) : message.content}</p>
                     : message.role === 'assistant'
-                      ? <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+                      ? <Markdown remarkPlugins={[remarkGfm]} components={{
+                        a: ({ href, children }) => {
+                          const source = message.documentSources?.find((item) => item.downloadUrl === href)
+                          if (source) return <DocumentDownloadLink url={source.downloadUrl} name={source.name}>{children}</DocumentDownloadLink>
+                          if (href?.startsWith('/trees/') && href.includes('/documents/')) return <span>{children}</span>
+                          return <a href={href}>{children}</a>
+                        },
+                      }}>{message.content}</Markdown>
                       : <p>{message.content}</p>}
                 </div>
-                {message.documentSources && message.documentSources.length > 0 && <DocumentSourceLinks sources={message.documentSources} />}
+                {message.documentSources && <DocumentSourceLinks sources={message.documentSources.filter(
+                  (source) => message.content.includes(source.downloadUrl),
+                )} />}
                 <div className="chat-message-footer">
                   {message.role === 'assistant' && message.responseMetrics && <span className="chat-message-metrics">
                     <span title={t('chat.elapsed')}>{t('chat.responseDuration', {

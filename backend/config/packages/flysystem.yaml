@@ -1,5 +1,9 @@
 flysystem:
     storages:
+        documents.storage:
+            local:
+                # Shared private volume retains existing original paths during migration.
+                directory: '%kernel.project_dir%/var/storage/media'
         media.storage:
             local:
                 directory: '%kernel.project_dir%/var/storage/media'
