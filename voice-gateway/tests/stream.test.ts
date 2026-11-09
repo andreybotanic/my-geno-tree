@@ -155,6 +155,18 @@ describe('voice gateway', () => {
     await timed.wait('done')
   })
 
+  it('accepts 180 seconds of audio with the default sample limit and then stops', async () => {
+    const f = await fixture()
+    let received = 0
+    f.onAppend((bytes) => { received += bytes.length })
+    for (let second = 1; second <= 180; second++) {
+      f.client.send(Buffer.alloc(48000))
+      await vi.waitFor(() => expect(received).toBeGreaterThanOrEqual(second * 48000), { interval: 1 })
+      if (second < 180) expect(f.messages.some((message) => message.type === 'done')).toBe(false)
+    }
+    expect((await f.wait('done')).durationSeconds).toBe(180)
+  })
+
   it.each(['CHAT_BANNED', 'CHAT_UNAVAILABLE', 'AUTH_REQUIRED'])('stops when active access changes: %s', async (code) => {
     const f = await fixture({ checkIntervalMs: 20 })
     f.setAuthError(code)

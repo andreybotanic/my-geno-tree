@@ -198,7 +198,6 @@ paths:
         401: { $ref: '#/components/responses/Unauthorized' }
         403: { description: CHAT_BANNED }
         422: { $ref: '#/components/responses/ValidationError' }
-        429: { description: CHAT_VOICE_RATE_LIMIT }
         503: { description: CHAT_UNAVAILABLE }
   /chat-transcription-sessions/{id}/authorize:
     servers: [{ url: 'http://proxy:8082/api/v1' }]
@@ -246,7 +245,7 @@ paths:
   /chat-transcriptions:
     post:
       operationId: transcribeChatAudio
-      description: 'Transcribes a temporary recording after normalization to mono PCM WAV at 16 kHz. Maximum 10 MiB and 90 seconds. No tree, draft, media object or recording is stored. The user reviews the text before sending it. Ten attempts per user per hour.'
+      description: 'Transcribes a temporary recording after normalization to mono PCM WAV at 16 kHz. Maximum 10 MiB and 180 seconds. No tree, draft, media object or recording is stored. The user reviews the text before sending it. The number of attempts is unrestricted.'
       security:
         -
           bearerAuth: []
@@ -2132,7 +2131,7 @@ components:
         url: { type: string, const: '/api/v1/chat-transcriptions/stream' }
         credential: { type: string, description: 'Secret single-use credential; never put in URLs or logs.' }
         expiresIn: { type: integer, const: 30 }
-        maxDurationSeconds: { type: integer, const: 90 }
+        maxDurationSeconds: { type: integer, const: 180 }
         sampleRate: { type: integer, const: 24000 }
     ChatVoiceClientMessage:
       oneOf:
@@ -2168,7 +2167,7 @@ components:
           required: [type, durationSeconds]
           properties:
             type: { type: string, const: done }
-            durationSeconds: { type: number, minimum: 0, maximum: 90 }
+            durationSeconds: { type: number, minimum: 0, maximum: 180 }
         - type: object
           additionalProperties: false
           required: [type, code]
@@ -2189,7 +2188,7 @@ components:
         durationSeconds:
           type: number
           exclusiveMinimum: 0
-          maximum: 90
+          maximum: 180
     ToolConfirmation:
       type: object
       additionalProperties: false

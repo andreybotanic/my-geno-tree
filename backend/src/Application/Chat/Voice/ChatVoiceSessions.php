@@ -10,17 +10,16 @@ use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\Lock\LockFactory;
-use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Uid\Uuid;
 
 /** Short-lived recording grants, bound to a revocable login and kept only in RAM-backed cache. */
 final readonly class ChatVoiceSessions
 {
+    private const int SESSION_TTL = 420;
+
     public function __construct(
         #[Target('cache.chat')]
         private CacheItemPoolInterface $cache,
-        #[Target('chat_voice')]
-        private RateLimiterFactoryInterface $limiter,
         private AuthSessionRepository $sessions,
         private ChatModeration $moderation,
         private ClockInterface $clock,
@@ -35,9 +34,6 @@ final readonly class ChatVoiceSessions
     {
         $user = $session->getUser();
         $this->moderation->assertCanInteract($user->getId());
-        if (!$this->limiter->create($user->getId()->toRfc4122())->consume()->isAccepted()) {
-            throw new ApiException(429, 'CHAT_VOICE_RATE_LIMIT');
-        }
         $id = Uuid::v7()->toRfc4122();
         $credential = $id . '.' . bin2hex(random_bytes(32));
         $item = $this->cache->getItem('voice_' . $id);
@@ -50,7 +46,7 @@ final readonly class ChatVoiceSessions
                     'claimed'   => false,
                 ],
             )
-            ->expiresAfter(300);
+            ->expiresAfter(self::SESSION_TTL);
         $this->cache->save($item);
 
         return [
@@ -58,7 +54,7 @@ final readonly class ChatVoiceSessions
             'url'                => '/api/v1/chat-transcriptions/stream',
             'credential'         => $credential,
             'expiresIn'          => 30,
-            'maxDurationSeconds' => 90,
+            'maxDurationSeconds' => AudioNormalizer::MAX_DURATION_SECONDS,
             'sampleRate'         => 24000,
         ];
     }
@@ -98,7 +94,7 @@ final readonly class ChatVoiceSessions
                 }
                 $record['claimed'] = true;
                 $item = $this->cache->getItem('voice_' . $id);
-                $expiry = $this->clock->now()->setTimestamp($record['issuedAt'] + 300);
+                $expiry = $this->clock->now()->setTimestamp($record['issuedAt'] + self::SESSION_TTL);
                 $item
                     ->set($record)
                     ->expiresAt($expiry);
@@ -124,7 +120,7 @@ final readonly class ChatVoiceSessions
         if (!is_array($record) || !is_string($record['sessionId'] ?? null)
             || !is_string($record['hash'] ?? null) || !is_int($record['issuedAt'] ?? null)
             || !is_bool($record['claimed'] ?? null)
-            || $record['issuedAt'] + 300 <= $this->clock->now()->getTimestamp()
+            || $record['issuedAt'] + self::SESSION_TTL <= $this->clock->now()->getTimestamp()
             || !hash_equals($record['hash'], hash('sha256', $credential))) {
             throw new ApiException(401, 'AUTH_REQUIRED');
         }

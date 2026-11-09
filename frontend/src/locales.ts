@@ -32,9 +32,8 @@ export const resources = {
           "permission": "Could not start the microphone. Check browser permission.",
           "unsupported": "Recording is unavailable in this browser. Please type your message.",
           "size": "The recording must not exceed 10 MB.",
-          "duration": "The recording must be longer than 0 and at most 90 seconds.",
-          "format": "Use WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV audio without a video track.",
-          "rateLimit": "Too many transcription attempts. Please try again later."
+          "duration": "The recording must be longer than 0 and at most 180 seconds.",
+          "format": "Use WebM/Opus, Ogg/Opus, MP4/AAC or PCM WAV audio without a video track."
         },
         "processing": "Thinking...",
         "notice": "Notice",
@@ -546,9 +545,8 @@ export const resources = {
           "permission": "Не удалось включить микрофон. Проверьте разрешение браузера.",
           "unsupported": "Запись недоступна в этом браузере. Введите сообщение текстом.",
           "size": "Размер записи не должен превышать 10 МБ.",
-          "duration": "Запись должна длиться от 0 до 90 секунд.",
-          "format": "Нужна аудиозапись WebM/Opus, Ogg/Opus, MP4/AAC или PCM WAV без видеодорожки.",
-          "rateLimit": "Слишком много попыток распознавания. Попробуйте позже."
+          "duration": "Запись должна длиться больше 0 и не более 180 секунд.",
+          "format": "Нужна аудиозапись WebM/Opus, Ogg/Opus, MP4/AAC или PCM WAV без видеодорожки."
         },
         "processing": "Думаю...",
         "notice": "Уведомление",

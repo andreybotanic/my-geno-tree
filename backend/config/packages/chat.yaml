@@ -12,12 +12,6 @@ framework:
             interval: '1 day'
             cache_pool: cache.chat_access
             lock_factory: lock.default.factory
-        chat_voice:
-            policy: sliding_window
-            limit: 10
-            interval: '1 hour'
-            cache_pool: cache.chat_access
-            lock_factory: lock.default.factory
         chat:
             policy: sliding_window
             limit: 20

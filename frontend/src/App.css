@@ -3601,6 +3601,7 @@ select:not([multiple]) {
 .chat-send { grid-column: 4; background: var(--color-accent); color: var(--color-accent-contrast); }
 .chat-send:disabled, .chat-microphone:disabled { opacity: 0.45; cursor: default; }
 .chat-recording-time { grid-column: 1; grid-row: 2; color: var(--color-text-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.chat-recording-time.is-ending { color: var(--color-state-danger); }
 
 .chat-panel form, .chat-panel label {
   display: flex;

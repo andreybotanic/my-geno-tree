@@ -94,15 +94,13 @@ final class TreeMergeTranscriptionApiTest extends ApiWebTestCase
         self::assertSame(0, FixtureTranscriptionProvider::$calls);
     }
 
-    public function testLimitsRepeatedRequestsPerUser(): void
+    public function testDoesNotLimitRepeatedRequestsPerUser(): void
     {
-        for ($attempt = 0; $attempt < 10; ++$attempt) {
+        for ($attempt = 0; $attempt < 21; ++$attempt) {
             $this->upload();
             self::assertResponseIsSuccessful();
         }
-        $this->upload();
-        self::assertResponseStatusCodeSame(429);
-        self::assertSame(10, FixtureTranscriptionProvider::$calls);
+        self::assertSame(21, FixtureTranscriptionProvider::$calls);
     }
 
     /** @param array<string, mixed> $fields */

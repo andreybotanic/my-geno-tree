@@ -27,7 +27,7 @@ class Socket {
 }
 
 const grant = { id: '01900000-0000-7000-8000-000000000001', credential: 'secret',
-  url: '/api/v1/chat-transcriptions/stream', sampleRate: 24000, maxDurationSeconds: 90, expiresIn: 30 }
+  url: '/api/v1/chat-transcriptions/stream', sampleRate: 24000, maxDurationSeconds: 180, expiresIn: 30 }
 const stopTrack = vi.fn()
 const getUserMedia = vi.fn()
 const cancel = vi.fn()
@@ -156,14 +156,13 @@ describe('streaming voice input', () => {
 
   it.each([
     ['CHAT_BANNED', 403, 'blocked'], ['CHAT_UNAVAILABLE', 503, 'unavailable'],
-    ['CHAT_VOICE_RATE_LIMIT', 429, 'Too many'],
   ])('explains %s when issuing a recording grant', async (code, status, text) => {
     const view = setup(async () => { throw new ApiRequestError(status, { code, message: null, fields: {}, details: {} }) })
     fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(text)
     expect(cancel).toHaveBeenCalled()
     expect(view.props.onBusy).toHaveBeenLastCalledWith(false)
-    if (code !== 'CHAT_VOICE_RATE_LIMIT') expect(view.props.onAccessError).toHaveBeenCalled()
+    expect(view.props.onAccessError).toHaveBeenCalled()
   })
 
   it('handles unsupported capture, permission denial and worklet failures', async () => {
@@ -193,7 +192,18 @@ describe('streaming voice input', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
     const socket = Socket.instance
     await act(async () => { socket.open(); socket.event({ type: 'ready' }) })
-    await act(async () => { await vi.advanceTimersByTimeAsync(90000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(169000) })
+    expect(screen.getByRole('status')).toHaveTextContent('169 s')
+    expect(screen.getByRole('status')).not.toHaveClass('is-ending')
+    expect(socket.sent).not.toContainEqual({ type: 'stop' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(screen.getByRole('status')).toHaveTextContent('170 s')
+    expect(screen.getByRole('status')).toHaveClass('is-ending')
+    await act(async () => { await vi.advanceTimersByTimeAsync(9000) })
+    expect(screen.getByRole('status')).toHaveTextContent('179 s')
+    expect(screen.getByRole('status')).toHaveClass('is-ending')
+    expect(socket.sent).not.toContainEqual({ type: 'stop' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
     expect(socket.sent).toContainEqual({ type: 'stop' })
     await act(async () => { await vi.advanceTimersByTimeAsync(185000) })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -229,14 +239,14 @@ describe('streaming voice input', () => {
     expect(view.request).not.toHaveBeenCalled()
   })
 
-  it('caps streamed samples at ninety seconds and flushes only once', async () => {
+  it('caps streamed samples at 180 seconds and flushes only once', async () => {
     setup()
     const socket = await begin()
     await act(async () => {
-      for (let frame = 0; frame < 901; frame++) audio(new ArrayBuffer(4800))
+      for (let frame = 0; frame < 1801; frame++) audio(new ArrayBuffer(4800))
     })
     const frames = socket.sent.filter((value): value is ArrayBuffer => value instanceof ArrayBuffer)
-    expect(frames.reduce((total, value) => total + value.byteLength, 0)).toBe(4320000)
+    expect(frames.reduce((total, value) => total + value.byteLength, 0)).toBe(8640000)
     expect(stop).toHaveBeenCalledOnce()
     expect(socket.sent.filter((value) => (value as { type?: string }).type === 'stop')).toHaveLength(1)
   })

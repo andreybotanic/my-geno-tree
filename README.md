@@ -463,19 +463,32 @@ still configure file transcription. The model volume is `whisper_models`.
 Symfony issues one-use recording grants bound to the login. The gateway consumes
 them through a Docker-internal authorization listener, checks active access every
 two seconds and before releasing phrases, and releases temporary state on close.
-The public authorization URL returns 404. Both voice APIs share ten attempts per
-user per hour. Credentials never appear in URLs or application logs.
+The public authorization URL returns 404. Both voice APIs allow an unrestricted
+number of attempts. Credentials never appear in URLs or application logs.
 
-Recordings are limited to 90 seconds, inbound frames to 64 KiB and send queues to
+Recordings are limited to 180 seconds; the timer turns red for the last ten
+seconds, starting at 170 seconds. Recording grants remain valid for 420 seconds
+to cover startup, capture and finalization. Inbound frames are limited to 64 KiB and send queues to
 256 KiB. Speaches VAD uses a 700 ms pause; the gateway orders completed phrases
 and handles its 0.8.3 configuration warning explicitly. Internal silence finishes
 active speech on Stop and is excluded from duration. Finalization has a 180-second
 timeout. `LOOPBACK_HOST_URL` is required for Speaches' internal transcription call.
 
 The original file endpoint remains compatible: it validates actual MIME/codec,
-10 MiB and 90 seconds, normalizes to 16 kHz WAV with FFmpeg, and deletes uploads.
+10 MiB and 180 seconds, normalizes to 16 kHz WAV with FFmpeg, and deletes uploads.
 The browser uses the streaming path without automatic fallback. No audio, media
 objects or database recording sessions are persisted.
+
+Voice-limit validation (2026-11-09): all 286 backend, 443 frontend and 28 gateway
+tests pass, with line coverage of 93.49%, 90.98% and 98.45%. Tests cover more than
+ten attempts through both APIs, accepted 180-second audio, rejected 181-second
+uploads, grant lifetime, and timer boundaries at 169/170/179/180 seconds.
+Quality, OpenAPI, production builds, Composer/container checks and all 26
+migrations on a clean database pass. PhpStorm WARNING inspections are clean for
+all six affected PHP files. Manual HTTPS checks covered the restored chat,
+editing, and microphone permission failure with unchanged input geometry and a
+preserved draft. The in-app browser denied microphone access; live browser
+recording remains unverified. Automated tests verify duration and the red timer.
 
 Gateway verification runs independently inside Docker:
 

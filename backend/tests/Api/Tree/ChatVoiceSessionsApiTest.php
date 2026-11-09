@@ -46,7 +46,7 @@ final class ChatVoiceSessionsApiTest extends ApiWebTestCase
         self::assertSame('7', $this->id[14]);
         self::assertSame('/api/v1/chat-transcriptions/stream', $this->responseString('url'));
         self::assertSame(24000, $this->responseInt('sampleRate'));
-        self::assertSame(90, $this->responseInt('maxDurationSeconds'));
+        self::assertSame(180, $this->responseInt('maxDurationSeconds'));
         self::assertSame(30, $this->responseInt('expiresIn'));
         self::assertStringContainsString('no-store', $this->client->getResponse()->headers->get('Cache-Control') ?? '');
         $this->authorize('check');
@@ -126,7 +126,10 @@ final class ChatVoiceSessionsApiTest extends ApiWebTestCase
         $this->issue();
         $this->authorize('claim');
         self::assertResponseIsSuccessful();
-        $this->clock->sleep(300);
+        $this->clock->sleep(360);
+        $this->authorize('check');
+        self::assertResponseIsSuccessful();
+        $this->clock->sleep(60);
         $this->authorize('check');
         self::assertResponseStatusCodeSame(401);
     }
@@ -169,14 +172,11 @@ final class ChatVoiceSessionsApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testSharesTheExistingVoiceRateLimiter(): void
+    public function testDoesNotLimitRecordingAttempts(): void
     {
-        $limiter = static::getContainer()->get('limiter.chat_voice')->create($this->userId);
-        $limiter->consume(9);
-        $this->issue();
-        $this->createRecording();
-        self::assertResponseStatusCodeSame(429);
-        self::assertSame('CHAT_VOICE_RATE_LIMIT', $this->responseString('code'));
+        for ($attempt = 0; $attempt < 25; ++$attempt) {
+            $this->issue();
+        }
     }
 
     private function issue(): void

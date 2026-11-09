@@ -1,5 +1,5 @@
 import WebSocket from 'ws'
-import type { ChatVoiceClientMessage, ChatVoiceServerMessage } from '../../frontend/src/api/generated/types.gen.js'
+import type { ChatVoiceClientMessage, ChatVoiceServerMessage, ChatVoiceSession } from '../../frontend/src/api/generated/types.gen.js'
 
 export type VoiceConfig = {
   authUrl: string
@@ -16,6 +16,8 @@ export type VoiceConfig = {
 
 type Event = Record<string, unknown>
 type Phrase = { id: string; text?: string; sequence: number }
+const maxRecordingSeconds: ChatVoiceSession['maxDurationSeconds'] = 180
+const maxAudioBytes = maxRecordingSeconds * 24000 * 2
 const compatibilityWarning = 'Specifying `session.turn_detection.prefix_padding_ms` is not supported. The server either does not support this field or it is not configurable.'
 
 function object(value: unknown): Event {
@@ -94,11 +96,11 @@ export class VoiceStream {
         throw new Error('CHAT_AUDIO_FORMAT')
       }
       const bytes = data
-      const available = (this.config.maxAudioBytes ?? 4320000) - this.audioBytes
+      const available = (this.config.maxAudioBytes ?? maxAudioBytes) - this.audioBytes
       const part = bytes.subarray(0, available)
       this.audioBytes += part.length
       this.append(part)
-      if (part.length < bytes.length || this.audioBytes === (this.config.maxAudioBytes ?? 4320000)) this.stop()
+      if (part.length < bytes.length || this.audioBytes === (this.config.maxAudioBytes ?? maxAudioBytes)) this.stop()
       return
     }
     const message = object(JSON.parse(data.toString()))
@@ -204,7 +206,7 @@ export class VoiceStream {
         clearTimeout(this.timer)
         this.timer = setTimeout(() => {
           try { this.stop() } catch { this.fail('CHAT_TRANSCRIPTION_UNAVAILABLE') }
-        }, this.config.recordingTimeoutMs ?? 90000)
+        }, this.config.recordingTimeoutMs ?? maxRecordingSeconds * 1000)
         this.heartbeat = setInterval(() => {
           void this.check().catch((error: unknown) => this.fail(this.errorCode(error)))
         }, this.config.checkIntervalMs ?? 2000)

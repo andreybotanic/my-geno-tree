@@ -9,6 +9,7 @@ use Symfony\Component\Process\Process;
 final class AudioNormalizer
 {
     public const int MAX_BYTES = 10 * 1024 * 1024;
+    public const int MAX_DURATION_SECONDS = 180;
 
     public function normalize(UploadedFile $file): NormalizedRecording
     {
@@ -83,7 +84,7 @@ final class AudioNormalizer
                     '-c:a',
                     'pcm_s16le',
                     '-t',
-                    '91',
+                    (string)(self::MAX_DURATION_SECONDS + 1),
                     '-f',
                     'wav',
                     'pipe:1',
@@ -100,7 +101,7 @@ final class AudioNormalizer
         } catch (\Throwable $error) {
             throw new ApiException(422, 'CHAT_AUDIO_FORMAT', previous: $error);
         }
-        if ($duration <= 0 || $duration > 90) {
+        if ($duration <= 0 || $duration > self::MAX_DURATION_SECONDS) {
             throw new ApiException(422, 'CHAT_AUDIO_DURATION');
         }
 

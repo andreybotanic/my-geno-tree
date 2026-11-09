@@ -105,7 +105,7 @@ export type ChatVoiceSession = {
      */
     credential: string;
     expiresIn: 30;
-    maxDurationSeconds: 90;
+    maxDurationSeconds: 180;
     sampleRate: 24000;
 };
 
@@ -1226,10 +1226,6 @@ export type CreateChatVoiceSessionErrors = {
      * One or more fields are invalid
      */
     422: ApiError;
-    /**
-     * CHAT_VOICE_RATE_LIMIT
-     */
-    429: unknown;
     /**
      * CHAT_UNAVAILABLE
      */

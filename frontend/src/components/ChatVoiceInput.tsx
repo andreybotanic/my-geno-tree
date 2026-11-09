@@ -18,6 +18,8 @@ type Props = {
 }
 type Recording = { stop: () => void; cancel: () => void }
 type Phase = 'idle' | 'preparing' | 'recording' | 'finishing'
+const maxRecordingSeconds: ChatVoiceSession['maxDurationSeconds'] = 180
+const maxAudioBytes = maxRecordingSeconds * 24000 * 2
 
 export function ChatVoiceInput({ active, children, request, disabled, blocked = false, onBusy, onTranscript, onAccessError }: Props) {
   const { t } = useTranslation()
@@ -81,8 +83,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       if (code === 'CHAT_BANNED' || code === 'CHAT_UNAVAILABLE' || code === 'AUTH_REQUIRED') onAccessError?.()
       finish(code === 'CHAT_BANNED' ? 'chat.access.blocked'
         : code === 'CHAT_UNAVAILABLE' ? 'chat.access.unavailable'
-          : code === 'CHAT_VOICE_RATE_LIMIT' ? 'chat.voice.rateLimit'
-            : code === 'CHAT_AUDIO_UNSUPPORTED' ? 'chat.voice.unsupported' : undefined)
+          : code === 'CHAT_AUDIO_UNSUPPORTED' ? 'chat.voice.unsupported' : undefined)
     }
     const recording: Recording = {
       cancel: () => finish(),
@@ -108,14 +109,14 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       if (!valid()) { stream.getTracks().forEach((track) => track.stop()); return }
       capture = await captureMicrophone(stream, (value) => { if (acceptingAudio) recordingHistory.push(value) }, (buffer) => {
         if (!valid() || !acceptingAudio) return
-        const remaining = 4320000 - audioBytes
+        const remaining = maxAudioBytes - audioBytes
         const part = buffer.byteLength <= remaining ? buffer : buffer.slice(0, remaining)
         if (socket!.readyState !== WebSocket.OPEN || socket!.bufferedAmount + part.byteLength > 262144) {
           fail('CHAT_TRANSCRIPTION_UNAVAILABLE')
           return
         }
         if (part.byteLength) { audioBytes += part.byteLength; socket!.send(part) }
-        if (audioBytes >= 4320000) recording.stop()
+        if (audioBytes >= maxAudioBytes) recording.stop()
       })
       if (!valid()) { capture.cancel(); return }
       const grant = await request<ChatVoiceSession>('/chat-transcription-sessions', {
@@ -140,7 +141,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
             timer = window.setInterval(() => {
               const elapsed = Math.floor((Date.now() - started) / 1000)
               setSeconds(elapsed)
-              if (elapsed >= 90) recording.stop()
+              if (elapsed >= maxRecordingSeconds) recording.stop()
             }, 250)
           } else if (message.type === 'phrase' && typeof message.text === 'string'
             && typeof message.phraseId === 'string' && Number.isInteger(message.sequence)) {
@@ -181,7 +182,8 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
           </>}
         </svg>
       </button>
-      {recording && <span className="chat-recording-time" role="status">{t('chat.voice.elapsed', { seconds })}</span>}
+      {recording && <span className={`chat-recording-time${seconds >= maxRecordingSeconds - 10 ? ' is-ending' : ''}`}
+        role="status">{t('chat.voice.elapsed', { seconds })}</span>}
     </div>
   </div>
 }

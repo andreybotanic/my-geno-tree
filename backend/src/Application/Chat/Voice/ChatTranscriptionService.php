@@ -6,9 +6,7 @@ use App\Api\ApiException;
 use App\Application\Chat\Moderation\ChatModeration;
 use App\Entity\User;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 final readonly class ChatTranscriptionService
 {
@@ -16,8 +14,6 @@ final readonly class ChatTranscriptionService
         private AudioNormalizer $normalizer,
         private TranscriptionProviderInterface $provider,
         private LoggerInterface $logger,
-        #[Target('chat_voice')]
-        private RateLimiterFactoryInterface $limiter,
         private ChatModeration $moderation,
     ) {
     }
@@ -27,9 +23,6 @@ final readonly class ChatTranscriptionService
     {
         try {
             $this->moderation->assertCanInteract($user->getId());
-            if (!$this->limiter->create($user->getId()->toRfc4122())->consume()->isAccepted()) {
-                throw new ApiException(429, 'CHAT_VOICE_RATE_LIMIT');
-            }
             $recording = $this->normalizer->normalize($file);
             $this->moderation->assertCanInteract($user->getId());
             try {

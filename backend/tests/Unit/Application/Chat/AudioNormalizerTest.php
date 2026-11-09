@@ -85,7 +85,7 @@ final class AudioNormalizerTest extends TestCase
                     '-i',
                     'anullsrc=r=16000:cl=mono',
                     '-t',
-                    '91',
+                    '181',
                     '-f',
                     'wav',
                     $path,
@@ -103,14 +103,14 @@ final class AudioNormalizerTest extends TestCase
                     '-i',
                     'anullsrc=r=16000:cl=mono',
                     '-t',
-                    '90',
+                    '180',
                     '-f',
                     'wav',
                     $path,
                 ],
             ))->mustRun();
             self::assertSame(
-                90.0,
+                180.0,
                 new AudioNormalizer()->normalize(new UploadedFile($path, 'audio.wav', test: true))->durationSeconds,
             );
             (new Process(
