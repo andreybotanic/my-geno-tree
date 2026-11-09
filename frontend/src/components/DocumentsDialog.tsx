@@ -1,7 +1,6 @@
 import { useEffect, useRef, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import CloseIcon from '../assets/icons/close.svg?react'
-import { formatPersonName } from '../personFormatting'
 import { DocumentsPanel } from './DocumentsPanel'
 
 type Props = ComponentProps<typeof DocumentsPanel> & { onClose: () => void }
@@ -9,7 +8,6 @@ type Props = ComponentProps<typeof DocumentsPanel> & { onClose: () => void }
 export function DocumentsDialog({ onClose, ...props }: Props) {
   const { t } = useTranslation()
   const dialog = useRef<HTMLElement>(null)
-  const person = props.snapshot.people.find((candidate) => candidate.id === props.personId)
   useEffect(() => {
     const previous = document.activeElement
     dialog.current?.querySelector<HTMLButtonElement>('button')?.focus()
@@ -47,7 +45,6 @@ export function DocumentsDialog({ onClose, ...props }: Props) {
       </button>
       <header className="documents-heading">
         <h2>{t('documents.title')}</h2>
-        <p>{person ? formatPersonName(person, t) : props.snapshot.tree.name}</p>
       </header>
       <DocumentsPanel {...props} />
     </section>

@@ -127,6 +127,9 @@ The [revision acceptance report](docs/qa/document-revision-2026-11-09.md) record
 the fixed dialog, view switches and independent storage. The
 [source metadata follow-up](docs/qa/document-source-metadata-2026-11-09.md) records
 the removal of answer-dependent source selection.
+The [document controls follow-up](docs/qa/document-controls-2026-11-09.md) covers
+the internal switch labels, shared/personal upload target, compact buttons and
+stable toolbar during loading.
 
 API output uses typed readonly DTOs in `backend/src/Api/View` with the native
 Symfony ObjectMapper. DTOs remain in service discovery so Symfony 8.1 registers
