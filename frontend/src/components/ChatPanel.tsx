@@ -497,6 +497,10 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
                 void send()
               }
             }} />
+          {(personActions || conversation?.profile === 'tree') && <ChatPermissions
+            automatic={conversation?.autoApprovePersonActions ?? false}
+            disabled={busy || disabled || blocked || thinking || voiceBusy}
+            onChange={(value) => { void setAutoApprove(value) }} />}
           <ChatBudget budget={conversation?.tokenBudget ?? budget} />
           {showStop ? <button className="chat-send" type="button" aria-label={t('chat.stop')}
             disabled={stopping} onClick={() => void stop()}>
@@ -509,10 +513,6 @@ export function ChatPanel({ contextPath, createBody, request, onClose, open = tr
             </svg>
           </button>}
         </ChatVoiceInput>
-        {(personActions || conversation?.profile === 'tree') && <ChatPermissions
-          automatic={conversation?.autoApprovePersonActions ?? false}
-          disabled={busy || disabled || blocked || thinking || voiceBusy}
-          onChange={(value) => { void setAutoApprove(value) }} />}
       </form>
     </aside>
   )

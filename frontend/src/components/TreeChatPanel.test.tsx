@@ -45,26 +45,28 @@ describe('tree action confirmations', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
   })
 
-  it('selects per-chat permissions from an icon menu below the composer', async () => {
+  it('keeps the permissions and quota inside the input alongside the controls', async () => {
     const { request } = setup(async (path, init) => path.endsWith('/permissions')
       ? { ...readyConversation, version: 2, autoApprovePersonActions: JSON.parse(String(init?.body)).autoApprovePersonActions }
       : { conversation: readyConversation })
-    const trigger = await screen.findByRole('button', { name: 'Ask for permission' })
-    expect(trigger.closest('form')?.querySelector('.chat-input')?.compareDocumentPosition(trigger))
-      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    const trigger = await screen.findByRole('button', { name: 'Ask' })
+    const input = trigger.closest('.chat-input')
+    expect(input).toContainElement(trigger)
+    expect(input).toContainElement(screen.getByRole('img', { name: /tokens remaining/ }))
+    expect(input).toContainElement(screen.getByRole('button', { name: 'Record voice' }))
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     fireEvent.click(trigger)
     const menu = screen.getByRole('menu', { name: 'Person actions' })
-    const option = within(menu).getByRole('menuitemradio', { name: 'Approve for me' })
+    const option = within(menu).getByRole('menuitemradio', { name: 'Auto-approve' })
     expect(option.querySelector('svg')).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitemradio', { name: 'Ask for permission' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(menu).getByRole('menuitemradio', { name: 'Ask' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(option)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve for me' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Auto-approve' })).toBeEnabled())
     expect(request).toHaveBeenCalledWith('/chats/chat/permissions', {
       method: 'PATCH', body: JSON.stringify({ version: 1, autoApprovePersonActions: true }),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Approve for me' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Ask for permission' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Auto-approve' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Ask' }))
     await waitFor(() => expect(request).toHaveBeenCalledWith('/chats/chat/permissions', {
       method: 'PATCH', body: JSON.stringify({ version: 2, autoApprovePersonActions: false }),
     }))
@@ -74,20 +76,20 @@ describe('tree action confirmations', () => {
     const { request } = setup(async (path, init) => path.endsWith('/permissions')
       ? { ...conversation, version: 2, autoApprovePersonActions: true }
       : init?.method === 'POST' ? conversation : { conversation: null })
-    const trigger = await screen.findByRole('button', { name: 'Ask for permission' })
+    const trigger = await screen.findByRole('button', { name: 'Ask' })
     await waitFor(() => expect(trigger).toBeEnabled())
     fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Approve for me' }))
-    await screen.findByRole('button', { name: 'Approve for me' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Auto-approve' }))
+    await screen.findByRole('button', { name: 'Auto-approve' })
     expect(request).toHaveBeenCalledWith('/trees/tree/chat', { method: 'POST', body: '{"referencePersonId":null}' })
   })
 
   it('supports keyboard navigation, Escape and closing the permission menu outside', async () => {
     setup(async () => ({ conversation }))
-    const trigger = await screen.findByRole('button', { name: 'Ask for permission' })
+    const trigger = await screen.findByRole('button', { name: 'Ask' })
     fireEvent.keyDown(trigger, { key: 'ArrowDown' })
-    const ask = screen.getByRole('menuitemradio', { name: 'Ask for permission' })
-    const auto = screen.getByRole('menuitemradio', { name: 'Approve for me' })
+    const ask = screen.getByRole('menuitemradio', { name: 'Ask' })
+    const auto = screen.getByRole('menuitemradio', { name: 'Auto-approve' })
     expect(ask).toHaveFocus()
     fireEvent.keyDown(ask, { key: 'ArrowDown' })
     expect(auto).toHaveFocus()
@@ -181,7 +183,7 @@ describe('tree action confirmations', () => {
     await i18n.changeLanguage('ru')
     setup(async () => ({ conversation: readyConversation }))
     expect(await screen.findByText('Создать персону «Vera»?')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Запрашивать разрешение' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Спрашивать' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Разрешить' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Отклонить' })).toBeVisible()
   })

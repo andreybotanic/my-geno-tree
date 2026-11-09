@@ -573,8 +573,10 @@ contains data you need to keep: Doctrine purges it by default.
 
 Permission requests occupy one or two text lines above the composer and disappear
 after approval, rejection or Stop. Resolved confirmations are absent from the
-message log. Below the input, the permission button opens a menu with icons for
-Ask for permission and Approve for me. The normal circular Stop button handles
+message log. In the input's bottom control row, the permission menu sits on the
+left; the token allowance, microphone and Send/Stop buttons sit on the right.
+The menu uses icons and short labels: Ask / Auto-approve in English and
+Спрашивать / Подтверждать in Russian. Tooltips explain each mode. The normal circular Stop button handles
 both inference and an outstanding permission request; entering a clarification
 restores Send.
 
@@ -609,6 +611,14 @@ disabled through the menu. A second-tab rename invalidated pending approval and
 required another request; rejection kept all seven people. Resolved requests no
 longer appear in the restored message history. The circular Stop button cancelled
 a fresh pending request, removed its prompt and left all seven people unchanged.
+
+Composer control-row validation (2026-11-09): all 286 backend, 442 frontend and
+27 gateway tests pass, with line coverage of 93.49%, 90.96% and 98.43%.
+Quality checks, OpenAPI verification, production builds, Composer validation,
+dev/prod container checks and all 26 migrations on a fresh disposable database
+pass. No PHP files changed. Manual local HTTPS checks covered both languages,
+permission-mode switching, restoration after navigation and the 360 px viewport.
+The menu, quota tooltip and controls stay within the input without overlapping.
 
 ## Prior single-action validation (2026-11-08)
 

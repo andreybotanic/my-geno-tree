@@ -43,7 +43,7 @@ export function ChatPermissions({ automatic, disabled, onChange }: Props) {
     }
   }}>
     <button type="button" className="chat-permissions-trigger" ref={trigger} aria-haspopup="menu"
-      aria-expanded={open} disabled={disabled} title={t('chat.permissions.title')}
+      aria-expanded={open} disabled={disabled} title={t(automatic ? 'chat.permissions.autoHint' : 'chat.permissions.askHint')}
       onClick={() => setOpen((value) => !value)}>
       <Icon aria-hidden="true" /><span>{t(automatic ? 'chat.permissions.auto' : 'chat.permissions.ask')}</span>
       <ChevronIcon aria-hidden="true" />
@@ -52,6 +52,7 @@ export function ChatPermissions({ automatic, disabled, onChange }: Props) {
       {[false, true].map((value, index) => {
         const OptionIcon = value ? AutoIcon : AskIcon
         return <button type="button" role="menuitemradio" aria-checked={automatic === value} key={String(value)}
+          title={t(value ? 'chat.permissions.autoHint' : 'chat.permissions.askHint')}
           ref={(element) => { options.current[index] = element }} disabled={disabled}
           onClick={() => {
             setOpen(false)

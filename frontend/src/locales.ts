@@ -14,7 +14,7 @@ export const resources = {
       chat: {
         treePlaceholder: "Describe what you want to do with the tree…",
         confirmation: {"title":"Action confirmation","allow":"Allow","reject":"Reject","create":"Create “{{name}}”?","create_person":"Create “{{name}}”?","create_parent":"Create “{{name}}” as a parent of “{{relative}}”?","create_child":"Create “{{name}}” as a child of “{{relative}}”?","create_spouse":"Create “{{name}}” as a spouse of “{{relative}}”?","delete":"Delete “{{name}}”, their relationships and events?","unknownParent":"Also create an unnamed parent."},
-        permissions: {"title":"Person actions","ask":"Ask for permission","auto":"Approve for me"},
+        permissions: {"title":"Person actions","ask":"Ask","auto":"Auto-approve","askHint":"Ask for permission before person actions","autoHint":"Approve person actions for me in this chat"},
         access: {
           temporary: 'AI chat is blocked until {{until}}.',
           blocked: 'Your access to AI chat is blocked.',
@@ -531,7 +531,7 @@ export const resources = {
       chat: {
         treePlaceholder: "Опишите, что нужно сделать с деревом…",
         confirmation: {"title":"Подтверждение действия","allow":"Разрешить","reject":"Отклонить","create":"Создать персону «{{name}}»?","create_person":"Создать персону «{{name}}»?","create_parent":"Создать родителя «{{name}}» для «{{relative}}»?","create_child":"Создать ребёнка «{{name}}» для «{{relative}}»?","create_spouse":"Создать супруга «{{name}}» для «{{relative}}»?","delete":"Удалить персону «{{name}}», её связи и события?","unknownParent":"Также будет создан безымянный родитель."},
-        permissions: {"title":"Действия с персонами","ask":"Запрашивать разрешение","auto":"Подтверждать за меня"},
+        permissions: {"title":"Действия с персонами","ask":"Спрашивать","auto":"Подтверждать","askHint":"Запрашивать разрешение на действия с персонами","autoHint":"Подтверждать действия с персонами за меня в этом чате"},
         access: {
           temporary: 'ИИ-чат заблокирован до {{until}}.',
           blocked: 'Доступ к ИИ-чату заблокирован.',
