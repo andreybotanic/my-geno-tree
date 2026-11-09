@@ -115,7 +115,7 @@ describe('streaming voice input', () => {
       socket.event({ type: 'phrase', phraseId: 'one', sequence: 0, text: 'Kept' })
       socket.onclose?.()
     })
-    expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(view.props.onTranscript).toHaveBeenCalledExactlyOnceWith('Kept')
     expect(view.request).toHaveBeenCalledOnce()
     expect(screen.getByRole('button', { name: 'Record voice' })).toBeEnabled()
@@ -175,22 +175,29 @@ describe('streaming voice input', () => {
     getUserMedia.mockRejectedValueOnce(new Error('denied'))
     fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Check browser permission')
+    expect(screen.getByRole('alert').nextElementSibling).toContainElement(screen.getByRole('textbox', { name: 'Message' }))
     vi.mocked(captureMicrophone).mockRejectedValueOnce(new Error('CHAT_AUDIO_UNSUPPORTED'))
     fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('unavailable in this browser'))
     expect(view.request).not.toHaveBeenCalled()
   })
 
-  it('enforces duration and reports a finalization timeout', async () => {
+  it('silently recovers from connection and finalization timeouts while enforcing duration', async () => {
     vi.useFakeTimers()
+    getUserMedia.mockReturnValueOnce(new Promise(() => {}))
     setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record voice' })).toBeEnabled()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record voice' })) })
     const socket = Socket.instance
     await act(async () => { socket.open(); socket.event({ type: 'ready' }) })
     await act(async () => { await vi.advanceTimersByTimeAsync(90000) })
     expect(socket.sent).toContainEqual({ type: 'stop' })
     await act(async () => { await vi.advanceTimersByTimeAsync(185000) })
-    expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record voice' })).toBeEnabled()
   })
 
   it('rejects malformed events and a slow connection without losing earlier phrases', async () => {
@@ -201,7 +208,8 @@ describe('streaming voice input', () => {
     Socket.instance = undefined as unknown as Socket
     const next = await begin()
     await act(async () => next.onmessage!(new MessageEvent('message', { data: 'broken' })))
-    expect(screen.getByRole('alert')).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record voice' })).toBeEnabled()
     Socket.instance = undefined as unknown as Socket
     const slow = await begin()
     slow.bufferedAmount = 262145
@@ -233,7 +241,7 @@ describe('streaming voice input', () => {
     expect(socket.sent.filter((value) => (value as { type?: string }).type === 'stop')).toHaveLength(1)
   })
 
-  it('reports unsupported context creation and failed audio flushing', async () => {
+  it('reports unsupported context creation and stops quietly when audio flushing fails', async () => {
     const view = setup()
     vi.mocked(captureMicrophone).mockRejectedValueOnce(new DOMException('Unsupported sample rate', 'NotSupportedError'))
     fireEvent.click(screen.getByRole('button', { name: 'Record voice' }))
@@ -241,7 +249,7 @@ describe('streaming voice input', () => {
     await begin()
     stop.mockRejectedValueOnce(new Error('audio thread stopped'))
     fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Completed phrases are kept'))
-    expect(view.props.onBusy).toHaveBeenLastCalledWith(false)
+    await waitFor(() => expect(view.props.onBusy).toHaveBeenLastCalledWith(false))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

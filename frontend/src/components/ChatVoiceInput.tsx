@@ -82,7 +82,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       finish(code === 'CHAT_BANNED' ? 'chat.access.blocked'
         : code === 'CHAT_UNAVAILABLE' ? 'chat.access.unavailable'
           : code === 'CHAT_VOICE_RATE_LIMIT' ? 'chat.voice.rateLimit'
-            : code === 'CHAT_AUDIO_UNSUPPORTED' ? 'chat.voice.unsupported' : 'chat.voice.interrupted')
+            : code === 'CHAT_AUDIO_UNSUPPORTED' ? 'chat.voice.unsupported' : undefined)
     }
     const recording: Recording = {
       cancel: () => finish(),
@@ -160,7 +160,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       if (cause instanceof ApiRequestError) fail(cause.body.code)
       else if (cause instanceof DOMException && cause.name === 'NotSupportedError') fail('CHAT_AUDIO_UNSUPPORTED')
       else if (cause instanceof Error && cause.message === 'CHAT_AUDIO_UNSUPPORTED') fail(cause.message)
-      else finish(stream ? 'chat.voice.interrupted' : 'chat.voice.permission')
+      else finish(stream ? undefined : 'chat.voice.permission')
     }
   }
 
@@ -168,6 +168,7 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
   const unavailable = disabled || blocked || phase !== 'idle'
   return <div className="chat-voice">
     {recording && <ChatAudioHistogram history={history} />}
+    {error && <p role="alert">{t(error)}</p>}
     <div className="chat-input">
       {children(recording)}
       <button type="button" className={`chat-microphone${recording ? ' is-recording' : ''}`}
@@ -182,6 +183,5 @@ export function ChatVoiceInput({ active, children, request, disabled, blocked = 
       </button>
       {recording && <span className="chat-recording-time" role="status">{t('chat.voice.elapsed', { seconds })}</span>}
     </div>
-    {error && <p role="alert">{t(error)}</p>}
   </div>
 }
