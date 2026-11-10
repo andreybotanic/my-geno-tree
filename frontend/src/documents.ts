@@ -1,3 +1,4 @@
+import { ApiRequestError } from './api/client'
 import type { AuthorizedBlobRequest } from './api/client'
 
 export function formatDocumentSize(bytes: number, language: string) {
@@ -18,4 +19,17 @@ export async function downloadDocument(request: AuthorizedBlobRequest, url: stri
   anchor.download = name
   anchor.click()
   URL.revokeObjectURL(objectUrl)
+}
+
+export function documentErrorKey(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.body.code === 'DOCUMENT_METADATA_INVALID') return 'documents.errors.metadata'
+    if (error.status === 412) return 'documents.errors.conflict'
+    if (error.status === 401 || error.status === 404) return 'documents.errors.access'
+    if (error.body.code === 'DOCUMENT_TOO_LARGE') return 'documents.errors.size'
+    if (['DOCUMENT_CONTENT_INVALID', 'DOCUMENT_UPLOAD_INVALID', 'DOCUMENT_NAME_INVALID'].includes(error.body.code)) {
+      return 'documents.errors.invalid'
+    }
+  }
+  return 'documents.errors.failed'
 }

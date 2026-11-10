@@ -42,13 +42,14 @@ final readonly class DocumentService
         string $scope,
         ?string $cursor,
         int $limit,
+        bool $newestFirst,
     ): array {
         if ($limit < 1 || $limit > 100 || (null !== $cursor && !Uuid::isValid($cursor))
             || !in_array($scope, ['all', 'tree', 'person'], true) || ('person' === $scope && null === $personId)) {
             throw new ApiException(422, 'DOCUMENT_QUERY_INVALID');
         }
         $person = null === $personId ? null : $this->people->require($tree, $personId);
-        $rows = $this->documents->page($tree, $person, $scope, $cursor, $limit + 1);
+        $rows = $this->documents->page($tree, $person, $scope, $cursor, $limit + 1, $newestFirst);
         $more = count($rows) > $limit;
         $rows = array_slice($rows, 0, $limit);
 
@@ -68,7 +69,11 @@ final readonly class DocumentService
         ?string $personId,
         ?UploadedFile $file,
         ?string $ifMatch,
+        mixed $title = null,
+        mixed $description = null,
     ): TreeDocument {
+        $title = $this->metadataText($title, 255);
+        $description = $this->metadataText($description, 2000);
         $input = $this->files->validate($file);
         $now = $this->clock->now();
         $path = $this->files->store($tree, $input['contents']);
@@ -81,6 +86,8 @@ final readonly class DocumentService
                     $path,
                     $now,
                     $ifMatch,
+                    $title,
+                    $description,
                 ): TreeDocument {
                     $this->lock($tree, $ifMatch);
                     $person = null === $personId ? null : $this->people->require($tree, $personId);
@@ -93,6 +100,8 @@ final readonly class DocumentService
                         $input['bytes'],
                         $input['checksum'],
                         $now,
+                        $title,
+                        $description,
                     );
                     $this->entityManager->persist($document);
                     $tree->touch($now);
@@ -121,27 +130,64 @@ final readonly class DocumentService
         return $this->files->contents($document->getStoragePath());
     }
 
-    public function changeAttachment(
-        FamilyTree $tree,
-        string $id,
-        ?string $personId,
-        ?string $ifMatch,
-    ): TreeDocument {
-        return $this->entityManager->wrapInTransaction(
-            function () use ($tree, $id, $personId, $ifMatch): TreeDocument {
+    /** @param array<string, mixed> $input */
+    public function update(FamilyTree $tree, string $id, array $input, ?string $ifMatch): TreeDocument
+    {
+        if ([] === $input || [] !== array_diff(array_keys($input), ['personId', 'title', 'description'])) {
+            throw new ApiException(422, 'DOCUMENT_METADATA_INVALID');
+        }
+        $personId = $input['personId'] ?? null;
+        if (null !== $personId && !is_string($personId)) {
+            throw new ApiException(422, 'DOCUMENT_ATTACHMENT_INVALID');
+        }
+        $title = $this->metadataText($input['title'] ?? null, 255);
+        $description = $this->metadataText($input['description'] ?? null, 2000);
+        [$document, $reindex] = $this->entityManager->wrapInTransaction(
+            function () use ($tree, $id, $ifMatch, $input, $personId, $title, $description): array {
                 $this->lock($tree, $ifMatch);
                 $document = $this->require($tree, $id);
-                $person = null === $personId ? null : $this->people->require($tree, $personId);
-                if ($document->getPerson() === $person) {
-                    return $document;
-                }
+                $this->entityManager->refresh($document, LockMode::PESSIMISTIC_WRITE);
                 $now = $this->clock->now();
-                $document->attachTo($person, $now);
+                $reindex = $document->changeMetadata(
+                    array_key_exists('title', $input) ? $title : $document->getTitle(),
+                    array_key_exists('description', $input) ? $description : $document->getDescription(),
+                    $now,
+                );
+                $person = $document->getPerson();
+                if (array_key_exists('personId', $input)) {
+                    $person = null === $personId ? null : $this->people->require($tree, $personId);
+                }
+                if ($person !== $document->getPerson()) {
+                    $document->attachTo($person, $now);
+                } elseif (!$reindex) {
+                    return [$document, false];
+                }
                 $tree->touch($now);
 
-                return $document;
+                return [$document, $reindex];
             }
         );
+        if ($reindex) {
+            $this->publish($document);
+        }
+
+        return $document;
+    }
+
+    private function metadataText(mixed $value, int $limit): ?string
+    {
+        if (null === $value) {
+            return null;
+        }
+        if (!is_string($value) || !mb_check_encoding($value, 'UTF-8') || str_contains($value, "\0")) {
+            throw new ApiException(422, 'DOCUMENT_METADATA_INVALID');
+        }
+        $value = mb_trim($value);
+        if (mb_strlen($value) > $limit) {
+            throw new ApiException(422, 'DOCUMENT_METADATA_INVALID');
+        }
+
+        return '' === $value ? null : $value;
     }
 
     public function delete(FamilyTree $tree, string $id, ?string $ifMatch): void
@@ -182,15 +228,22 @@ final readonly class DocumentService
 
     private function publish(TreeDocument $document): void
     {
+        $generation = $document->getGeneration();
+        $deleted = $document->isDeleted();
         try {
             $this->bus->dispatch(
-                $document->isDeleted()
+                $deleted
                     ? new RemoveDocumentMessage($document->getId()->toRfc4122())
-                    : new IndexDocumentMessage($document->getId()->toRfc4122(), $document->getGeneration())
+                    : new IndexDocumentMessage($document->getId()->toRfc4122(), $generation)
             );
         } catch (\Throwable $error) {
-            $document->transition('failed', $this->clock->now(), 'DOCUMENT_QUEUE_UNAVAILABLE');
-            $this->entityManager->flush();
+            $this->entityManager->wrapInTransaction(function () use ($document, $generation, $deleted): void {
+                $this->entityManager->refresh($document, LockMode::PESSIMISTIC_WRITE);
+                if ($generation === $document->getGeneration() && $deleted === $document->isDeleted()
+                    && 'queued' === $document->getStatus()) {
+                    $document->transition('failed', $this->clock->now(), 'DOCUMENT_QUEUE_UNAVAILABLE');
+                }
+            });
             $this->logger->error('Document queue unavailable.', ['exception' => $error]);
         }
     }

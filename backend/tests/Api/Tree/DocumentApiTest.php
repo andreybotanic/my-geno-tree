@@ -137,6 +137,56 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertLessThanOrEqual(2, $counter->selectCount());
     }
 
+    public function testDocumentMetadataCreatesExactlyOneGenerationPerChange(): void
+    {
+        $context = $this->context();
+        $this->client->disableReboot();
+        $generations = [];
+        $bus = $this->createStub(MessageBusInterface::class);
+        $bus->method('dispatch')->willReturnCallback(
+            static function (\App\Message\Document\IndexDocumentMessage $message) use (&$generations): Envelope {
+                $generations[] = $message->generation;
+
+                return Envelope::wrap($message);
+            }
+        );
+        static::getContainer()->set('messenger.bus.default', $bus);
+        $this->upload($context, 'Original text', metadata: ['title' => '  Томск ', 'description' => ' Письмо ']);
+        self::assertSame('Томск', $this->responseString('document', 'title'));
+        self::assertSame('Письмо', $this->responseString('document', 'description'));
+        $path = '/api/v1/trees/' . $context['tree'] . '/documents/' . $this->responseString('document', 'id');
+        $initial = $context['etag'];
+        $context['etag'] = $this->responseString('etag');
+        foreach ([
+            [['title' => 'Томск '], 'Томск', 'Письмо', false],
+            [['title' => 'Омск', 'description' => '1928', 'personId' => $context['person']], 'Омск', '1928', true],
+            [['description' => null], 'Омск', null, true],
+            [['title' => '  '], null, null, true],
+        ] as [$patch, $expectedTitle, $expectedDescription, $changed]) {
+            $this->jsonRequest('PATCH', $path, $patch, $this->headers($context));
+            self::assertResponseIsSuccessful();
+            $result = $this->responseArray('document');
+            self::assertSame($expectedTitle, $result['title']);
+            self::assertSame($expectedDescription, $result['description']);
+            self::assertSame($changed, $context['etag'] !== $this->responseString('etag'));
+            $context['etag'] = $this->responseString('etag');
+        }
+        foreach ([
+            ['title' => str_repeat('я', 256)],
+            ['description' => str_repeat('x', 2001)],
+            ['title'       => []],
+        ] as $bad) {
+            $this->jsonRequest('PATCH', $path, $bad, $this->headers($context));
+            self::assertResponseStatusCodeSame(422);
+        }
+        $context['etag'] = $initial;
+        $this->jsonRequest('PATCH', $path, ['description' => 'stale'], $this->headers($context));
+        self::assertResponseStatusCodeSame(412);
+        self::assertSame([1, 2, 3, 4], $generations);
+        $this->jsonRequest('GET', $path . '/download', headers: $this->headers($context));
+        self::assertSame('Original text', $this->client->getResponse()->getContent());
+    }
+
     public function testChangesAttachmentWithoutReindexingOrChangingOriginalBytes(): void
     {
         $this->client->disableReboot();
@@ -407,9 +457,16 @@ final class DocumentApiTest extends ApiWebTestCase
         return ['Authorization' => 'Bearer ' . $context['token'], 'If-Match' => $context['etag']];
     }
 
-    /** @param Context $context */
-    private function upload(array $context, string $contents, string $name = 'letter.txt', ?string $person = null): void
-    {
+    /** @param Context $context
+     * @param array<string, string> $metadata
+     */
+    private function upload(
+        array $context,
+        string $contents,
+        string $name = 'letter.txt',
+        ?string $person = null,
+        array $metadata = [],
+    ): void {
         $path = tempnam(sys_get_temp_dir(), 'document-test-');
         self::assertIsString($path);
         file_put_contents($path, $contents);
@@ -417,7 +474,7 @@ final class DocumentApiTest extends ApiWebTestCase
         $this->client->request(
             'POST',
             'https://localhost/api/v1/trees/' . $context['tree'] . '/documents',
-            null === $person ? [] : ['personId' => $person],
+            $metadata + (null === $person ? [] : ['personId' => $person]),
             ['file' => new UploadedFile($path, $name, test: true)],
             [
                 'HTTPS'              => 'on',

@@ -108,13 +108,24 @@ final class DocumentPipelineTest extends ApiWebTestCase
                 json_encode($found[0]->getMetadata(), JSON_THROW_ON_ERROR),
             );
 
-            $document->queued(new \DateTimeImmutable());
+            $other = $this->document('An archival railway letter.');
+            $worker->__invoke(new IndexDocumentMessage($other->getId()->toRfc4122(), 1));
+            $document->changeMetadata('Irkutsk', 'telegraph', new \DateTimeImmutable());
             $this->em->flush();
-            self::assertSame([], iterator_to_array($retriever->retrieve('railway'), false));
+            $visible = iterator_to_array($retriever->retrieve('railway'), false);
+            self::assertCount(1, $visible);
+            self::assertSame($other->getId()->toRfc4122(), $visible[0]->getMetadata()['documentId']);
             $worker->__invoke($message);
             self::assertSame('queued', $document->getStatus());
             $worker->__invoke(new IndexDocumentMessage($document->getId()->toRfc4122(), 2));
             self::assertSame('ready', $document->getStatus());
+            foreach (['Irkutsk', 'telegraph'] as $query) {
+                $matches = iterator_to_array($retriever->retrieve($query), false);
+                self::assertSame($document->getId()->toRfc4122(), $matches[0]->getMetadata()['documentId']);
+                self::assertStringNotContainsString($query, $matches[0]->getMetadata()->getText() ?? '');
+            }
+            $other->delete(new \DateTimeImmutable());
+            $this->em->flush();
             $second = $this->points($document);
             self::assertCount(count($first), $second);
             self::assertNotSame($first[0]->getId(), $second[0]->getId());
@@ -178,6 +189,33 @@ final class DocumentPipelineTest extends ApiWebTestCase
         static::getContainer()->get(RemoveDocumentMessageHandler::class)->__invoke(
             new RemoveDocumentMessage($document->getId()->toRfc4122()),
         );
+    }
+
+    public function testEditingDuringIndexingDiscardsTheObsoleteGeneration(): void
+    {
+        $document = $this->document('The original text.');
+        $id = $document->getId()->toRfc4122();
+        $native = static::getContainer()->get('ai.indexer.documents');
+        self::assertInstanceOf(IndexerInterface::class, $native);
+        $indexer = $this->createStub(IndexerInterface::class);
+        $indexer->method('index')->willReturnCallback(
+            function (iterable $input, array $options) use ($document, $native): void {
+                $native->index($input, $options);
+                $document->changeMetadata('Irkutsk', 'telegraph', new \DateTimeImmutable());
+                $this->em->flush();
+            }
+        );
+        $this->worker($indexer)->__invoke(new IndexDocumentMessage($id, 1));
+        self::assertSame('queued', $document->getStatus());
+        self::assertSame([], $this->points($document));
+        $worker = static::getContainer()->get(IndexDocumentMessageHandler::class);
+        $worker->__invoke(new IndexDocumentMessage($id, 2));
+        $worker->__invoke(new IndexDocumentMessage($id, 1));
+        self::assertSame('ready', $document->getStatus());
+        $points = $this->points($document);
+        self::assertCount(1, $points);
+        self::assertSame(2, $points[0]->getMetadata()['generation']);
+        self::assertSame('The original text.', $points[0]->getMetadata()->getText());
     }
 
     public function testEmptySearchAndMissingConversationFailClosed(): void

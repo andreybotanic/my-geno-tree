@@ -7,6 +7,7 @@ use App\Application\Document\DocumentVectors;
 use App\Entity\TreeDocument;
 use App\Message\Document\IndexDocumentMessage;
 use App\Repository\TreeDocumentRepository;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\AI\Store\Document\Loader\MarkdownLoader;
 use Symfony\AI\Store\Document\Loader\TextFileLoader;
@@ -39,16 +40,10 @@ final readonly class IndexDocumentMessageHandler
         $lock = $this->locks->createLock('document-' . $message->documentId);
         $lock->acquire(true);
         try {
-            $document = $this->documents->find($message->documentId);
-            if ($document instanceof TreeDocument) {
-                $this->entityManager->refresh($document);
-            }
-            if (!$document instanceof TreeDocument || $document->isDeleted()
-                || $message->generation !== $document->getGeneration() || 'ready' === $document->getStatus()) {
+            $document = $this->transition($message, 'processing');
+            if (null === $document) {
                 return;
             }
-            $document->transition('processing', $this->clock->now());
-            $this->entityManager->flush();
             try {
                 $this->vectors->setup();
                 $this->vectors->remove($message->documentId);
@@ -56,25 +51,30 @@ final readonly class IndexDocumentMessageHandler
                     $this->chunks($document),
                     ['chunk_size' => 16],
                 );
-                $this->entityManager->refresh($document);
-                if ($document->isDeleted() || $message->generation !== $document->getGeneration()) {
+                if (null === $this->transition($message, 'ready')) {
                     $this->vectors->remove($message->documentId, $message->generation);
-
-                    return;
                 }
-                $document->transition('ready', $this->clock->now());
-                $this->entityManager->flush();
             } catch (\Throwable $error) {
-                $this->entityManager->refresh($document);
-                if (!$document->isDeleted() && $message->generation === $document->getGeneration()) {
-                    $document->transition('failed', $this->clock->now(), 'DOCUMENT_INDEX_FAILED');
-                    $this->entityManager->flush();
-                }
+                $this->transition($message, 'failed', 'DOCUMENT_INDEX_FAILED');
                 throw $error;
             }
         } finally {
             $lock->release();
         }
+    }
+
+    private function transition(IndexDocumentMessage $message, string $status, ?string $error = null): ?TreeDocument
+    {
+        return $this->entityManager->wrapInTransaction(function () use ($message, $status, $error): ?TreeDocument {
+            $document = $this->documents->find($message->documentId, LockMode::PESSIMISTIC_WRITE);
+            if (null === $document || $document->isDeleted() || $document->getGeneration() !== $message->generation
+                || 'ready' === $document->getStatus()) {
+                return null;
+            }
+            $document->transition($status, $this->clock->now(), $error);
+
+            return $document;
+        });
     }
 
     /** @return iterable<TextDocument> */
@@ -92,6 +92,14 @@ final readonly class IndexDocumentMessageHandler
             }
             $loader = 'text/markdown' === $document->getMimeType() ? new MarkdownLoader() : new TextFileLoader();
             $chunks = (new TextSplitTransformer(1000, 200))->transform($loader->load($path));
+            $context = [];
+            if (null !== $document->getTitle()) {
+                $context[] = 'Title: ' . $document->getTitle();
+            }
+            if (null !== $document->getDescription()) {
+                $context[] = 'Description: ' . $document->getDescription();
+            }
+            $prefix = [] === $context ? '' : implode("\n", $context) . "\n\n";
             $index = 0;
             foreach ($chunks as $chunk) {
                 if (!$chunk instanceof TextDocument) {
@@ -99,7 +107,7 @@ final readonly class IndexDocumentMessageHandler
                 }
                 yield new TextDocument(
                     Uuid::v5($document->getId(), $document->getGeneration() . ':' . $index)->toRfc4122(),
-                    (string)$chunk->getContent(),
+                    $prefix . $chunk->getContent(),
                     new Metadata(
                         [
                             'documentId'       => $document->getId()->toRfc4122(),

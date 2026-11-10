@@ -18,15 +18,21 @@ final class TreeDocumentRepository extends ServiceEntityRepository
     }
 
     /** @return list<TreeDocument> */
-    public function page(FamilyTree $tree, ?Person $person, string $scope, ?string $after, int $limit): array
-    {
+    public function page(
+        FamilyTree $tree,
+        ?Person $person,
+        string $scope,
+        ?string $after,
+        int $limit,
+        bool $newestFirst = false,
+    ): array {
         $query = $this->createQueryBuilder('d')
             ->addSelect('p')
             ->leftJoin('d.person', 'p')
             ->where('d.tree = :tree')
             ->andWhere('d.deleted = false')
             ->setParameter('tree', $tree)
-            ->orderBy('d.id', 'ASC')
+            ->orderBy('d.id', $newestFirst ? 'DESC' : 'ASC')
             ->setMaxResults($limit);
         if ('tree' === $scope) {
             $query->andWhere('d.person IS NULL');
@@ -37,7 +43,7 @@ final class TreeDocumentRepository extends ServiceEntityRepository
         }
         if (null !== $after) {
             $query
-                ->andWhere('d.id > :after')
+                ->andWhere($newestFirst ? 'd.id < :after' : 'd.id > :after')
                 ->setParameter('after', $after);
         }
 

@@ -64,6 +64,8 @@ class TreeDocument
         int $originalSizeBytes,
         string $checksum,
         \DateTimeImmutable $now,
+        #[ORM\Column(length: 255, nullable: true)] private ?string $title = null,
+        #[ORM\Column(length: 2000, nullable: true)] private ?string $description = null,
     ) {
         if (null !== $person && !$person->getTree()->getId()->equals($tree->getId())) {
             throw new \InvalidArgumentException('Document person must belong to its tree.');
@@ -102,6 +104,28 @@ class TreeDocument
     public function getOriginalName(): string
     {
         return $this->originalName;
+    }
+
+    public function getTitle(): ?string
+    {
+        return $this->title;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function changeMetadata(?string $title, ?string $description, \DateTimeImmutable $now): bool
+    {
+        if ($this->title === $title && $this->description === $description) {
+            return false;
+        }
+        $this->title = $title;
+        $this->description = $description;
+        $this->queued($now);
+
+        return true;
     }
 
     public function getMimeType(): string

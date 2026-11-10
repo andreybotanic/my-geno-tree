@@ -16,6 +16,7 @@ paths:
         - { name: personId, in: query, schema: { type: string, format: uuid }, description: Includes this person's documents and shared tree documents unless scope=person selects only personal documents. }
         - { name: scope, in: query, schema: { type: string, enum: [all, tree, person], default: all }, description: The person scope requires personId; the tree scope selects only shared documents. }
         - { name: cursor, in: query, schema: { type: string, format: uuid } }
+        - { name: newestFirst, in: query, schema: { type: boolean, default: false }, description: Show newly uploaded documents on the first page. Keep the same order when following a cursor. }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
         200:
@@ -41,6 +42,8 @@ paths:
               properties:
                 file: { type: string, format: binary, description: UTF-8 TXT or Markdown up to 10 MiB. }
                 personId: { type: string, format: uuid }
+                title: { type: string, maxLength: 255 }
+                description: { type: string, maxLength: 2000 }
       responses:
         202:
           description: Original saved; indexing queued or queue error reported in document status.
@@ -64,8 +67,8 @@ paths:
       - $ref: '#/components/parameters/TreeId'
       - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
     patch:
-      operationId: changeTreeDocumentAttachment
-      description: Change the person attachment without changing the original file or its search index.
+      operationId: updateTreeDocument
+      description: Update the supplied fields. A change to title or description queues a new search index generation.
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -76,12 +79,14 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [personId]
+              minProperties: 1
               properties:
                 personId: { type: [string, 'null'], format: uuid, description: A person in this tree, or null for a shared document. }
+                title: { type: [string, 'null'], maxLength: 255 }
+                description: { type: [string, 'null'], maxLength: 2000 }
       responses:
         200:
-          description: Updated attachment; unchanged indexing generation and status.
+          description: Saved document and current indexing status.
           headers:
             ETag: { $ref: '#/components/headers/TreeEtag' }
           content:
@@ -2098,12 +2103,14 @@ components:
     TreeDocument:
       type: object
       additionalProperties: false
-      required: [id, treeId, personId, originalName, mimeType, originalSizeBytes, status, errorCode, createdAt, updatedAt, downloadUrl]
+      required: [id, treeId, personId, originalName, title, description, mimeType, originalSizeBytes, status, errorCode, createdAt, updatedAt, downloadUrl]
       properties:
         id: { type: string, format: uuid }
         treeId: { type: string, format: uuid }
         personId: { type: [string, 'null'], format: uuid }
         originalName: { type: string, maxLength: 255 }
+        title: { type: [string, 'null'], maxLength: 255 }
+        description: { type: [string, 'null'], maxLength: 2000 }
         mimeType: { type: string, enum: [text/plain, text/markdown] }
         originalSizeBytes: { type: integer, minimum: 1, maximum: 10485760, description: Server-measured original byte count before BOM removal or other processing. }
         status: { type: string, enum: [queued, processing, ready, failed] }

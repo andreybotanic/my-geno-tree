@@ -1,0 +1,169 @@
+import { memo, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
+import type { TreeDocument, TreeSnapshot, UpdateTreeDocumentResponse } from '../api/generated'
+import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
+import { formatPersonName } from '../personFormatting'
+import { DocumentModal } from './DocumentModal'
+
+type Props = {
+  document: TreeDocument | null
+  snapshot: TreeSnapshot
+  personId: string | undefined
+  version: string
+  request: AuthorizedJsonRequest
+  requestBlob: AuthorizedBlobRequest
+  onClose: () => void
+  onRefresh: () => Promise<{ etag: string; document: TreeDocument | undefined }>
+  onSaved: (item: TreeDocument, version: string) => void
+}
+
+const DocumentContents = memo(function DocumentContents({ url, markdown, requestBlob }: {
+  url: string; markdown: boolean; requestBlob: AuthorizedBlobRequest
+}) {
+  const { t } = useTranslation()
+  const [text, setText] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  const pending = useRef<{ url: string; attempt: number; text: Promise<string> } | null>(null)
+  useEffect(() => {
+    let active = true
+    if (!pending.current || pending.current.url !== url || pending.current.attempt !== attempt) {
+      pending.current = { url, attempt, text: requestBlob(url).then((blob) => blob.text()) }
+    }
+    void pending.current.text.then((value) => {
+      if (active) setText(value)
+    }).catch((caught: unknown) => { if (active) setError(documentErrorKey(caught)) })
+    return () => { active = false }
+  }, [url, requestBlob, attempt])
+  return <section className="document-preview" aria-label={t('documents.contents')}>
+    <h3>{t('documents.contents')}</h3>
+    {error ? <div role="alert">{t(error)} <button type="button" className="secondary-button compact-button"
+      onClick={() => { setError(''); setAttempt(attempt + 1) }}>{t('documents.reload')}</button></div>
+      : text === null ? <p role="status">{t('common.loading')}</p>
+      : <div className="document-preview-text" tabIndex={0}>
+        {markdown ? <Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: ({ alt }) => alt ?? null }}>
+          {text}
+        </Markdown> : <pre>{text}</pre>}
+      </div>}
+  </section>
+})
+
+export function DocumentForm({ document: item, snapshot, personId, version, request, requestBlob,
+  onClose, onRefresh, onSaved }: Props) {
+  const { t, i18n } = useTranslation()
+  const [file, setFile] = useState<File | null>(null)
+  const [baseline, setBaseline] = useState({ title: item?.title ?? '', description: item?.description ?? '' })
+  const [title, setTitle] = useState(baseline.title)
+  const [description, setDescription] = useState(baseline.description)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const etag = useRef(version)
+  const [conflict, setConflict] = useState(false)
+  const changed = title.trim() !== baseline.title || description.trim() !== baseline.description
+  const language = i18n.resolvedLanguage ?? 'en'
+  const person = snapshot.people.find((entry) => entry.id === item?.personId)
+  const date = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' })
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy || conflict || (item ? !changed : !file)) return
+    setError('')
+    setSaved(false)
+    setBusy(true)
+    try {
+      const base = `/trees/${snapshot.tree.id}/documents`
+      let body: FormData | string
+      if (item) {
+        const patch: { title?: string | null; description?: string | null } = {}
+        if (title.trim() !== baseline.title) patch.title = title.trim() || null
+        if (description.trim() !== baseline.description) patch.description = description.trim() || null
+        body = JSON.stringify(patch)
+      } else {
+        const form = new FormData()
+        form.set('file', file!)
+        if (title.trim()) form.set('title', title.trim())
+        if (description.trim()) form.set('description', description.trim())
+        if (personId) form.set('personId', personId)
+        body = form
+      }
+      const result = await request<UpdateTreeDocumentResponse>(item ? base + '/' + item.id : base, {
+        method: item ? 'PATCH' : 'POST', headers: { 'If-Match': etag.current }, body,
+      })
+      etag.current = result.etag
+      setTitle(result.document.title ?? '')
+      setDescription(result.document.description ?? '')
+      setBaseline({ title: result.document.title ?? '', description: result.document.description ?? '' })
+      setSaved(true)
+      onSaved(result.document, result.etag)
+    } catch (caught) {
+      const key = documentErrorKey(caught)
+      setError(key)
+      setConflict(key === 'documents.errors.conflict')
+    }
+    finally { setBusy(false) }
+  }
+
+  return <DocumentModal title={t(item ? 'documents.details' : 'documents.addDocument')}
+    className={item ? 'document-detail-dialog' : 'document-upload-dialog'} onClose={() => { if (!busy) onClose() }}>
+    <form className="document-form" onSubmit={(event) => { void submit(event) }}>
+      {!item && <label className="form-field">{t('documents.file')}
+        <input type="file" aria-required="true" accept=".txt,.md,text/plain,text/markdown" disabled={busy}
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+        <small>{t('documents.hint')}</small>
+      </label>}
+      <label className="form-field">{t('documents.name')}
+        <input value={title} maxLength={255} disabled={busy}
+          onChange={(event) => { setTitle(event.target.value); setSaved(false) }} />
+      </label>
+      <label className="form-field">{t('documents.description')}
+        <textarea value={description} maxLength={2000} rows={3} disabled={busy}
+          onChange={(event) => { setDescription(event.target.value); setSaved(false) }} />
+      </label>
+      <div className="document-form-actions">
+        <button type="submit" className="primary-button" disabled={busy || conflict || (item ? !changed : !file)}>
+          {t(item ? 'common.save' : 'documents.submitUpload')}
+        </button>
+        {item && <button type="button" className="secondary-button" onClick={() => {
+          void downloadDocument(requestBlob, item.downloadUrl, item.originalName)
+            .catch((caught: unknown) => setError(documentErrorKey(caught)))
+        }}>{t('documents.download')}</button>}
+        {saved && <span role="status">{t('documents.saved')}</span>}
+      </div>
+      {error && <div role="alert" className="documents-error">{t(error)} {conflict &&
+        <button type="button" className="secondary-button compact-button" disabled={busy} onClick={async () => {
+          setBusy(true)
+          try {
+            const fresh = await onRefresh()
+            if (item && !fresh.document) { setError('documents.errors.access'); return }
+            etag.current = fresh.etag
+            const next = { title: fresh.document?.title ?? '', description: fresh.document?.description ?? '' }
+            if (title.trim() === baseline.title) setTitle(next.title)
+            if (description.trim() === baseline.description) setDescription(next.description)
+            setBaseline(next)
+            setConflict(false)
+            setError('')
+          }
+          catch (caught) { setError(documentErrorKey(caught)) }
+          finally { setBusy(false) }
+        }}>{t('documents.reload')}</button>}</div>}
+    </form>
+    {item && <>
+      <dl className="document-details">
+        <div><dt>{t('documents.file')}</dt><dd>{item.originalName}</dd></div>
+        <div><dt>{t('documents.type')}</dt><dd>{item.mimeType === 'text/markdown' ? 'Markdown' : 'TXT'}</dd></div>
+        <div><dt>{t('documents.size')}</dt><dd>{formatDocumentSize(item.originalSizeBytes, language)}</dd></div>
+        <div><dt>{t('documents.attachedTo')}</dt><dd>{person ? formatPersonName(person, t) : t('documents.shared')}</dd></div>
+        <div><dt>{t('documents.created')}</dt><dd>{date.format(new Date(item.createdAt))}</dd></div>
+        <div><dt>{t('documents.updated')}</dt><dd>{date.format(new Date(item.updatedAt))}</dd></div>
+        <div><dt>{t('documents.indexing')}</dt><dd role="status">{t(`documents.status.${item.status}`)}</dd></div>
+      </dl>
+      {item.errorCode && <p className="documents-error">{t(item.errorCode === 'DOCUMENT_QUEUE_UNAVAILABLE'
+        ? 'documents.errors.queue' : 'documents.errors.index')}</p>}
+      <DocumentContents url={item.downloadUrl} markdown={item.mimeType === 'text/markdown'} requestBlob={requestBlob} />
+    </>}
+  </DocumentModal>
+}

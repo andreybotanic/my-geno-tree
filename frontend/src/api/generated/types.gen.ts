@@ -9,6 +9,8 @@ export type TreeDocument = {
     treeId: string;
     personId: string | null;
     originalName: string;
+    title: string | null;
+    description: string | null;
     mimeType: 'text/plain' | 'text/markdown';
     /**
      * Server-measured original byte count before BOM removal or other processing.
@@ -978,6 +980,10 @@ export type ListTreeDocumentsData = {
          */
         scope?: 'all' | 'tree' | 'person';
         cursor?: string;
+        /**
+         * Show newly uploaded documents on the first page. Keep the same order when following a cursor.
+         */
+        newestFirst?: boolean;
         limit?: number;
     };
     url: '/trees/{treeId}/documents';
@@ -1016,6 +1022,8 @@ export type UploadTreeDocumentData = {
          */
         file: Blob | File;
         personId?: string;
+        title?: string;
+        description?: string;
     };
     headers: {
         /**
@@ -1111,12 +1119,14 @@ export type DeleteTreeDocumentResponses = {
 
 export type DeleteTreeDocumentResponse = DeleteTreeDocumentResponses[keyof DeleteTreeDocumentResponses];
 
-export type ChangeTreeDocumentAttachmentData = {
+export type UpdateTreeDocumentData = {
     body: {
         /**
          * A person in this tree
          */
-        personId: string | null;
+        personId?: string | null;
+        title?: string | null;
+        description?: string | null;
     };
     headers: {
         /**
@@ -1132,7 +1142,7 @@ export type ChangeTreeDocumentAttachmentData = {
     url: '/trees/{treeId}/documents/{documentId}';
 };
 
-export type ChangeTreeDocumentAttachmentErrors = {
+export type UpdateTreeDocumentErrors = {
     /**
      * Invalid JSON or request wire type
      */
@@ -1159,11 +1169,11 @@ export type ChangeTreeDocumentAttachmentErrors = {
     422: ApiError;
 };
 
-export type ChangeTreeDocumentAttachmentError = ChangeTreeDocumentAttachmentErrors[keyof ChangeTreeDocumentAttachmentErrors];
+export type UpdateTreeDocumentError = UpdateTreeDocumentErrors[keyof UpdateTreeDocumentErrors];
 
-export type ChangeTreeDocumentAttachmentResponses = {
+export type UpdateTreeDocumentResponses = {
     /**
-     * Updated attachment; unchanged indexing generation and status.
+     * Saved document and current indexing status.
      */
     200: {
         document: TreeDocument;
@@ -1171,7 +1181,7 @@ export type ChangeTreeDocumentAttachmentResponses = {
     };
 };
 
-export type ChangeTreeDocumentAttachmentResponse = ChangeTreeDocumentAttachmentResponses[keyof ChangeTreeDocumentAttachmentResponses];
+export type UpdateTreeDocumentResponse = UpdateTreeDocumentResponses[keyof UpdateTreeDocumentResponses];
 
 export type DownloadTreeDocumentData = {
     body?: never;

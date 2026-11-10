@@ -50,6 +50,7 @@ final class DocumentController extends AbstractController
             $scope,
             $request->query->get('cursor'),
             (int)$limit,
+            $request->query->getBoolean('newestFirst'),
         );
     }
 
@@ -58,7 +59,8 @@ final class DocumentController extends AbstractController
     public function upload(Request $request, #[MapEntity(id: 'treeId')] FamilyTree $tree): JsonResponse
     {
         $file = $request->files->get('file');
-        $personId = $request->request->get('personId');
+        $form = $request->request->all();
+        $personId = $form['personId'] ?? null;
         if (null !== $personId && !is_string($personId)) {
             throw new ApiException(422, 'DOCUMENT_UPLOAD_INVALID');
         }
@@ -67,6 +69,8 @@ final class DocumentController extends AbstractController
             is_string($personId) && '' !== $personId ? $personId : null,
             $file instanceof UploadedFile ? $file : null,
             $request->headers->get('If-Match'),
+            $form['title'] ?? null,
+            $form['description'] ?? null,
         );
         $etag = $this->versions->etag($tree);
 
@@ -77,21 +81,18 @@ final class DocumentController extends AbstractController
         );
     }
 
-    #[Route('/{documentId}', name: 'api_documents_change_attachment', methods: ['PATCH'])]
+    #[Route('/{documentId}', name: 'api_documents_update', methods: ['PATCH'])]
     #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
-    public function changeAttachment(
+    public function update(
         Request $request,
         #[MapEntity(id: 'treeId')] FamilyTree $tree,
         string $documentId,
     ): JsonResponse {
         $input = $this->requestBody->decodeObject($request);
-        if (['personId'] !== array_keys($input) || (null !== $input['personId'] && !is_string($input['personId']))) {
-            throw new ApiException(422, 'DOCUMENT_ATTACHMENT_INVALID');
-        }
-        $document = $this->documents->changeAttachment(
+        $document = $this->documents->update(
             $tree,
             $documentId,
-            $input['personId'],
+            $input,
             $request->headers->get('If-Match'),
         );
         $etag = $this->versions->etag($tree);

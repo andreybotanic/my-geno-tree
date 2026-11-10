@@ -1,10 +1,10 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiRequestError, type AuthorizedJsonRequest } from '../api/client'
 import type { Person, TreeDocument, TreeSnapshot } from '../api/generated'
 import { emptySnapshot } from '../test/chatFixtures'
 import i18n from '../i18n'
-import { DocumentsPanel } from './DocumentsPanel'
 import { DocumentsButton } from './DocumentsButton'
 import { DocumentsDialog } from './DocumentsDialog'
 
@@ -18,7 +18,7 @@ const person: Person = {
 const snapshot: TreeSnapshot = { ...emptySnapshot, tree: { ...emptySnapshot.tree, id: treeId }, people: [person] }
 const document: TreeDocument = {
   id: '019861c4-6a93-7a2e-8ca8-51813740d4a7', treeId, personId: null,
-  originalName: 'letter.txt', originalSizeBytes: 1234, mimeType: 'text/plain', status: 'ready', errorCode: null,
+  title: null, description: null, originalName: 'letter.txt', originalSizeBytes: 1234, mimeType: 'text/plain', status: 'ready', errorCode: null,
   createdAt: '2026-11-09T00:00:00Z', updatedAt: new Date().toISOString(),
   downloadUrl: `/trees/${treeId}/documents/019861c4-6a93-7a2e-8ca8-51813740d4a7/download`,
 }
@@ -29,7 +29,7 @@ function mount(handler: (path: string, init?: RequestInit) => Promise<unknown>, 
   const request = vi.fn(handler)
   const requestBlob = vi.fn(async () => new Blob(['original']))
   const onChanged = vi.fn(async () => {})
-  const result = render(<DocumentsPanel snapshot={snapshot} request={request as AuthorizedJsonRequest}
+  const result = render(<DocumentsDialog onClose={vi.fn()} snapshot={snapshot} request={request as AuthorizedJsonRequest}
     requestBlob={requestBlob} onChanged={onChanged} {...(personId ? { personId } : {})} />)
   return { ...result, request, requestBlob, onChanged }
 }
@@ -141,7 +141,7 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
     await waitFor(() => expect(setup.request).toHaveBeenCalledWith(expect.stringContaining('scope=person&personId=' + person.id)))
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
-    await waitFor(() => expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?`))
+    await waitFor(() => expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?newestFirst=true`))
   })
 
   it('keeps loading feedback inside the list and the view switch usable during a delayed scope change', async () => {
@@ -168,29 +168,27 @@ describe('document lists and upload lifecycle', () => {
     expect(view).toBeChecked()
   })
 
-  it('uploads several files independently with current ETags and a person target', async () => {
-    let count = 0
-    const setup = mount(async (_path, init) => {
-      if (init?.method === 'POST') {
-        ++count
-        if (count === 2) throw failure(422, 'DOCUMENT_CONTENT_INVALID')
-        return { document, etag: count === 1 ? 'second-etag' : 'third-etag' }
-      }
-      return { items: [], nextCursor: null, etag: 'etag' }
-    }, person.id)
+  it('uploads one file explicitly and returns the saved title to the previous list', async () => {
+    const setup = mount(async (_path, init) => init?.method === 'POST'
+      ? { document: { ...document, title: 'Archive', description: 'Letters' }, etag: 'next' }
+      : { items: [], nextCursor: null, etag: 'etag' }, person.id)
     await screen.findByText('No documents yet.')
-    fireEvent.change(screen.getByLabelText('Choose files'), {
-      target: { files: [new File(['a'], 'one.txt'), new File(['b'], 'bad.pdf'), new File(['c'], 'three.md')] },
-    })
-    await waitFor(() => expect(setup.onChanged).toHaveBeenCalledOnce())
-    expect(screen.getByText(/bad.pdf: Use a nonempty/)).toBeInTheDocument()
-    expect(screen.getByText('one.txt: Saved')).toBeInTheDocument()
-    expect(screen.getByText('three.md: Saved')).toBeInTheDocument()
-    const uploads = setup.request.mock.calls.filter(([, init]) => init?.method === 'POST')
-    expect(uploads.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['etag', 'second-etag', 'second-etag'])
-    expect((uploads[0]![1]!.body as FormData).get('personId')).toBe(person.id)
-    expect(screen.getByRole('switch', { name: 'Show documents' })).not.toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Show documents' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('switch', { name: 'Document view' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled()
+    const file = screen.getByLabelText(/^File/)
+    expect(file).not.toHaveAttribute('multiple')
+    await userEvent.upload(file as HTMLInputElement, new File(['text'], 'one.txt'))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Archive' } })
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Letters' } })
+    expect(setup.request.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+    expect(await screen.findByText('Archive')).toBeVisible()
+    expect(screen.getByRole('switch', { name: 'Document view' })).toBeChecked()
+    const upload = setup.request.mock.calls.find(([, init]) => init?.method === 'POST')![1]!
+    expect((upload.body as FormData).get('personId')).toBe(person.id)
+    expect((upload.body as FormData).get('description')).toBe('Letters')
+    expect((upload.body as FormData).get('title')).toBe('Archive')
   })
 
   it('changes each document attachment with consecutive ETags and retains the list view', async () => {
@@ -237,25 +235,40 @@ describe('document lists and upload lifecycle', () => {
     expect(setup.onChanged).toHaveBeenCalledOnce()
   })
 
-  it('stops the remaining uploads after a version conflict and offers refresh', async () => {
-    let count = 0
+  it('preserves the draft on conflict, rebases untouched fields and saves inside the editor', async () => {
+    let item = { ...document, mimeType: 'text/markdown' as const, description: 'Old' }
+    let version = 'etag'
     const setup = mount(async (_path, init) => {
-      if (init?.method === 'POST') {
-        if (++count === 2) throw failure(412, 'TREE_VERSION_CONFLICT')
-        return { document, etag: 'next' }
+      if (init?.method === 'PATCH') {
+        if (new Headers(init.headers).get('If-Match') !== version) throw failure(412, 'TREE_VERSION_CONFLICT')
+        item = { ...item, ...JSON.parse(String(init.body)) as Partial<typeof item> }
+        return { document: item, etag: 'saved' }
       }
-      return { items: [], nextCursor: null, etag: 'etag' }
+      return { items: [item], nextCursor: null, etag: version }
     })
-    await screen.findByText('No documents yet.')
-    fireEvent.change(screen.getByLabelText('Choose files'), {
-      target: { files: [new File(['a'], 'one.txt'), new File(['b'], 'two.txt'), new File(['c'], 'three.txt')] },
-    })
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The tree changed'))
-    expect(count).toBe(2)
-    expect(screen.queryByText('three.txt: Saved')).not.toBeInTheDocument()
+    setup.requestBlob.mockResolvedValue(new Blob(['# Letter\n\n| A | B |\n|---|---|\n|1|2|\n\n![alt](https://invalid.test/image)']))
+    await screen.findByText('letter.txt')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByRole('heading', { name: 'Letter' })).toBeVisible()
+    expect(screen.getByRole('table')).toBeVisible()
+    expect(screen.queryByRole('img')).toBeNull()
+    const title = screen.getByLabelText('Name')
+    fireEvent.change(title, { target: { value: 'Draft' } })
+    version = 'concurrent'
+    item = { ...item, description: 'Edited elsewhere' }
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
+    expect(title).toHaveValue('Draft')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-    expect(setup.onChanged).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.getByLabelText('Description')).toHaveValue('Edited elsewhere'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Saved')).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Document details' })).toBeVisible()
+    expect(setup.requestBlob).toHaveBeenCalledOnce()
+    fireEvent.change(title, { target: { value: 'Discarded' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    expect(screen.getByText('Draft')).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toHaveFocus())
   })
 
   it('marks unindexed documents and confirms icon deletion without a custom retry', async () => {
@@ -287,7 +300,9 @@ describe('document lists and upload lifecycle', () => {
       return { items: [document], nextCursor: null, etag: 'etag' }
     })
     await screen.findByText('letter.txt')
-    fireEvent.change(screen.getByLabelText('Choose files'), { target: { files: [new File(['a'], 'bad.txt')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await userEvent.upload(screen.getByLabelText(/^File/) as HTMLInputElement, new File(['a'], 'bad.txt'))
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
     expect((await screen.findAllByText(new RegExp(text))).length).toBeGreaterThan(0)
     expect(setup.request).toHaveBeenCalled()
   })
@@ -295,18 +310,17 @@ describe('document lists and upload lifecycle', () => {
   it('polls statuses, reports a failed list load and a failed queue publish', async () => {
     let loads = 0
     const setup = mount(async (_path, init) => {
-      if (init?.method === 'POST') return { document: { ...document, status: 'failed' }, etag: 'next' }
+      if (init?.method === 'POST') return { document: { ...document, status: 'failed', errorCode: 'DOCUMENT_QUEUE_UNAVAILABLE' }, etag: 'next' }
       if (++loads === 1) throw failure(404, 'NOT_FOUND')
       return { items: [{ ...document, status: 'processing' }], nextCursor: null, etag: 'etag' }
     })
     expect(await screen.findByRole('alert')).toHaveTextContent('These documents are unavailable')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await screen.findByRole('status', { name: 'Indexing' })
-    fireEvent.change(screen.getByLabelText('Choose files'), { target: { files: [new File(['a'], 'one.txt')] } })
-    expect(await screen.findByText(/one.txt: The file is saved, but indexing could not be queued/)).toBeInTheDocument()
-    vi.useFakeTimers()
-    await act(async () => { await vi.advanceTimersByTimeAsync(3001) })
-    vi.useRealTimers()
-    expect(setup.request.mock.calls.length).toBeGreaterThan(3)
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await userEvent.upload(screen.getByLabelText(/^File/) as HTMLInputElement, new File(['a'], 'one.txt'))
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+    expect(await screen.findByRole('status', { name: 'Processing failed' })).toHaveAttribute('title', expect.stringContaining('could not be queued'))
+    await waitFor(() => expect(setup.request.mock.calls.length).toBeGreaterThan(3), { timeout: 4500 })
   })
 })

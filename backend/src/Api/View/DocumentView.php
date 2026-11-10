@@ -14,6 +14,8 @@ final readonly class DocumentView
         #[Map(source: 'tree.id')] public Uuid $treeId,
         #[Map(source: 'person?.id')] public ?Uuid $personId,
         public string $originalName,
+        public ?string $title,
+        public ?string $description,
         public string $mimeType,
         public int $originalSizeBytes,
         public string $status,
