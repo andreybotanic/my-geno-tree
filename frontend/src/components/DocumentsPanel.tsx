@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiRequestError, type AuthorizedBlobRequest, type AuthorizedJsonRequest } from '../api/client'
-import type { DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
+import type { ChangeTreeDocumentAttachmentResponse, DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
 import { downloadDocument, formatDocumentSize } from '../documents'
 import DownloadIcon from '../assets/icons/export.svg?react'
 import GridIcon from '../assets/icons/view-grid.svg?react'
@@ -34,7 +34,7 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
   const base = `/trees/${snapshot.tree.id}/documents`
   const [filter, setFilter] = useState<'all' | 'person'>('all')
   const [view, setView] = useState<'tiles' | 'list'>('tiles')
-  const [personalUpload, setPersonalUpload] = useState(Boolean(personId))
+  const [changingAttachment, setChangingAttachment] = useState<string | null>(null)
   const [items, setItems] = useState<TreeDocument[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -82,11 +82,10 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
     }
   }, [base, filter, personId, request])
 
-  useEffect(() => { pageCount.current = 1 }, [filter, personId])
+  useEffect(() => { pageCount.current = 1; setLoading(true) }, [base, filter, personId])
 
   useEffect(() => {
     const requests = sequence;
-    setLoading(true)
     void load()
     const timer = window.setInterval(() => {
       if (!working.current) void load()
@@ -104,7 +103,7 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
       try {
         const form = new FormData()
         form.set('file', file)
-        if (personalUpload && personId) form.set('personId', personId)
+        if (personId) form.set('personId', personId)
         const result = await request<{ document: TreeDocument; etag: string }>(base, {
           method: 'POST', body: form, headers: { 'If-Match': etag.current },
         })
@@ -142,16 +141,29 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
     finally { working.current = false; setBusy(false) }
   }
 
+  const changeAttachment = async (item: TreeDocument) => {
+    working.current = true
+    setBusy(true)
+    setChangingAttachment(item.id)
+    setError('')
+    try {
+      const result = await request<ChangeTreeDocumentAttachmentResponse>(base + '/' + item.id, {
+        method: 'PATCH',
+        body: JSON.stringify({ personId: item.personId ? null : personId ?? null }),
+        headers: { 'If-Match': etag.current },
+      })
+      etag.current = result.etag
+      setItems((current) => current.map((document) => document.id === item.id ? result.document : document))
+      await onChanged()
+      await load()
+    } catch (caught) { setError(errorKey(caught)) }
+    finally { working.current = false; setBusy(false); setChangingAttachment(null) }
+  }
+
   return <section className="documents-panel" aria-label={t('documents.title')}>
     <div className="documents-upload-box">
       <p className="documents-hint">{t('documents.hint')}</p>
       <div className="documents-controls">
-        <button type="button" role="switch" className="document-switch document-upload-target"
-          aria-label={t('documents.attachTo')} aria-checked={personalUpload} disabled={busy || !personId}
-          onClick={() => setPersonalUpload((current) => !current)}>
-          <span className="document-switch-option" aria-hidden="true">{t('documents.shared')}</span>
-          <span className="document-switch-option" aria-hidden="true">{t('documents.personalFile')}</span>
-        </button>
         <label className="form-field documents-file-label" htmlFor={inputId}>
           <span className="file-picker documents-file-picker">
             <span className="file-picker-button">
@@ -169,7 +181,7 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
           </span>
         </label>
       </div>
-    {busy && <p role="status">{t('documents.saving')}</p>}
+    {busy && !changingAttachment && <p role="status">{t('documents.saving')}</p>}
     {results.length > 0 && <ul className="document-upload-results" aria-label={t('documents.results')}>
       {results.map((result, index) => <li key={index}>{result.name}: {t(result.error ?? 'documents.saved')}</li>)}
     </ul>}
@@ -202,15 +214,21 @@ export function DocumentsPanel({ snapshot, personId, request, requestBlob, onCha
           <strong className="document-title"><span className="document-name" title={item.originalName}>{item.originalName}</span>
             <span className="document-size">({formatDocumentSize(item.originalSizeBytes, i18n.resolvedLanguage ?? 'en')})</span>
           </strong>
-          {(item.personId || item.status !== 'ready') && <div className="document-metadata">
-            {item.personId && <span className="document-personal-badge">{t('documents.personalFile')}</span>}
-            {item.status !== 'ready' && <span role="status" className={`document-status document-status-${item.status}`}
+          {item.status !== 'ready' && <div className="document-metadata">
+            <span role="status" className={`document-status document-status-${item.status}`}
               aria-label={t(`documents.status.${item.status}`)} title={[
                 t(`documents.status.${item.status}`),
                 item.errorCode ? t(item.errorCode === 'DOCUMENT_QUEUE_UNAVAILABLE' ? 'documents.errors.queue' : 'documents.errors.index') : '',
-              ].filter(Boolean).join(' · ')}>{t('documents.notIndexed')}</span>}
+              ].filter(Boolean).join(' · ')}>{t('documents.notIndexed')}</span>
           </div>}
           </div>
+          <button type="button" role="switch" className="document-switch document-attachment-switch"
+            aria-label={t('documents.attachment', { name: item.originalName })} aria-checked={Boolean(item.personId)}
+            aria-busy={changingAttachment === item.id} disabled={busy || (!item.personId && !personId)}
+            onClick={() => { void changeAttachment(item) }}>
+            <span className="document-switch-option" aria-hidden="true">{t('documents.shared')}</span>
+            <span className="document-switch-option" aria-hidden="true">{t('documents.personalDocument')}</span>
+          </button>
           <div className="document-actions">
             <button type="button" className="secondary-button compact-button" aria-label={t('documents.download')}
               onClick={() => { void downloadDocument(requestBlob, item.downloadUrl, item.originalName).catch((caught: unknown) => setError(errorKey(caught))) }}>

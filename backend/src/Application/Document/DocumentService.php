@@ -121,6 +121,29 @@ final readonly class DocumentService
         return $this->files->contents($document->getStoragePath());
     }
 
+    public function changeAttachment(
+        FamilyTree $tree,
+        string $id,
+        ?string $personId,
+        ?string $ifMatch,
+    ): TreeDocument {
+        return $this->entityManager->wrapInTransaction(
+            function () use ($tree, $id, $personId, $ifMatch): TreeDocument {
+                $this->lock($tree, $ifMatch);
+                $document = $this->require($tree, $id);
+                $person = null === $personId ? null : $this->people->require($tree, $personId);
+                if ($document->getPerson() === $person) {
+                    return $document;
+                }
+                $now = $this->clock->now();
+                $document->attachTo($person, $now);
+                $tree->touch($now);
+
+                return $document;
+            }
+        );
+    }
+
     public function delete(FamilyTree $tree, string $id, ?string $ifMatch): void
     {
         $document = $this->entityManager->wrapInTransaction(

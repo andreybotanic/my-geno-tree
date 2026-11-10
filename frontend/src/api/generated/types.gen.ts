@@ -1111,6 +1111,68 @@ export type DeleteTreeDocumentResponses = {
 
 export type DeleteTreeDocumentResponse = DeleteTreeDocumentResponses[keyof DeleteTreeDocumentResponses];
 
+export type ChangeTreeDocumentAttachmentData = {
+    body: {
+        /**
+         * A person in this tree
+         */
+        personId: string | null;
+    };
+    headers: {
+        /**
+         * ETag returned by the latest tree representation
+         */
+        'If-Match': string;
+    };
+    path: {
+        treeId: string;
+        documentId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents/{documentId}';
+};
+
+export type ChangeTreeDocumentAttachmentErrors = {
+    /**
+     * Invalid JSON or request wire type
+     */
+    400: ApiError;
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+    /**
+     * If-Match does not match the current tree version
+     */
+    412: ApiError;
+    /**
+     * JSON body required.
+     */
+    415: unknown;
+    /**
+     * One or more fields are invalid
+     */
+    422: ApiError;
+};
+
+export type ChangeTreeDocumentAttachmentError = ChangeTreeDocumentAttachmentErrors[keyof ChangeTreeDocumentAttachmentErrors];
+
+export type ChangeTreeDocumentAttachmentResponses = {
+    /**
+     * Updated attachment; unchanged indexing generation and status.
+     */
+    200: {
+        document: TreeDocument;
+        etag: string;
+    };
+};
+
+export type ChangeTreeDocumentAttachmentResponse = ChangeTreeDocumentAttachmentResponses[keyof ChangeTreeDocumentAttachmentResponses];
+
 export type DownloadTreeDocumentData = {
     body?: never;
     path: {

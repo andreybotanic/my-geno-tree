@@ -76,8 +76,9 @@ describe('document modal and counters', () => {
     expect(within(dialog).getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
     expect(within(dialog).queryByText('Ivanova Anna')).not.toBeInTheDocument()
     expect(await within(dialog).findByText('letter.txt')).toBeInTheDocument()
-    const target = within(dialog).getByRole('switch', { name: 'Attach uploads to' })
-    expect(target).toBeChecked()
+    expect(within(dialog).queryByRole('switch', { name: 'Attach uploads to' })).not.toBeInTheDocument()
+    const target = within(dialog).getByRole('switch', { name: 'Attachment for letter.txt' })
+    expect(target).not.toBeChecked()
     expect(within(target).getByText('Shared')).toBeInTheDocument()
     expect(within(target).getByText('Personal')).toBeInTheDocument()
     const close = within(dialog).getByRole('button', { name: 'Close' })
@@ -103,7 +104,7 @@ describe('document lists and upload lifecycle', () => {
     await screen.findByText('letter.txt')
     const scope = screen.getByRole('switch', { name: 'Show documents' })
     expect(scope).toBeDisabled()
-    expect(screen.getByRole('switch', { name: 'Attach uploads to' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Attachment for letter.txt' })).toBeDisabled()
     expect(within(scope).getByText('All')).toBeInTheDocument()
     expect(within(scope).getByText('Personal')).toBeInTheDocument()
     const list = screen.getByRole('list', { name: 'Documents' })
@@ -133,7 +134,8 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByText('second.md')).toBeInTheDocument()
     const documents = screen.getByRole('list', { name: 'Documents' })
-    expect(within(documents).getByText('Personal')).toBeInTheDocument()
+    expect(within(documents).getByRole('switch', { name: 'Attachment for letter.txt' })).not.toBeChecked()
+    expect(within(documents).getByRole('switch', { name: 'Attachment for second.md' })).toBeChecked()
     expect(within(documents).queryByText('Whole tree')).not.toBeInTheDocument()
     expect(within(documents).queryByText('Ivanova Anna')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
@@ -191,25 +193,48 @@ describe('document lists and upload lifecycle', () => {
     expect(screen.getByRole('switch', { name: 'Show documents' })).toBeEnabled()
   })
 
-  it('uploads shared or personal files according to the owner switch without displaying the person name', async () => {
-    const setup = mount(async (_path, init) => init?.method === 'POST'
-      ? { document, etag: 'next' }
-      : { items: [], nextCursor: null, etag: 'etag' }, person.id)
-    await screen.findByText('No documents yet.')
-    const owner = screen.getByRole('switch', { name: 'Attach uploads to' })
-    expect(owner).toBeChecked()
-    fireEvent.click(owner)
-    expect(owner).not.toBeChecked()
-    fireEvent.change(screen.getByLabelText('Choose files'), { target: { files: [new File(['a'], 'shared.txt')] } })
+  it('changes each document attachment with consecutive ETags and retains the list view', async () => {
+    let item = document
+    let changes = 0
+    const setup = mount(async (_path, init) => {
+      if (init?.method === 'PATCH') {
+        item = { ...item, ...JSON.parse(String(init.body)) as { personId: string | null } }
+        return { document: item, etag: `changed-${++changes}` }
+      }
+      return { items: [item], nextCursor: null, etag: 'etag' }
+    }, person.id)
+    await screen.findByText('letter.txt')
+    fireEvent.click(screen.getByRole('switch', { name: 'Document view' }))
+    const binding = screen.getByRole('switch', { name: 'Attachment for letter.txt' })
+    expect(binding).not.toBeChecked()
+    fireEvent.click(binding)
     await waitFor(() => expect(setup.onChanged).toHaveBeenCalledOnce())
-    expect(owner).toBeEnabled()
-    fireEvent.click(owner)
-    fireEvent.change(screen.getByLabelText('Choose files'), { target: { files: [new File(['b'], 'personal.txt')] } })
+    await waitFor(() => expect(binding).toBeEnabled())
+    expect(binding).toBeChecked()
+    fireEvent.click(binding)
     await waitFor(() => expect(setup.onChanged).toHaveBeenCalledTimes(2))
-    const uploads = setup.request.mock.calls.filter(([, init]) => init?.method === 'POST')
-    expect((uploads[0]![1]!.body as FormData).has('personId')).toBe(false)
-    expect((uploads[1]![1]!.body as FormData).get('personId')).toBe(person.id)
+    await waitFor(() => expect(binding).not.toBeChecked())
+    const changesSent = setup.request.mock.calls.filter(([, init]) => init?.method === 'PATCH')
+    expect(changesSent.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ personId: person.id }, { personId: null }])
+    expect(changesSent.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['etag', 'changed-1'])
+    expect(screen.getByRole('switch', { name: 'Document view' })).toBeChecked()
     expect(screen.queryByText('Ivanova Anna')).not.toBeInTheDocument()
+  })
+
+  it('keeps the attachment unchanged after a version conflict and allows refresh', async () => {
+    const setup = mount(async (_path, init) => {
+      if (init?.method === 'PATCH') throw failure(412, 'TREE_VERSION_CONFLICT')
+      return { items: [document], nextCursor: null, etag: 'etag' }
+    }, person.id)
+    await screen.findByText('letter.txt')
+    const binding = screen.getByRole('switch', { name: 'Attachment for letter.txt' })
+    fireEvent.click(binding)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
+    expect(binding).not.toBeChecked()
+    expect(binding).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(setup.onChanged).toHaveBeenCalledOnce()
   })
 
   it('stops the remaining uploads after a version conflict and offers refresh', async () => {

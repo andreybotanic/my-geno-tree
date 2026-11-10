@@ -137,6 +137,85 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertLessThanOrEqual(2, $counter->selectCount());
     }
 
+    public function testChangesAttachmentWithoutReindexingOrChangingOriginalBytes(): void
+    {
+        $this->client->disableReboot();
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->expects($this->once())->method('dispatch')->willReturnCallback(
+            static fn (object $message): Envelope => Envelope::wrap($message),
+        );
+        static::getContainer()->set('messenger.bus.default', $bus);
+        $context = $this->context();
+        $this->upload($context, "\xEF\xBB\xBFFamily letter\r\n");
+        $id = $this->responseString('document', 'id');
+        $context['etag'] = $this->responseString('etag');
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $document = $em->find(TreeDocument::class, $id);
+        self::assertInstanceOf(TreeDocument::class, $document);
+        $path = $document->getStoragePath();
+        $checksum = $document->getChecksum();
+        $document->transition('ready', new \DateTimeImmutable());
+        $em->flush();
+        $base = '/api/v1/trees/' . $context['tree'] . '/documents';
+
+        foreach ([$context['person'], null] as $personId) {
+            $oldEtag = $context['etag'];
+            $this->jsonRequest('PATCH', $base . '/' . $id, ['personId' => $personId], $this->headers($context));
+            self::assertResponseIsSuccessful();
+            self::assertSame($personId, $this->responseArray('document')['personId']);
+            self::assertSame('ready', $this->responseString('document', 'status'));
+            $context['etag'] = $this->responseString('etag');
+            self::assertNotSame($oldEtag, $context['etag']);
+            self::assertSame($context['etag'], $this->client->getResponse()->headers->get('ETag'));
+            self::assertSame(1, $document->getGeneration());
+            self::assertSame($path, $document->getStoragePath());
+            self::assertSame($checksum, $document->getChecksum());
+            $this->jsonRequest(
+                'GET',
+                $base . '?scope=person&personId=' . $context['person'],
+                headers: $this->headers($context),
+            );
+            self::assertCount(null === $personId ? 0 : 1, $this->responseArray('items'));
+        }
+        $this->jsonRequest('PATCH', $base . '/' . $id, ['personId' => null], $this->headers($context));
+        self::assertResponseIsSuccessful();
+        self::assertSame($context['etag'], $this->responseString('etag'));
+        $this->jsonRequest('GET', $base . '/' . $id . '/download', headers: $this->headers($context));
+        self::assertSame("\xEF\xBB\xBFFamily letter\r\n", $this->client->getResponse()->getContent());
+    }
+
+    public function testAttachmentChangesValidateVersionPersonTreeAndPayload(): void
+    {
+        $context = $this->context();
+        $this->upload($context, 'A shared document.');
+        $id = $this->responseString('document', 'id');
+        $context['etag'] = $this->responseString('etag');
+        $other = $this->context('other_document_owner');
+        $path = '/api/v1/trees/' . $context['tree'] . '/documents/' . $id;
+        foreach ([[], ['personId' => 12], ['personId' => null, 'extra' => true]] as $payload) {
+            $this->jsonRequest('PATCH', $path, $payload, $this->headers($context));
+            self::assertResponseStatusCodeSame([] === $payload ? 400 : 422);
+        }
+        $this->jsonRequest('PATCH', $path, ['personId' => $other['person']], $this->headers($context));
+        self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('PATCH', $path, ['personId' => $context['person']], $this->headers($other));
+        self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('PATCH', $path, ['personId' => null]);
+        self::assertResponseStatusCodeSame(401);
+        $stale = $context;
+        $stale['etag'] = 'old';
+        $this->jsonRequest('PATCH', $path, ['personId' => $context['person']], $this->headers($stale));
+        self::assertResponseStatusCodeSame(412);
+        $this->jsonRequest('PATCH', $path, ['personId' => null], ['Authorization' => 'Bearer ' . $context['token']]);
+        self::assertResponseStatusCodeSame(412);
+        $this->jsonRequest('GET', $path . '/download', headers: $this->headers($context));
+        self::assertSame('A shared document.', $this->client->getResponse()->getContent());
+        $this->jsonRequest('DELETE', $path, headers: $this->headers($context));
+        $context['etag'] = $this->responseString('etag');
+        $this->jsonRequest('PATCH', $path, ['personId' => $context['person']], $this->headers($context));
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testRejectsInvalidFilesAndForeignAttachmentsWithoutSavingAnything(): void
     {
         $context = $this->context();
@@ -283,9 +362,12 @@ final class DocumentApiTest extends ApiWebTestCase
     }
 
     /** @return Context */
-    private function context(): array
+    private function context(?string $username = null): array
     {
-        $this->jsonRequest('POST', '/api/v1/auth/register', $this->validRegistration());
+        $registration = null === $username
+            ? $this->validRegistration()
+            : $this->validRegistration(['username' => $username, 'email' => $username . '@example.test']);
+        $this->jsonRequest('POST', '/api/v1/auth/register', $registration);
         $token = $this->responseString('accessToken');
         $headers = ['Authorization' => 'Bearer ' . $token];
         $this->jsonRequest('POST', '/api/v1/trees', ['name' => 'Document tests'], $headers);

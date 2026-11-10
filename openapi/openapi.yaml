@@ -63,6 +63,41 @@ paths:
     parameters:
       - $ref: '#/components/parameters/TreeId'
       - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: changeTreeDocumentAttachment
+      description: Change the person attachment without changing the original file or its search index.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [personId]
+              properties:
+                personId: { type: [string, 'null'], format: uuid, description: A person in this tree, or null for a shared document. }
+      responses:
+        200:
+          description: Updated attachment; unchanged indexing generation and status.
+          headers:
+            ETag: { $ref: '#/components/headers/TreeEtag' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document, etag]
+                properties:
+                  document: { $ref: '#/components/schemas/TreeDocument' }
+                  etag: { type: string }
+        400: { $ref: '#/components/responses/BadRequest' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
+        412: { $ref: '#/components/responses/TreeVersionConflict' }
+        415: { description: JSON body required. }
+        422: { $ref: '#/components/responses/ValidationError' }
     delete:
       operationId: deleteTreeDocument
       security: [{ bearerAuth: [] }]

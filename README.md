@@ -130,6 +130,9 @@ the removal of answer-dependent source selection.
 The [document controls follow-up](docs/qa/document-controls-2026-11-09.md) covers
 the internal switch labels, shared/personal upload target, compact buttons and
 stable toolbar during loading.
+The [attachment controls follow-up](docs/qa/document-attachment-2026-11-10.md)
+records per-document Shared/Personal switching, removal of the upload target
+control and full-width tiles/rows without a reserved scrollbar gutter.
 
 API output uses typed readonly DTOs in `backend/src/Api/View` with the native
 Symfony ObjectMapper. DTOs remain in service discovery so Symfony 8.1 registers

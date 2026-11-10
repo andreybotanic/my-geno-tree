@@ -155,6 +155,18 @@ class TreeDocument
         $this->transition('queued', $now);
     }
 
+    public function attachTo(?Person $person, \DateTimeImmutable $now): void
+    {
+        if ($this->deleted || null === $this->tree) {
+            throw new \LogicException('A deleted document cannot change its attachment.');
+        }
+        if (null !== $person && !$person->getTree()->getId()->equals($this->tree->getId())) {
+            throw new \InvalidArgumentException('Document person must belong to its tree.');
+        }
+        $this->person = $person;
+        $this->updatedAt = $now;
+    }
+
     public function transition(string $status, \DateTimeImmutable $now, ?string $errorCode = null): void
     {
         if (!in_array($status, ['queued', 'processing', 'ready', 'failed'], true)) {

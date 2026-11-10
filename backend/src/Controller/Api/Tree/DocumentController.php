@@ -3,6 +3,7 @@
 namespace App\Controller\Api\Tree;
 
 use App\Api\ApiException;
+use App\Api\RequestBodyMapper;
 use App\Api\View\DocumentView;
 use App\Application\Document\DocumentService;
 use App\Application\Tree\TreeVersion;
@@ -27,6 +28,7 @@ final class DocumentController extends AbstractController
         private readonly DocumentService $documents,
         private readonly ObjectMapperInterface $mapper,
         private readonly TreeVersion $versions,
+        private readonly RequestBodyMapper $requestBody,
     ) {
     }
 
@@ -72,6 +74,31 @@ final class DocumentController extends AbstractController
             ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
             202,
             ['ETag' => $etag],
+        );
+    }
+
+    #[Route('/{documentId}', name: 'api_documents_change_attachment', methods: ['PATCH'])]
+    #[IsGranted(FamilyTreeVoter::EDIT, subject: 'tree', statusCode: 404)]
+    public function changeAttachment(
+        Request $request,
+        #[MapEntity(id: 'treeId')] FamilyTree $tree,
+        string $documentId,
+    ): JsonResponse {
+        $input = $this->requestBody->decodeObject($request);
+        if (['personId'] !== array_keys($input) || (null !== $input['personId'] && !is_string($input['personId']))) {
+            throw new ApiException(422, 'DOCUMENT_ATTACHMENT_INVALID');
+        }
+        $document = $this->documents->changeAttachment(
+            $tree,
+            $documentId,
+            $input['personId'],
+            $request->headers->get('If-Match'),
+        );
+        $etag = $this->versions->etag($tree);
+
+        return $this->json(
+            ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
+            headers: ['ETag' => $etag],
         );
     }
 
