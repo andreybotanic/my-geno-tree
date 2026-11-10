@@ -171,6 +171,7 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Document view' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Personal document' })).toBeChecked()
     const file = screen.getByLabelText('File')
     expect(screen.getByLabelText('Choose file')).toBe(file)
     expect(screen.getByText('No file selected')).toBeVisible()
@@ -189,17 +190,68 @@ describe('document lists and upload lifecycle', () => {
     expect((upload.body as FormData).get('title')).toBe('Archive')
   })
 
+  it('uploads a shared document from a person without adding it to their personal list', async () => {
+    const setup = mount(async (_path, init) => init?.method === 'POST'
+      ? { document, etag: 'uploaded' } : { items: [], nextCursor: null, etag: 'etag' }, person.id)
+    await screen.findByText('No documents yet.')
+    fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    const attachment = screen.getByRole('switch', { name: 'Personal document' })
+    fireEvent.click(attachment)
+    expect(attachment).not.toBeChecked()
+    await userEvent.upload(screen.getByLabelText('File') as HTMLInputElement, new File(['letter'], 'letter.txt'))
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+    expect(await screen.findByRole('dialog', { name: 'Documents' })).toBeVisible()
+    expect(screen.getByRole('switch', { name: 'Show documents' })).toBeChecked()
+    expect(screen.queryByText('letter.txt')).not.toBeInTheDocument()
+    const upload = setup.request.mock.calls.find(([, init]) => init?.method === 'POST')![1]!
+    expect((upload.body as FormData).has('personId')).toBe(false)
+  })
+
+  it('saves only a changed attachment, retains the editor and respects the active personal filter', async () => {
+    let item: TreeDocument = { ...document, personId: person.id }
+    const setup = mount(async (path, init) => {
+      if (init?.method === 'PATCH') {
+        item = { ...item, ...JSON.parse(String(init.body)) as Partial<TreeDocument> }
+        return { document: item, etag: 'changed' }
+      }
+      if (path.endsWith(item.id)) return { document: item, etag: 'changed' }
+      const items = path.includes('scope=person') && !item.personId ? [] : [item]
+      return { items, nextCursor: null, etag: 'etag' }
+    }, person.id)
+    await screen.findByText('letter.txt')
+    fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const toggle = screen.getByRole('switch', { name: 'Personal document' })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    expect(setup.request.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Saved')).toBeVisible()
+    expect(toggle).not.toBeChecked()
+    expect(setup.request).toHaveBeenCalledWith(expect.stringContaining(item.id), expect.objectContaining({
+      body: JSON.stringify({ personId: null }), headers: { 'If-Match': 'etag' },
+    }))
+    fireEvent.keyDown(toggle, { key: 'Escape' })
+    expect(await screen.findByText('No documents yet.')).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Show documents' })).toHaveFocus())
+  })
+
   it('preserves the draft on conflict, rebases untouched fields and saves inside the editor', async () => {
     let item = { ...document, mimeType: 'text/markdown' as const, description: 'Old' }
     let version = 'etag'
-    const setup = mount(async (_path, init) => {
+    const setup = mount(async (path, init) => {
       if (init?.method === 'PATCH') {
         if (new Headers(init.headers).get('If-Match') !== version) throw failure(412, 'TREE_VERSION_CONFLICT')
         item = { ...item, ...JSON.parse(String(init.body)) as Partial<typeof item> }
         return { document: item, etag: 'saved' }
       }
+      if (path.endsWith(item.id)) return { document: item, etag: version }
       return { items: [item], nextCursor: null, etag: version }
-    })
+    }, person.id)
     setup.requestBlob.mockResolvedValue(new Blob(['# Letter\n\n| A | B |\n|---|---|\n|1|2|\n\n![alt](https://invalid.test/image)']))
     await screen.findByText('letter.txt')
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
@@ -210,6 +262,9 @@ describe('document lists and upload lifecycle', () => {
     }
     expect(screen.queryByRole('img')).toBeNull()
     const title = screen.getByLabelText('Name')
+    const toggle = screen.getByRole('switch', { name: 'Personal document' })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
     fireEvent.change(title, { target: { value: 'Draft' } })
     version = 'concurrent'
     item = { ...item, description: 'Edited elsewhere' }
@@ -218,14 +273,38 @@ describe('document lists and upload lifecycle', () => {
     expect(title).toHaveValue('Draft')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => expect(screen.getByLabelText('Description')).toHaveValue('Edited elsewhere'))
+    expect(toggle).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Saved')).toBeVisible()
     expect(screen.getByRole('dialog', { name: 'Document details' })).toBeVisible()
+    expect(item.personId).toBe(person.id)
     expect(setup.requestBlob).toHaveBeenCalledOnce()
     fireEvent.change(title, { target: { value: 'Discarded' } })
     fireEvent.keyDown(title, { key: 'Escape' })
     expect(screen.getByText('Draft')).toBeVisible()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toHaveFocus())
+  })
+
+  it('refreshes a detached document by ID while keeping an unsaved edit and its original preview', async () => {
+    let item: TreeDocument = { ...document, personId: person.id, status: 'processing' }
+    const setup = mount(async (path, init) => {
+      if (init?.method === 'PATCH') throw failure(412, 'TREE_VERSION_CONFLICT')
+      if (path.endsWith(item.id)) return { document: item, etag: 'new' }
+      return { items: item.personId ? [item] : [], nextCursor: null, etag: 'etag' }
+    }, person.id)
+    await screen.findByText('letter.txt')
+    fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const title = screen.getByLabelText('Name')
+    fireEvent.change(title, { target: { value: 'Draft' } })
+    item = { ...item, status: 'ready', personId: null }
+    await screen.findByText('Searchable', {}, { timeout: 4500 })
+    expect(title).toHaveValue('Draft')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Personal document' })).not.toBeChecked())
+    expect(title).toHaveValue('Draft')
+    expect(setup.requestBlob).toHaveBeenCalledOnce()
   })
 
   it('marks unindexed documents and confirms icon deletion without a custom retry', async () => {
@@ -258,6 +337,7 @@ describe('document lists and upload lifecycle', () => {
     })
     await screen.findByText('letter.txt')
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('switch', { name: 'Personal document' })).toBeDisabled()
     await userEvent.upload(screen.getByLabelText(/^File/) as HTMLInputElement, new File(['a'], 'bad.txt'))
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
     expect((await screen.findAllByText(new RegExp(text))).length).toBeGreaterThan(0)

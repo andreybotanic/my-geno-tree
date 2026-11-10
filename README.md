@@ -5,12 +5,13 @@
 Open **Documents** from a person’s card or the empty-tree screen. The toolbar
 switches between all and personal documents and between tiles and a compact list.
 Choose **Add** to select one TXT or Markdown file, enter an optional name and
-description, then choose **Upload**. Uploads from a person’s card belong to that
-person. Uploads from the empty-tree screen belong to the tree.
+description, then choose **Upload**. The **Shared / Personal** switch defaults
+to **Personal** in a person’s card. Choose **Shared** to attach the file to the
+tree. In an empty tree, only **Shared** is available.
 
 Choose the pencil on a document to read its contents, see its attachment and
-indexing status, or edit its name and description. Saving keeps the document
-open and queues it for reindexing when the metadata changes. Closing it
+indexing status, or edit its name, description and attachment. Saving keeps
+the document open. Changing the name or description queues reindexing. Closing it
 returns to the list. Downloads use the original filename.
 
 Original UTF-8 bytes, including a possible BOM and original line endings, stay

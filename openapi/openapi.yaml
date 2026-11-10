@@ -51,12 +51,7 @@ paths:
             ETag: { $ref: '#/components/headers/TreeEtag' }
           content:
             application/json:
-              schema:
-                type: object
-                required: [document, etag]
-                properties:
-                  document: { $ref: '#/components/schemas/TreeDocument' }
-                  etag: { type: string }
+              schema: { $ref: '#/components/schemas/VersionedTreeDocument' }
         401: { $ref: '#/components/responses/Unauthorized' }
         404: { $ref: '#/components/responses/NotFound' }
         412: { $ref: '#/components/responses/TreeVersionConflict' }
@@ -66,6 +61,19 @@ paths:
     parameters:
       - $ref: '#/components/parameters/TreeId'
       - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getTreeDocument
+      security: [{ bearerAuth: [] }]
+      responses:
+        200:
+          description: Current document metadata and indexing status.
+          headers:
+            ETag: { $ref: '#/components/headers/TreeEtag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionedTreeDocument' }
+        401: { $ref: '#/components/responses/Unauthorized' }
+        404: { $ref: '#/components/responses/NotFound' }
     patch:
       operationId: updateTreeDocument
       description: Update the supplied fields. A change to title or description queues a new search index generation.
@@ -91,12 +99,7 @@ paths:
             ETag: { $ref: '#/components/headers/TreeEtag' }
           content:
             application/json:
-              schema:
-                type: object
-                required: [document, etag]
-                properties:
-                  document: { $ref: '#/components/schemas/TreeDocument' }
-                  etag: { type: string }
+              schema: { $ref: '#/components/schemas/VersionedTreeDocument' }
         400: { $ref: '#/components/responses/BadRequest' }
         401: { $ref: '#/components/responses/Unauthorized' }
         404: { $ref: '#/components/responses/NotFound' }
@@ -2118,6 +2121,12 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         downloadUrl: { type: string }
+    VersionedTreeDocument:
+      type: object
+      required: [document, etag]
+      properties:
+        document: { $ref: '#/components/schemas/TreeDocument' }
+        etag: { type: string }
     DocumentPage:
       type: object
       additionalProperties: false

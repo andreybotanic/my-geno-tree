@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
-import type { DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
+import type { DocumentPage, TreeDocument, TreeSnapshot, VersionedTreeDocument } from '../api/generated'
 import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
 import DownloadIcon from '../assets/icons/export.svg?react'
 import GridIcon from '../assets/icons/view-grid.svg?react'
@@ -25,7 +25,10 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
   const [editor, setEditor] = useState<'upload' | TreeDocument | null>(null)
   const [editorVersion, setEditorVersion] = useState(snapshot.etag)
   const opener = useRef<HTMLButtonElement | null>(null)
+  const filterButton = useRef<HTMLButtonElement | null>(null)
   const base = `/trees/${snapshot.tree.id}/documents`
+  const selected = editor && editor !== 'upload' ? editor : null
+  const documentUrl = selected ? base + '/' + selected.id : null
   const [filter, setFilter] = useState<'all' | 'person'>('all')
   const [view, setView] = useState<'tiles' | 'list'>('tiles')
   const [items, setItems] = useState<TreeDocument[]>([])
@@ -61,14 +64,14 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
           loaded.push(...page.items)
         }
       }
-      const result = { items: loaded, etag: page.etag }
-      if (version !== sequence.current) return result
+      if (version !== sequence.current) return page.etag
+      etag.current = page.etag
       if (append) ++pageCount.current
       setItems((current) => append ? [...current, ...loaded] : loaded)
       nextCursor.current = page.nextCursor
       setCursor(page.nextCursor)
       setLoadError('')
-      return result
+      return page.etag
     } catch (caught) {
       if (version === sequence.current) setLoadError(documentErrorKey(caught))
       if (reportFailure) throw caught
@@ -79,14 +82,39 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
 
   useEffect(() => { pageCount.current = 1; setLoading(true) }, [base, filter, personId])
 
+  const updateList = useCallback((document: TreeDocument) => {
+    setItems((current) => {
+      if (filter === 'person' && document.personId !== personId) return current.filter((item) => item.id !== document.id)
+      return current.some((item) => item.id === document.id)
+        ? current.map((item) => item.id === document.id ? document : item)
+        : [document, ...current]
+    })
+  }, [filter, personId])
+
   useEffect(() => {
-    const requests = sequence;
-    if (!working.current) void load()
-    const timer = window.setInterval(() => {
-      if (!working.current) void load()
-    }, 3000)
+    const requests = sequence
+    const refresh = async () => {
+      if (working.current) return
+      if (!documentUrl) {
+        await load()
+        return
+      }
+      const version = ++requests.current
+      try {
+        const result = await request<VersionedTreeDocument>(documentUrl)
+        if (version === requests.current) {
+          setEditor(result.document)
+          updateList(result.document)
+          setLoadError('')
+        }
+      } catch (caught) {
+        if (version === requests.current) setLoadError(documentErrorKey(caught))
+      }
+    }
+    if (!documentUrl) void refresh()
+    const timer = window.setInterval(() => { void refresh() }, 3000)
     return () => { ++requests.current; window.clearInterval(timer) }
-  }, [load, snapshot.etag])
+  }, [documentUrl, load, request, snapshot.etag, updateList])
 
   const openEditor = (target: 'upload' | TreeDocument, button: HTMLButtonElement) => {
     opener.current = button
@@ -96,15 +124,14 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
 
   const closeEditor = () => {
     setEditor(null)
-    requestAnimationFrame(() => opener.current?.focus())
+    requestAnimationFrame(() => (opener.current?.isConnected ? opener.current : filterButton.current)?.focus())
   }
 
   const acceptDocument = (document: TreeDocument, version: string) => {
     ++sequence.current
     etag.current = version
-    setItems((current) => current.some((item) => item.id === document.id)
-      ? current.map((item) => item.id === document.id ? document : item)
-      : [document, ...current])
+    updateList(document)
+    setLoadError('')
     if (editor === 'upload') closeEditor()
     else setEditor(document)
     void onChanged().catch(() => setError('documents.errors.failed'))
@@ -125,7 +152,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
     finally { working.current = false; setBusy(false) }
   }
 
-  const selected = editor && editor !== 'upload' ? items.find((item) => item.id === editor.id) ?? editor : null
   return <>
     <DocumentModal title={t('documents.title')} active={editor === null} className="documents-dialog" onClose={onClose}>
       <section className="documents-panel" aria-label={t('documents.title')}>
@@ -137,7 +163,7 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
         </div>}
         <div className="documents-toolbar">
           <AddButton disabled={busy} onClick={(event) => openEditor('upload', event.currentTarget)} />
-          <button type="button" role="switch" className="document-switch" aria-label={t('documents.filter')}
+          <button ref={filterButton} type="button" role="switch" className="document-switch" aria-label={t('documents.filter')}
             aria-checked={filter === 'person'} disabled={busy || !personId}
             onClick={() => setFilter((current) => current === 'all' ? 'person' : 'all')}>
             <span className="document-switch-option" aria-hidden="true">{t('documents.all')}</span>
@@ -195,16 +221,24 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
         </div>}
       </section>
     </DocumentModal>
-    {editor && <DocumentForm key={selected?.id ?? 'upload'} document={selected} snapshot={snapshot}
+    {editor && <DocumentForm key={selected?.id ?? 'upload'} document={selected} snapshot={snapshot} loadError={loadError}
       personId={personId} request={request} requestBlob={requestBlob} version={editorVersion}
       onSaved={acceptDocument} onClose={closeEditor} onRefresh={async () => {
         working.current = true
         try {
           await onChanged()
-          const page = await load(false, true)
-          if (!page) throw new Error('Document refresh failed')
-          etag.current = page.etag
-          return { etag: page.etag, document: page.items.find((item) => item.id === selected?.id) }
+          if (documentUrl) {
+            ++sequence.current
+            const fresh = await request<VersionedTreeDocument>(documentUrl)
+            etag.current = fresh.etag
+            setEditor(fresh.document)
+            updateList(fresh.document)
+            setLoadError('')
+            return fresh
+          }
+          const version = await load(false, true)
+          if (!version) throw new Error('Document refresh failed')
+          return { etag: version, document: undefined }
         } finally { working.current = false }
       }} />}
   </>

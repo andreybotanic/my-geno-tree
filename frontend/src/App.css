@@ -70,6 +70,7 @@
 .dialog-card.document-detail-dialog { max-width: 1080px; }
 .dialog-card.document-upload-dialog { max-width: 480px; }
 .document-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.document-attachment-field { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; overflow-wrap: anywhere; }
 .document-form .form-field small, .document-details dt { color: var(--color-text-muted); }
 .document-form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .document-form-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }

@@ -8,6 +8,7 @@ use App\Api\View\DocumentView;
 use App\Application\Document\DocumentService;
 use App\Application\Tree\TreeVersion;
 use App\Entity\FamilyTree;
+use App\Entity\TreeDocument;
 use App\Security\FamilyTreeVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -72,13 +73,15 @@ final class DocumentController extends AbstractController
             $form['title'] ?? null,
             $form['description'] ?? null,
         );
-        $etag = $this->versions->etag($tree);
 
-        return $this->json(
-            ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
-            202,
-            ['ETag' => $etag],
-        );
+        return $this->documentResponse($document, $tree, 202);
+    }
+
+    #[Route('/{documentId}', name: 'api_documents_show', methods: ['GET'])]
+    #[IsGranted(FamilyTreeVoter::VIEW, subject: 'tree', statusCode: 404)]
+    public function show(#[MapEntity(id: 'treeId')] FamilyTree $tree, string $documentId): JsonResponse
+    {
+        return $this->documentResponse($this->documents->require($tree, $documentId), $tree);
     }
 
     #[Route('/{documentId}', name: 'api_documents_update', methods: ['PATCH'])]
@@ -95,12 +98,8 @@ final class DocumentController extends AbstractController
             $input,
             $request->headers->get('If-Match'),
         );
-        $etag = $this->versions->etag($tree);
 
-        return $this->json(
-            ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
-            headers: ['ETag' => $etag],
-        );
+        return $this->documentResponse($document, $tree);
     }
 
     #[Route('/{documentId}/download', name: 'api_documents_download', methods: ['GET'])]
@@ -140,5 +139,16 @@ final class DocumentController extends AbstractController
         $etag = $this->versions->etag($tree);
 
         return new JsonResponse(['etag' => $etag], headers: ['ETag' => $etag]);
+    }
+
+    private function documentResponse(TreeDocument $document, FamilyTree $tree, int $status = 200): JsonResponse
+    {
+        $etag = $this->versions->etag($tree);
+
+        return $this->json(
+            ['document' => $this->mapper->map($document, DocumentView::class), 'etag' => $etag],
+            $status,
+            ['ETag' => $etag, 'Cache-Control' => 'private, no-store'],
+        );
     }
 }

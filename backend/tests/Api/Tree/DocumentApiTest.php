@@ -46,6 +46,12 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertNotSame($context['etag'], $etag);
         $path = '/api/v1/trees/' . $context['tree'] . '/documents/' . $id;
 
+        $uploaded = $this->responseData();
+        $this->jsonRequest('GET', $path, headers: $this->headers($context));
+        self::assertResponseIsSuccessful();
+        self::assertSame($uploaded, $this->responseData());
+        self::assertResponseHeaderSame('ETag', $etag);
+        self::assertTrue($this->client->getResponse()->headers->hasCacheControlDirective('no-store'));
         $this->jsonRequest('GET', $path . '/download', headers: $this->headers($context));
         self::assertResponseIsSuccessful();
         self::assertSame($bytes, $this->client->getResponse()->getContent());
@@ -73,6 +79,8 @@ final class DocumentApiTest extends ApiWebTestCase
         $context['etag'] = $etag;
         $this->jsonRequest('DELETE', $path, headers: $this->headers($context));
         self::assertResponseIsSuccessful();
+        $this->jsonRequest('GET', $path, headers: $this->headers($context));
+        self::assertResponseStatusCodeSame(404);
         $this->jsonRequest('GET', $path . '/download', headers: $this->headers($context));
         self::assertResponseStatusCodeSame(404);
         $this->jsonRequest(
@@ -250,6 +258,10 @@ final class DocumentApiTest extends ApiWebTestCase
         self::assertResponseStatusCodeSame(404);
         $this->jsonRequest('PATCH', $path, ['personId' => $context['person']], $this->headers($other));
         self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('GET', $path, headers: $this->headers($other));
+        self::assertResponseStatusCodeSame(404);
+        $this->jsonRequest('GET', $path);
+        self::assertResponseStatusCodeSame(401);
         $this->jsonRequest('PATCH', $path, ['personId' => null]);
         self::assertResponseStatusCodeSame(401);
         $stale = $context;

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
-import type { TreeDocument, TreeSnapshot, UpdateTreeDocumentResponse } from '../api/generated'
+import type { TreeDocument, TreeSnapshot, UpdateTreeDocumentData, VersionedTreeDocument } from '../api/generated'
 import DownloadIcon from '../assets/icons/export.svg?react'
 import SaveIcon from '../assets/icons/save.svg?react'
 import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
@@ -15,6 +15,7 @@ type Props = {
   snapshot: TreeSnapshot
   personId: string | undefined
   version: string
+  loadError: string
   request: AuthorizedJsonRequest
   requestBlob: AuthorizedBlobRequest
   onClose: () => void
@@ -53,22 +54,34 @@ const DocumentContents = memo(function DocumentContents({ url, markdown, request
   </section>
 })
 
-export function DocumentForm({ document: item, snapshot, personId, version, request, requestBlob,
+function formValues(document: TreeDocument | null, personId?: string) {
+  return {
+    title: document?.title ?? '',
+    description: document?.description ?? '',
+    personId: document ? document.personId : personId ?? null,
+  }
+}
+
+export function DocumentForm({ document: item, snapshot, personId, version, loadError, request, requestBlob,
   onClose, onRefresh, onSaved }: Props) {
   const { t, i18n } = useTranslation()
   const fileInputId = useId()
+  const attachmentNameId = useId()
   const [file, setFile] = useState<File | null>(null)
-  const [baseline, setBaseline] = useState({ title: item?.title ?? '', description: item?.description ?? '' })
+  const [baseline, setBaseline] = useState(() => formValues(item, personId))
   const [title, setTitle] = useState(baseline.title)
   const [description, setDescription] = useState(baseline.description)
+  const [attachedPersonId, setAttachedPersonId] = useState(baseline.personId)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const etag = useRef(version)
   const [conflict, setConflict] = useState(false)
   const changed = title.trim() !== baseline.title || description.trim() !== baseline.description
+    || attachedPersonId !== baseline.personId
+  const personalTarget = baseline.personId ?? personId ?? null
   const language = i18n.resolvedLanguage ?? 'en'
-  const person = snapshot.people.find((entry) => entry.id === item?.personId)
+  const person = snapshot.people.find((entry) => entry.id === attachedPersonId)
   const date = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' })
 
   const submit = async (event: FormEvent) => {
@@ -81,7 +94,8 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
       const base = `/trees/${snapshot.tree.id}/documents`
       let body: FormData | string
       if (item) {
-        const patch: { title?: string | null; description?: string | null } = {}
+        const patch: UpdateTreeDocumentData['body'] = {}
+        if (attachedPersonId !== baseline.personId) patch.personId = attachedPersonId
         if (title.trim() !== baseline.title) patch.title = title.trim() || null
         if (description.trim() !== baseline.description) patch.description = description.trim() || null
         body = JSON.stringify(patch)
@@ -90,16 +104,18 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
         form.set('file', file!)
         if (title.trim()) form.set('title', title.trim())
         if (description.trim()) form.set('description', description.trim())
-        if (personId) form.set('personId', personId)
+        if (attachedPersonId) form.set('personId', attachedPersonId)
         body = form
       }
-      const result = await request<UpdateTreeDocumentResponse>(item ? base + '/' + item.id : base, {
+      const result = await request<VersionedTreeDocument>(item ? base + '/' + item.id : base, {
         method: item ? 'PATCH' : 'POST', headers: { 'If-Match': etag.current }, body,
       })
       etag.current = result.etag
-      setTitle(result.document.title ?? '')
-      setDescription(result.document.description ?? '')
-      setBaseline({ title: result.document.title ?? '', description: result.document.description ?? '' })
+      const savedValues = formValues(result.document)
+      setTitle(savedValues.title)
+      setDescription(savedValues.description)
+      setAttachedPersonId(savedValues.personId)
+      setBaseline(savedValues)
       setSaved(true)
       onSaved(result.document, result.etag)
     } catch (caught) {
@@ -134,6 +150,19 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
         <textarea value={description} maxLength={2000} rows={3} disabled={busy}
           onChange={(event) => { setDescription(event.target.value); setSaved(false) }} />
       </label>
+      <div className="form-field">
+        <span>{t('documents.attachedTo')}</span>
+        <div className="document-attachment-field">
+          <button type="button" role="switch" className="document-switch" aria-label={t('documents.personalDocument')}
+            aria-describedby={person ? attachmentNameId : undefined}
+            aria-checked={attachedPersonId !== null} disabled={busy || (!attachedPersonId && !personalTarget)}
+            onClick={() => { setAttachedPersonId(attachedPersonId ? null : personalTarget); setSaved(false) }}>
+            <span className="document-switch-option" aria-hidden="true">{t('documents.shared')}</span>
+            <span className="document-switch-option" aria-hidden="true">{t('documents.personalOption')}</span>
+          </button>
+          {person && <span id={attachmentNameId}>{formatPersonName(person, t)}</span>}
+        </div>
+      </div>
       <div className="document-form-actions">
         <button type="submit" className="primary-button" disabled={busy || conflict || (item ? !changed : !file)}>
           {item && <SaveIcon className="action-icon" aria-hidden="true" />}
@@ -152,10 +181,13 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
             const fresh = await onRefresh()
             if (item && !fresh.document) { setError('documents.errors.access'); return }
             etag.current = fresh.etag
-            const next = { title: fresh.document?.title ?? '', description: fresh.document?.description ?? '' }
-            if (title.trim() === baseline.title) setTitle(next.title)
-            if (description.trim() === baseline.description) setDescription(next.description)
-            setBaseline(next)
+            if (fresh.document) {
+              const next = formValues(fresh.document)
+              if (title.trim() === baseline.title) setTitle(next.title)
+              if (description.trim() === baseline.description) setDescription(next.description)
+              if (attachedPersonId === baseline.personId) setAttachedPersonId(next.personId)
+              setBaseline(next)
+            }
             setConflict(false)
             setError('')
           }
@@ -164,11 +196,11 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
         }}>{t('documents.reload')}</button>}</div>}
     </form>
     {item && <>
+      {loadError && !error && <p className="documents-error" role="alert">{t(loadError)}</p>}
       <dl className="document-details">
         <div><dt>{t('documents.file')}</dt><dd>{item.originalName}</dd></div>
         <div><dt>{t('documents.type')}</dt><dd>{item.mimeType === 'text/markdown' ? 'Markdown' : 'TXT'}</dd></div>
         <div><dt>{t('documents.size')}</dt><dd>{formatDocumentSize(item.originalSizeBytes, language)}</dd></div>
-        <div><dt>{t('documents.attachedTo')}</dt><dd>{person ? formatPersonName(person, t) : t('documents.shared')}</dd></div>
         <div><dt>{t('documents.created')}</dt><dd>{date.format(new Date(item.createdAt))}</dd></div>
         <div><dt>{t('documents.updated')}</dt><dd>{date.format(new Date(item.updatedAt))}</dd></div>
         <div><dt>{t('documents.indexing')}</dt><dd role="status">{t(`documents.status.${item.status}`)}</dd></div>

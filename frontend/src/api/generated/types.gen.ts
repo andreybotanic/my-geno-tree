@@ -23,6 +23,11 @@ export type TreeDocument = {
     downloadUrl: string;
 };
 
+export type VersionedTreeDocument = {
+    document: TreeDocument;
+    etag: string;
+};
+
 export type DocumentPage = {
     total: number;
     items: Array<TreeDocument>;
@@ -1067,10 +1072,7 @@ export type UploadTreeDocumentResponses = {
     /**
      * Original saved; indexing queued or queue error reported in document status.
      */
-    202: {
-        document: TreeDocument;
-        etag: string;
-    };
+    202: VersionedTreeDocument;
 };
 
 export type UploadTreeDocumentResponse = UploadTreeDocumentResponses[keyof UploadTreeDocumentResponses];
@@ -1118,6 +1120,38 @@ export type DeleteTreeDocumentResponses = {
 };
 
 export type DeleteTreeDocumentResponse = DeleteTreeDocumentResponses[keyof DeleteTreeDocumentResponses];
+
+export type GetTreeDocumentData = {
+    body?: never;
+    path: {
+        treeId: string;
+        documentId: string;
+    };
+    query?: never;
+    url: '/trees/{treeId}/documents/{documentId}';
+};
+
+export type GetTreeDocumentErrors = {
+    /**
+     * Missing, invalid, expired, or revoked session
+     */
+    401: ApiError;
+    /**
+     * The private resource is missing or unavailable to this owner
+     */
+    404: ApiError;
+};
+
+export type GetTreeDocumentError = GetTreeDocumentErrors[keyof GetTreeDocumentErrors];
+
+export type GetTreeDocumentResponses = {
+    /**
+     * Current document metadata and indexing status.
+     */
+    200: VersionedTreeDocument;
+};
+
+export type GetTreeDocumentResponse = GetTreeDocumentResponses[keyof GetTreeDocumentResponses];
 
 export type UpdateTreeDocumentData = {
     body: {
@@ -1175,10 +1209,7 @@ export type UpdateTreeDocumentResponses = {
     /**
      * Saved document and current indexing status.
      */
-    200: {
-        document: TreeDocument;
-        etag: string;
-    };
+    200: VersionedTreeDocument;
 };
 
 export type UpdateTreeDocumentResponse = UpdateTreeDocumentResponses[keyof UpdateTreeDocumentResponses];
