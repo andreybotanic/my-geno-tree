@@ -86,9 +86,13 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
 
   useEffect(() => {
     const requests = sequence
+    const version = requests.current
     pageCount.current = 1
     setLoading(true)
-    void load()
+    // Let cleanup invalidate a discarded effect before it sends a request.
+    queueMicrotask(() => {
+      if (requests.current === version) void load()
+    })
     return () => { ++requests.current }
   }, [load])
 

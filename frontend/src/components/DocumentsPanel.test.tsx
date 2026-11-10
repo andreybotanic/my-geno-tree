@@ -44,8 +44,9 @@ describe('document modal and counters', () => {
     const request = vi.fn(async () => ({ items: [document], total: 23, nextCursor: null, etag: 'etag' })) as unknown as AuthorizedJsonRequest
     const onClick = vi.fn()
     const { rerender } = render(<DocumentsButton treeId={treeId} personId={person.id} etag="one"
-      request={request} onClick={onClick} />)
+      request={request} onClick={onClick} />, { reactStrictMode: true })
     expect(await screen.findByText('23')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledOnce()
     expect(request).toHaveBeenCalledWith(`/trees/${treeId}/documents?limit=1&personId=${person.id}`)
     expect(screen.queryByText(document.originalName)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Documents 23' }))
@@ -71,11 +72,12 @@ describe('document modal and counters', () => {
     window.document.body.append(launcher)
     launcher.focus()
     const { unmount } = render(<DocumentsDialog snapshot={snapshot} personId={person.id} request={request}
-      requestBlob={vi.fn()} onChanged={vi.fn()} onClose={onClose} />)
+      requestBlob={vi.fn()} onChanged={vi.fn()} onClose={onClose} />, { reactStrictMode: true })
     const dialog = screen.getByRole('dialog', { name: 'Documents' })
     expect(within(dialog).getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
     expect(within(dialog).queryByText('Ivanova Anna')).not.toBeInTheDocument()
     expect(await within(dialog).findByText('letter.txt')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledOnce()
     const close = within(dialog).getByRole('button', { name: 'Close' })
     const remove = within(dialog).getByRole('button', { name: 'Delete' })
     expect(close).toHaveFocus()

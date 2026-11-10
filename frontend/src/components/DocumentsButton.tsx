@@ -21,9 +21,13 @@ export function DocumentsButton({ treeId, etag, personId, request, onClick, clas
     setTotal(0)
     const query = new URLSearchParams({ limit: '1' })
     if (personId) query.set('personId', personId)
-    void request<DocumentPage>(`/trees/${treeId}/documents?${query}`).then((page) => {
-      if (active) setTotal(page.total)
-    }).catch(() => { /* The dialog displays access and loading errors. */ })
+    queueMicrotask(async () => {
+      if (!active) return
+      try {
+        const page = await request<DocumentPage>(`/trees/${treeId}/documents?${query}`)
+        if (active) setTotal(page.total)
+      } catch { /* The dialog displays access and loading errors. */ }
+    })
     return () => { active = false }
   }, [treeId, etag, personId, request])
 
