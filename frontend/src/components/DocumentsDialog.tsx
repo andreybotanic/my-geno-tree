@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
+import { ApiRequestError, type AuthorizedBlobRequest, type AuthorizedJsonRequest } from '../api/client'
 import type { DocumentPage, TreeDocument, TreeSnapshot, VersionedTreeDocument } from '../api/generated'
 import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
 import DownloadIcon from '../assets/icons/export.svg?react'
@@ -28,7 +28,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
   const filterButton = useRef<HTMLButtonElement | null>(null)
   const base = `/trees/${snapshot.tree.id}/documents`
   const selected = editor && editor !== 'upload' ? editor : null
-  const documentUrl = selected ? base + '/' + selected.id : null
   const [filter, setFilter] = useState<'all' | 'person'>('all')
   const [view, setView] = useState<'tiles' | 'list'>('tiles')
   const [items, setItems] = useState<TreeDocument[]>([])
@@ -50,32 +49,39 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
       query.set('scope', 'person')
       query.set('personId', personId)
     }
+    const firstPageUrl = base + '?' + query.toString()
     if (append && nextCursor.current) query.set('cursor', nextCursor.current)
     try {
       let page = await request<DocumentPage>(base + '?' + query.toString())
       if (!Array.isArray(page.items)) throw new Error('Invalid document page')
       const listVersion = append ? etag.current : page.etag
-      const loaded = [...page.items]
+      let loaded = [...page.items]
+      let loadedPages = append ? pageCount.current + 1 : 1
       if (!append) {
         for (let index = 1; index < pageCount.current && page.nextCursor; ++index) {
           query.set('cursor', page.nextCursor)
           page = await request<DocumentPage>(base + '?' + query.toString())
           if (version !== sequence.current || page.etag !== listVersion) break
           loaded.push(...page.items)
+          ++loadedPages
         }
       }
       if (version !== sequence.current) return
-      if (page.etag !== listVersion) {
-        setLoadError('documents.errors.conflict')
-        return
+      const restart = page.etag !== listVersion
+      if (restart) {
+        // Restart at a single coherent page if the tree changed between page requests.
+        page = await request<DocumentPage>(firstPageUrl)
+        if (version !== sequence.current) return
+        loaded = page.items
+        loadedPages = 1
       }
       etag.current = page.etag
-      if (append) ++pageCount.current
-      setItems((current) => append ? [...current, ...loaded] : loaded)
+      pageCount.current = loadedPages
+      setItems((current) => append && !restart ? [...current, ...loaded] : loaded)
       nextCursor.current = page.nextCursor
       setCursor(page.nextCursor)
       setLoadError('')
-      return page.etag
+      return { items: loaded, etag: page.etag }
     } catch (caught) {
       if (version === sequence.current) setLoadError(documentErrorKey(caught))
       if (reportFailure) throw caught
@@ -96,14 +102,10 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
     return () => { ++requests.current }
   }, [load])
 
-  const refreshList = async () => {
-    const previous = etag.current
-    setError('')
-    setLoading(true)
-    const version = await load()
-    if (version && version !== previous) {
-      await onChanged().catch(() => setError('documents.errors.failed'))
-    }
+  const reloadAfterConflict = async () => {
+    const page = await load(false, true)
+    if (page) await onChanged()
+    return page
   }
 
   const updateList = (document: TreeDocument) => {
@@ -138,6 +140,7 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
 
   const remove = async (item: TreeDocument) => {
     setBusy(true)
+    setError('')
     try {
       const result = await request<{ etag: string }>(base + '/' + item.id, {
         method: 'DELETE', headers: { 'If-Match': etag.current },
@@ -147,8 +150,17 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
       ++sequence.current
       setItems((current) => current.filter((entry) => entry.id !== item.id))
       await onChanged()
-    } catch (caught) { setPendingDelete(null); setError(documentErrorKey(caught)) }
-    finally { setBusy(false) }
+    } catch (caught) {
+      setPendingDelete(null)
+      if (caught instanceof ApiRequestError && caught.status === 412) {
+        try {
+          await reloadAfterConflict()
+          setError('documents.deleteConflict')
+        } catch (loadFailure) { setError(documentErrorKey(loadFailure)) }
+      } else {
+        setError(documentErrorKey(caught))
+      }
+    } finally { setBusy(false) }
   }
 
   return <>
@@ -157,8 +169,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
         {(error || loadError) && <p role="alert" className="documents-error">{t(error || loadError)}</p>}
         <div className="documents-toolbar">
           <AddButton disabled={busy || loading} onClick={(event) => openEditor('upload', event.currentTarget)} />
-          <button type="button" className="secondary-button compact-button" disabled={busy || loading}
-            onClick={() => { void refreshList() }}>{t('documents.reload')}</button>
           <button ref={filterButton} type="button" role="switch" className="document-switch" aria-label={t('documents.filter')}
             aria-checked={filter === 'person'} disabled={busy || !personId}
             onClick={() => setFilter((current) => current === 'all' ? 'person' : 'all')}>
@@ -219,24 +229,18 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
     </DocumentModal>
     {editor && <DocumentForm key={selected?.id ?? 'upload'} document={selected} snapshot={snapshot}
       personId={personId} request={request} requestBlob={requestBlob} version={editorVersion}
-      onSaved={acceptDocument} onClose={closeEditor} onRefresh={async () => {
-        if (documentUrl) {
-          const fresh = await request<VersionedTreeDocument>(documentUrl)
-          if (fresh.etag !== etag.current) {
-            // Other rows may have changed under the new tree version as well.
-            const listVersion = await load(false, true)
-            if (listVersion !== fresh.etag) return undefined
-            await onChanged()
-          } else {
-            updateList(fresh.document)
-          }
-          setEditor(fresh.document)
-          return fresh
+      onSaved={acceptDocument} onClose={closeEditor} onConflict={async () => {
+        const page = await reloadAfterConflict()
+        if (!page) return
+        let document = page.items.find((item) => item.id === selected?.id)
+        if (selected && !document) {
+          // A change of attachment can move the open document outside the current filter.
+          const fresh = await request<VersionedTreeDocument>(base + '/' + selected.id)
+          if (fresh.etag !== page.etag) return
+          document = fresh.document
         }
-        const version = await load(false, true)
-        if (!version) return undefined
-        await onChanged()
-        return { etag: version, document: undefined }
+        if (document) setEditor(document)
+        return { etag: page.etag, document }
       }} />}
   </>
 }

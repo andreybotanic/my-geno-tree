@@ -2,7 +2,7 @@ import { memo, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
+import { ApiRequestError, type AuthorizedBlobRequest, type AuthorizedJsonRequest } from '../api/client'
 import type { TreeDocument, TreeSnapshot, UpdateTreeDocumentData, VersionedTreeDocument } from '../api/generated'
 import DownloadIcon from '../assets/icons/export.svg?react'
 import SaveIcon from '../assets/icons/save.svg?react'
@@ -18,7 +18,7 @@ type Props = {
   request: AuthorizedJsonRequest
   requestBlob: AuthorizedBlobRequest
   onClose: () => void
-  onRefresh: () => Promise<{ etag: string; document: TreeDocument | undefined } | undefined>
+  onConflict: () => Promise<{ etag: string; document: TreeDocument | undefined } | undefined>
   onSaved: (item: TreeDocument, version: string) => void
 }
 
@@ -28,22 +28,20 @@ const DocumentContents = memo(function DocumentContents({ url, markdown, request
   const { t } = useTranslation()
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [attempt, setAttempt] = useState(0)
-  const pending = useRef<{ url: string; attempt: number; text: Promise<string> } | null>(null)
+  const pending = useRef<{ url: string; text: Promise<string> } | null>(null)
   useEffect(() => {
     let active = true
-    if (!pending.current || pending.current.url !== url || pending.current.attempt !== attempt) {
-      pending.current = { url, attempt, text: requestBlob(url).then((blob) => blob.text()) }
+    if (!pending.current || pending.current.url !== url) {
+      pending.current = { url, text: requestBlob(url).then((blob) => blob.text()) }
     }
     void pending.current.text.then((value) => {
       if (active) setText(value)
     }).catch((caught: unknown) => { if (active) setError(documentErrorKey(caught)) })
     return () => { active = false }
-  }, [url, requestBlob, attempt])
+  }, [url, requestBlob])
   return <section className="document-preview" aria-label={t('documents.contents')}>
     <h3>{t('documents.contents')}</h3>
-    {error ? <div role="alert">{t(error)} <button type="button" className="secondary-button compact-button"
-      onClick={() => { setError(''); setAttempt(attempt + 1) }}>{t('documents.reload')}</button></div>
+    {error ? <p role="alert">{t(error)}</p>
       : text === null ? <p role="status">{t('common.loading')}</p>
       : <div className="document-preview-text" tabIndex={0}>
         {markdown ? <Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: ({ alt }) => alt ?? null }}>
@@ -62,7 +60,7 @@ function formValues(document: TreeDocument | null, personId?: string) {
 }
 
 export function DocumentForm({ document: item, snapshot, personId, version, request, requestBlob,
-  onClose, onRefresh, onSaved }: Props) {
+  onClose, onConflict, onSaved }: Props) {
   const { t, i18n } = useTranslation()
   const fileInputId = useId()
   const attachmentNameId = useId()
@@ -75,7 +73,7 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const etag = useRef(version)
-  const [conflict, setConflict] = useState(false)
+  const [overlaps, setOverlaps] = useState<(keyof typeof baseline)[]>([])
   const changed = title.trim() !== baseline.title || description.trim() !== baseline.description
     || attachedPersonId !== baseline.personId
   const personalTarget = baseline.personId ?? personId ?? null
@@ -83,11 +81,33 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
   const person = snapshot.people.find((entry) => entry.id === attachedPersonId)
   const date = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' })
 
+  const synchronizeDraft = async () => {
+    const fresh = await onConflict()
+    if (!fresh) {
+      setError('documents.errors.conflict')
+      return
+    }
+    if (fresh.document) {
+      const next = formValues(fresh.document)
+      const draft = { title: title.trim(), description: description.trim(), personId: attachedPersonId }
+      const fields = ['title', 'description', 'personId'] as const
+      setOverlaps(fields.filter((field) =>
+        draft[field] !== baseline[field] && next[field] !== baseline[field] && draft[field] !== next[field]))
+      if (draft.title === baseline.title) setTitle(next.title)
+      if (draft.description === baseline.description) setDescription(next.description)
+      if (draft.personId === baseline.personId) setAttachedPersonId(next.personId)
+      setBaseline(next)
+    }
+    etag.current = fresh.etag
+    setError('documents.formConflict')
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (busy || conflict || (item ? !changed : !file)) return
+    if (busy || (item ? !changed : !file)) return
     setError('')
     setSaved(false)
+    setOverlaps([])
     setBusy(true)
     try {
       const base = `/trees/${snapshot.tree.id}/documents`
@@ -118,35 +138,11 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
       setSaved(true)
       onSaved(result.document, result.etag)
     } catch (caught) {
-      const key = documentErrorKey(caught)
-      setError(key)
-      setConflict(key === 'documents.errors.conflict')
-    }
-    finally { setBusy(false) }
-  }
-
-  const refresh = async () => {
-    setBusy(true)
-    try {
-      const fresh = await onRefresh()
-      if (!fresh) {
-        setError('documents.errors.conflict')
-        setConflict(true)
-        return
+      if (caught instanceof ApiRequestError && caught.status === 412) {
+        await synchronizeDraft().catch((loadFailure: unknown) => setError(documentErrorKey(loadFailure)))
+      } else {
+        setError(documentErrorKey(caught))
       }
-      if (fresh.document) {
-        const next = formValues(fresh.document)
-        if (title.trim() === baseline.title) setTitle(next.title)
-        if (description.trim() === baseline.description) setDescription(next.description)
-        if (attachedPersonId === baseline.personId) setAttachedPersonId(next.personId)
-        setBaseline(next)
-      }
-      etag.current = fresh.etag
-      setConflict(false)
-      setSaved(false)
-      setError('')
-    } catch (caught) {
-      setError(documentErrorKey(caught))
     } finally { setBusy(false) }
   }
 
@@ -188,7 +184,7 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
         </div>
       </div>
       <div className="document-form-actions">
-        <button type="submit" className="primary-button" disabled={busy || conflict || (item ? !changed : !file)}>
+        <button type="submit" className="primary-button" disabled={busy || (item ? !changed : !file)}>
           {item && <SaveIcon className="action-icon" aria-hidden="true" />}
           {t(item ? 'common.save' : 'documents.submitUpload')}
         </button>
@@ -196,11 +192,20 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
           void downloadDocument(requestBlob, item.downloadUrl, item.originalName)
             .catch((caught: unknown) => setError(documentErrorKey(caught)))
         }}><DownloadIcon className="action-icon" aria-hidden="true" />{t('documents.download')}</button>}
-        {(item || conflict) && <button type="button" className="secondary-button" disabled={busy}
-          onClick={() => { void refresh() }}>{t('documents.reload')}</button>}
         {saved && <span role="status">{t('documents.saved')}</span>}
       </div>
-      {error && <p role="alert" className="documents-error">{t(error)}</p>}
+      {error && <div role="alert" className="documents-error">
+        {t(error)}
+        {overlaps.map((field) => {
+          const label = { title: 'documents.name', description: 'documents.description', personId: 'documents.attachedTo' }[field]
+          let value = baseline[field]
+          if (field === 'personId') {
+            const owner = snapshot.people.find((entry) => entry.id === baseline.personId)
+            value = owner ? formatPersonName(owner, t) : t(baseline.personId ? 'documents.personalOption' : 'documents.shared')
+          }
+          return <p key={field}>{t('documents.serverValue', { field: t(label), value: value || t('documents.emptyValue') })}</p>
+        })}
+      </div>}
     </form>
     {item && <>
       <dl className="document-details">

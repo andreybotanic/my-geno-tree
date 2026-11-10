@@ -165,7 +165,7 @@ describe('document lists and upload lifecycle', () => {
     expect(view).toBeChecked()
   })
 
-  it('rejects a page from a newer tree version until the user refreshes the list', async () => {
+  it('restarts pagination at the first page when the tree version changes', async () => {
     let version = 'first'
     const setup = mount(async () => version === 'first'
       ? { items: [document], nextCursor: document.id, etag: version }
@@ -173,12 +173,11 @@ describe('document lists and upload lifecycle', () => {
     await screen.findByText('letter.txt')
     version = 'second'
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
-    expect(screen.queryByText('Changed elsewhere')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     expect(await screen.findByText('Changed elsewhere')).toBeVisible()
+    expect(screen.queryByText('letter.txt')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(setup.request).toHaveBeenCalledTimes(3)
+    expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?newestFirst=true`)
   })
 
   it('uploads one file explicitly and returns the saved title to the previous list', async () => {
@@ -260,7 +259,7 @@ describe('document lists and upload lifecycle', () => {
   })
 
   it('preserves the draft on conflict, rebases untouched fields and saves inside the editor', async () => {
-    let item = { ...document, mimeType: 'text/markdown' as const, description: 'Old' }
+    let item: TreeDocument = { ...document, mimeType: 'text/markdown', description: 'Old' }
     let version = 'etag'
     const setup = mount(async (path, init) => {
       if (init?.method === 'PATCH') {
@@ -286,17 +285,21 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(toggle)
     fireEvent.change(title, { target: { value: 'Draft' } })
     version = 'concurrent'
-    item = { ...item, description: 'Edited elsewhere' }
+    item = { ...item, title: 'Title from another tab', description: 'Edited elsewhere' }
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Name in the saved document: Title from another tab')
     expect(title).toHaveValue('Draft')
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => expect(screen.getByLabelText('Description')).toHaveValue('Edited elsewhere'))
+    expect(screen.getByLabelText('Description')).toHaveValue('Edited elsewhere')
+    expect(setup.request.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1)
+    expect(setup.request.mock.calls.filter(([, init]) => !init)).toHaveLength(2)
     expect(toggle).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Saved')).toBeVisible()
     expect(screen.getByRole('dialog', { name: 'Document details' })).toBeVisible()
     expect(item.personId).toBe(person.id)
+    expect(setup.request).toHaveBeenLastCalledWith(expect.stringContaining(item.id), expect.objectContaining({
+      method: 'PATCH', headers: { 'If-Match': 'concurrent' }, body: JSON.stringify({ personId: person.id, title: 'Draft' }),
+    }))
     expect(setup.requestBlob).toHaveBeenCalledOnce()
     fireEvent.change(title, { target: { value: 'Discarded' } })
     fireEvent.keyDown(title, { key: 'Escape' })
@@ -320,11 +323,57 @@ describe('document lists and upload lifecycle', () => {
     expect(screen.getByText('Indexing', { selector: 'dd' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     expect(await screen.findByText('Searchable')).toBeVisible()
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Personal document' })).not.toBeChecked())
     expect(title).toHaveValue('Draft')
     expect(setup.requestBlob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the selected file and metadata after a stale upload and waits for another submission', async () => {
+    let version = 'one'
+    const setup = mount(async (_path, init) => {
+      if (init?.method !== 'POST') return { items: [], nextCursor: null, etag: version }
+      if (new Headers(init.headers).get('If-Match') !== version) throw failure(412, 'TREE_VERSION_CONFLICT')
+      return { document: { ...document, title: 'Family letters' }, etag: 'three' }
+    })
+    await screen.findByText('No documents yet.')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    const file = new File(['a letter'], 'letter.txt')
+    const input = screen.getByLabelText('File') as HTMLInputElement
+    await userEvent.upload(input, file)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Family letters' } })
+    version = 'two'
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
+    expect(input.files?.[0]).toBe(file)
+    expect(screen.getByLabelText('Name')).toHaveValue('Family letters')
+    expect(setup.request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+    expect(await screen.findByText('Family letters')).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Documents' })).toBeVisible()
+  })
+
+  it('updates a stale delete confirmation and requires confirmation for the updated document', async () => {
+    let version = 'one'
+    const setup = mount(async (_path, init) => {
+      if (init?.method !== 'DELETE') return {
+        items: [{ ...document, title: version === 'one' ? 'Old title' : 'Revised title' }], nextCursor: null, etag: version,
+      }
+      if (new Headers(init.headers).get('If-Match') !== version) throw failure(412, 'TREE_VERSION_CONFLICT')
+      return { etag: 'three' }
+    })
+    await screen.findByText('Old title')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    version = 'two'
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Review the updated list')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(setup.request.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const confirmation = screen.getByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('Revised title')
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete' }))
+    expect(await screen.findByText('No documents yet.')).toBeVisible()
   })
 
   it('marks unindexed documents and confirms icon deletion without a custom retry', async () => {
@@ -364,24 +413,27 @@ describe('document lists and upload lifecycle', () => {
     expect(setup.request).toHaveBeenCalled()
   })
 
-  it('retries a failed list on demand and displays the queue error from the upload response', async () => {
+  it('loads the list again on reopening and displays the queue error from the upload response', async () => {
     let loads = 0
-    const setup = mount(async (_path, init) => {
+    const handler = async (_path: string, init?: RequestInit) => {
       if (init?.method === 'POST') return { document: { ...document, status: 'failed', errorCode: 'DOCUMENT_QUEUE_UNAVAILABLE' }, etag: 'next' }
       if (++loads === 1) throw failure(404, 'NOT_FOUND')
       return { items: [{ ...document, status: 'processing' }], nextCursor: null, etag: 'etag' }
-    })
+    }
+    const initial = mount(handler)
     expect(await screen.findByRole('alert')).toHaveTextContent('These documents are unavailable')
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(initial.request).toHaveBeenCalledOnce()
+    initial.unmount()
+    const setup = mount(handler)
     await screen.findByRole('status', { name: 'Indexing' })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     await userEvent.upload(screen.getByLabelText(/^File/) as HTMLInputElement, new File(['a'], 'one.txt'))
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
     expect(await screen.findByRole('status', { name: 'Processing failed' })).toHaveAttribute('title', expect.stringContaining('could not be queued'))
-    expect(setup.request).toHaveBeenCalledTimes(3)
+    expect(setup.request).toHaveBeenCalledTimes(2)
   })
 
-  it('makes no idle requests in the list, upload form or editor, and refreshes status on demand', async () => {
+  it('has no refresh buttons or idle requests in the list, upload form or editor', async () => {
     vi.useFakeTimers()
     try {
       let item: TreeDocument = { ...document, status: 'processing' }
@@ -391,8 +443,10 @@ describe('document lists and upload lifecycle', () => {
       const idle = () => act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
       await idle()
       expect(setup.request).toHaveBeenCalledOnce()
+      expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Add' }))
       await idle()
+      expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
       fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
       fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Draft' } })
@@ -400,14 +454,11 @@ describe('document lists and upload lifecycle', () => {
       await idle()
       expect(setup.request).toHaveBeenCalledOnce()
       expect(screen.getByText('Indexing', { selector: 'dd' })).toBeVisible()
-      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-      await idle()
-      expect(screen.getByText('Searchable')).toBeVisible()
+      expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
       expect(screen.getByLabelText('Description')).toHaveValue('Draft')
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
       await idle()
-      expect(setup.request).toHaveBeenCalledTimes(2)
-      expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents/${item.id}`)
+      expect(setup.request).toHaveBeenCalledOnce()
       expect(setup.requestBlob).toHaveBeenCalledOnce()
     } finally { vi.useRealTimers() }
   })
