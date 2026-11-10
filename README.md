@@ -12,7 +12,9 @@ tree. In an empty tree, only **Shared** is available.
 Choose the pencil on a document to read its contents, see its attachment and
 indexing status, or edit its name, description and attachment. Saving keeps
 the document open. Changing the name or description queues reindexing. Closing it
-returns to the list. Downloads use the original filename.
+returns to the list. Use **Refresh** in either dialog to check the indexing
+status or changes from another tab. If a save conflicts with a newer version,
+the editor keeps the draft for review and another save. Downloads use the original filename.
 
 Original UTF-8 bytes, including a possible BOM and original line endings, stay
 unchanged in private Flysystem document storage. Documents have their own paths

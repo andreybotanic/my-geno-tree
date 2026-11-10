@@ -15,11 +15,10 @@ type Props = {
   snapshot: TreeSnapshot
   personId: string | undefined
   version: string
-  loadError: string
   request: AuthorizedJsonRequest
   requestBlob: AuthorizedBlobRequest
   onClose: () => void
-  onRefresh: () => Promise<{ etag: string; document: TreeDocument | undefined }>
+  onRefresh: () => Promise<{ etag: string; document: TreeDocument | undefined } | undefined>
   onSaved: (item: TreeDocument, version: string) => void
 }
 
@@ -62,7 +61,7 @@ function formValues(document: TreeDocument | null, personId?: string) {
   }
 }
 
-export function DocumentForm({ document: item, snapshot, personId, version, loadError, request, requestBlob,
+export function DocumentForm({ document: item, snapshot, personId, version, request, requestBlob,
   onClose, onRefresh, onSaved }: Props) {
   const { t, i18n } = useTranslation()
   const fileInputId = useId()
@@ -126,6 +125,31 @@ export function DocumentForm({ document: item, snapshot, personId, version, load
     finally { setBusy(false) }
   }
 
+  const refresh = async () => {
+    setBusy(true)
+    try {
+      const fresh = await onRefresh()
+      if (!fresh) {
+        setError('documents.errors.conflict')
+        setConflict(true)
+        return
+      }
+      if (fresh.document) {
+        const next = formValues(fresh.document)
+        if (title.trim() === baseline.title) setTitle(next.title)
+        if (description.trim() === baseline.description) setDescription(next.description)
+        if (attachedPersonId === baseline.personId) setAttachedPersonId(next.personId)
+        setBaseline(next)
+      }
+      etag.current = fresh.etag
+      setConflict(false)
+      setSaved(false)
+      setError('')
+    } catch (caught) {
+      setError(documentErrorKey(caught))
+    } finally { setBusy(false) }
+  }
+
   return <DocumentModal title={t(item ? 'documents.details' : 'documents.addDocument')}
     className={item ? 'document-detail-dialog' : 'document-upload-dialog'} onClose={() => { if (!busy) onClose() }}>
     <form className="document-form" onSubmit={(event) => { void submit(event) }}>
@@ -172,31 +196,13 @@ export function DocumentForm({ document: item, snapshot, personId, version, load
           void downloadDocument(requestBlob, item.downloadUrl, item.originalName)
             .catch((caught: unknown) => setError(documentErrorKey(caught)))
         }}><DownloadIcon className="action-icon" aria-hidden="true" />{t('documents.download')}</button>}
+        {(item || conflict) && <button type="button" className="secondary-button" disabled={busy}
+          onClick={() => { void refresh() }}>{t('documents.reload')}</button>}
         {saved && <span role="status">{t('documents.saved')}</span>}
       </div>
-      {error && <div role="alert" className="documents-error">{t(error)} {conflict &&
-        <button type="button" className="secondary-button compact-button" disabled={busy} onClick={async () => {
-          setBusy(true)
-          try {
-            const fresh = await onRefresh()
-            if (item && !fresh.document) { setError('documents.errors.access'); return }
-            etag.current = fresh.etag
-            if (fresh.document) {
-              const next = formValues(fresh.document)
-              if (title.trim() === baseline.title) setTitle(next.title)
-              if (description.trim() === baseline.description) setDescription(next.description)
-              if (attachedPersonId === baseline.personId) setAttachedPersonId(next.personId)
-              setBaseline(next)
-            }
-            setConflict(false)
-            setError('')
-          }
-          catch (caught) { setError(documentErrorKey(caught)) }
-          finally { setBusy(false) }
-        }}>{t('documents.reload')}</button>}</div>}
+      {error && <p role="alert" className="documents-error">{t(error)}</p>}
     </form>
     {item && <>
-      {loadError && !error && <p className="documents-error" role="alert">{t(loadError)}</p>}
       <dl className="document-details">
         <div><dt>{t('documents.file')}</dt><dd>{item.originalName}</dd></div>
         <div><dt>{t('documents.type')}</dt><dd>{item.mimeType === 'text/markdown' ? 'Markdown' : 'TXT'}</dd></div>
