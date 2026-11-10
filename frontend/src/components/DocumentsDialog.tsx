@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
-import type { UpdateTreeDocumentResponse, DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
+import type { DocumentPage, TreeDocument, TreeSnapshot } from '../api/generated'
 import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
 import DownloadIcon from '../assets/icons/export.svg?react'
 import GridIcon from '../assets/icons/view-grid.svg?react'
@@ -28,7 +28,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
   const base = `/trees/${snapshot.tree.id}/documents`
   const [filter, setFilter] = useState<'all' | 'person'>('all')
   const [view, setView] = useState<'tiles' | 'list'>('tiles')
-  const [changingAttachment, setChangingAttachment] = useState<string | null>(null)
   const [items, setItems] = useState<TreeDocument[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,25 +125,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
     finally { working.current = false; setBusy(false) }
   }
 
-  const changeAttachment = async (item: TreeDocument) => {
-    working.current = true
-    setBusy(true)
-    setChangingAttachment(item.id)
-    setError('')
-    try {
-      const result = await request<UpdateTreeDocumentResponse>(base + '/' + item.id, {
-        method: 'PATCH',
-        body: JSON.stringify({ personId: item.personId ? null : personId ?? null }),
-        headers: { 'If-Match': etag.current },
-      })
-      etag.current = result.etag
-      setItems((current) => current.map((document) => document.id === item.id ? result.document : document))
-      await onChanged()
-      await load()
-    } catch (caught) { setError(documentErrorKey(caught)) }
-    finally { working.current = false; setBusy(false); setChangingAttachment(null) }
-  }
-
   const selected = editor && editor !== 'upload' ? items.find((item) => item.id === editor.id) ?? editor : null
   return <>
     <DocumentModal title={t('documents.title')} active={editor === null} className="documents-dialog" onClose={onClose}>
@@ -186,13 +166,6 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
                   ].filter(Boolean).join(' · ')}>{t('documents.notIndexed')}</span>
               </div>}
               </div>
-              <button type="button" role="switch" className="document-switch document-attachment-switch"
-                aria-label={t('documents.attachment', { name: item.title ?? item.originalName })} aria-checked={Boolean(item.personId)}
-                aria-busy={changingAttachment === item.id} disabled={busy || (!item.personId && !personId)}
-                onClick={() => { void changeAttachment(item) }}>
-                <span className="document-switch-option" aria-hidden="true">{t('documents.shared')}</span>
-                <span className="document-switch-option" aria-hidden="true">{t('documents.personalDocument')}</span>
-              </button>
               <div className="document-actions">
                 <button type="button" className="secondary-button compact-button" aria-label={t('documents.download')}
                   onClick={() => { void downloadDocument(requestBlob, item.downloadUrl, item.originalName).catch((caught: unknown) => setError(documentErrorKey(caught))) }}>

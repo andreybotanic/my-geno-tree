@@ -76,11 +76,6 @@ describe('document modal and counters', () => {
     expect(within(dialog).getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
     expect(within(dialog).queryByText('Ivanova Anna')).not.toBeInTheDocument()
     expect(await within(dialog).findByText('letter.txt')).toBeInTheDocument()
-    expect(within(dialog).queryByRole('switch', { name: 'Attach uploads to' })).not.toBeInTheDocument()
-    const target = within(dialog).getByRole('switch', { name: 'Attachment for letter.txt' })
-    expect(target).not.toBeChecked()
-    expect(within(target).getByText('Shared')).toBeInTheDocument()
-    expect(within(target).getByText('Personal')).toBeInTheDocument()
     const close = within(dialog).getByRole('button', { name: 'Close' })
     const remove = within(dialog).getByRole('button', { name: 'Delete' })
     expect(close).toHaveFocus()
@@ -104,15 +99,16 @@ describe('document lists and upload lifecycle', () => {
     await screen.findByText('letter.txt')
     const scope = screen.getByRole('switch', { name: 'Show documents' })
     expect(scope).toBeDisabled()
-    expect(screen.getByRole('switch', { name: 'Attachment for letter.txt' })).toBeDisabled()
     expect(within(scope).getByText('All')).toBeInTheDocument()
     expect(within(scope).getByText('Personal')).toBeInTheDocument()
     const list = screen.getByRole('list', { name: 'Documents' })
     expect(list).toHaveClass('document-list-tiles')
+    expect(within(list).queryByRole('switch')).not.toBeInTheDocument()
     const view = screen.getByRole('switch', { name: 'Document view' })
     fireEvent.click(view)
     expect(view).toBeChecked()
     expect(list).toHaveClass('document-list-list')
+    expect(within(list).queryByRole('switch')).not.toBeInTheDocument()
     expect(within(view).getByTitle('Tiles')).toContainHTML('<svg')
     expect(within(view).getByTitle('List')).toContainHTML('<svg')
     expect(screen.getByText('(1.2 kB)')).toBeInTheDocument()
@@ -120,7 +116,7 @@ describe('document lists and upload lifecycle', () => {
     expect(list).toHaveClass('document-list-tiles')
   })
 
-  it('shows original size, attachment, statuses, filters, pagination and download', async () => {
+  it('shows original size, statuses, filters, pagination and download', async () => {
     const setup = mount(async (path) => ({
       items: path.includes('cursor=') ? [{ ...document, id: 'second', originalName: 'second.md', personId: person.id }] : [document],
       nextCursor: path.includes('cursor=') ? null : 'next',
@@ -134,8 +130,7 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByText('second.md')).toBeInTheDocument()
     const documents = screen.getByRole('list', { name: 'Documents' })
-    expect(within(documents).getByRole('switch', { name: 'Attachment for letter.txt' })).not.toBeChecked()
-    expect(within(documents).getByRole('switch', { name: 'Attachment for second.md' })).toBeChecked()
+    expect(within(documents).queryByRole('switch')).not.toBeInTheDocument()
     expect(within(documents).queryByText('Whole tree')).not.toBeInTheDocument()
     expect(within(documents).queryByText('Ivanova Anna')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
@@ -176,9 +171,12 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Document view' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled()
-    const file = screen.getByLabelText(/^File/)
+    const file = screen.getByLabelText('File')
+    expect(screen.getByLabelText('Choose file')).toBe(file)
+    expect(screen.getByText('No file selected')).toBeVisible()
     expect(file).not.toHaveAttribute('multiple')
     await userEvent.upload(file as HTMLInputElement, new File(['text'], 'one.txt'))
+    expect(screen.getByText('one.txt')).toBeVisible()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Archive' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Letters' } })
     expect(setup.request.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
@@ -189,50 +187,6 @@ describe('document lists and upload lifecycle', () => {
     expect((upload.body as FormData).get('personId')).toBe(person.id)
     expect((upload.body as FormData).get('description')).toBe('Letters')
     expect((upload.body as FormData).get('title')).toBe('Archive')
-  })
-
-  it('changes each document attachment with consecutive ETags and retains the list view', async () => {
-    let item = document
-    let changes = 0
-    const setup = mount(async (_path, init) => {
-      if (init?.method === 'PATCH') {
-        item = { ...item, ...JSON.parse(String(init.body)) as { personId: string | null } }
-        return { document: item, etag: `changed-${++changes}` }
-      }
-      return { items: [item], nextCursor: null, etag: 'etag' }
-    }, person.id)
-    await screen.findByText('letter.txt')
-    fireEvent.click(screen.getByRole('switch', { name: 'Document view' }))
-    const binding = screen.getByRole('switch', { name: 'Attachment for letter.txt' })
-    expect(binding).not.toBeChecked()
-    fireEvent.click(binding)
-    await waitFor(() => expect(setup.onChanged).toHaveBeenCalledOnce())
-    await waitFor(() => expect(binding).toBeEnabled())
-    expect(binding).toBeChecked()
-    fireEvent.click(binding)
-    await waitFor(() => expect(setup.onChanged).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(binding).not.toBeChecked())
-    const changesSent = setup.request.mock.calls.filter(([, init]) => init?.method === 'PATCH')
-    expect(changesSent.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ personId: person.id }, { personId: null }])
-    expect(changesSent.map(([, init]) => new Headers(init?.headers).get('If-Match'))).toEqual(['etag', 'changed-1'])
-    expect(screen.getByRole('switch', { name: 'Document view' })).toBeChecked()
-    expect(screen.queryByText('Ivanova Anna')).not.toBeInTheDocument()
-  })
-
-  it('keeps the attachment unchanged after a version conflict and allows refresh', async () => {
-    const setup = mount(async (_path, init) => {
-      if (init?.method === 'PATCH') throw failure(412, 'TREE_VERSION_CONFLICT')
-      return { items: [document], nextCursor: null, etag: 'etag' }
-    }, person.id)
-    await screen.findByText('letter.txt')
-    const binding = screen.getByRole('switch', { name: 'Attachment for letter.txt' })
-    fireEvent.click(binding)
-    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
-    expect(binding).not.toBeChecked()
-    expect(binding).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-    expect(setup.onChanged).toHaveBeenCalledOnce()
   })
 
   it('preserves the draft on conflict, rebases untouched fields and saves inside the editor', async () => {
@@ -251,6 +205,9 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(await screen.findByRole('heading', { name: 'Letter' })).toBeVisible()
     expect(screen.getByRole('table')).toBeVisible()
+    for (const name of ['Save', 'Download']) {
+      expect(screen.getByRole('button', { name }).querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    }
     expect(screen.queryByRole('img')).toBeNull()
     const title = screen.getByLabelText('Name')
     fireEvent.change(title, { target: { value: 'Draft' } })

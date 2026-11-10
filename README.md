@@ -2,18 +2,21 @@
 
 ## Tree documents and semantic search
 
-Open **Documents** in the person's card (or the empty-tree screen). The card contains
-only its launcher and a total counter (personal plus shared documents); the
-files, upload controls, attachment labels and processing actions live in a
-separate fixed-size dialog. Switches select all/personal documents and tiles/a compact list.
-Multiple TXT/MD files upload sequentially with individual
-results. A version conflict stops the remaining requests. Both languages use
-the site's design tokens and existing dialog/file-picker controls.
+Open **Documents** from a person’s card or the empty-tree screen. The toolbar
+switches between all and personal documents and between tiles and a compact list.
+Choose **Add** to select one TXT or Markdown file, enter an optional name and
+description, then choose **Upload**. Uploads from a person’s card belong to that
+person. Uploads from the empty-tree screen belong to the tree.
+
+Choose the pencil on a document to read its contents, see its attachment and
+indexing status, or edit its name and description. Saving keeps the document
+open and queues it for reindexing when the metadata changes. Closing it
+returns to the list. Downloads use the original filename.
 
 Original UTF-8 bytes, including a possible BOM and original line endings, stay
 unchanged in private Flysystem document storage. Documents have their own paths
 and lifecycle, without media objects or image variants. PostgreSQL holds the attachment,
-checksum, original filename/MIME and server-measured `originalSizeBytes`.
+optional name and description, checksum, original filename/MIME and server-measured `originalSizeBytes`.
 Files are limited to 10 MiB each. Downloads remain available if indexing fails.
 Deleting a person makes their documents shared; deleting a tree queues cleanup
 of all its documents. Soft deletion immediately excludes a document from search.

@@ -1,9 +1,11 @@
-import { memo, useEffect, useRef, useState, type FormEvent } from 'react'
+import { memo, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { AuthorizedBlobRequest, AuthorizedJsonRequest } from '../api/client'
 import type { TreeDocument, TreeSnapshot, UpdateTreeDocumentResponse } from '../api/generated'
+import DownloadIcon from '../assets/icons/export.svg?react'
+import SaveIcon from '../assets/icons/save.svg?react'
 import { documentErrorKey, downloadDocument, formatDocumentSize } from '../documents'
 import { formatPersonName } from '../personFormatting'
 import { DocumentModal } from './DocumentModal'
@@ -54,6 +56,7 @@ const DocumentContents = memo(function DocumentContents({ url, markdown, request
 export function DocumentForm({ document: item, snapshot, personId, version, request, requestBlob,
   onClose, onRefresh, onSaved }: Props) {
   const { t, i18n } = useTranslation()
+  const fileInputId = useId()
   const [file, setFile] = useState<File | null>(null)
   const [baseline, setBaseline] = useState({ title: item?.title ?? '', description: item?.description ?? '' })
   const [title, setTitle] = useState(baseline.title)
@@ -110,11 +113,19 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
   return <DocumentModal title={t(item ? 'documents.details' : 'documents.addDocument')}
     className={item ? 'document-detail-dialog' : 'document-upload-dialog'} onClose={() => { if (!busy) onClose() }}>
     <form className="document-form" onSubmit={(event) => { void submit(event) }}>
-      {!item && <label className="form-field">{t('documents.file')}
-        <input type="file" aria-required="true" accept=".txt,.md,text/plain,text/markdown" disabled={busy}
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        <small>{t('documents.hint')}</small>
-      </label>}
+      {!item && <div className="form-field">
+        <label htmlFor={fileInputId}>{t('documents.file')}</label>
+        <div className="file-picker">
+          <input type="file" id={fileInputId} className="file-picker-input" aria-required="true"
+            aria-describedby={fileInputId + '-hint'} accept=".txt,.md,text/plain,text/markdown" disabled={busy}
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <label className="file-picker-button" htmlFor={fileInputId}>{t('documents.chooseFile')}</label>
+          <span className={`file-picker-name${file ? '' : ' is-empty'}`} title={file?.name}>
+            {file?.name ?? t('documents.noFile')}
+          </span>
+        </div>
+        <small id={fileInputId + '-hint'}>{t('documents.hint')}</small>
+      </div>}
       <label className="form-field">{t('documents.name')}
         <input value={title} maxLength={255} disabled={busy}
           onChange={(event) => { setTitle(event.target.value); setSaved(false) }} />
@@ -125,12 +136,13 @@ export function DocumentForm({ document: item, snapshot, personId, version, requ
       </label>
       <div className="document-form-actions">
         <button type="submit" className="primary-button" disabled={busy || conflict || (item ? !changed : !file)}>
+          {item && <SaveIcon className="action-icon" aria-hidden="true" />}
           {t(item ? 'common.save' : 'documents.submitUpload')}
         </button>
         {item && <button type="button" className="secondary-button" onClick={() => {
           void downloadDocument(requestBlob, item.downloadUrl, item.originalName)
             .catch((caught: unknown) => setError(documentErrorKey(caught)))
-        }}>{t('documents.download')}</button>}
+        }}><DownloadIcon className="action-icon" aria-hidden="true" />{t('documents.download')}</button>}
         {saved && <span role="status">{t('documents.saved')}</span>}
       </div>
       {error && <div role="alert" className="documents-error">{t(error)} {conflict &&
