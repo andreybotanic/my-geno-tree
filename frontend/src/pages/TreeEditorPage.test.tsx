@@ -7,6 +7,7 @@ import type {
   ParentLink,
   Person,
   SearchRoutePlan,
+  TreeDocument,
   TreeSnapshot,
   User,
 } from '../api/generated'
@@ -1466,6 +1467,43 @@ describe(
         )
       }
     )
+
+    it.each([0, 1])('matches the document counter to shared files and %i personal files', async (personalCount) => {
+      const current = snapshot([person])
+      const documents: TreeDocument[] = Array.from({ length: 8 }, (_, index) => ({
+        id: `document-${index}`, treeId, originalName: `letter-${index}.txt`,
+        personId: index < 3 ? null : index < 3 + personalCount ? person.id : father.id,
+        title: null, description: null, originalSizeBytes: 100, mimeType: 'text/plain',
+        status: 'ready', errorCode: null, createdAt: person.createdAt, updatedAt: person.updatedAt,
+        downloadUrl: `/trees/${treeId}/documents/document-${index}/download`,
+      }))
+      const request = vi.fn(async (path: string) => {
+        if (path.includes('/documents?')) {
+          const query = new URL(path, 'https://localhost').searchParams
+          const selectedPerson = query.get('personId')
+          const visible = documents.filter((item) => !selectedPerson || item.personId === selectedPerson
+            || (query.get('scope') !== 'person' && item.personId === null))
+          const limit = Number(query.get('limit') ?? 50)
+          return { items: visible.slice(0, limit), total: visible.length, nextCursor: null, etag: current.etag }
+        }
+        if (path.endsWith('/events')) return { items: [event] }
+        return current
+      }) as unknown as AuthorizedJsonRequest
+      renderEditor(request)
+      fireEvent.click(await screen.findByRole('article', { name: 'Ivanova Anna' }))
+      const buttonName = `Documents ${3 + personalCount}`
+      fireEvent.click(await screen.findByRole('button', { name: buttonName }))
+      const list = await screen.findByRole('list', { name: 'Documents' })
+      await waitFor(() => expect(within(list).getAllByRole('button', { name: 'Download' })).toHaveLength(3 + personalCount))
+      expect(within(list).queryByText('letter-7.txt')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
+      await waitFor(() => expect(within(list).queryAllByRole('button', { name: 'Download' })).toHaveLength(personalCount))
+      if (personalCount === 0) expect(screen.getByText('No documents yet.')).toBeVisible()
+      fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
+      await waitFor(() => expect(within(list).getAllByRole('button', { name: 'Download' })).toHaveLength(3 + personalCount))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Documents' })).getByRole('button', { name: 'Close' }))
+      expect(screen.getByRole('button', { name: buttonName })).toBeVisible()
+    })
 
     it(
       'loads person details lazily and autosaves one field',

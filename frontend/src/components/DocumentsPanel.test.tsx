@@ -138,7 +138,7 @@ describe('document lists and upload lifecycle', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
     await waitFor(() => expect(setup.request).toHaveBeenCalledWith(expect.stringContaining('scope=person&personId=' + person.id)))
     fireEvent.click(screen.getByRole('switch', { name: 'Show documents' }))
-    await waitFor(() => expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?newestFirst=true`))
+    await waitFor(() => expect(setup.request).toHaveBeenLastCalledWith(`/trees/${treeId}/documents?newestFirst=true&personId=${person.id}`))
   })
 
   it('keeps loading feedback inside the list and the view switch usable during a delayed scope change', async () => {
@@ -327,6 +327,35 @@ describe('document lists and upload lifecycle', () => {
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Personal document' })).not.toBeChecked())
     expect(title).toHaveValue('Draft')
     expect(setup.requestBlob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a document moved to another person out of All after resolving an edit conflict', async () => {
+    let item: TreeDocument = { ...document, personId: person.id }
+    let version = 'etag'
+    mount(async (path, init) => {
+      if (init?.method === 'PATCH') {
+        if (new Headers(init.headers).get('If-Match') !== version) throw failure(412, 'TREE_VERSION_CONFLICT')
+        item = { ...item, ...JSON.parse(String(init.body)) as Partial<TreeDocument> }
+        return { document: item, etag: 'saved' }
+      }
+      if (path.endsWith(item.id)) return { document: item, etag: version }
+      return { items: item.personId === person.id ? [item] : [], nextCursor: null, etag: version }
+    }, person.id)
+    await screen.findByText('letter.txt')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const title = screen.getByLabelText('Name')
+    fireEvent.change(title, { target: { value: 'Draft' } })
+    item = { ...item, personId: 'another-person' }
+    version = 'concurrent'
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The tree changed')
+    expect(title).toHaveValue('Draft')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Saved')).toBeVisible()
+    fireEvent.keyDown(title, { key: 'Escape' })
+    expect(screen.getByRole('switch', { name: 'Show documents' })).not.toBeChecked()
+    expect(await screen.findByText('No documents yet.')).toBeVisible()
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument()
   })
 
   it('keeps the selected file and metadata after a stale upload and waits for another submission', async () => {

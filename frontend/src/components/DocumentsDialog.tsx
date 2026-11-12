@@ -47,8 +47,8 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
     const query = new URLSearchParams({ newestFirst: 'true' })
     if (filter === 'person' && personId) {
       query.set('scope', 'person')
-      query.set('personId', personId)
     }
+    if (personId) query.set('personId', personId)
     const firstPageUrl = base + '?' + query.toString()
     if (append && nextCursor.current) query.set('cursor', nextCursor.current)
     try {
@@ -110,7 +110,9 @@ export function DocumentsDialog({ snapshot, personId, request, requestBlob, onCh
 
   const updateList = (document: TreeDocument) => {
     setItems((current) => {
-      if (filter === 'person' && document.personId !== personId) return current.filter((item) => item.id !== document.id)
+      if (personId && document.personId !== personId && (filter === 'person' || document.personId !== null)) {
+        return current.filter((item) => item.id !== document.id)
+      }
       return current.some((item) => item.id === document.id)
         ? current.map((item) => item.id === document.id ? document : item)
         : [document, ...current]

@@ -4,6 +4,8 @@
 
 Open **Documents** from a person’s card or the empty-tree screen. The toolbar
 switches between all and personal documents and between tiles and a compact list.
+In a person's card, **All** includes that person's documents and shared tree
+documents, matching the button's counter; other people's personal documents are excluded.
 Choose **Add** to select one TXT or Markdown file, enter an optional name and
 description, then choose **Upload**. The **Shared / Personal** switch defaults
 to **Personal** in a person’s card. Choose **Shared** to attach the file to the
