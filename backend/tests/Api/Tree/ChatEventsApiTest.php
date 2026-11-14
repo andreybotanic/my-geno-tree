@@ -252,8 +252,8 @@ final class ChatEventsApiTest extends ApiWebTestCase
             [['match' => substr($topic, 0, strrpos($topic, '/') + 1) . '*', 'match_type' => 'urlpattern']],
             $claims['authorization_details'][0]['topics'],
         );
-        self::assertSame('https://my-geno-tree.localhost', $claims['iss']);
-        self::assertSame(['https://my-geno-tree.localhost/.well-known/mercure'], (array)$claims['aud']);
+        self::assertSame($_SERVER['MERCURE_JWT_ISSUER'], $claims['iss']);
+        self::assertSame([$_SERVER['MERCURE_PUBLIC_URL']], (array)$claims['aud']);
         self::assertLessThanOrEqual(microtime(true) + 3600, $claims['exp']);
         self::assertSame([], TestMergeEvents::$updates);
         $this->jsonRequest('GET', $path, headers: $headers);

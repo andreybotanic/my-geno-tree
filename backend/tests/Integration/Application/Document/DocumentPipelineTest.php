@@ -227,9 +227,11 @@ final class DocumentPipelineTest extends ApiWebTestCase
 
     public function testRealRabbitMqRoundTripUsesPersistentMessages(): void
     {
+        $dsn = $_SERVER['AMQP_DSN'] ?? null;
+        self::assertIsString($dsn);
         $factory = new AmqpTransportFactory();
         $transport = $factory->createTransport(
-            'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/documents_test',
+            $dsn . '/documents_test',
             [
                 'confirm_timeout' => 5,
                 'exchange'        => ['name' => 'documents_test'],

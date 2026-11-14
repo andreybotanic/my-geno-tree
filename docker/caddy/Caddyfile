@@ -1,5 +1,5 @@
 http://:8080 {
-	redir https://my-geno-tree.localhost{uri} 302
+	redir {$APP_ORIGIN:https://my-geno-tree.localhost}{uri} 302
 }
 
 http://127.0.0.1:8081 {

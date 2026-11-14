@@ -4,7 +4,7 @@ framework:
         failure_transport: document_failures
         transports:
             documents:
-                dsn: 'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/documents'
+                dsn: '%env(AMQP_DSN)%/documents'
                 options:
                     confirm_timeout: 5
                     exchange:
@@ -16,7 +16,7 @@ framework:
                     delay: 1000
                     multiplier: 2
             document_failures:
-                dsn: 'amqp://mygenotree:${LOCAL_SERVICE_PASSWORD}@rabbitmq:5672/%2f/document_failures'
+                dsn: '%env(AMQP_DSN)%/document_failures'
                 options:
                     confirm_timeout: 5
 

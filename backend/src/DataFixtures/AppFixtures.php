@@ -17,12 +17,12 @@ use App\Repository\FamilyTreeRepository;
 use App\Repository\UserRepository;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\Exclude;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class AppFixtures extends Fixture
 {
-    private const string DEMO_PASSWORD = '';
     private const string DEMO_USERNAME = 'demo';
     private const string DEMO_EMAIL = 'demo@example.test';
     private const string DEMO_TREE_NAME = 'Семья Орловых';
@@ -34,6 +34,8 @@ final class AppFixtures extends Fixture
     public function __construct(
         private readonly AutomaticEventSynchronizer $events,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        #[Autowire(env: 'DEMO_PASSWORD')]
+        private readonly string $demoPassword,
         private readonly UserRepository $users,
         private readonly FamilyTreeRepository $trees,
     ) {
@@ -44,6 +46,10 @@ final class AppFixtures extends Fixture
         $createdAt = new \DateTimeImmutable('2026-08-01T00:00:00+00:00');
         $user = $this->users->findOneByLoginIdentifier(self::DEMO_EMAIL);
         if (null === $user) {
+            if (strlen($this->demoPassword) < 8) {
+                throw new \InvalidArgumentException('Set DEMO_PASSWORD to at least 8 characters to create the demo account.');
+            }
+
             $user = new User(
                 self::DEMO_USERNAME,
                 self::DEMO_EMAIL,
@@ -54,7 +60,7 @@ final class AppFixtures extends Fixture
             $user = new User(
                 $user->getUsername(),
                 $user->getEmail(),
-                $this->passwordHasher->hashPassword($user, self::DEMO_PASSWORD),
+                $this->passwordHasher->hashPassword($user, $this->demoPassword),
                 $user->getPreferredLanguage(),
                 $createdAt,
             );

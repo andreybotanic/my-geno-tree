@@ -7,7 +7,9 @@ use App\Entity\FamilyTree;
 use App\Entity\User;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\WithEnvironmentVariable;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class AppFixturesTest extends KernelTestCase
 {
@@ -21,6 +23,27 @@ final class AppFixturesTest extends KernelTestCase
         $this->connection = static::getContainer()->get(Connection::class);
         $this->entityManager = static::getContainer()->get(EntityManagerInterface::class);
         $this->connection->executeStatement('TRUNCATE app_user CASCADE');
+    }
+
+    #[WithEnvironmentVariable('DEMO_PASSWORD', '')]
+    public function testFirstLoadRequiresADemoPassword(): void
+    {
+        $fixture = static::getContainer()->get(AppFixtures::class);
+        $this->expectException(\InvalidArgumentException::class);
+        $fixture->load($this->entityManager);
+    }
+
+    #[WithEnvironmentVariable('DEMO_PASSWORD', 'fixture-example')]
+    public function testNewAccountUsesTheConfiguredPassword(): void
+    {
+        $fixture = static::getContainer()->get(AppFixtures::class);
+        $fixture->load($this->entityManager);
+        $this->entityManager->clear();
+
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['username' => 'demo']);
+        self::assertInstanceOf(User::class, $user);
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        self::assertTrue($hasher->isPasswordValid($user, 'fixture-example'));
     }
 
     public function testAppendFixturesPreserveExistingTreesAndAreIdempotent(): void
@@ -47,6 +70,7 @@ final class AppFixturesTest extends KernelTestCase
         $fixture->load($this->entityManager);
 
         self::assertSame($expected, $this->personCounts());
+        self::assertSame('existing-password-hash', $demo->getPassword());
     }
 
     /** @return array<string, int> */

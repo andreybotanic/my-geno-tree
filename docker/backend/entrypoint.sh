@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
 
-media_directory=/srv/backend/var/storage/media
-
-mkdir -p "$media_directory"
-chown -R www-data:www-data "$media_directory"
+storage_directory=/srv/backend/var/storage
+media_directory="$storage_directory/media"
+mkdir -p "$media_directory/documents" "$storage_directory/document-locks"
+chown -R www-data:www-data "$media_directory" "$storage_directory/document-locks"
 
 # SDK file sessions are shared by PHP-FPM workers, independently of CLI cache warmup.
 for mcp_environment in dev prod; do

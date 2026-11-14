@@ -4,7 +4,7 @@
 
 :80 {
 	mercure {
-		issuer https://my-geno-tree.localhost {
+		issuer {$APP_ORIGIN:https://my-geno-tree.localhost} {
 			publisher {
 				jwt {env.MERCURE_JWT_SECRET}
 			}
@@ -12,7 +12,7 @@
 				jwt {env.MERCURE_JWT_SECRET}
 			}
 		}
-		resource_identifier https://my-geno-tree.localhost/.well-known/mercure
+		resource_identifier {$APP_ORIGIN:https://my-geno-tree.localhost}/.well-known/mercure
 		cookie_name __Secure-mercure_access_token
 		transport local
 		heartbeat 20s
