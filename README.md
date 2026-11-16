@@ -1,22 +1,18 @@
-# Install MyGenoTree
+# MyGenoTree
 
-From the root of a fresh checkout, use a shell with OpenSSL and Docker Compose v2.
-Create the local credentials once:
+MyGenoTree is a private workspace for exploring your family history. Follow relationships across generations, open a person's card to see their life events and family, and ask the AI assistant questions about the people and documents in your tree.
+
+![Ada Bell's person card beside the Wren family tree and a conversation with the AI assistant](docs/images/family-tree.webp)
+
+## Installation
+
+From the project root, copy the environment template.
 
 ```sh
-(
-  set -eC
-  umask 077
-  exec > .env
-  for key in APP_SECRET POSTGRES_PASSWORD RABBITMQ_PASSWORD MERCURE_JWT_SECRET CLI_PROXY_API_KEY; do
-    value=$(openssl rand -hex 32)
-    printf '%s=%s\n' "$key" "$value"
-  done
-  printf 'LOCAL_UID=%s\nLOCAL_GID=%s\n' "$(id -u)" "$(id -g)"
-)
+cp .env.dist .env
 ```
 
-Install dependencies, apply the database migrations and start the project:
+Give each of the five empty settings in `.env` its own random 64-character hex string. Then install and start the project with Docker Compose v2.
 
 ```sh
 docker compose run --rm backend composer install --no-interaction

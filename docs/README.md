@@ -1,6 +1,6 @@
 # MyGenoTree documentation
 
-- [Local installation](../README.md)
+- [Local installation](../README.md#installation)
 - [Development and demo fixtures](development.md)
 - [Product requirements and domain model](../spec/spec.md)
 - [REST contract](../openapi/openapi.yaml) and [response mapping](api.md)
