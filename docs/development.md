@@ -48,3 +48,32 @@ contains data you need to keep: Doctrine purges it by default.
 ## Existing installations
 
 Keep existing PostgreSQL and RabbitMQ volumes paired with their current passwords. When upgrading an older checkout, add `POSTGRES_PASSWORD` and `RABBITMQ_PASSWORD` to the ignored root `.env` using the passwords currently configured in those services. A changed environment variable alone does not rotate an existing database or broker account. Generate a fresh `APP_SECRET` with `openssl rand -hex 32` and add it to the same file. Keep the existing Mercure, CLI proxy and OAuth keys. Recreate the services with `docker compose up -d` after editing the file.
+
+## Local HTTPS
+
+If ProjectHost or another local proxy manages HTTPS, use the address it provides.
+For the bundled Caddy proxy, the default address is <https://my-geno-tree.localhost>.
+To trust its local CA, export the public certificate and import it into your browser
+or operating system:
+
+```sh
+docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ./mygenotree-local-ca.crt
+```
+
+On Windows, run this in PowerShell from the checkout directory:
+
+```powershell
+Import-Certificate -FilePath .\mygenotree-local-ca.crt -CertStoreLocation Cert:\CurrentUser\Root
+```
+
+## Running a second checkout
+
+Choose an unused Compose project name and host ports. Export them before following
+the installation guide, then append the same settings to the new checkout's root
+`.env` so later commands select the same containers and volumes.
+
+```sh
+export COMPOSE_PROJECT_NAME=mygenotree-copy
+export HTTPS_PORT=8443 POSTGRES_PORT=15433 REDIRECT_PORT=17081 OAUTH_CALLBACK_PORT=11455
+export APP_ORIGIN=https://my-geno-tree.localhost:$HTTPS_PORT
+```

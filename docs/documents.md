@@ -25,7 +25,7 @@ Files are limited to 10 MiB each. Downloads remain available if indexing fails.
 Deleting a person makes their documents shared; deleting a tree queues cleanup
 of all its documents. Soft deletion immediately excludes a document from search.
 
-The [installation guide](../README.md) initializes the document collection and starts its worker.
+Docker Compose starts the document worker. On the first upload, the worker creates the Qdrant collection and its payload indexes.
 
 The separate model-init step pulls `qwen3-embedding:0.6b` into `document_models`.
 The configured collection uses 1024-dimensional Cosine vectors. The initial pull

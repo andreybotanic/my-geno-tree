@@ -7,7 +7,17 @@ Consent grants scope mcp: reading and changing **all trees owned by that user**.
 The local development CA must be trusted by the client. Cloud agents require an
 externally reachable HTTPS installation; this change does not deploy one.
 
-The [installation guide](../README.md) generates the OAuth signing and encryption keys.
+After starting the project, generate the keys once to enable external MCP clients:
+
+```sh
+docker compose exec backend php bin/console league:oauth2-server:generate-keypair --skip-if-exists --no-interaction
+docker compose exec backend sh -ec '
+  umask 077
+  test -s config/jwt/encryption.key || openssl rand -hex 32 > config/jwt/encryption.key
+  chown root:www-data config/jwt/private.pem config/jwt/encryption.key
+  chmod 640 config/jwt/private.pem config/jwt/encryption.key
+'
+```
 
 Keep these keys stable across container restarts. Configure APP_URL as the
 canonical HTTPS origin and OAUTH_MCP_HOST as its hostname. OAUTH_MCP_ORIGIN
